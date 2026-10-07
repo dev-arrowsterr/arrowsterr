@@ -1,10 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import type { Brand } from "./App";
+import type { Brand } from "@/lib/db";
 
 /** Manage the prompts a brand tracks. Results live on the Dashboard. */
-export function PromptsPage({ brand, onChange, onRemove }: { brand: Brand; onChange: (b: Brand) => void; onRemove: () => void }) {
+export function PromptsPage({
+  brand,
+  readOnly = false,
+  onChange,
+  onRemove,
+}: {
+  brand: Brand;
+  readOnly?: boolean;
+  onChange: (b: Brand) => void;
+  onRemove: () => void;
+}) {
   const [draft, setDraft] = useState("");
   function add() {
     const p = draft.trim();
@@ -18,6 +28,8 @@ export function PromptsPage({ brand, onChange, onRemove }: { brand: Brand; onCha
         <h1 className="aw-h2 mb-0!">Prompts</h1>
         <span className="aw-tag">{brand.prompts.length} tracked</span>
       </div>
+      {readOnly ? <p className="aw-small">You can view prompts. Editors and admins can change them.</p> : null}
+      {readOnly ? null : (
       <div className="flex gap-3">
         <input
           value={draft}
@@ -35,6 +47,7 @@ export function PromptsPage({ brand, onChange, onRemove }: { brand: Brand; onCha
           Add
         </button>
       </div>
+      )}
       <div className="aw-table-wrap">
         <table className="aw-table aw-table--compact">
           <thead>
@@ -48,6 +61,7 @@ export function PromptsPage({ brand, onChange, onRemove }: { brand: Brand; onCha
               <tr key={p}>
                 <td>{p}</td>
                 <td className="w-24 text-right">
+                  {readOnly ? null : (
                   <button
                     type="button"
                     className="aw-btn aw-btn--secondary aw-btn--sm"
@@ -55,19 +69,21 @@ export function PromptsPage({ brand, onChange, onRemove }: { brand: Brand; onCha
                   >
                     Remove
                   </button>
+                  )}
                 </td>
               </tr>
             ))}
             {!brand.prompts.length ? (
               <tr>
                 <td colSpan={2} className="aw-small">
-                  No prompts yet. Add one above.
+                  {readOnly ? "No prompts yet." : "No prompts yet. Add one above."}
                 </td>
               </tr>
             ) : null}
           </tbody>
         </table>
       </div>
+      {readOnly ? null : (
       <button
         type="button"
         className="aw-text-link self-start"
@@ -77,6 +93,7 @@ export function PromptsPage({ brand, onChange, onRemove }: { brand: Brand; onCha
       >
         Remove this brand
       </button>
+      )}
     </div>
   );
 }

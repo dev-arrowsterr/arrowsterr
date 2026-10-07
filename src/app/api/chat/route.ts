@@ -1,9 +1,13 @@
+import { requireRole } from "@/lib/serverAuth";
 import { askEngine, availableEngines, type Engine } from "@/lib/engines";
 import { extractBrands } from "@/lib/extract";
 
 // One chat: ask one engine one prompt, then pull out the brands it named.
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
+  // Only editors and up may spend AI credits.
+  const denied = await requireRole(request, body.workspaceId, "editor");
+  if (denied) return denied;
   const engine = body.engine as Engine;
   const prompt = typeof body.prompt === "string" ? body.prompt.trim().slice(0, 500) : "";
   const brand = typeof body.brand === "string" ? body.brand : "";

@@ -1,4 +1,4 @@
-// Chat results and run history. Saved in the browser until the database step.
+// Chat results and run history. Runs are saved in Supabase (see db.ts). The browser copy is only read once, to import old data.
 import type { Source } from "./sources";
 
 export type BrandMention = { name: string; position: number; sentiment: number; domain?: string };
