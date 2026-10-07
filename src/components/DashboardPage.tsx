@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { isAnswered, type Chat, type Run } from "@/lib/chats";
-import { brandRows, marketSentiment, mentionRows, sentimentRows, sourceRows, timeline, type BrandRow, type SentimentRow } from "@/lib/stats";
+import { brandRows, marketSentiment, mentionRows, sentimentRows, sourceRows, timeline, type BrandRow } from "@/lib/stats";
 import type { Brand } from "./App";
 import { BrandLogo } from "./BrandLogo";
 import { ENGINE_LOGOS } from "./Engines";
+import { Donut, Legend, type Slice } from "./Donut";
 import { VisibilityChart, type Series } from "./VisibilityChart";
 
 const TIMEFRAMES = [7, 30, 60, 90];
@@ -44,39 +45,22 @@ function Card({ title, children, foot, flush }: { title: string; children: React
   );
 }
 
-// Sentiment colors: brand green for positive, gray for neutral, brand red for negative. Every bar also shows its numbers.
-const SENT = { positive: "#1E7A4D", neutral: "#C8DDD1", negative: "#B3241A" };
+// Ring colors. Green is always you or good, red is missing or negative. Every slice also shows in a legend with its %.
+const COLORS = { you: "#1E7A4D", no: "#B3241A", neutral: "#C8DDD1", competitor: "#eb6834", thirdParty: "#2a78d6", more: "#9BB5A3" };
 
-function SentimentStat({ label, value, strong }: { label: string; value: number | null; strong?: boolean }) {
+/** Change vs the period just before this one. */
+function Delta({ now, before, days, unit }: { now: number; before: number | null; days: number; unit: string }) {
+  if (before === null) return <span className="aw-small">No earlier data to compare</span>;
+  const d = Math.round(now - before);
+  const tone = d > 0 ? "ranked" : d < 0 ? "missed" : "pending";
   return (
-    <div className={`rounded-aw border-2 border-line p-4 ${strong ? "bg-brand-pale" : "bg-white"}`}>
-      <div className="aw-stat__num">{value === null ? "–" : Math.round(value)}</div>
-      <div className="aw-stat__lab">{label}, out of 100</div>
-    </div>
-  );
-}
-
-function SentimentBar({ row, isYou, isMarket }: { row: SentimentRow; isYou: boolean; isMarket: boolean }) {
-  const parts = [
-    { key: "positive", value: row.positive, color: SENT.positive },
-    { key: "neutral", value: row.neutral, color: SENT.neutral },
-    { key: "negative", value: row.negative, color: SENT.negative },
-  ];
-  return (
-    <div className="grid grid-cols-[minmax(0,9rem)_1fr_3rem] items-center gap-3 text-[14px]">
-      <span className={`truncate ${isYou || isMarket ? "font-semibold text-ink" : "text-ink-2"}`}>{row.name}</span>
-      {row.mentions ? (
-        <span
-          className="flex h-3 w-full gap-0.5 overflow-hidden rounded"
-          title={`${Math.round(row.positive)}% positive, ${Math.round(row.neutral)}% neutral, ${Math.round(row.negative)}% negative, from ${row.mentions} mentions`}
-        >
-          {parts.map((p) => (p.value ? <span key={p.key} style={{ width: `${p.value}%`, background: p.color }} /> : null))}
-        </span>
-      ) : (
-        <span className="aw-small">No mentions</span>
-      )}
-      <span className="aw-num text-right font-semibold text-ink">{row.mentions ? Math.round(row.score) : "–"}</span>
-    </div>
+    <span className="flex items-center gap-2 text-[13px] text-g600">
+      <span className={`aw-status aw-status--${tone}`}>
+        {d > 0 ? "+" : d < 0 ? "−" : "±"}
+        {Math.abs(d)} {unit}
+      </span>
+      vs previous {days} days
+    </span>
   );
 }
 
@@ -154,6 +138,49 @@ export function DashboardPage({
   const typeShare = Object.fromEntries(
     SOURCE_TYPES.map((t) => [t, totalCites ? (sources.filter((s) => sourceType(s.domain) === t).reduce((n, s) => n + s.chats, 0) / totalCites) * 100 : 0]),
   ) as Record<(typeof SOURCE_TYPES)[number], number>;
+  // The period just before this one, for the change chips.
+  const prevSince = new Date(now - 2 * days * 864e5).toISOString();
+  const prevChats = runs.filter((r) => r.at >= prevSince && r.at < since).flatMap((r) => r.chats).filter(pick);
+  const prevAnswered = prevChats.filter(isAnswered);
+  const prevPresence = prevAnswered.length ? (brandRows(prevChats, brand.name).find((r) => r.isYou)?.visibility ?? 0) : null;
+  const prevSources = sourceRows(prevChats);
+  const prevCites = prevSources.reduce((n, s) => n + s.chats, 0);
+  const prevOwned = prevCites ? (prevSources.filter((s) => sourceType(s.domain) === "Owned").reduce((n, s) => n + s.chats, 0) / prevCites) * 100 : null;
+
+  const presenceSlices: Slice[] = [
+    { label: "Mentioned", value: you?.visibility ?? 0, color: COLORS.you },
+    { label: "Not mentioned", value: 100 - (you?.visibility ?? 0), color: COLORS.no },
+  ];
+  const sentimentSlices: Slice[] = [
+    { label: "Positive", value: youSentiment.positive, color: COLORS.you },
+    { label: "Neutral", value: youSentiment.neutral, color: COLORS.neutral },
+    { label: "Negative", value: youSentiment.negative, color: COLORS.no },
+  ];
+  const citationSlices: Slice[] = [
+    { label: "Your site", value: typeShare.Owned, color: COLORS.you },
+    { label: "Competitors", value: typeShare.Competitor, color: COLORS.competitor },
+    { label: "Third-party", value: typeShare["Third-party"], color: COLORS.thirdParty },
+  ];
+
+  // Competitive presence: each brand's share of all brand mentions. You plus the top 4, then everyone else.
+  const totalMentions = rows.reduce((n, r) => n + r.mentions, 0) || 1;
+  const shown = you ? [you, ...top4] : top4;
+  const others = rows.filter((r) => !shown.includes(r));
+  const presenceBars = [
+    ...shown
+      .sort((a, b) => b.mentions - a.mentions)
+      .map((r) => ({
+        name: r.name,
+        isYou: r.isYou,
+        share: (r.mentions / totalMentions) * 100,
+        logo: r.isYou ? brand.logo : favicon(r.domain ?? `${r.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.com`),
+        color: series.find((s) => s.name === r.name)?.color ?? COLORS.more,
+      })),
+    ...(others.length
+      ? [{ name: `More (${others.length})`, isYou: false, share: (others.reduce((n, r) => n + r.mentions, 0) / totalMentions) * 100, logo: "", color: COLORS.more }]
+      : []),
+  ];
+
   const latest = runs.at(-1);
   const latestErrors = (latest?.chats ?? []).filter((c) => c.error);
 
@@ -211,21 +238,100 @@ export function DashboardPage({
         <>
           <div className="aw-stats">
             <div className="aw-stat">
-              <div className="aw-stat__num">{pct(you?.visibility ?? 0)}</div>
-              <div className="aw-stat__lab">Visibility</div>
+              <div className="aw-stat__num">{brand.prompts.length}</div>
+              <div className="aw-stat__lab">Prompts tracked</div>
+            </div>
+            <div className="aw-stat">
+              <div className="aw-stat__num">{answered.length}</div>
+              <div className="aw-stat__lab">Responses</div>
+            </div>
+            <div className="aw-stat">
+              <div className="flex h-[37px] items-center gap-2">
+                {[...new Set(chats.map((c) => c.engine))].map((e) => (
+                  <span key={e} title={e}>
+                    <BrandLogo src={ENGINE_LOGOS[e] ?? ""} name={e} size={26} />
+                  </span>
+                ))}
+              </div>
+              <div className="aw-stat__lab">AI assistants</div>
             </div>
             <div className="aw-stat">
               <div className="aw-stat__num">{you ? `#${you.position.toFixed(1)}` : "–"}</div>
               <div className="aw-stat__lab">Average position</div>
             </div>
-            <div className="aw-stat">
-              <div className="aw-stat__num">{you ? Math.round(you.sentiment) : "–"}</div>
-              <div className="aw-stat__lab">Sentiment, out of 100</div>
-            </div>
-            <div className="aw-stat">
-              <div className="aw-stat__num">{mentions.length}</div>
-              <div className="aw-stat__lab">Mentions in {answered.length} chats</div>
-            </div>
+          </div>
+
+          <div className="aw-grid-3">
+            <Card title="Presence">
+              <div className="flex flex-col gap-5">
+                <div className="flex flex-col items-center gap-5">
+                  <Donut
+                    label="Share of chats that mention you"
+                    slices={presenceSlices}
+                    center={
+                      <>
+                        <span className="aw-num text-[26px] font-medium text-ink">{pct(you?.visibility ?? 0)}</span>
+                        <span className="text-[12px] text-g500">of chats</span>
+                      </>
+                    }
+                  />
+                  <Legend slices={presenceSlices} />
+                </div>
+                <Delta now={you?.visibility ?? 0} before={prevPresence} days={days} unit="pts" />
+              </div>
+            </Card>
+
+            <Card title="Sentiment">
+              <div className="flex flex-col gap-5">
+                <div className="flex flex-col items-center gap-5">
+                  <Donut
+                    label="How positively AI talks about you"
+                    slices={sentimentSlices}
+                    center={
+                      <>
+                        <span className="aw-num text-[26px] font-medium text-ink">{youSentiment.mentions ? Math.round(youSentiment.score) : "–"}</span>
+                        <span className="text-[12px] text-g500">out of 100</span>
+                      </>
+                    }
+                  />
+                  <Legend slices={sentimentSlices} />
+                </div>
+                <div className="flex flex-col gap-1.5 border-t border-border pt-3 text-[14px]">
+                  <div className="flex justify-between gap-3">
+                    <span className="text-g600">Top competitors</span>
+                    <span className="aw-num font-semibold text-ink">{competitorSentiment.some((r) => r.mentions) ? Math.round(topAvg) : "–"}</span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-g600">Market benchmark</span>
+                    <span className="aw-num font-semibold text-ink">{market.mentions ? Math.round(market.score) : "–"}</span>
+                  </div>
+                  {youSentiment.mentions && market.mentions ? (
+                    <span className={`aw-status mt-1 self-start ${diff >= 0 ? "aw-status--ranked" : "aw-status--missed"}`}>
+                      {diff === 0 ? "Same as market" : `${diff > 0 ? "+" : "−"}${Math.abs(diff)} vs market`}
+                    </span>
+                  ) : null}
+                </div>
+              </div>
+            </Card>
+
+            <Card title="Citations">
+              <div className="flex flex-col gap-5">
+                <div className="flex flex-col items-center gap-5">
+                  <Donut
+                    label="Who owns the sources AI cites"
+                    slices={citationSlices}
+                    center={
+                      <>
+                        <span className="aw-num text-[26px] font-medium text-ink">{pct(typeShare.Owned)}</span>
+                        <span className="text-[12px] text-g500">your site</span>
+                      </>
+                    }
+                  />
+                  <Legend slices={citationSlices} />
+                </div>
+                <Delta now={typeShare.Owned} before={prevOwned} days={days} unit="pts" />
+              </div>
+            </Card>
           </div>
 
           <div className="aw-grid-2">
@@ -233,6 +339,28 @@ export function DashboardPage({
               <VisibilityChart points={points} series={series} />
             </Card>
 
+            <Card title="Competitive presence">
+              <div className="flex flex-col gap-4">
+                {presenceBars.map((b) => (
+                  <div key={b.name} className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between gap-3 text-[14px]">
+                      <span className={`flex min-w-0 items-center gap-2 ${b.isYou ? "font-semibold text-ink" : "text-ink-2"}`}>
+                        {b.logo ? <BrandLogo src={b.logo} name={b.name} size={18} /> : null}
+                        <span className="truncate">{b.name}</span>
+                      </span>
+                      <span className="aw-num font-semibold text-ink">{pct(b.share)}</span>
+                    </div>
+                    <div className="h-2 w-full overflow-hidden rounded bg-skel">
+                      <div className="h-full rounded" style={{ width: `${b.share}%`, background: b.color }} />
+                    </div>
+                  </div>
+                ))}
+                <p className="aw-help mt-0!">Share of all brand mentions in AI answers.</p>
+              </div>
+            </Card>
+          </div>
+
+          <div className="aw-grid-2">
             <Card title={`Industry ranking · top ${ranking.length}`} flush>
               <Scroll>
                 <table className="aw-table aw-table--dense aw-table--sticky">
@@ -257,89 +385,6 @@ export function DashboardPage({
                   </tbody>
                 </table>
               </Scroll>
-            </Card>
-          </div>
-
-          <Card title="Sentiment">
-            <div className="flex flex-col gap-6">
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <SentimentStat label={brand.name} value={youSentiment.mentions ? youSentiment.score : null} strong />
-                <SentimentStat label="Top competitors" value={competitorSentiment.some((r) => r.mentions) ? topAvg : null} />
-                <SentimentStat label="Market benchmark" value={market.mentions ? market.score : null} />
-              </div>
-              {youSentiment.mentions && market.mentions ? (
-                <p className="aw-ui">
-                  AI talks about {brand.name}{" "}
-                  <strong>
-                    {diff === 0 ? "exactly as positively as" : `${Math.abs(diff)} ${Math.abs(diff) === 1 ? "point" : "points"} ${diff > 0 ? "more" : "less"} positively than`}
-                  </strong>{" "}
-                  the market average.
-                </p>
-              ) : null}
-              <div className="flex flex-col gap-3">
-                <div className="flex flex-wrap gap-4 text-[13px] text-g600">
-                  <span className="flex items-center gap-2">
-                    <i className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: SENT.positive }} /> Positive (60+)
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <i className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: SENT.neutral }} /> Neutral (40 to 59)
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <i className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: SENT.negative }} /> Negative (under 40)
-                  </span>
-                </div>
-                {[youSentiment, ...competitorSentiment, market].map((r, i, all) => (
-                  <SentimentBar key={r.name} row={r} isYou={i === 0} isMarket={i === all.length - 1} />
-                ))}
-              </div>
-            </div>
-          </Card>
-
-          <div className="aw-grid-2">
-            <Card title={`${brand.name} mentions · ${mentions.length}`} flush>
-              {mentions.length ? (
-                <Scroll>
-                  <table className="aw-table aw-table--dense aw-table--sticky">
-                    <thead>
-                      <tr>
-                        <th>Prompt</th>
-                        <th>Model</th>
-                        <th>Position</th>
-                        <th>Sources</th>
-                        <th>Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {mentions.map((m, i) => (
-                        <tr key={`${m.at}-${m.engine}-${m.prompt}-${i}`}>
-                          <td className="min-w-36">{m.prompt}</td>
-                          <td title={m.engine}>
-                            <BrandLogo src={ENGINE_LOGOS[m.engine] ?? ""} name={m.engine} size={22} />
-                          </td>
-                          <td className="aw-num">#{m.position}</td>
-                          <td>
-                            {m.sources.length ? (
-                              <span className="flex flex-wrap gap-1.5">
-                                {m.sources.slice(0, 6).map((src) => (
-                                  <a key={src.url} href={src.url} target="_blank" rel="noopener noreferrer nofollow" title={src.title || src.domain} className="plain">
-                                    <BrandLogo src={favicon(src.domain)} name={src.domain} size={18} />
-                                  </a>
-                                ))}
-                                {m.sources.length > 6 ? <span className="aw-small">+{m.sources.length - 6}</span> : null}
-                              </span>
-                            ) : (
-                              <span className="aw-small">None</span>
-                            )}
-                          </td>
-                          <td className="whitespace-nowrap">{when(m.at)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </Scroll>
-              ) : (
-                <p className="aw-small p-6">No mentions of {brand.name} in this timeframe yet.</p>
-              )}
             </Card>
 
             <Card title={`Sources · ${sources.length}`} flush>
@@ -385,6 +430,54 @@ export function DashboardPage({
                 </div>
               ) : (
                 <p className="aw-small p-6">No sources cited in this timeframe.</p>
+              )}
+            </Card>
+          </div>
+
+          <div>
+            <Card title={`${brand.name} mentions · ${mentions.length}`} flush>
+              {mentions.length ? (
+                <Scroll>
+                  <table className="aw-table aw-table--dense aw-table--sticky">
+                    <thead>
+                      <tr>
+                        <th>Prompt</th>
+                        <th>Model</th>
+                        <th>Position</th>
+                        <th>Sources</th>
+                        <th>Date</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {mentions.map((m, i) => (
+                        <tr key={`${m.at}-${m.engine}-${m.prompt}-${i}`}>
+                          <td className="min-w-36">{m.prompt}</td>
+                          <td title={m.engine}>
+                            <BrandLogo src={ENGINE_LOGOS[m.engine] ?? ""} name={m.engine} size={22} />
+                          </td>
+                          <td className="aw-num">#{m.position}</td>
+                          <td>
+                            {m.sources.length ? (
+                              <span className="flex flex-wrap gap-1.5">
+                                {m.sources.slice(0, 6).map((src) => (
+                                  <a key={src.url} href={src.url} target="_blank" rel="noopener noreferrer nofollow" title={src.title || src.domain} className="plain">
+                                    <BrandLogo src={favicon(src.domain)} name={src.domain} size={18} />
+                                  </a>
+                                ))}
+                                {m.sources.length > 6 ? <span className="aw-small">+{m.sources.length - 6}</span> : null}
+                              </span>
+                            ) : (
+                              <span className="aw-small">None</span>
+                            )}
+                          </td>
+                          <td className="whitespace-nowrap">{when(m.at)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </Scroll>
+              ) : (
+                <p className="aw-small p-6">No mentions of {brand.name} in this timeframe yet.</p>
               )}
             </Card>
           </div>
