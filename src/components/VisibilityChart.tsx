@@ -9,7 +9,10 @@ const W = 640;
 const H = 300;
 const PAD = { l: 48, r: 16, t: 14, b: 34 };
 
-const fmtDay = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" });
+// Each point is one run. Axis labels show the date, the tooltip also shows the time.
+const fmtDay = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+const fmtWhen = (iso: string) =>
+  new Date(iso).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
 /** % of chats mentioning each brand, one line per brand over time. */
 export function VisibilityChart({ points, series }: { points: DayPoint[]; series: Series[] }) {
@@ -74,7 +77,7 @@ export function VisibilityChart({ points, series }: { points: DayPoint[]; series
             className="aw-tip pointer-events-none absolute top-2 z-10 min-w-40"
             style={{ left: `${(x(hover) / W) * 100}%`, transform: x(hover) > W / 2 ? "translateX(calc(-100% - 12px))" : "translateX(12px)" }}
           >
-            <b>{fmtDay(points[hover].day)}</b>
+            <b>{fmtWhen(points[hover].day)}</b>
             {series.map((s) => (
               <div key={s.name} className="flex items-center justify-between gap-4">
                 <span className="flex items-center gap-2">

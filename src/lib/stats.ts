@@ -50,11 +50,11 @@ export function sourceRows(chats: Chat[]): SourceRow[] {
 
 export type DayPoint = { day: string; values: Record<string, number | null> };
 
-/** Visibility per brand for each day that has runs. */
+/** Visibility per brand for each run, oldest first. */
 export function timeline(runs: Run[], names: string[], filter: (c: Chat) => boolean): DayPoint[] {
   const byDay = new Map<string, Chat[]>();
   for (const r of runs) {
-    const day = r.at.slice(0, 10);
+    const day = r.at; // one point per run
     byDay.set(day, [...(byDay.get(day) ?? []), ...r.chats.filter(filter)]);
   }
   return [...byDay.entries()]

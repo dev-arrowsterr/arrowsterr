@@ -32,7 +32,9 @@ function SentimentPill({ value }: { value: number }) {
 }
 
 function BrandCell({ row, brand }: { row: BrandRow; brand: Brand }) {
-  const logo = row.isYou ? brand.logo : row.domain ? favicon(row.domain) : "";
+  // No website saved for this brand (older runs): guess "name.com", which works for most brands.
+  const guess = `${row.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.com`;
+  const logo = row.isYou ? brand.logo : favicon(row.domain ?? guess);
   return (
     <span className="flex items-center gap-2 font-medium text-ink">
       <BrandLogo src={logo} name={row.name} size={20} />
@@ -52,13 +54,13 @@ function SortHead({ k, label, sort, onSort }: { k: SortKey; label: string; sort:
   );
 }
 
-function Card({ title, children, foot }: { title: string; children: React.ReactNode; foot?: React.ReactNode }) {
+function Card({ title, children, foot, flush }: { title: string; children: React.ReactNode; foot?: React.ReactNode; flush?: boolean }) {
   return (
     <section className="aw-frame aw-frame--shadow flex min-w-0 flex-col">
       <div className="aw-frame__head">
         <h2 className="aw-h4">{title}</h2>
       </div>
-      <div className="aw-frame__body flex-1">{children}</div>
+      <div className={flush ? "min-h-0 flex-1" : "aw-frame__body flex-1"}>{children}</div>
       {foot ? <div className="aw-frame__foot">{foot}</div> : null}
     </section>
   );
@@ -91,7 +93,6 @@ export function DashboardPage({
   const [now] = useState(() => Date.now());
   const [engine, setEngine] = useState("All");
   const [sort, setSort] = useState<SortKey>("position");
-  const [allBrands, setAllBrands] = useState(false);
   const [allMentions, setAllMentions] = useState(false);
   const [allSources, setAllSources] = useState(false);
 
@@ -119,7 +120,7 @@ export function DashboardPage({
 
   const order = (list: BrandRow[]) =>
     [...list].sort((a, b) => (sort === "position" ? a.position - b.position || b.visibility - a.visibility : b[sort] - a[sort]));
-  const ranking = order(allBrands ? rows : featured);
+  const ranking = order(rows);
 
   const mentions = mentionRows(inRange, brand.name, pick);
   const sources = sourceRows(chats);
@@ -202,12 +203,11 @@ export function DashboardPage({
               <VisibilityChart points={points} series={series} />
             </Card>
 
-            <Card
-              title="Industry ranking"
-              foot={rows.length > featured.length ? <ShowAll open={allBrands} count={rows.length} onClick={() => setAllBrands(!allBrands)} /> : null}
-            >
-              <div className="table-scroll -mx-1">
-                <table className="aw-table aw-table--dense">
+            <Card title={`Industry ranking · ${rows.length} brands`} flush>
+              {/* Fills the card's height next to the chart. Scroll to see every brand. */}
+              <div className="relative h-full min-h-80">
+                <div className="absolute inset-0 overflow-auto">
+                <table className="aw-table aw-table--dense aw-table--sticky">
                   <thead>
                     <tr>
                       <th>Brand</th>
@@ -236,6 +236,7 @@ export function DashboardPage({
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             </Card>
           </div>
