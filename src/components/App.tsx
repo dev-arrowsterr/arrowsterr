@@ -5,7 +5,7 @@ import { BrandLogo } from "./BrandLogo";
 import { Logo } from "./Logo";
 import { DashboardPage } from "./DashboardPage";
 import { PromptsPage } from "./PromptsPage";
-import { loadRun, saveRun, type Run } from "@/lib/chats";
+import { loadRuns, saveRuns, type Run } from "@/lib/chats";
 import { runAll } from "@/lib/runner";
 
 export type Brand = {
@@ -46,7 +46,7 @@ export function App() {
   const [activeId, setActiveId] = useState<string | null>(() => brands[0]?.id ?? null);
   const [adding, setAdding] = useState(false);
   const [page, setPage] = useState<Page>("dashboard");
-  const [runs, setRuns] = useState<Record<string, Run | null>>({});
+  const [runs, setRuns] = useState<Record<string, Run[]>>({});
   const [running, setRunning] = useState<string | null>(null); // brand id being run
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [engines, setEngines] = useState<string[] | null>(null);
@@ -58,18 +58,20 @@ export function App() {
       .catch(() => setEngines([]));
   }, []);
 
-  const runFor = (id: string) => (id in runs ? runs[id] : loadRun(id));
+  const runsFor = (id: string) => runs[id] ?? loadRuns(id);
 
   async function startRun(brand: Brand) {
     if (!engines?.length || running) return;
     setRunning(brand.id);
     setProgress({ done: 0, total: engines.length * brand.prompts.length });
+    const past = runsFor(brand.id);
     const finished = await runAll(brand, engines, (run, done, total) => {
-      setRuns((r) => ({ ...r, [brand.id]: run }));
+      setRuns((r) => ({ ...r, [brand.id]: [...past, run] }));
       setProgress({ done, total });
     });
-    saveRun(brand.id, finished);
-    setRuns((r) => ({ ...r, [brand.id]: finished }));
+    const all = [...past, finished];
+    saveRuns(brand.id, all);
+    setRuns((r) => ({ ...r, [brand.id]: all }));
     setRunning(null);
   }
 
@@ -117,7 +119,7 @@ export function App() {
           <DashboardPage
             key={active.id}
             brand={active}
-            run={runFor(active.id)}
+            runs={runsFor(active.id)}
             running={running === active.id}
             progress={progress}
             canRun={

@@ -1,7 +1,7 @@
-// Chat results, shared by the pages. Saved in the browser until the database step.
+// Chat results and run history. Saved in the browser until the database step.
 import type { Source } from "./sources";
 
-export type BrandMention = { name: string; position: number; sentiment: number };
+export type BrandMention = { name: string; position: number; sentiment: number; domain?: string };
 
 export type Chat = {
   engine: string;
@@ -10,9 +10,14 @@ export type Chat = {
   sources: Source[];
   brands: BrandMention[];
   error: string | null;
+  answered?: boolean; // set when saved, because saved chats drop their full text to save space
 };
 
 export type Run = { at: string; engines: string[]; chats: Chat[] };
+
+export function isAnswered(c: Chat) {
+  return c.answered ?? Boolean(c.text);
+}
 
 /** The tracked brand's entry in a chat, if the answer named it. */
 export function ownMention(chat: Chat, brandName: string): BrandMention | null {
@@ -20,20 +25,33 @@ export function ownMention(chat: Chat, brandName: string): BrandMention | null {
   return chat.brands.find((b) => b.name.toLowerCase() === name) ?? null;
 }
 
-const key = (brandId: string) => `arrowsterr.run.${brandId}`;
+const key = (brandId: string) => `arrowsterr.runs.${brandId}`;
+const MAX_RUNS = 120;
 
-export function loadRun(brandId: string): Run | null {
+export function loadRuns(brandId: string): Run[] {
   try {
-    return JSON.parse(localStorage.getItem(key(brandId)) || "null");
+    const list = JSON.parse(localStorage.getItem(key(brandId)) || "null");
+    if (Array.isArray(list)) return list;
+    // Older versions kept only the latest run.
+    const old = JSON.parse(localStorage.getItem(`arrowsterr.run.${brandId}`) || "null");
+    return old ? [old] : [];
   } catch {
-    return null;
+    return [];
   }
 }
 
-export function saveRun(brandId: string, run: Run) {
-  try {
-    localStorage.setItem(key(brandId), JSON.stringify(run));
-  } catch {
-    // Storage full or blocked. Results still show until the page reloads.
+/** Keep the numbers, drop the long answer text, and trim the oldest runs if storage is full. */
+export function saveRuns(brandId: string, runs: Run[]) {
+  let slim = runs.slice(-MAX_RUNS).map((r) => ({
+    ...r,
+    chats: r.chats.map((c) => ({ ...c, answered: isAnswered(c), text: "" })),
+  }));
+  while (slim.length) {
+    try {
+      localStorage.setItem(key(brandId), JSON.stringify(slim));
+      return;
+    } catch {
+      slim = slim.slice(1);
+    }
   }
 }

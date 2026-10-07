@@ -89,6 +89,17 @@ body {
   text-decoration: none !important;
 }
 
+/* Tighter tables for dashboard cards. */
+.aw .aw-table--dense th {
+  padding: 10px 12px !important;
+  font-size: 13px !important;
+}
+.aw .aw-table--dense td {
+  padding: 10px 12px !important;
+  font-size: 14px !important;
+  line-height: 1.45 !important;
+}
+
 /* AI answers rendered from markdown */
 .aw .md {
   font-size: 15px;
