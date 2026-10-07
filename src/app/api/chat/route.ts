@@ -21,6 +21,11 @@ export async function POST(request: Request) {
     return Response.json({ error: `${engine}: ${message.slice(0, 300)}` }, { status: 502 });
   }
 
+  // No AI Overview was shown, so there is nothing to read.
+  if (engine === "AI Overview" && answer.text.startsWith("_Google showed no AI Overview")) {
+    return Response.json({ text: answer.text, sources: [], brands: [] });
+  }
+
   try {
     const brands = await extractBrands(brand, domain, answer.text);
     return Response.json({ text: answer.text, sources: answer.sources, brands });
