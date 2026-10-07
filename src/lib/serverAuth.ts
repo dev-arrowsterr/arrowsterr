@@ -8,8 +8,8 @@ type Min = "owner" | "admin" | "editor" | "viewer";
  * Returns null when allowed, or a Response to send back.
  */
 export async function requireRole(request: Request, workspaceId: unknown, min: Min): Promise<Response | null> {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_PUBLISHABLE_KEY;
+  const url = process.env.SUPABASE_URL?.trim().replace(/\/+$/, "");
+  const key = process.env.SUPABASE_PUBLISHABLE_KEY?.trim();
   if (!url || !key) return Response.json({ error: "Supabase is not set up on the server." }, { status: 500 });
   const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
   if (!token) return Response.json({ error: "Please sign in again." }, { status: 401 });

@@ -5,8 +5,8 @@ import { Logo } from "@/components/Logo";
 export default async function Home() {
   // Read settings when the page is requested, so changes on Render apply without a rebuild.
   await connection();
-  const url = process.env.SUPABASE_URL ?? "";
-  const key = process.env.SUPABASE_PUBLISHABLE_KEY ?? "";
+  const url = (process.env.SUPABASE_URL ?? "").trim().replace(/\/+$/, "");
+  const key = (process.env.SUPABASE_PUBLISHABLE_KEY ?? "").trim();
   const missing = [!url && "SUPABASE_URL", !key && "SUPABASE_PUBLISHABLE_KEY"].filter(Boolean) as string[];
   const wrongKey = key && !key.startsWith("sb_publishable_") && !key.startsWith("eyJ");
 
