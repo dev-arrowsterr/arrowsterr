@@ -74,10 +74,24 @@ async function askPerplexity(prompt: string): Promise<Answer> {
   return { text: resp.choices[0]?.message?.content ?? "", sources };
 }
 
+/** Every engine gets the same answer layout, so the ranked list can be read by code. */
+export const ANSWER_FORMAT = `
+
+Format your answer in markdown exactly like this:
+
+## Recommendations
+1. **Name** - one sentence on why you recommend it.
+2. **Name** - one sentence on why you recommend it.
+(List up to 10 options, best first. Put only the brand or product name in bold.)
+
+## Summary
+Two or three sentences with your overall advice.`;
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Ask one engine one prompt, like a real user would, with web search on. Tries twice. */
-export async function askEngine(engine: Engine, prompt: string): Promise<Answer> {
+/** Ask one engine one prompt with web search on, in the shared answer layout. Tries twice. */
+export async function askEngine(engine: Engine, userPrompt: string): Promise<Answer> {
+  const prompt = userPrompt + ANSWER_FORMAT;
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {

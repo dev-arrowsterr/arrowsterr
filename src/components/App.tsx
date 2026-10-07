@@ -1,9 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BrandLogo } from "./BrandLogo";
 import { Logo } from "./Logo";
+import { DashboardPage } from "./DashboardPage";
 import { PromptsPage } from "./PromptsPage";
+import { loadRun, saveRun, type Run } from "@/lib/chats";
+import { runAll } from "@/lib/runner";
 
 export type Brand = {
   id: string;
@@ -42,14 +45,40 @@ export function App() {
   const [brands, setBrands] = useState<Brand[]>(load);
   const [activeId, setActiveId] = useState<string | null>(() => brands[0]?.id ?? null);
   const [adding, setAdding] = useState(false);
-  const [page, setPage] = useState<Page>("prompts");
+  const [page, setPage] = useState<Page>("dashboard");
+  const [runs, setRuns] = useState<Record<string, Run | null>>({});
+  const [running, setRunning] = useState<string | null>(null); // brand id being run
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [engines, setEngines] = useState<string[] | null>(null);
+
+  useEffect(() => {
+    fetch("/api/engines")
+      .then((r) => r.json())
+      .then((d) => setEngines(d.engines ?? []))
+      .catch(() => setEngines([]));
+  }, []);
+
+  const runFor = (id: string) => (id in runs ? runs[id] : loadRun(id));
+
+  async function startRun(brand: Brand) {
+    if (!engines?.length || running) return;
+    setRunning(brand.id);
+    setProgress({ done: 0, total: engines.length * brand.prompts.length });
+    const finished = await runAll(brand, engines, (run, done, total) => {
+      setRuns((r) => ({ ...r, [brand.id]: run }));
+      setProgress({ done, total });
+    });
+    saveRun(brand.id, finished);
+    setRuns((r) => ({ ...r, [brand.id]: finished }));
+    setRunning(null);
+  }
 
   function addBrand(brand: Brand) {
     const next = [...brands, brand];
     setBrands(next);
     save(next);
     setActiveId(brand.id);
-    setPage("prompts");
+    setPage("dashboard");
     setAdding(false);
   }
 
@@ -84,6 +113,26 @@ export function App() {
       <main className="min-w-0 flex-1 px-4 py-8 sm:px-8">
         {page === "prompts" ? (
           <PromptsPage key={active.id} brand={active} onChange={updateBrand} onRemove={() => removeBrand(active.id)} />
+        ) : page === "dashboard" ? (
+          <DashboardPage
+            key={active.id}
+            brand={active}
+            run={runFor(active.id)}
+            running={running === active.id}
+            progress={progress}
+            canRun={
+              engines === null
+                ? "Loading engines..."
+                : !engines.length
+                  ? "No engine keys are set on Render. Add OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY or PERPLEXITY_API_KEY."
+                  : !active.prompts.length
+                    ? "Add prompts on the Prompts page first."
+                    : running && running !== active.id
+                      ? "Another brand is running. Wait for it to finish."
+                      : null
+            }
+            onRun={() => startRun(active)}
+          />
         ) : (
           <ComingSoon page={page} />
         )}
@@ -181,10 +230,9 @@ function Sidebar({
 }
 
 function ComingSoon({ page }: { page: Page }) {
-  const step = page === "dashboard" || page === "sources" || page === "competitors" ? 6 : 4;
   return (
     <div className="aw-callout max-w-xl text-[16px]!">
-      The {page} page arrives in Step {step}. For now, set up your prompts on the Prompts page.
+      The {page} page arrives in Step 6. Your results are on the Dashboard.
     </div>
   );
 }

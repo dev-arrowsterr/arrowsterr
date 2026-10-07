@@ -1,45 +1,78 @@
 import "server-only";
 import { askClaude, parseJson } from "./claude";
+import { brandTerms, isTracked, parseRanking } from "./parse";
 
 export type BrandMention = { name: string; position: number; sentiment: number };
 
-const PROMPT = (brand: string, domain: string, answer: string) => `Read this answer from an AI assistant. List every brand, company or product it names as an option for the reader.
-
-Tracked brand: ${brand} (${domain})
+const SENTIMENT = (names: string[], answer: string) => `Here is an answer from an AI assistant, and the brands it recommends.
 
 Answer:
 """
 ${answer}
 """
 
-Return JSON only, in this shape: {"brands": [{"name": "Brand", "sentiment": 75}]}
+Brands: ${JSON.stringify(names)}
 
-Rules:
-- Put brands in the order they first appear in the answer.
-- Use each brand's common name, like "HubSpot" instead of "HubSpot CRM Free plan".
-- If the tracked brand appears under any name or spelling, use exactly "${brand}".
-- Skip websites that are only cited as sources, and skip generic words like "CRM software".
-- sentiment is how positively the answer talks about that brand: 100 strongly recommended, 50 neutral, 0 warned against.
+For each brand, score how positively the answer talks about it: 100 strongly recommended, 50 neutral, 0 warned against.
+Return JSON only, like {"Brand A": 80, "Brand B": 55}, using the exact brand names given.`;
+
+const FULL = (brand: string, answer: string) => `Read this answer from an AI assistant. List every brand, company or product it names as an option for the reader.
+
+Answer:
+"""
+${answer}
+"""
+
+Return JSON only: {"brands": [{"name": "Brand", "sentiment": 75}]}
+- Order brands by where they first appear. Use each brand's common name.
+- If "${brand}" appears under any name, use exactly "${brand}".
+- sentiment: 100 strongly recommended, 50 neutral, 0 warned against.
 - If no brands are named, return {"brands": []}.`;
 
-/** Have Claude Haiku pull out brands, their position and their sentiment from one answer. */
+const haiku = () => process.env.EXTRACT_MODEL || "claude-haiku-4-5";
+
+function clamp(n: unknown) {
+  const v = Number(n);
+  return Number.isFinite(v) ? Math.max(0, Math.min(100, Math.round(v))) : 50;
+}
+
+/**
+ * Brands named in an answer, with position and sentiment.
+ * Names and positions come from the ranked list in the shared layout. Claude Haiku only scores sentiment.
+ * If an engine ignored the layout, Haiku reads the whole answer instead.
+ */
 export async function extractBrands(brand: string, domain: string, answer: string): Promise<BrandMention[]> {
   if (!answer.trim()) return [];
-  const { text } = await askClaude(PROMPT(brand, domain, answer.slice(0, 15000)), {
-    model: process.env.EXTRACT_MODEL || "claude-haiku-4-5",
-    maxTokens: 4000,
-  });
-  const data = parseJson(text);
-  const list = Array.isArray(data.brands) ? data.brands : [];
-  const seen = new Set<string>();
-  const out: BrandMention[] = [];
-  for (const b of list) {
-    const name = typeof b?.name === "string" ? b.name.trim() : "";
-    const key = name.toLowerCase();
-    if (!name || seen.has(key)) continue;
-    seen.add(key);
-    const s = Number(b.sentiment);
-    out.push({ name, position: out.length + 1, sentiment: Number.isFinite(s) ? Math.max(0, Math.min(100, Math.round(s))) : 50 });
+  const terms = brandTerms(brand, domain);
+  const text = answer.slice(0, 15000);
+  let names = parseRanking(text);
+
+  if (!names.length) {
+    const { text: reply } = await askClaude(FULL(brand, text), { model: haiku(), maxTokens: 4000 });
+    const list = parseJson(reply).brands;
+    names = Array.isArray(list) ? list.map((b) => String(b?.name ?? "").trim()).filter(Boolean) : [];
+    const scores = Object.fromEntries((Array.isArray(list) ? list : []).map((b) => [String(b?.name ?? "").trim(), clamp(b?.sentiment)]));
+    return dedupe(names).map((n, i) => ({ name: isTracked(n, terms) ? brand : n, position: i + 1, sentiment: scores[n] ?? 50 }));
   }
-  return out;
+
+  // The tracked brand always shows under its own name, so the dashboard can find it.
+  names = dedupe(names.map((n) => (isTracked(n, terms) ? brand : n)));
+  let scores: Record<string, unknown> = {};
+  try {
+    const { text: reply } = await askClaude(SENTIMENT(names, text), { model: haiku(), maxTokens: 2000 });
+    scores = parseJson(reply);
+  } catch (e) {
+    console.error("Sentiment failed, using 50:", e instanceof Error ? e.message : e);
+  }
+  return names.map((name, i) => ({ name, position: i + 1, sentiment: clamp(scores[name]) }));
+}
+
+function dedupe(names: string[]) {
+  const seen = new Set<string>();
+  return names.filter((n) => {
+    const k = n.toLowerCase();
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
 }
