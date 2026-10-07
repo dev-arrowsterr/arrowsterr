@@ -1,5 +1,6 @@
 import { askClaude, parseJson } from "@/lib/claude";
 import { fetchSite, logoFor, normalizeSite } from "@/lib/site";
+import { cleanTopicList } from "@/lib/topics";
 
 const PROMPT = (url: string, title: string, desc: string, text: string) => `You help a company see how AI assistants like ChatGPT talk about it.
 
@@ -9,7 +10,12 @@ Meta description: ${desc}
 Page text: ${text}
 
 Return JSON only, with no other text, in exactly this shape:
-{"name": "brand name as customers say it", "category": "one short line on what the company sells", "prompts": ["25 questions"]}
+{"name": "brand name as customers say it", "category": "one short line on what the company sells", "topics": ["6 to 8 topics"], "prompts": ["25 questions"]}
+
+Rules for the topics:
+- 6 to 8 things buyers in this industry judge every brand on, like "ease of use", "pricing", "integrations", "customer support".
+- They must apply to every brand in the industry, not only this company.
+- 1 to 3 words each, lowercase.
 
 Rules for the prompts:
 - 25 questions a real buyer would type into ChatGPT when choosing a product or service in this company's category.
@@ -49,6 +55,7 @@ export async function POST(request: Request) {
       name,
       logo: logoFor(site.domain),
       category: typeof data.category === "string" ? data.category.trim() : "",
+      topics: cleanTopicList(data.topics),
       prompts,
     });
   } catch (e) {

@@ -91,3 +91,38 @@ export function mentionRows(runs: Run[], you: string, filter: (c: Chat) => boole
   }
   return out.sort((a, b) => b.at.localeCompare(a.at) || a.position - b.position);
 }
+
+export type Perception = Record<string, Record<string, number>>; // brand -> topic -> % of its mentions
+
+/** For each brand, the % of its mentions that AI linked to each topic. */
+export function perception(chats: Chat[], names: string[], topics: string[]): Perception {
+  const out: Perception = {};
+  for (const n of names) {
+    const mentions = chats.filter(isAnswered).flatMap((c) => c.brands.filter((b) => b.name.toLowerCase() === n.toLowerCase()));
+    out[n] = Object.fromEntries(
+      topics.map((t) => [t, mentions.length ? (mentions.filter((m) => m.topics?.includes(t)).length / mentions.length) * 100 : 0]),
+    );
+  }
+  return out;
+}
+
+export type Gap = { topic: string; leader: string; leaderShare: number; yours: number };
+
+/** Topics where a competitor is linked much more often than you, biggest gap first. */
+export function topicGaps(p: Perception, you: string, topics: string[], minGap = 15): Gap[] {
+  const gaps: Gap[] = [];
+  for (const t of topics) {
+    const yours = p[you]?.[t] ?? 0;
+    let leader = "";
+    let leaderShare = 0;
+    for (const [name, shares] of Object.entries(p)) {
+      if (name === you) continue;
+      if ((shares[t] ?? 0) > leaderShare) {
+        leader = name;
+        leaderShare = shares[t];
+      }
+    }
+    if (leader && leaderShare - yours >= minGap) gaps.push({ topic: t, leader, leaderShare, yours });
+  }
+  return gaps.sort((a, b) => b.leaderShare - b.yours - (a.leaderShare - a.yours));
+}

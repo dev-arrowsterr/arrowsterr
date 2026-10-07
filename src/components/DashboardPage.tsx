@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { isAnswered, type Chat, type Run } from "@/lib/chats";
-import { brandRows, mentionRows, sourceRows, timeline, type BrandRow } from "@/lib/stats";
+import { brandRows, mentionRows, perception, sourceRows, timeline, topicGaps, type BrandRow } from "@/lib/stats";
+import { PerceptionRadar } from "./PerceptionRadar";
 import type { Brand } from "./App";
 import { BrandLogo } from "./BrandLogo";
 import { ENGINE_LOGOS } from "./Engines";
@@ -97,6 +98,23 @@ export function DashboardPage({
   // Best average position first. Ties go to the brand mentioned more often.
   const ranking = [...rows].sort((a, b) => a.position - b.position || b.visibility - a.visibility).slice(0, MAX_RANKED);
   if (you && !ranking.includes(you)) ranking.push(you);
+
+  // Perception: you plus the top 3 competitors, in the same colors as the visibility chart.
+  const topics = brand.topics ?? [];
+  const identity = brand.identity ?? [];
+  const radarSeries = series.slice(0, 4).map((s) => ({ name: s.name, color: s.color, isYou: s.isYou }));
+  const perceived = perception(chats, radarSeries.map((s) => s.name), topics);
+  const hasTopicData = chats.some((c) => c.brands.some((b) => b.topics !== undefined));
+  const gaps = topicGaps(perception(chats, rows.map((r) => r.name), topics), brand.name, topics).slice(0, 5);
+  const leaderOf = (t: string) => {
+    let best = { name: "", share: 0 };
+    for (const r of rows) {
+      if (r.isYou) continue;
+      const share = perception(chats, [r.name], [t])[r.name][t];
+      if (share > best.share) best = { name: r.name, share };
+    }
+    return best;
+  };
 
   const mentions = mentionRows(inRange, brand.name, pick);
   const sources = sourceRows(chats);
@@ -213,6 +231,68 @@ export function DashboardPage({
                   </tbody>
                 </table>
               </Scroll>
+            </Card>
+          </div>
+
+          <div className="aw-grid-2">
+            <Card title="Brand perception">
+              {!topics.length ? (
+                <p className="aw-small">Add your industry topics on the Prompts page, then run again to see which topics AI links to each brand.</p>
+              ) : !hasTopicData ? (
+                <p className="aw-small">Topics are set. Click Run now to measure them. Runs from before topics existed have no topic data.</p>
+              ) : (
+                <PerceptionRadar topics={topics} data={perceived} series={radarSeries} identity={identity} />
+              )}
+            </Card>
+
+            <Card title="Topic gaps">
+              {!topics.length || !hasTopicData ? (
+                <p className="aw-small">Gaps show here after a run with topics.</p>
+              ) : (
+                <div className="flex flex-col gap-6">
+                  {identity.length ? (
+                    <div className="flex flex-col gap-3">
+                      <h3 className="aw-label mb-0!">★ Topics you want to be known for</h3>
+                      {identity.map((t) => {
+                        const yours = perceived[brand.name]?.[t] ?? perception(chats, [brand.name], [t])[brand.name][t];
+                        const lead = leaderOf(t);
+                        return (
+                          <div key={t} className="flex flex-col gap-1.5">
+                            <div className="flex items-center justify-between gap-3 text-[14px]">
+                              <span className="font-medium text-ink">{t}</span>
+                              <span className="aw-small">
+                                You {pct(yours)}
+                                {lead.name ? ` · ${lead.name} ${pct(lead.share)}` : ""}
+                              </span>
+                            </div>
+                            <div className="h-2 w-full overflow-hidden rounded bg-skel">
+                              <div className="h-full rounded" style={{ width: `${yours}%`, background: YOU_COLOR }} />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="aw-small">Tick the topics you want to be known for on the Prompts page to track them here.</p>
+                  )}
+                  <div className="flex flex-col gap-3">
+                    <h3 className="aw-label mb-0!">Where competitors lead</h3>
+                    {gaps.length ? (
+                      <ul className="aw-list aw-list--tight">
+                        {gaps.map((g) => (
+                          <li key={g.topic}>
+                            <span>
+                              <strong>{g.topic}:</strong> {g.leader} is linked in {pct(g.leaderShare)} of its mentions. You: {pct(g.yours)}.
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="aw-small">No big gaps. No competitor leads you by 15 points or more on any topic.</p>
+                    )}
+                  </div>
+                </div>
+              )}
             </Card>
           </div>
 
