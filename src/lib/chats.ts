@@ -1,7 +1,7 @@
 // Chat results and run history. Saved in the browser until the database step.
 import type { Source } from "./sources";
 
-export type BrandMention = { name: string; position: number; sentiment: number; domain?: string; topics?: string[] };
+export type BrandMention = { name: string; position: number; sentiment: number; domain?: string };
 
 export type Chat = {
   engine: string;

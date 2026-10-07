@@ -16,8 +16,6 @@ export type Brand = {
   logo: string;
   category: string;
   prompts: string[];
-  topics?: string[]; // what buyers in this industry judge every brand on
-  identity?: string[]; // the topics this brand wants to be known for
 };
 
 type Suggestion = Omit<Brand, "id">;
@@ -335,27 +333,8 @@ function Onboarding({ onDone, onCancel }: { onDone: (b: Brand) => void; onCancel
               </div>
             </div>
             <div className="aw-frame__body flex flex-col gap-6">
+              <h1 className="aw-h3">Suggested prompts</h1>
               {found.category ? <p className="aw-small">{found.category}</p> : null}
-              {found.topics?.length ? (
-                <div className="flex flex-col gap-2">
-                  <h2 className="aw-h4">Industry topics</h2>
-                  <p className="aw-help mt-0!">We track which of these topics AI links to you and your competitors. Click one to remove it.</p>
-                  <div className="flex flex-wrap gap-2">
-                    {found.topics.map((t) => (
-                      <button
-                        key={t}
-                        type="button"
-                        className="aw-pill"
-                        onClick={() => setFound({ ...found, topics: found.topics!.filter((x) => x !== t) })}
-                        title="Remove"
-                      >
-                        {t} ✕
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-              <h2 className="aw-h4">Suggested prompts</h2>
               <ul className="flex flex-col divide-y divide-border rounded-aw border border-border">
                 {found.prompts.map((p) => (
                   <li key={p}>

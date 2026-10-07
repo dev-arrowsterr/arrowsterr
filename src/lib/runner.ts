@@ -3,20 +3,20 @@ import type { Chat, Run } from "./chats";
 
 const CONCURRENCY = 3; // Few at once keeps the small Render server from running out of memory.
 
-async function askOne(engine: string, prompt: string, brand: string, domain: string, topics: string[], attempt = 0): Promise<Chat> {
+async function askOne(engine: string, prompt: string, brand: string, domain: string, attempt = 0): Promise<Chat> {
   const fail = (error: string): Chat => ({ engine, prompt, text: "", sources: [], brands: [], error });
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ engine, prompt, brand, domain, topics }),
+      body: JSON.stringify({ engine, prompt, brand, domain }),
     });
     const data = await res.json().catch(() => null);
     if (data === null) {
       // Render answered instead of the app: the server restarted or was busy. Try once more.
       if (attempt === 0) {
         await new Promise((r) => setTimeout(r, 5000));
-        return askOne(engine, prompt, brand, domain, topics, 1);
+        return askOne(engine, prompt, brand, domain, 1);
       }
       return fail(`The server returned ${res.status}. Check Render Logs for a crash or out of memory message.`);
     }
@@ -27,7 +27,7 @@ async function askOne(engine: string, prompt: string, brand: string, domain: str
 }
 
 export async function runAll(
-  brand: { name: string; domain: string; prompts: string[]; topics?: string[] },
+  brand: { name: string; domain: string; prompts: string[] },
   engines: string[],
   onUpdate: (run: Run, done: number, total: number) => void,
 ): Promise<Run> {
@@ -37,7 +37,7 @@ export async function runAll(
   const worker = async () => {
     while (next < jobs.length) {
       const { engine, prompt } = jobs[next++];
-      run.chats.push(await askOne(engine, prompt, brand.name, brand.domain, brand.topics ?? []));
+      run.chats.push(await askOne(engine, prompt, brand.name, brand.domain));
       onUpdate({ ...run, chats: [...run.chats] }, run.chats.length, jobs.length);
     }
   };

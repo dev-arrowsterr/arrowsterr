@@ -8,7 +8,6 @@ export async function POST(request: Request) {
   const prompt = typeof body.prompt === "string" ? body.prompt.trim().slice(0, 500) : "";
   const brand = typeof body.brand === "string" ? body.brand : "";
   const domain = typeof body.domain === "string" ? body.domain : "";
-  const topics = Array.isArray(body.topics) ? body.topics.filter((t: unknown) => typeof t === "string").slice(0, 12) : [];
   if (!availableEngines().includes(engine) || !prompt || !brand) {
     return Response.json({ error: "Bad request" }, { status: 400 });
   }
@@ -23,7 +22,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const brands = await extractBrands(brand, domain, answer.text, topics);
+    const brands = await extractBrands(brand, domain, answer.text);
     return Response.json({ text: answer.text, sources: answer.sources, brands });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

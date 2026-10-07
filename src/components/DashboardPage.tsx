@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { isAnswered, type Chat, type Run } from "@/lib/chats";
-import { brandRows, mentionRows, perception, sourceRows, timeline, topicGaps, type BrandRow } from "@/lib/stats";
-import { PerceptionRadar } from "./PerceptionRadar";
+import { brandRows, marketSentiment, mentionRows, sentimentRows, sourceRows, timeline, type BrandRow, type SentimentRow } from "@/lib/stats";
 import type { Brand } from "./App";
 import { BrandLogo } from "./BrandLogo";
 import { ENGINE_LOGOS } from "./Engines";
@@ -42,6 +41,42 @@ function Card({ title, children, foot, flush }: { title: string; children: React
       <div className={flush ? "min-h-0 flex-1" : "aw-frame__body flex-1"}>{children}</div>
       {foot ? <div className="aw-frame__foot">{foot}</div> : null}
     </section>
+  );
+}
+
+// Sentiment colors: brand green for positive, gray for neutral, brand red for negative. Every bar also shows its numbers.
+const SENT = { positive: "#1E7A4D", neutral: "#C8DDD1", negative: "#B3241A" };
+
+function SentimentStat({ label, value, strong }: { label: string; value: number | null; strong?: boolean }) {
+  return (
+    <div className={`rounded-aw border-2 border-line p-4 ${strong ? "bg-brand-pale" : "bg-white"}`}>
+      <div className="aw-stat__num">{value === null ? "–" : Math.round(value)}</div>
+      <div className="aw-stat__lab">{label}, out of 100</div>
+    </div>
+  );
+}
+
+function SentimentBar({ row, isYou, isMarket }: { row: SentimentRow; isYou: boolean; isMarket: boolean }) {
+  const parts = [
+    { key: "positive", value: row.positive, color: SENT.positive },
+    { key: "neutral", value: row.neutral, color: SENT.neutral },
+    { key: "negative", value: row.negative, color: SENT.negative },
+  ];
+  return (
+    <div className="grid grid-cols-[minmax(0,9rem)_1fr_3rem] items-center gap-3 text-[14px]">
+      <span className={`truncate ${isYou || isMarket ? "font-semibold text-ink" : "text-ink-2"}`}>{row.name}</span>
+      {row.mentions ? (
+        <span
+          className="flex h-3 w-full gap-0.5 overflow-hidden rounded"
+          title={`${Math.round(row.positive)}% positive, ${Math.round(row.neutral)}% neutral, ${Math.round(row.negative)}% negative, from ${row.mentions} mentions`}
+        >
+          {parts.map((p) => (p.value ? <span key={p.key} style={{ width: `${p.value}%`, background: p.color }} /> : null))}
+        </span>
+      ) : (
+        <span className="aw-small">No mentions</span>
+      )}
+      <span className="aw-num text-right font-semibold text-ink">{row.mentions ? Math.round(row.score) : "–"}</span>
+    </div>
   );
 }
 
@@ -99,22 +134,13 @@ export function DashboardPage({
   const ranking = [...rows].sort((a, b) => a.position - b.position || b.visibility - a.visibility).slice(0, MAX_RANKED);
   if (you && !ranking.includes(you)) ranking.push(you);
 
-  // Perception: you plus the top 3 competitors, in the same colors as the visibility chart.
-  const topics = brand.topics ?? [];
-  const identity = brand.identity ?? [];
-  const radarSeries = series.slice(0, 4).map((s) => ({ name: s.name, color: s.color, isYou: s.isYou }));
-  const perceived = perception(chats, radarSeries.map((s) => s.name), topics);
-  const hasTopicData = chats.some((c) => c.brands.some((b) => b.topics !== undefined));
-  const gaps = topicGaps(perception(chats, rows.map((r) => r.name), topics), brand.name, topics).slice(0, 5);
-  const leaderOf = (t: string) => {
-    let best = { name: "", share: 0 };
-    for (const r of rows) {
-      if (r.isYou) continue;
-      const share = perception(chats, [r.name], [t])[r.name][t];
-      if (share > best.share) best = { name: r.name, share };
-    }
-    return best;
-  };
+  // Sentiment: you, the top 4 competitors, and the market (every mention that is not you).
+  const [youSentiment, ...competitorSentiment] = sentimentRows(chats, [brand.name, ...top4.map((r) => r.name)]);
+  const market = marketSentiment(chats, brand.name);
+  const topAvg = competitorSentiment.filter((r) => r.mentions).length
+    ? competitorSentiment.reduce((n, r) => n + r.score * r.mentions, 0) / competitorSentiment.reduce((n, r) => n + r.mentions, 0)
+    : 0;
+  const diff = Math.round(youSentiment.score - market.score);
 
   const mentions = mentionRows(inRange, brand.name, pick);
   const sources = sourceRows(chats);
@@ -234,67 +260,40 @@ export function DashboardPage({
             </Card>
           </div>
 
-          <div className="aw-grid-2">
-            <Card title="Brand perception">
-              {!topics.length ? (
-                <p className="aw-small">Add your industry topics on the Prompts page, then run again to see which topics AI links to each brand.</p>
-              ) : !hasTopicData ? (
-                <p className="aw-small">Topics are set. Click Run now to measure them. Runs from before topics existed have no topic data.</p>
-              ) : (
-                <PerceptionRadar topics={topics} data={perceived} series={radarSeries} identity={identity} />
-              )}
-            </Card>
-
-            <Card title="Topic gaps">
-              {!topics.length || !hasTopicData ? (
-                <p className="aw-small">Gaps show here after a run with topics.</p>
-              ) : (
-                <div className="flex flex-col gap-6">
-                  {identity.length ? (
-                    <div className="flex flex-col gap-3">
-                      <h3 className="aw-label mb-0!">★ Topics you want to be known for</h3>
-                      {identity.map((t) => {
-                        const yours = perceived[brand.name]?.[t] ?? perception(chats, [brand.name], [t])[brand.name][t];
-                        const lead = leaderOf(t);
-                        return (
-                          <div key={t} className="flex flex-col gap-1.5">
-                            <div className="flex items-center justify-between gap-3 text-[14px]">
-                              <span className="font-medium text-ink">{t}</span>
-                              <span className="aw-small">
-                                You {pct(yours)}
-                                {lead.name ? ` · ${lead.name} ${pct(lead.share)}` : ""}
-                              </span>
-                            </div>
-                            <div className="h-2 w-full overflow-hidden rounded bg-skel">
-                              <div className="h-full rounded" style={{ width: `${yours}%`, background: YOU_COLOR }} />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <p className="aw-small">Tick the topics you want to be known for on the Prompts page to track them here.</p>
-                  )}
-                  <div className="flex flex-col gap-3">
-                    <h3 className="aw-label mb-0!">Where competitors lead</h3>
-                    {gaps.length ? (
-                      <ul className="aw-list aw-list--tight">
-                        {gaps.map((g) => (
-                          <li key={g.topic}>
-                            <span>
-                              <strong>{g.topic}:</strong> {g.leader} is linked in {pct(g.leaderShare)} of its mentions. You: {pct(g.yours)}.
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <p className="aw-small">No big gaps. No competitor leads you by 15 points or more on any topic.</p>
-                    )}
-                  </div>
+          <Card title="Sentiment">
+            <div className="flex flex-col gap-6">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <SentimentStat label={brand.name} value={youSentiment.mentions ? youSentiment.score : null} strong />
+                <SentimentStat label="Top competitors" value={competitorSentiment.some((r) => r.mentions) ? topAvg : null} />
+                <SentimentStat label="Market benchmark" value={market.mentions ? market.score : null} />
+              </div>
+              {youSentiment.mentions && market.mentions ? (
+                <p className="aw-ui">
+                  AI talks about {brand.name}{" "}
+                  <strong>
+                    {diff === 0 ? "exactly as positively as" : `${Math.abs(diff)} ${Math.abs(diff) === 1 ? "point" : "points"} ${diff > 0 ? "more" : "less"} positively than`}
+                  </strong>{" "}
+                  the market average.
+                </p>
+              ) : null}
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-wrap gap-4 text-[13px] text-g600">
+                  <span className="flex items-center gap-2">
+                    <i className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: SENT.positive }} /> Positive (60+)
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <i className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: SENT.neutral }} /> Neutral (40 to 59)
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <i className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: SENT.negative }} /> Negative (under 40)
+                  </span>
                 </div>
-              )}
-            </Card>
-          </div>
+                {[youSentiment, ...competitorSentiment, market].map((r, i, all) => (
+                  <SentimentBar key={r.name} row={r} isYou={i === 0} isMarket={i === all.length - 1} />
+                ))}
+              </div>
+            </div>
+          </Card>
 
           <div className="aw-grid-2">
             <Card title={`${brand.name} mentions · ${mentions.length}`} flush>

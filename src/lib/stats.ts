@@ -92,37 +92,37 @@ export function mentionRows(runs: Run[], you: string, filter: (c: Chat) => boole
   return out.sort((a, b) => b.at.localeCompare(a.at) || a.position - b.position);
 }
 
-export type Perception = Record<string, Record<string, number>>; // brand -> topic -> % of its mentions
+export type SentimentRow = {
+  name: string;
+  score: number; // average sentiment, 0 to 100
+  positive: number; // % of mentions scored 60 or more
+  neutral: number; // % scored 40 to 59
+  negative: number; // % scored under 40
+  mentions: number;
+};
 
-/** For each brand, the % of its mentions that AI linked to each topic. */
-export function perception(chats: Chat[], names: string[], topics: string[]): Perception {
-  const out: Perception = {};
-  for (const n of names) {
-    const mentions = chats.filter(isAnswered).flatMap((c) => c.brands.filter((b) => b.name.toLowerCase() === n.toLowerCase()));
-    out[n] = Object.fromEntries(
-      topics.map((t) => [t, mentions.length ? (mentions.filter((m) => m.topics?.includes(t)).length / mentions.length) * 100 : 0]),
-    );
-  }
-  return out;
+function sentimentOf(name: string, scores: number[]): SentimentRow {
+  const n = scores.length;
+  const share = (f: (s: number) => boolean) => (n ? (scores.filter(f).length / n) * 100 : 0);
+  return {
+    name,
+    mentions: n,
+    score: avg(scores),
+    positive: share((s) => s >= 60),
+    neutral: share((s) => s >= 40 && s < 60),
+    negative: share((s) => s < 40),
+  };
 }
 
-export type Gap = { topic: string; leader: string; leaderShare: number; yours: number };
+const scoresFor = (chats: Chat[], match: (name: string) => boolean) =>
+  chats.filter(isAnswered).flatMap((c) => c.brands.filter((b) => match(b.name.toLowerCase())).map((b) => b.sentiment));
 
-/** Topics where a competitor is linked much more often than you, biggest gap first. */
-export function topicGaps(p: Perception, you: string, topics: string[], minGap = 15): Gap[] {
-  const gaps: Gap[] = [];
-  for (const t of topics) {
-    const yours = p[you]?.[t] ?? 0;
-    let leader = "";
-    let leaderShare = 0;
-    for (const [name, shares] of Object.entries(p)) {
-      if (name === you) continue;
-      if ((shares[t] ?? 0) > leaderShare) {
-        leader = name;
-        leaderShare = shares[t];
-      }
-    }
-    if (leader && leaderShare - yours >= minGap) gaps.push({ topic: t, leader, leaderShare, yours });
-  }
-  return gaps.sort((a, b) => b.leaderShare - b.yours - (a.leaderShare - a.yours));
+/** Sentiment for each named brand. */
+export function sentimentRows(chats: Chat[], names: string[]): SentimentRow[] {
+  return names.map((n) => sentimentOf(n, scoresFor(chats, (b) => b === n.toLowerCase())));
+}
+
+/** Sentiment across every brand mention except yours: the market benchmark. */
+export function marketSentiment(chats: Chat[], you: string, label = "Market benchmark"): SentimentRow {
+  return sentimentOf(label, scoresFor(chats, (b) => b !== you.toLowerCase()));
 }
