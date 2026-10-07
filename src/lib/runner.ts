@@ -5,6 +5,9 @@ const CONCURRENCY = 3; // Few at once keeps the small Render server from running
 
 export type RunAuth = { workspaceId: string; token: () => Promise<string> };
 
+/** Error text when the workspace used all its AI answers for today. The run stops when it sees this. */
+export const LIMIT_ERROR = "Daily limit reached";
+
 async function askOne(engine: string, prompt: string, brand: string, domain: string, auth: RunAuth, attempt = 0): Promise<Chat> {
   const fail = (error: string): Chat => ({ engine, prompt, text: "", sources: [], brands: [], error });
   try {
@@ -33,17 +36,24 @@ export async function runAll(
   engines: string[],
   auth: RunAuth,
   onUpdate: (run: Run, done: number, total: number) => void,
-): Promise<Run> {
+): Promise<Run & { limited: boolean }> {
   const jobs = engines.flatMap((engine) => brand.prompts.map((prompt) => ({ engine, prompt })));
   const run: Run = { at: new Date().toISOString(), engines, chats: [] };
   let next = 0;
+  let stopped = false;
   const worker = async () => {
-    while (next < jobs.length) {
+    while (next < jobs.length && !stopped) {
       const { engine, prompt } = jobs[next++];
-      run.chats.push(await askOne(engine, prompt, brand.name, brand.domain, auth));
+      const chat = await askOne(engine, prompt, brand.name, brand.domain, auth);
+      // At the daily limit every other chat would fail too, so stop here.
+      if (chat.error?.startsWith(LIMIT_ERROR)) {
+        stopped = true;
+        break;
+      }
+      run.chats.push(chat);
       onUpdate({ ...run, chats: [...run.chats] }, run.chats.length, jobs.length);
     }
   };
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, jobs.length) }, worker));
-  return run;
+  return { ...run, limited: stopped };
 }

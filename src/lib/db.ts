@@ -16,6 +16,7 @@ export type Brand = {
   logo: string;
   category: string;
   prompts: string[];
+  daily: boolean; // run every day on the server
 };
 export type SavedRun = Run & { id: string };
 export type Member = { user_id: string; email: string | null; role: Role };
@@ -48,18 +49,20 @@ export async function acceptInvite(sb: SupabaseClient, token: string): Promise<s
   return check(await sb.rpc("accept_invite", { p_token: token })) as string;
 }
 
+const BRAND_COLS = "id, workspace_id, url, domain, name, logo, category, prompts, daily";
+
 export async function listBrands(sb: SupabaseClient, workspaceId: string): Promise<Brand[]> {
   return check(
-    await sb.from("brands").select("id, workspace_id, url, domain, name, logo, category, prompts").eq("workspace_id", workspaceId).order("created_at"),
+    await sb.from("brands").select(BRAND_COLS).eq("workspace_id", workspaceId).order("created_at"),
   ) as Brand[];
 }
 
-export async function addBrand(sb: SupabaseClient, b: Omit<Brand, "id">): Promise<Brand> {
-  return check(await sb.from("brands").insert(b).select("id, workspace_id, url, domain, name, logo, category, prompts").single()) as Brand;
+export async function addBrand(sb: SupabaseClient, b: Omit<Brand, "id" | "daily">): Promise<Brand> {
+  return check(await sb.from("brands").insert(b).select(BRAND_COLS).single()) as Brand;
 }
 
 export async function saveBrand(sb: SupabaseClient, b: Brand) {
-  check(await sb.from("brands").update({ name: b.name, prompts: b.prompts, category: b.category, logo: b.logo }).eq("id", b.id));
+  check(await sb.from("brands").update({ name: b.name, prompts: b.prompts, category: b.category, logo: b.logo, daily: b.daily }).eq("id", b.id));
 }
 
 export async function deleteBrand(sb: SupabaseClient, id: string) {
@@ -122,4 +125,34 @@ export async function createInvite(sb: SupabaseClient, workspaceId: string, user
 
 export async function revokeInvite(sb: SupabaseClient, id: string) {
   check(await sb.from("workspace_invites").delete().eq("id", id));
+}
+
+export type Usage = {
+  brands: number;
+  brandLimit: number;
+  prompts: number;
+  promptLimit: number;
+  answersToday: number;
+  answerLimit: number;
+};
+
+/** Limits and what this workspace has used. AI answers reset each day at midnight UTC. */
+export async function getUsage(sb: SupabaseClient, workspaceId: string): Promise<Usage> {
+  const today = new Date().toISOString().slice(0, 10);
+  const [ws, brands, usage] = await Promise.all([
+    sb.from("workspaces").select("brand_limit, prompt_limit, daily_answer_limit").eq("id", workspaceId).single(),
+    sb.from("brands").select("prompts").eq("workspace_id", workspaceId),
+    sb.from("usage").select("answers").eq("workspace_id", workspaceId).eq("day", today).maybeSingle(),
+  ]);
+  const w = check(ws) as { brand_limit: number; prompt_limit: number; daily_answer_limit: number };
+  const b = check(brands) as { prompts: string[] }[];
+  const u = check(usage) as { answers: number } | null;
+  return {
+    brands: b.length,
+    brandLimit: w.brand_limit,
+    prompts: b.reduce((n, x) => n + x.prompts.length, 0),
+    promptLimit: w.prompt_limit,
+    answersToday: u?.answers ?? 0,
+    answerLimit: w.daily_answer_limit,
+  };
 }

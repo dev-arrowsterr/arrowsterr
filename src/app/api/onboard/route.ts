@@ -1,4 +1,4 @@
-import { requireRole } from "@/lib/serverAuth";
+import { requireRole, takeAnswer } from "@/lib/serverAuth";
 import { askClaude, parseJson } from "@/lib/claude";
 import { fetchSite, logoFor, normalizeSite } from "@/lib/site";
 
@@ -23,11 +23,13 @@ Rules for the prompts:
 // Onboarding: read the website, then have Claude suggest the brand name and buyer prompts.
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
-  // Only editors and up may spend AI credits.
-  const denied = await requireRole(request, body.workspaceId, "editor");
-  if (denied) return denied;
   const site = normalizeSite(String(body.website ?? ""));
   if (!site) return Response.json({ error: "Enter a website, like acme.com." }, { status: 400 });
+  // Only editors and up may spend AI credits. Reading a site counts as one answer.
+  const auth = await requireRole(request, body.workspaceId, "editor");
+  if ("denied" in auth) return auth.denied;
+  const limited = await takeAnswer(auth.sb, body.workspaceId);
+  if (limited) return limited;
   if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
 
   try {

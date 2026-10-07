@@ -103,7 +103,7 @@ type DfsItem = {
  * Google decides when to show an AI Overview. When it shows none, the chat counts as answered with no brands.
  */
 async function askAIOverview(prompt: string): Promise<Answer> {
-  const auth = Buffer.from(`${process.env.DFS_LOGIN}:${process.env.DFS_PASSWORD}`).toString("base64");
+  const auth = Buffer.from(`${process.env.DFS_LOGIN?.trim()}:${process.env.DFS_PASSWORD?.trim()}`).toString("base64");
   const res = await fetch("https://api.dataforseo.com/v3/serp/google/organic/live/advanced", {
     method: "POST",
     headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/json" },

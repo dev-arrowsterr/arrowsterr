@@ -29,7 +29,7 @@ import { MembersPage } from "./MembersPage";
 import { PromptsPage } from "./PromptsPage";
 
 export type { Brand } from "@/lib/db";
-type Suggestion = Omit<Brand, "id" | "workspace_id">;
+type Suggestion = Omit<Brand, "id" | "workspace_id" | "daily">;
 type Page = "dashboard" | "prompts" | "members";
 
 const INVITE_KEY = "arrowsterr.invite";
@@ -191,7 +191,9 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
         setError(`Could not save this run: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
-    setRuns((r) => ({ ...r, [brand.id]: [...past, { ...finished, id: runId ?? "unsaved" }] }));
+    const { limited, ...done } = finished;
+    if (limited) setError("Daily limit reached. This workspace used all its AI answers for today, so the run stopped early. It resets at midnight UTC.");
+    setRuns((r) => ({ ...r, [brand.id]: [...past, { ...done, id: runId ?? "unsaved" }] }));
     setRunning(null);
   }
 
@@ -206,10 +208,13 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   }
 
   async function update(brand: Brand) {
+    const before = brands?.find((b) => b.id === brand.id);
     setBrands((list) => list?.map((b) => (b.id === brand.id ? brand : b)) ?? null);
     try {
       await saveBrand(sb, brand);
     } catch (e) {
+      // Put the brand back the way it was, like when a limit blocks the change.
+      if (before) setBrands((list) => list?.map((b) => (b.id === brand.id ? before : b)) ?? null);
       setError(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
     }
   }

@@ -28,6 +28,21 @@ export function PromptsPage({
         <h1 className="aw-h2 mb-0!">Prompts</h1>
         <span className="aw-tag">{brand.prompts.length} tracked</span>
       </div>
+      <label className={`flex items-start gap-3 rounded-aw border border-border bg-white px-4 py-3 ${readOnly ? "" : "cursor-pointer"}`}>
+        <input
+          type="checkbox"
+          checked={brand.daily}
+          disabled={readOnly}
+          onChange={(e) => onChange({ ...brand, daily: e.target.checked })}
+          className="mt-1 h-4 w-4 accent-[#1E7A4D]"
+        />
+        <span className="flex flex-col">
+          <span className="text-[15px] font-medium text-ink">Run every day</span>
+          <span className="aw-small">
+            {brand.daily ? "On. The server checks every prompt on every engine once a day." : "Off. Prompts only run when you click Run on the Dashboard."}
+          </span>
+        </span>
+      </label>
       {readOnly ? <p className="aw-small">You can view prompts. Editors and admins can change them.</p> : null}
       {readOnly ? null : (
       <div className="flex gap-3">

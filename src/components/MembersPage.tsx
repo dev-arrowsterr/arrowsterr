@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   atLeast,
   createInvite,
+  getUsage,
   listInvites,
   listMembers,
   removeMember,
@@ -14,6 +15,7 @@ import {
   type Invite,
   type Member,
   type Role,
+  type Usage,
   type Workspace,
 } from "@/lib/db";
 
@@ -45,11 +47,36 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+function Meter({ label, used, limit }: { label: string; used: number; limit: number }) {
+  const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 100;
+  const full = used >= limit;
+  return (
+    <div className="aw-card-stat flex flex-col gap-2">
+      <span className="aw-small">{label}</span>
+      <span className="aw-num text-[22px] font-semibold text-ink">
+        {used} <span className="text-[15px] font-normal text-g600">of {limit}</span>
+      </span>
+      <div
+        className="h-2 overflow-hidden rounded-full bg-skel"
+        role="meter"
+        aria-label={label}
+        aria-valuenow={used}
+        aria-valuemin={0}
+        aria-valuemax={limit}
+      >
+        <div className={`h-full ${full ? "bg-danger" : "bg-brand"}`} style={{ width: `${pct}%` }} />
+      </div>
+      {full ? <span className="text-[13px] font-medium text-danger">Limit reached</span> : null}
+    </div>
+  );
+}
+
 /** Workspace name, members and their roles, and invites. */
 export function MembersPage({ sb, ws, userId, onChanged }: { sb: SupabaseClient; ws: Workspace; userId: string; onChanged: () => Promise<void> }) {
   const isAdmin = atLeast(ws.role, "admin");
   const [members, setMembers] = useState<Member[] | null>(null);
   const [invites, setInvites] = useState<Invite[]>([]);
+  const [usage, setUsage] = useState<Usage | null>(null);
   const [name, setName] = useState(ws.name);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("editor");
@@ -60,6 +87,7 @@ export function MembersPage({ sb, ws, userId, onChanged }: { sb: SupabaseClient;
   const load = useCallback(async () => {
     try {
       setMembers(await listMembers(sb, ws.id));
+      setUsage(await getUsage(sb, ws.id));
       if (isAdmin) setInvites(await listInvites(sb, ws.id));
     } catch (e) {
       setError(message(e));
@@ -125,6 +153,18 @@ export function MembersPage({ sb, ws, userId, onChanged }: { sb: SupabaseClient;
           </p>
         )}
       </section>
+
+      {usage ? (
+        <section className="flex flex-col gap-3">
+          <h2 className="aw-h4">Usage</h2>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <Meter label="Brands" used={usage.brands} limit={usage.brandLimit} />
+            <Meter label="Prompts" used={usage.prompts} limit={usage.promptLimit} />
+            <Meter label="AI answers today" used={usage.answersToday} limit={usage.answerLimit} />
+          </div>
+          <p className="aw-small">One AI answer is one prompt on one engine. The count resets at midnight UTC.</p>
+        </section>
+      ) : null}
 
       <section className="flex flex-col gap-3">
         <h2 className="aw-h4">Members</h2>
