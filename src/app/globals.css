@@ -1,0 +1,71 @@
+@import "tailwindcss";
+@import "./brand.css";
+
+/* Point the brand font tokens at the fonts loaded by next/font in layout.tsx. */
+.aw {
+  --aw-font: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --aw-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/*
+ * Expose the brand tokens to Tailwind so utilities like bg-brand,
+ * text-ink-2, border-line and shadow-aw work inside .aw.
+ * The values live in brand.css. Change them there.
+ */
+@theme inline {
+  --color-brand: var(--aw-brand);
+  --color-brand-fg: var(--aw-brand-fg);
+  --color-brand-deep: var(--aw-brand-deep);
+  --color-brand-bg: var(--aw-brand-bg);
+  --color-brand-pale: var(--aw-brand-pale);
+  --color-brand-mist: var(--aw-brand-mist);
+
+  --color-line: var(--aw-line);
+  --color-ink: var(--aw-ink);
+  --color-ink-2: var(--aw-ink-2);
+  --color-n700: var(--aw-n700);
+  --color-g600: var(--aw-g600);
+  --color-g500: var(--aw-g500);
+  --color-g-dis: var(--aw-g-dis);
+  --color-border: var(--aw-border);
+  --color-border-faint: var(--aw-border-faint);
+  --color-skel: var(--aw-skel);
+
+  --color-paper: var(--aw-paper);
+  --color-bg-ink: var(--aw-bg-ink);
+  --color-bg-ink-2: var(--aw-bg-ink-2);
+
+  --color-amber: var(--aw-amber);
+  --color-success: var(--aw-success);
+  --color-success-bg: var(--aw-success-bg);
+  --color-danger: var(--aw-danger);
+  --color-danger-bg: var(--aw-danger-bg);
+  --color-warn: var(--aw-warn);
+  --color-warn-bg: var(--aw-warn-bg);
+
+  --color-engine-chatgpt: var(--aw-e-chatgpt);
+  --color-engine-perplexity: var(--aw-e-perplexity);
+  --color-engine-claude: var(--aw-e-claude);
+  --color-engine-gemini: var(--aw-e-gemini);
+  --color-engine-grok: var(--aw-e-grok);
+  --color-engine-aimode: var(--aw-e-aimode);
+
+  --font-sans: var(--aw-font);
+  --font-mono: var(--aw-mono);
+
+  --radius-aw-sm: var(--aw-radius-sm);
+  --radius-aw: var(--aw-radius);
+  --radius-aw-md: var(--aw-radius-md);
+  --radius-aw-lg: var(--aw-radius-lg);
+
+  --shadow-aw-sm: var(--aw-shadow-sm);
+  --shadow-aw: var(--aw-shadow);
+  --shadow-aw-lg: var(--aw-shadow-lg);
+  --shadow-aw-ink: var(--aw-shadow-ink);
+  --shadow-aw-ink-lg: var(--aw-shadow-ink-lg);
+}
+
+html,
+body {
+  background: #f7fbf8; /* --aw-paper, set here because body sits outside .aw */
+}

@@ -1,0 +1,546 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   ARROWSTERR BRAND SYSTEM — CSS
+   Version 1 · Neo-brutalist, green
+   ─────────────────────────────────────────────────────────────────────
+   HOW TO USE
+   Wrap any embed in <div class="aw"> … </div>. Everything is scoped to
+   .aw so it never leaks into (or gets broken by) the WordPress theme.
+   Load Inter once per page:
+   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+   In the Next.js app, layout.tsx wraps every page in .aw and loads
+   Inter and JetBrains Mono through next/font.
+
+   BRAND RULES (apply to every graphic, embed and page)
+   1. Logo: always the image file, never the "arrowsterr.com" text.
+      https://arrowsterr.com/wp-content/uploads/2026/10/Arrowsterr-Logo.png
+      Always set the logo height explicitly (see .aw-logo sizes). Never let it scale freely.
+   2. Titles stand alone. No subtitle or explanation line under a title.
+   3. Embeds: outer container has margin: 0, internal padding only,
+      and a little bottom padding so content never sits flush at the bottom.
+   4. Colour: green does the talking, black draws the lines, amber is the
+      rare accent (alerts, one highlight). Never more than one amber element
+      competing for attention.
+   5. Shape language: 2px black borders, small radii (4–6px), hard offset
+      shadows (no blur). Shadows are green on light cards, black on green cards.
+   6. Bullets: green squares for top-level items, small green dots for nested items.
+   7. Copy: 9th-grade vocabulary, short sentences, direct "you". No em dashes.
+      Avoid "not X, Y" and "X, not Y" phrasing. Avoid lists of three in prose.
+   8. Featured images: 1200×630, no text, logo in a centered top badge.
+   9. Data colour rules: ranked/present = green, missed/absent = red,
+      neutral/pending = grey. Never use green and red as the only difference
+      between two states; always pair with a word or icon.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+
+/* ───────────────────────────────────────────────────────────────────────
+   1. TOKENS
+   ─────────────────────────────────────────────────────────────────────── */
+.aw {
+  /* Brand green */
+  --aw-brand: #1E7A4D;          /* primary: buttons, bullets, key data */
+  --aw-brand-fg: #2CA666;       /* lighter green for links on dark, hover glows */
+  --aw-brand-deep: #145934;     /* hover/pressed state for primary */
+  --aw-brand-bg: #E6F4EC;       /* tinted fills, tags, chart bars */
+  --aw-brand-pale: #F2FAF5;     /* card headers, highlighted rows */
+  --aw-brand-mist: #BCDCC9;     /* skeleton lines on green-tinted surfaces */
+
+  /* Ink and neutrals (green-leaning, never pure grey) */
+  --aw-line: #000000;           /* all structural borders */
+  --aw-ink: #0A150E;            /* headings, strong text */
+  --aw-ink-2: #253329;          /* body text */
+  --aw-n700: #1E2E24;           /* labels, form text */
+  --aw-g600: #3F5447;           /* secondary text */
+  --aw-g500: #6B8575;           /* captions, axis labels */
+  --aw-g-dis: #9BB5A3;          /* placeholders, disabled */
+  --aw-border: #C8DDD1;         /* inner dividers */
+  --aw-border-faint: #E4F0E8;   /* gridlines */
+  --aw-skel: #DCEBE2;           /* skeleton text in illustrations */
+
+  /* Surfaces */
+  --aw-white: #FFFFFF;
+  --aw-paper: #F7FBF8;          /* page background */
+  --aw-bg-ink: #0A150E;         /* dark panels */
+  --aw-bg-ink-2: #122018;
+  --aw-on-dark: #FFFFFF;
+  --aw-on-dark-2: #B8D4C2;
+  --aw-on-dark-3: #6F9A7E;
+
+  /* Accents (use sparingly) */
+  --aw-amber: #F5B70A;          /* one highlight per piece */
+  --aw-medal-silver: #C9D0DA;
+  --aw-medal-bronze: #D08A4E;
+  --aw-success: #1E7A4D;        /* ranked, present, passing */
+  --aw-success-bg: #E6F4EC;
+  --aw-danger: #B3241A;         /* missed, absent, failing */
+  --aw-danger-bg: #FFE1DE;
+  --aw-warn: #9A6B00;
+  --aw-warn-bg: #FFF3D4;
+
+  /* Engine colours (for charts and legends only) */
+  --aw-e-chatgpt: #10A37F;
+  --aw-e-perplexity: #20808D;
+  --aw-e-claude: #D97757;
+  --aw-e-gemini: #4285F4;
+  --aw-e-grok: #1E2E24;
+  --aw-e-aimode: #6B8575;
+
+  /* Typography */
+  --aw-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --aw-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --aw-fs-display: 48px;    /* hero H1 */
+  --aw-fs-hero: 64px;       /* landing hero */
+  --aw-fs-h2: 34px;         /* section heading in posts */
+  --aw-fs-h2-section: 44px; /* landing page section heading */
+  --aw-fs-h3: 22px;         /* sub-heading, FAQ question */
+  --aw-fs-h4: 18px;         /* card title */
+  --aw-fs-body: 18px;       /* article body */
+  --aw-fs-ui: 16px;         /* UI text, summaries, buttons */
+  --aw-fs-small: 15px;
+  --aw-fs-label: 14px;
+  --aw-fs-micro: 12px;
+  --aw-lh-tight: 1.05;
+  --aw-lh-heading: 1.25;
+  --aw-lh-ui: 1.6;
+  --aw-lh-body: 1.75;
+  --aw-tracking-hero: -0.04em;
+  --aw-tracking-display: -0.035em;
+  --aw-tracking-heading: -0.02em;
+
+  /* Spacing (4px base) */
+  --aw-s1: 4px;  --aw-s2: 8px;  --aw-s3: 12px; --aw-s4: 16px;
+  --aw-s5: 20px; --aw-s6: 24px; --aw-s7: 28px; --aw-s8: 32px;
+  --aw-s10: 40px; --aw-s12: 48px; --aw-s16: 64px; --aw-s20: 80px;
+
+  /* Shape */
+  --aw-border-w: 2px;
+  --aw-radius-sm: 3px;
+  --aw-radius: 4px;
+  --aw-radius-md: 6px;
+  --aw-radius-lg: 10px;
+  --aw-radius-pill: 999px;
+
+  /* Hard offset shadows (never blurred) */
+  --aw-shadow-sm: 4px 4px 0 var(--aw-brand);
+  --aw-shadow: 6px 6px 0 var(--aw-brand);
+  --aw-shadow-lg: 8px 8px 0 var(--aw-brand);
+  --aw-shadow-ink: 6px 6px 0 var(--aw-line);
+  --aw-shadow-ink-lg: 10px 10px 0 var(--aw-line);
+
+  /* Motion */
+  --aw-ease: cubic-bezier(.2,.7,.2,1);
+  --aw-fast: .15s;
+
+  /* Layout */
+  --aw-max: 1200px;
+  --aw-gutter: 40px;
+
+  margin: 0 !important;
+  padding: 0 8px 12px 0 !important;  /* room for offset shadow + bottom breathing room */
+  font-family: var(--aw-font) !important;
+  color: var(--aw-ink-2);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scoped reset: blocks theme styles from leaking in */
+.aw, .aw *, .aw *::before, .aw *::after { box-sizing: border-box; font-family: var(--aw-font) !important; }
+.aw h1, .aw h2, .aw h3, .aw h4, .aw p, .aw ul, .aw ol, .aw li, .aw figure, .aw table {
+  margin: 0; padding: 0; text-transform: none !important;
+}
+.aw img { max-width: 100%; height: auto; }
+
+
+/* ───────────────────────────────────────────────────────────────────────
+   2. TYPOGRAPHY
+   ─────────────────────────────────────────────────────────────────────── */
+.aw .aw-hero { font-size: var(--aw-fs-hero) !important; font-weight: 500 !important; line-height: var(--aw-lh-tight) !important; letter-spacing: var(--aw-tracking-hero) !important; color: var(--aw-ink) !important; }
+.aw .aw-display { font-size: var(--aw-fs-display) !important; font-weight: 500 !important; line-height: 1.1 !important; letter-spacing: var(--aw-tracking-display) !important; color: var(--aw-ink) !important; }
+.aw .aw-h2 { font-size: var(--aw-fs-h2) !important; font-weight: 500 !important; line-height: 1.2 !important; letter-spacing: -0.025em !important; color: var(--aw-ink) !important; margin-bottom: var(--aw-s8) !important; }
+.aw .aw-h2--section { font-size: var(--aw-fs-h2-section) !important; letter-spacing: -0.035em !important; line-height: 1.08 !important; }
+.aw .aw-h3 { font-size: var(--aw-fs-h3) !important; font-weight: 500 !important; line-height: 1.35 !important; letter-spacing: -0.015em !important; color: var(--aw-ink) !important; }
+.aw .aw-h4 { font-size: var(--aw-fs-h4) !important; font-weight: 500 !important; line-height: 1.35 !important; letter-spacing: -0.015em !important; color: var(--aw-ink) !important; }
+.aw .aw-body { font-size: var(--aw-fs-body) !important; line-height: var(--aw-lh-body) !important; color: var(--aw-ink-2) !important; }
+.aw .aw-body + .aw-body { margin-top: var(--aw-s4) !important; }
+.aw .aw-ui { font-size: var(--aw-fs-ui) !important; line-height: var(--aw-lh-ui) !important; color: var(--aw-ink-2) !important; }
+.aw .aw-small { font-size: var(--aw-fs-small) !important; line-height: 1.5 !important; color: var(--aw-g600) !important; }
+.aw .aw-caption { font-size: var(--aw-fs-label) !important; line-height: 1.5 !important; color: var(--aw-g600) !important; text-align: center; }
+.aw b, .aw strong { font-weight: 600 !important; color: var(--aw-ink) !important; }
+.aw .aw-num { font-variant-numeric: tabular-nums; }
+.aw .aw-mono { font-family: var(--aw-mono) !important; font-size: 13px !important; }
+
+/* Accent word inside a heading */
+.aw .aw-accent { color: var(--aw-brand) !important; font-style: normal; }
+
+/* Links */
+.aw a, .aw a:link, .aw a:visited {
+  color: var(--aw-brand) !important; font-weight: 500;
+  text-decoration: underline !important;
+  text-decoration-color: rgba(30,122,77,.35) !important;
+  text-decoration-thickness: 1px !important;
+  text-underline-offset: 4px !important;
+  transition: color var(--aw-fast), text-decoration-color var(--aw-fast);
+}
+.aw a:hover { color: var(--aw-brand-deep) !important; text-decoration-color: var(--aw-brand) !important; }
+.aw a:focus-visible { outline: 2px solid var(--aw-brand); outline-offset: 3px; }
+
+
+/* ───────────────────────────────────────────────────────────────────────
+   3. LOGO
+   ─────────────────────────────────────────────────────────────────────── */
+.aw .aw-logo { display: block; width: auto !important; object-fit: contain; margin: 0 !important; }
+.aw .aw-logo--sm { height: 18px !important; max-width: 100px !important; }  /* inside tables, chips */
+.aw .aw-logo--md { height: 26px !important; max-width: 150px !important; }  /* nav, cards */
+.aw .aw-logo--lg { height: 36px !important; max-width: 200px !important; }  /* featured image badges */
+.aw .aw-logo--invert { filter: brightness(0) invert(1); }                   /* on dark panels */
+
+/* Centered logo badge (featured images) */
+.aw .aw-logo-badge { display: inline-flex; align-items: center; justify-content: center; width: 250px; height: 68px; padding: 0 24px; background: var(--aw-white); border: var(--aw-border-w) solid var(--aw-line); border-radius: 8px; box-shadow: 5px 5px 0 var(--aw-brand); }
+
+
+/* ───────────────────────────────────────────────────────────────────────
+   4. BUTTONS
+   ─────────────────────────────────────────────────────────────────────── */
+.aw .aw-btn, .aw a.aw-btn, .aw a.aw-btn:link, .aw a.aw-btn:visited {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  font-size: var(--aw-fs-ui) !important; font-weight: 500 !important; line-height: 1.2 !important;
+  padding: 14px 22px; border: var(--aw-border-w) solid var(--aw-line) !important; border-radius: var(--aw-radius);
+  text-decoration: none !important; white-space: nowrap; cursor: pointer;
+  transition: background var(--aw-fast), color var(--aw-fast), transform var(--aw-fast) var(--aw-ease), box-shadow var(--aw-fast) var(--aw-ease);
+}
+.aw .aw-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform var(--aw-fast); }
+.aw .aw-btn:hover svg { transform: translateX(3px); }
+.aw .aw-btn:focus-visible { outline: 2px solid var(--aw-brand); outline-offset: 3px; }
+.aw .aw-btn:disabled, .aw .aw-btn[aria-disabled="true"] { background: var(--aw-skel) !important; color: var(--aw-g-dis) !important; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+
+/* Primary: green fill, black shadow on hover */
+.aw .aw-btn--primary, .aw a.aw-btn--primary:link, .aw a.aw-btn--primary:visited { background: var(--aw-brand) !important; color: var(--aw-white) !important; }
+.aw .aw-btn--primary:hover { background: var(--aw-brand-deep) !important; color: var(--aw-white) !important; transform: translate(-2px,-2px); box-shadow: 4px 4px 0 var(--aw-line); }
+
+/* Secondary: white fill, green shadow on hover */
+.aw .aw-btn--secondary, .aw a.aw-btn--secondary:link, .aw a.aw-btn--secondary:visited { background: var(--aw-white) !important; color: var(--aw-ink) !important; }
+.aw .aw-btn--secondary:hover { color: var(--aw-ink) !important; transform: translate(-2px,-2px); box-shadow: 4px 4px 0 var(--aw-brand); }
+
+/* On dark panels */
+.aw .aw-btn--on-dark { background: var(--aw-white) !important; color: var(--aw-ink) !important; border-color: var(--aw-white) !important; }
+.aw .aw-btn--on-dark:hover { box-shadow: 4px 4px 0 var(--aw-brand-fg); transform: translate(-2px,-2px); }
+.aw .aw-btn--ghost-dark { background: transparent !important; color: var(--aw-white) !important; border: 1px solid rgba(255,255,255,.35) !important; }
+.aw .aw-btn--ghost-dark:hover { background: var(--aw-bg-ink-2) !important; border-color: var(--aw-white) !important; }
+
+/* Destructive */
+.aw .aw-btn--danger { background: var(--aw-danger) !important; color: var(--aw-white) !important; }
+.aw .aw-btn--danger:hover { transform: translate(-2px,-2px); box-shadow: 4px 4px 0 var(--aw-line); }
+
+.aw .aw-btn--lg { font-size: 18px !important; padding: 18px 28px; }
+.aw .aw-btn--sm { font-size: 14px !important; padding: 9px 14px; }
+.aw .aw-btn--block { width: 100%; }
+
+/* Text link with arrow */
+.aw .aw-text-link, .aw a.aw-text-link:link, .aw a.aw-text-link:visited { display: inline-flex; align-items: center; gap: 6px; font-size: var(--aw-fs-small) !important; font-weight: 500 !important; color: var(--aw-ink) !important; text-decoration: none !important; border-bottom: 1px solid var(--aw-line); padding-bottom: 2px; }
+.aw a.aw-text-link:hover { color: var(--aw-brand) !important; border-color: var(--aw-brand); }
+
+
+/* ───────────────────────────────────────────────────────────────────────
+   5. TAGS, BADGES, CHIPS, STATUS
+   ─────────────────────────────────────────────────────────────────────── */
+/* Small label above a title (sentence case, never uppercase) */
+.aw .aw-tag { display: inline-block; font-size: var(--aw-fs-micro) !important; font-weight: 500 !important; line-height: 1.3 !important; color: var(--aw-brand) !important; background: var(--aw-brand-bg); border-radius: 2px; padding: 4px 8px; }
+.aw .aw-tag--on-dark { background: rgba(255,255,255,.08); color: #6FCF97 !important; }
+
+/* "Recommended" / "Most popular" */
+.aw .aw-badge { display: inline-block; font-size: var(--aw-fs-micro) !important; font-weight: 500 !important; line-height: 1.3 !important; color: var(--aw-white) !important; background: var(--aw-brand); border: 1px solid var(--aw-line); border-radius: var(--aw-radius-sm); padding: 3px 8px; white-space: nowrap; }
+
+/* Status pills: ALWAYS carry a word, never colour alone */
+.aw .aw-status { display: inline-flex; align-items: center; gap: 5px; font-size: 11px !important; font-weight: 500 !important; line-height: 1.3 !important; padding: 3px 9px; border-radius: var(--aw-radius-pill); white-space: nowrap; }
+.aw .aw-status--ranked  { background: var(--aw-success-bg); color: var(--aw-brand-deep) !important; }
+.aw .aw-status--missed  { background: var(--aw-danger-bg);  color: #7A1810 !important; }
+.aw .aw-status--pending { background: var(--aw-skel);       color: var(--aw-g600) !important; }
+.aw .aw-status--warn    { background: var(--aw-warn-bg);    color: var(--aw-warn) !important; }
+
+/* Priority chips (task list) */
+.aw .aw-pri { font-size: 11px !important; font-weight: 500 !important; padding: 3px 8px; border-radius: var(--aw-radius-sm); white-space: nowrap; }
+.aw .aw-pri--high { background: var(--aw-brand); color: var(--aw-white) !important; }
+.aw .aw-pri--mid  { background: var(--aw-brand-bg); color: var(--aw-brand-deep) !important; }
+.aw .aw-pri--low  { background: var(--aw-skel); color: var(--aw-g600) !important; }
+
+/* Rank number square */
+.aw .aw-rank { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 30px; padding: 0 7px; flex-shrink: 0; border: 1px solid var(--aw-line); border-radius: var(--aw-radius); background: var(--aw-white); font-size: var(--aw-fs-label) !important; font-weight: 500 !important; color: var(--aw-ink) !important; font-variant-numeric: tabular-nums; }
+.aw .aw-rank--top { background: var(--aw-brand); color: var(--aw-white) !important; }
+
+/* Engine chip (ChatGPT, Claude, ...) */
+.aw .aw-engine { display: inline-flex; align-items: center; gap: 6px; font-size: var(--aw-fs-label) !important; font-weight: 500 !important; color: var(--aw-n700) !important; background: var(--aw-white); border: 1px solid var(--aw-border); border-radius: var(--aw-radius-pill); padding: 5px 12px; }
+.aw .aw-engine i { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+/* Filter / choice chips */
+.aw .aw-pill { display: inline-flex; align-items: center; font-size: var(--aw-fs-label) !important; color: var(--aw-n700) !important; background: var(--aw-white); border: 1px solid var(--aw-border); border-radius: var(--aw-radius-pill); padding: 7px 14px; cursor: pointer; transition: background var(--aw-fast), color var(--aw-fast), border-color var(--aw-fast); }
+.aw .aw-pill:hover { border-color: var(--aw-line); }
+.aw .aw-pill.is-on { background: var(--aw-ink); border-color: var(--aw-ink); color: var(--aw-white) !important; }
+
+/* Round icon chip (illustrations) */
+.aw .aw-chip { width: 62px; height: 62px; border-radius: 50%; background: var(--aw-white); border: var(--aw-border-w) solid var(--aw-line); box-shadow: var(--aw-shadow-sm); display: flex; align-items: center; justify-content: center; }
+.aw .aw-chip svg { width: 26px; height: 26px; stroke: var(--aw-ink); fill: none; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
+.aw .aw-chip--green { background: var(--aw-brand); box-shadow: 4px 4px 0 var(--aw-line); }
+.aw .aw-chip--green svg { stroke: var(--aw-white); }
+.aw .aw-chip--pale { background: var(--aw-brand-bg); }
+
+/* Square icon tile (feature grids) */
+.aw .aw-tile { width: 44px; height: 44px; border-radius: var(--aw-radius); background: var(--aw-brand-bg); border: var(--aw-border-w) solid var(--aw-line); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.aw .aw-tile svg { width: 22px; height: 22px; stroke: var(--aw-brand); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+/* Check circle */
+.aw .aw-check { width: 18px; height: 18px; border-radius: 50%; background: var(--aw-brand); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.aw .aw-check svg { width: 10px; height: 10px; stroke: var(--aw-white); fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.aw .aw-check--lg { width: 28px; height: 28px; border: var(--aw-border-w) solid var(--aw-line); }
+.aw .aw-check--lg svg { width: 13px; height: 13px; stroke-width: 3.2; }
+
+
+/* ───────────────────────────────────────────────────────────────────────
+   6. SURFACES: FRAMES, CARDS, WINDOWS
+   ─────────────────────────────────────────────────────────────────────── */
+.aw .aw-frame { background: var(--aw-white); border: var(--aw-border-w) solid var(--aw-line) !important; border-radius: var(--aw-radius-md); overflow: hidden; }
+.aw .aw-frame--shadow { box-shadow: var(--aw-shadow); }
+.aw .aw-frame--shadow-lg { box-shadow: var(--aw-shadow-lg); }
+.aw .aw-frame--shadow-ink { box-shadow: var(--aw-shadow-ink); }
+.aw .aw-frame--pale { background: var(--aw-brand-pale); }
+.aw .aw-frame--green { background: var(--aw-brand); color: var(--aw-white); box-shadow: var(--aw-shadow-ink); }
+.aw .aw-frame__head { display: flex; align-items: center; gap: 12px; padding: 16px 28px; background: var(--aw-brand-pale); border-bottom: 1px solid var(--aw-line); }
+.aw .aw-frame__body { padding: 24px 28px 28px; }
+.aw .aw-frame__foot { padding: 16px 28px; background: var(--aw-brand-pale); border-top: 1px solid var(--aw-line); }
+
+/* Hover lift for clickable cards */
+.aw .aw-lift { transition: transform .2s var(--aw-ease), box-shadow .2s var(--aw-ease); }
+.aw .aw-lift:hover { transform: translate(-3px,-3px); box-shadow: 6px 6px 0 var(--aw-brand); }
+
+/* Browser window (mock UI) */
+.aw .aw-window { background: var(--aw-white); border: var(--aw-border-w) solid var(--aw-line); border-radius: var(--aw-radius-lg); box-shadow: var(--aw-shadow-ink-lg); overflow: hidden; }
+.aw .aw-window__bar { height: 42px; display: flex; align-items: center; gap: 7px; padding: 0 14px; background: var(--aw-brand-pale); border-bottom: var(--aw-border-w) solid var(--aw-line); }
+.aw .aw-window__bar i { width: 11px; height: 11px; border-radius: 50%; border: 1px solid rgba(0,0,0,.22); }
+.aw .aw-window__bar i:nth-child(1) { background: #FF5F57; }
+.aw .aw-window__bar i:nth-child(2) { background: #FEBC2E; }
+.aw .aw-window__bar i:nth-child(3) { background: #28C840; }
+.aw .aw-window__url { flex: 1; max-width: 300px; margin: 0 auto; background: var(--aw-white); border: 1px solid var(--aw-border); border-radius: var(--aw-radius-sm); padding: 4px 12px; font-size: 12px; color: var(--aw-g600); text-align: center; }
+.aw .aw-window--dark { background: var(--aw-bg-ink); }
+.aw .aw-window--dark .aw-window__bar { background: var(--aw-bg-ink-2); }
+
+/* Dark panel */
+.aw .aw-panel-dark { background: var(--aw-bg-ink); color: var(--aw-on-dark-2); border: var(--aw-border-w) solid var(--aw-line); border-radius: var(--aw-radius-md); box-shadow: var(--aw-shadow-lg); padding: 48px; }
+.aw .aw-panel-dark .aw-h2, .aw .aw-panel-dark .aw-h3 { color: var(--aw-on-dark) !important; }
+
+/* Dot grid background */
+.aw .aw-dotgrid { background-color: var(--aw-paper); background-image: radial-gradient(rgba(30,122,77,.14) 1.4px, transparent 1.4px); background-size: 24px 24px; }
+
+/* Skeleton line (illustrations) */
+.aw .aw-skel { display: block; height: 9px; border-radius: 5px; background: var(--aw-skel); }
+.aw .aw-skel + .aw-skel { margin-top: 11px; }
+
+
+/* ───────────────────────────────────────────────────────────────────────
+   7. LISTS
+   Top level: green squares. Nested / inside FAQ answers: small green dots.
+   ─────────────────────────────────────────────────────────────────────── */
+.aw .aw-list { list-style: none !important; margin: 0 !important; padding: 0 !important; }
+.aw .aw-list > li { display: flex; gap: 14px; font-size: var(--aw-fs-body) !important; line-height: var(--aw-lh-body) !important; color: var(--aw-ink-2) !important; list-style: none !important; margin: 0 !important; padding: 0 !important; }
+.aw .aw-list > li::marker { content: none; }
+.aw .aw-list > li + li { margin-top: 20px !important; }
+.aw .aw-list > li::before { content: ''; width: 8px; height: 8px; background: var(--aw-brand); flex-shrink: 0; margin-top: 12px; }
+.aw .aw-list--tight > li { font-size: var(--aw-fs-ui) !important; line-height: var(--aw-lh-ui) !important; gap: 12px; }
+.aw .aw-list--tight > li + li { margin-top: 10px !important; }
+.aw .aw-list--tight > li::before { width: 6px; height: 6px; margin-top: 10px; }
+.aw .aw-list--dots > li::before { width: 6px; height: 6px; border-radius: 50%; margin-top: 13px; }
+.aw .aw-list--dots > li + li { margin-top: 8px !important; }
+
+/* Divided list (inside cards) */
+.aw .aw-list--divided > li { padding: 9px 0 !important; border-bottom: 1px solid var(--aw-border-faint); font-size: var(--aw-fs-label) !important; line-height: 1.55 !important; }
+.aw .aw-list--divided > li:last-child { border-bottom: 0; }
+.aw .aw-list--divided > li + li { margin-top: 0 !important; }
+.aw .aw-list--divided > li::before { width: 6px; height: 6px; margin-top: 8px; border-radius: 1px; }
+
+/* Title + description list item */
+.aw .aw-list .aw-list__t { display: block; font-size: 19px !important; font-weight: 500 !important; letter-spacing: -0.015em !important; line-height: 1.4 !important; color: var(--aw-ink) !important; margin-bottom: 10px !important; }
+
+
+/* ───────────────────────────────────────────────────────────────────────
+   8. STAT CARDS
+   ─────────────────────────────────────────────────────────────────────── */
+.aw .aw-stats { display: grid; grid-template-columns: repeat(var(--cols, 4), minmax(0,1fr)); border: var(--aw-border-w) solid var(--aw-line); border-radius: var(--aw-radius-md); overflow: hidden; box-shadow: var(--aw-shadow); }
+.aw .aw-stat { padding: 20px 22px; background: var(--aw-brand-pale); }
+.aw .aw-stat + .aw-stat { border-left: 1px solid var(--aw-border); }
+.aw .aw-stat__num { font-size: 34px !important; font-weight: 500 !important; letter-spacing: -0.035em !important; line-height: 1.1 !important; color: var(--aw-brand) !important; margin-bottom: 4px !important; font-variant-numeric: tabular-nums; }
+.aw .aw-stat__lab { font-size: var(--aw-fs-label) !important; line-height: 1.45 !important; color: var(--aw-ink-2) !important; }
+.aw .aw-stat__delta { font-size: 12px !important; font-weight: 500 !important; padding: 3px 8px; border-radius: var(--aw-radius-sm); margin-left: 8px; }
+.aw .aw-stat__delta--up { background: var(--aw-success-bg); color: var(--aw-brand-deep) !important; }
+.aw .aw-stat__delta--down { background: var(--aw-danger-bg); color: #7A1810 !important; }
+.aw .aw-stat__delta--flat { background: var(--aw-skel); color: var(--aw-g600) !important; }
+
+/* Standalone card variant (not in a grid) */
+.aw .aw-card-stat { background: var(--aw-white); border: var(--aw-border-w) solid var(--aw-line); border-radius: var(--aw-radius-md); box-shadow: var(--aw-shadow-sm); padding: 16px 18px; }
+
+
+/* ───────────────────────────────────────────────────────────────────────
+   9. SCORE BARS (visibility by engine)
+   ─────────────────────────────────────────────────────────────────────── */
+.aw .aw-score { display: flex; flex-direction: column; gap: 14px; }
+.aw .aw-score__row { display: flex; align-items: center; gap: 12px; }
+.aw .aw-score__lab { font-size: var(--aw-fs-label) !important; font-weight: 500 !important; color: var(--aw-g600) !important; width: 80px; flex-shrink: 0; }
+.aw .aw-score__track { flex: 1; height: 8px; background: var(--aw-skel); border-radius: 4px; overflow: hidden; }
+.aw .aw-score__fill { height: 100%; background: var(--aw-brand); border-radius: 4px; }
+.aw .aw-score__val { font-size: var(--aw-fs-label) !important; font-weight: 600 !important; color: var(--aw-ink) !important; width: 40px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* On dark panels */
+.aw .aw-panel-dark .aw-score__lab { color: var(--aw-on-dark-2) !important; }
+.aw .aw-panel-dark .aw-score__track { background: rgba(255,255,255,.1); }
+.aw .aw-panel-dark .aw-score__fill { background: var(--aw-brand-fg); }
+.aw .aw-panel-dark .aw-score__val { color: var(--aw-white) !important; }
+
+
+/* ───────────────────────────────────────────────────────────────────────
+   10. FAQ
+   ─────────────────────────────────────────────────────────────────────── */
+.aw .aw-faq { border-top: var(--aw-border-w) solid var(--aw-line); }
+.aw .aw-faq details { border-bottom: 1px solid var(--aw-line); }
+.aw .aw-faq summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 22px 0; font-size: var(--aw-fs-h4) !important; font-weight: 500 !important; letter-spacing: -0.01em !important; color: var(--aw-ink) !important; }
+.aw .aw-faq summary::-webkit-details-marker { display: none; }
+.aw .aw-faq summary:focus-visible { outline: 2px solid var(--aw-brand); outline-offset: 2px; }
+.aw .aw-plus { width: 26px; height: 26px; flex-shrink: 0; border: 1px solid var(--aw-line); border-radius: var(--aw-radius-sm); display: flex; align-items: center; justify-content: center; transition: transform .2s, background .2s; }
+.aw .aw-plus svg { width: 14px; height: 14px; stroke: var(--aw-ink); stroke-width: 2; fill: none; stroke-linecap: round; }
+.aw details[open] .aw-plus { transform: rotate(45deg); background: var(--aw-brand); border-color: var(--aw-brand); }
+.aw details[open] .aw-plus svg { stroke: #fff; }
+.aw .aw-faq__a { padding: 0 40px 24px 0; font-size: var(--aw-fs-ui) !important; line-height: 1.7 !important; color: var(--aw-ink-2) !important; }
+.aw .aw-faq__a p + p, .aw .aw-faq__a p + ul, .aw .aw-faq__a ul + p { margin-top: 10px !important; }
+.aw .aw-faq__a ul { list-style: none !important; margin: 12px 0 0 !important; padding: 0 !important; }
+.aw .aw-faq__a li { display: flex; gap: 12px; line-height: 1.7 !important; color: var(--aw-ink-2) !important; list-style: none !important; }
+.aw .aw-faq__a li::marker { content: none; }
+.aw .aw-faq__a li + li { margin-top: 8px !important; }
+.aw .aw-faq__a li::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--aw-brand); flex-shrink: 0; margin-top: 11px; }
+
+
+/* ───────────────────────────────────────────────────────────────────────
+   11. TABLES
+   ─────────────────────────────────────────────────────────────────────── */
+.aw .aw-table-wrap { background: var(--aw-white); border: var(--aw-border-w) solid var(--aw-line); border-radius: var(--aw-radius-md); box-shadow: var(--aw-shadow); overflow: hidden; }
+.aw .aw-table { width: 100% !important; border-collapse: collapse !important; }
+.aw .aw-table th { background: var(--aw-brand-pale) !important; padding: 14px 20px !important; border-bottom: var(--aw-border-w) solid var(--aw-line) !important; font-size: var(--aw-fs-label) !important; font-weight: 500 !important; color: var(--aw-brand) !important; text-align: left !important; }
+.aw .aw-table th + th, .aw .aw-table td + td { border-left: 1px solid var(--aw-border) !important; }
+.aw .aw-table td { padding: 16px 20px !important; border-bottom: 1px solid var(--aw-border) !important; font-size: 17px !important; line-height: 1.55 !important; color: var(--aw-ink-2) !important; vertical-align: middle; }
+.aw .aw-table tr:last-child td { border-bottom: 0 !important; }
+.aw .aw-table tbody tr:hover td { background: var(--aw-brand-pale) !important; }
+.aw .aw-table tr.is-top td { background: var(--aw-brand-pale) !important; }
+.aw .aw-table tr.is-you td { background: var(--aw-success-bg) !important; }
+.aw .aw-table__name { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-weight: 500 !important; color: var(--aw-ink) !important; }
+.aw .aw-table__name a, .aw .aw-table__name a:link, .aw .aw-table__name a:visited { color: var(--aw-ink) !important; }
+.aw .aw-table__name a:hover { color: var(--aw-brand) !important; }
+.aw .aw-table--compact td { padding: 11px 16px !important; font-size: var(--aw-fs-label) !important; }
+
+
+/* ───────────────────────────────────────────────────────────────────────
+   12. CALLOUT
+   ─────────────────────────────────────────────────────────────────────── */
+.aw .aw-callout { padding: 20px 24px; background: var(--aw-brand-pale); border: var(--aw-border-w) solid var(--aw-line); border-radius: var(--aw-radius-md); box-shadow: 5px 5px 0 var(--aw-brand); font-size: var(--aw-fs-body) !important; line-height: 1.6 !important; color: var(--aw-ink-2) !important; }
+.aw .aw-callout--warn { background: var(--aw-warn-bg); box-shadow: 5px 5px 0 var(--aw-amber); }
+.aw .aw-callout--danger { background: var(--aw-danger-bg); box-shadow: 5px 5px 0 var(--aw-danger); }
+.aw .aw-quote { padding: 20px 24px; background: var(--aw-brand-pale); border-left: 4px solid var(--aw-brand); border-radius: 0 var(--aw-radius) var(--aw-radius) 0; font-size: 19px !important; line-height: 1.65 !important; color: var(--aw-ink) !important; }
+
+
+/* ───────────────────────────────────────────────────────────────────────
+   13. FORMS
+   ─────────────────────────────────────────────────────────────────────── */
+.aw .aw-label { display: block; font-size: var(--aw-fs-label) !important; font-weight: 500 !important; color: var(--aw-n700) !important; margin-bottom: 8px !important; }
+.aw .aw-label span { color: var(--aw-brand); margin-left: 2px; }
+.aw .aw-input, .aw .aw-textarea, .aw .aw-select {
+  width: 100%; padding: 12px 14px; font-size: var(--aw-fs-small) !important; font-family: var(--aw-font) !important; color: var(--aw-ink) !important; background: var(--aw-white);
+  border: 1px solid var(--aw-border); border-bottom-color: var(--aw-line); border-radius: var(--aw-radius);
+  transition: box-shadow var(--aw-fast), border-color var(--aw-fast);
+}
+.aw .aw-input::placeholder, .aw .aw-textarea::placeholder { color: var(--aw-g-dis); }
+.aw .aw-input:focus, .aw .aw-textarea:focus, .aw .aw-select:focus { outline: none; border-color: var(--aw-brand); box-shadow: 0 0 0 3px var(--aw-brand-bg); }
+.aw .aw-input--hero { padding: 14px 16px; font-size: var(--aw-fs-ui) !important; border: var(--aw-border-w) solid var(--aw-line); }
+.aw .aw-error { font-size: var(--aw-fs-label) !important; color: var(--aw-danger) !important; background: var(--aw-danger-bg); border: 1px solid var(--aw-danger); border-radius: var(--aw-radius); padding: 10px 12px; }
+.aw .aw-help { font-size: var(--aw-fs-micro) !important; color: var(--aw-g500) !important; margin-top: 6px !important; }
+
+/* Toggle switch */
+.aw .aw-toggle { width: 58px; height: 32px; border-radius: 16px; background: var(--aw-skel); border: var(--aw-border-w) solid var(--aw-line); position: relative; cursor: pointer; }
+.aw .aw-toggle::after { content: ''; position: absolute; left: 3px; top: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--aw-white); border: var(--aw-border-w) solid var(--aw-line); transition: left var(--aw-fast) var(--aw-ease); }
+.aw .aw-toggle.is-on { background: var(--aw-brand); }
+.aw .aw-toggle.is-on::after { left: 29px; }
+
+/* Progress bar (run in flight) */
+.aw .aw-progress { height: 10px; background: var(--aw-skel); border: 1px solid var(--aw-line); border-radius: var(--aw-radius-pill); overflow: hidden; }
+.aw .aw-progress__fill { height: 100%; background: var(--aw-brand); transition: width .3s var(--aw-ease); }
+
+
+/* ───────────────────────────────────────────────────────────────────────
+   14. CHARTS
+   Bars: pale green with black outline. Highlight bar: solid green.
+   Lines: brand green, 2.4 to 4px, round caps. Gridlines: dashed, faint.
+   ─────────────────────────────────────────────────────────────────────── */
+.aw .aw-chart-bar { fill: var(--aw-brand-bg); stroke: var(--aw-line); stroke-width: 1.5; }
+.aw .aw-chart-bar--hl { fill: var(--aw-brand); }
+.aw .aw-chart-line { fill: none; stroke: var(--aw-brand); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.aw .aw-chart-line--2 { stroke: var(--aw-g500); stroke-dasharray: 5 4; }
+.aw .aw-chart-area { fill: var(--aw-brand-bg); }
+.aw .aw-chart-grid { stroke: var(--aw-border); stroke-width: 1; stroke-dasharray: 3 5; }
+.aw .aw-chart-base { stroke: var(--aw-line); stroke-width: 2; }
+.aw .aw-chart-dot { fill: var(--aw-white); stroke: var(--aw-brand); stroke-width: 2.5; }
+.aw .aw-chart-dot--end { fill: var(--aw-brand); stroke: var(--aw-line); }
+.aw .aw-chart-label { font-size: 11px; fill: var(--aw-g500); }
+/* Tooltip */
+.aw .aw-tip { background: var(--aw-bg-ink); color: var(--aw-white); border-radius: var(--aw-radius); padding: 10px 12px; font-size: 12px !important; line-height: 1.5 !important; box-shadow: 3px 3px 0 var(--aw-brand); }
+.aw .aw-tip b { color: var(--aw-white) !important; }
+.aw .aw-tip span { color: #6FCF97; font-weight: 500; }
+
+
+/* ───────────────────────────────────────────────────────────────────────
+   15. LAYOUT HELPERS
+   ─────────────────────────────────────────────────────────────────────── */
+.aw .aw-wrap { max-width: var(--aw-max); margin: 0 auto; padding: 0 var(--aw-gutter); }
+.aw .aw-stack > * + * { margin-top: var(--aw-s6) !important; }
+.aw .aw-row { display: flex; gap: var(--aw-s3); flex-wrap: wrap; }
+.aw .aw-row--between { justify-content: space-between; align-items: center; }
+.aw .aw-divider { border: 0; border-top: 1px solid var(--aw-border); margin: var(--aw-s12) 0; }
+.aw .aw-section-head { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: end; padding-bottom: 28px; margin-bottom: 44px; border-bottom: var(--aw-border-w) solid var(--aw-line); }
+.aw .aw-section-head p { justify-self: end; max-width: 460px; font-size: 17px !important; line-height: 1.65 !important; color: var(--aw-ink-2) !important; }
+.aw .aw-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--aw-s6); }
+.aw .aw-grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: var(--aw-s6); }
+.aw .aw-grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: var(--aw-s6); }
+
+
+/* ───────────────────────────────────────────────────────────────────────
+   16. RESPONSIVE
+   ─────────────────────────────────────────────────────────────────────── */
+@media (max-width: 1024px) {
+  .aw { --aw-gutter: 32px; }
+  .aw .aw-section-head { grid-template-columns: 1fr; gap: 14px; }
+  .aw .aw-section-head p { justify-self: start; }
+  .aw .aw-grid-4 { grid-template-columns: 1fr 1fr; }
+  .aw .aw-grid-3 { grid-template-columns: 1fr 1fr; }
+  .aw .aw-stats { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 720px) {
+  .aw { --aw-gutter: 16px; padding: 0 5px 10px 0 !important; }
+  .aw .aw-hero { font-size: 36px !important; line-height: 1.1 !important; }
+  .aw .aw-display { font-size: 32px !important; line-height: 1.15 !important; }
+  .aw .aw-h2 { font-size: 27px !important; margin-bottom: 24px !important; }
+  .aw .aw-h2--section { font-size: 32px !important; }
+  .aw .aw-h3 { font-size: 19px !important; }
+  .aw .aw-faq summary { font-size: 17px !important; }
+  .aw .aw-body, .aw .aw-faq__a, .aw .aw-list > li { font-size: 17px !important; line-height: 1.7 !important; }
+  .aw .aw-list--tight > li { font-size: 15px !important; }
+  .aw .aw-frame--shadow, .aw .aw-table-wrap, .aw .aw-stats { box-shadow: 5px 5px 0 var(--aw-brand); }
+  .aw .aw-frame__head { padding: 14px 18px; }
+  .aw .aw-frame__body { padding: 20px 18px 22px; }
+  .aw .aw-stats, .aw .aw-grid-2, .aw .aw-grid-3, .aw .aw-grid-4 { grid-template-columns: 1fr; }
+  .aw .aw-stat + .aw-stat { border-left: 0; border-top: 1px solid var(--aw-border); }
+  .aw .aw-stat__num { font-size: 28px !important; }
+  .aw .aw-panel-dark { padding: 32px 22px; box-shadow: 5px 5px 0 var(--aw-brand); }
+  .aw .aw-btn--block-mobile { width: 100%; }
+  .aw .aw-score__lab { width: 68px; }
+  /* Tables stack into cards */
+  .aw .aw-table thead { display: none; }
+  .aw .aw-table, .aw .aw-table tbody, .aw .aw-table tr, .aw .aw-table td { display: block; width: 100% !important; }
+  .aw .aw-table tr { padding: 16px !important; border-bottom: 1px solid var(--aw-border) !important; }
+  .aw .aw-table td { padding: 0 !important; border: 0 !important; font-size: 15px !important; }
+  .aw .aw-table td + td { margin-top: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aw *, .aw *::before, .aw *::after { transition: none !important; animation: none !important; }
+  .aw .aw-lift:hover, .aw .aw-btn:hover { transform: none; }
+}
