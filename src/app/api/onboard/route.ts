@@ -29,7 +29,9 @@ export async function POST(request: Request) {
   try {
     const page = await fetchSite(site.url);
     // If we could not load the page, let Claude look the company up on the web.
-    const reply = await askClaude(PROMPT(site.url, page.title, page.desc, page.text || "Not available"), { web: !page.text });
+    const { text: reply } = await askClaude(PROMPT(site.url, page.title, page.desc, page.text || "Not available"), {
+      searches: page.text ? 0 : 3,
+    });
     let data: Record<string, unknown>;
     try {
       data = parseJson(reply);

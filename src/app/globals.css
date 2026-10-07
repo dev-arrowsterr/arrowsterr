@@ -69,3 +69,92 @@ html,
 body {
   background: #f7fbf8; /* --aw-paper, set here because body sits outside .aw */
 }
+/* ─────────────── App additions built on the brand tokens ─────────────── */
+
+/* Plain nav links (the brand link style is for links inside text). */
+.aw a.nav-link,
+.aw a.nav-link:link,
+.aw a.nav-link:visited {
+  color: var(--aw-ink-2) !important;
+  text-decoration: none !important;
+  font-weight: 500;
+}
+.aw a.nav-link:hover {
+  color: var(--aw-brand) !important;
+}
+.aw a.plain,
+.aw a.plain:link,
+.aw a.plain:visited {
+  color: inherit !important;
+  text-decoration: none !important;
+}
+
+/* AI answers rendered from markdown */
+.aw .md {
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--aw-ink-2);
+}
+.aw .md > * + * {
+  margin-top: 10px !important;
+}
+.aw .md-h {
+  font-weight: 600;
+  color: var(--aw-ink) !important;
+}
+.aw .md-ol {
+  list-style: decimal !important;
+  padding-left: 22px !important;
+}
+.aw .md-ol li + li {
+  margin-top: 6px;
+}
+.aw .md-ol li::marker {
+  color: var(--aw-brand);
+  font-weight: 600;
+}
+
+/* Details/summary used for answers */
+.aw details.answer > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.aw details.answer > summary::-webkit-details-marker {
+  display: none;
+}
+.aw details.answer[open] .aw-plus {
+  transform: rotate(45deg);
+  background: var(--aw-brand);
+  border-color: var(--aw-brand);
+}
+.aw details.answer[open] .aw-plus svg {
+  stroke: #fff;
+}
+
+/* Tables that scroll sideways on small screens instead of stacking. */
+.aw .table-scroll {
+  overflow-x: auto;
+}
+@media (max-width: 720px) {
+  .aw .table-scroll .aw-table thead {
+    display: table-header-group;
+  }
+  .aw .table-scroll .aw-table,
+  .aw .table-scroll .aw-table tbody {
+    display: table;
+    width: 100% !important;
+  }
+  .aw .table-scroll .aw-table tbody {
+    display: table-row-group;
+  }
+  .aw .table-scroll .aw-table tr {
+    display: table-row;
+    padding: 0 !important;
+  }
+  .aw .table-scroll .aw-table td {
+    display: table-cell;
+    width: auto !important;
+    padding: 11px 14px !important;
+    border-bottom: 1px solid var(--aw-border) !important;
+  }
+}

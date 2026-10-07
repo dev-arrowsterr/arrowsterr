@@ -11,8 +11,10 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
+    "@google/genai": "^2.27.0",
     "cheerio": "^1.2.0",
     "next": "16.4.0",
+    "openai": "^7.30.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "server-only": "^0.0.1"

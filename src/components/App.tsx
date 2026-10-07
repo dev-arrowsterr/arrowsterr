@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { BrandLogo } from "./BrandLogo";
 import { Logo } from "./Logo";
+import { PromptsPage } from "./PromptsPage";
 
 export type Brand = {
   id: string;
@@ -82,7 +83,7 @@ export function App() {
       />
       <main className="min-w-0 flex-1 px-4 py-8 sm:px-8">
         {page === "prompts" ? (
-          <PromptsPage brand={active} onChange={updateBrand} onRemove={() => removeBrand(active.id)} />
+          <PromptsPage key={active.id} brand={active} onChange={updateBrand} onRemove={() => removeBrand(active.id)} />
         ) : (
           <ComingSoon page={page} />
         )}
@@ -340,74 +341,5 @@ function Onboarding({ onDone, onCancel }: { onDone: (b: Brand) => void; onCancel
         )}
       </div>
     </main>
-  );
-}
-
-// ─────────────────────────────── prompts page ───────────────────────────────
-
-function PromptsPage({ brand, onChange, onRemove }: { brand: Brand; onChange: (b: Brand) => void; onRemove: () => void }) {
-  const [draft, setDraft] = useState("");
-  function add() {
-    const p = draft.trim();
-    if (!p || brand.prompts.includes(p)) return;
-    onChange({ ...brand, prompts: [...brand.prompts, p] });
-    setDraft("");
-  }
-  return (
-    <div className="flex max-w-3xl flex-col gap-6">
-      <h1 className="aw-h2 mb-0!">Prompts</h1>
-      <div className="aw-table-wrap">
-        <table className="aw-table aw-table--compact">
-          <thead>
-            <tr>
-              <th>Tracked prompt</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {brand.prompts.map((p) => (
-              <tr key={p}>
-                <td>{p}</td>
-                <td className="w-24 text-right">
-                  <button
-                    type="button"
-                    className="aw-btn aw-btn--secondary aw-btn--sm"
-                    onClick={() => onChange({ ...brand, prompts: brand.prompts.filter((x) => x !== p) })}
-                  >
-                    Remove
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="flex gap-3">
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              add();
-            }
-          }}
-          placeholder="Add a prompt"
-          className="aw-input"
-        />
-        <button type="button" className="aw-btn aw-btn--secondary" onClick={add}>
-          Add
-        </button>
-      </div>
-      <button
-        type="button"
-        className="aw-text-link self-start"
-        onClick={() => {
-          if (confirm(`Stop tracking ${brand.name}?`)) onRemove();
-        }}
-      >
-        Remove this brand
-      </button>
-    </div>
   );
 }
