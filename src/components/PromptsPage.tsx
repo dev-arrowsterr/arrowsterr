@@ -6,18 +6,20 @@ import type { Brand } from "./App";
 import { BrandLogo } from "./BrandLogo";
 import { Markdown } from "./Markdown";
 
-const CONCURRENCY = 6;
-const ENGINE_COLORS: Record<string, string> = {
-  ChatGPT: "var(--aw-e-chatgpt)",
-  Claude: "var(--aw-e-claude)",
-  Gemini: "var(--aw-e-gemini)",
-  Perplexity: "var(--aw-e-perplexity)",
+// Few calls at once keeps the small Render server from running out of memory.
+const CONCURRENCY = 3;
+
+const ENGINE_LOGOS: Record<string, string> = {
+  ChatGPT: "https://arrowsterr.com/wp-content/uploads/2026/10/ChatGPT-Logo.jpg",
+  Claude: "https://arrowsterr.com/wp-content/uploads/2026/10/Claude-Logo.webp",
+  Gemini: "https://arrowsterr.com/wp-content/uploads/2026/10/Gemini-Logo.webp",
+  Perplexity: "https://www.google.com/s2/favicons?domain=perplexity.ai&sz=128",
 };
 
-function EngineChip({ engine }: { engine: string }) {
+function EngineName({ engine, size = 18 }: { engine: string; size?: number }) {
   return (
-    <span className="aw-engine">
-      <i style={{ background: ENGINE_COLORS[engine] ?? "var(--aw-g500)" }} />
+    <span className="inline-flex items-center gap-2 whitespace-nowrap">
+      <BrandLogo src={ENGINE_LOGOS[engine] ?? ""} name={engine} size={size} />
       {engine}
     </span>
   );
@@ -32,14 +34,22 @@ function ChatPill({ chat, brand }: { chat?: Chat; brand: string }) {
   return <span className="aw-status aw-status--missed">Not mentioned</span>;
 }
 
-async function askOne(engine: string, prompt: string, brand: Brand): Promise<Chat> {
+async function askOne(engine: string, prompt: string, brand: Brand, attempt = 0): Promise<Chat> {
   try {
     const res = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ engine, prompt, brand: brand.name, domain: brand.domain }),
     });
-    const data = await res.json().catch(() => ({ error: `The server returned ${res.status}.` }));
+    const data = await res.json().catch(() => null);
+    if (data === null) {
+      // Render answered for us, which means the server restarted or was busy. Try once more.
+      if (attempt === 0) {
+        await new Promise((r) => setTimeout(r, 5000));
+        return askOne(engine, prompt, brand, 1);
+      }
+      return { engine, prompt, text: "", sources: [], brands: [], error: `The server returned ${res.status}. Check Render Logs for a crash or out of memory message.` };
+    }
     return {
       engine,
       prompt,
@@ -147,7 +157,13 @@ export function PromptsPage({ brand, onChange, onRemove }: { brand: Brand; onCha
           <thead>
             <tr>
               <th>Prompt</th>
-              {run ? cols.map((e) => <th key={e}>{e}</th>) : null}
+              {run
+                ? cols.map((e) => (
+                    <th key={e}>
+                      <EngineName engine={e} />
+                    </th>
+                  ))
+                : null}
               <th></th>
             </tr>
           </thead>
@@ -177,42 +193,7 @@ export function PromptsPage({ brand, onChange, onRemove }: { brand: Brand; onCha
                 {open === p && run ? (
                   <tr>
                     <td colSpan={cols.length + 2} className="bg-paper!">
-                      <div className="aw-grid-2 py-2">
-                        {cols.map((e) => {
-                          const c = find(p, e);
-                          if (!c) return null;
-                          return (
-                            <div key={e} className="aw-frame min-w-0">
-                              <div className="aw-frame__head justify-between">
-                                <EngineChip engine={e} />
-                                <ChatPill chat={c} brand={brand.name} />
-                              </div>
-                              <div className="aw-frame__body flex flex-col gap-4">
-                                {c.error ? <p className="aw-error">{c.error}</p> : null}
-                                {c.brands.length ? (
-                                  <div className="flex flex-wrap gap-2">
-                                    {c.brands.map((b) => (
-                                      <span
-                                        key={b.name}
-                                        className={`aw-pill ${b.name.toLowerCase() === brand.name.toLowerCase() ? "is-on" : ""}`}
-                                        title={`Sentiment ${b.sentiment}`}
-                                      >
-                                        #{b.position} {b.name} · {b.sentiment}
-                                      </span>
-                                    ))}
-                                  </div>
-                                ) : null}
-                                {c.text ? <Markdown text={c.text} /> : null}
-                                {c.sources.length ? (
-                                  <p className="aw-small break-words">
-                                    <strong>Sources:</strong> {[...new Set(c.sources.map((s) => s.domain))].join(", ")}
-                                  </p>
-                                ) : null}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+                      <ChatTabs engines={cols} find={(e) => find(p, e)} brand={brand.name} />
                     </td>
                   </tr>
                 ) : null}
@@ -251,6 +232,69 @@ export function PromptsPage({ brand, onChange, onRemove }: { brand: Brand; onCha
         >
           Remove this brand
         </button>
+      </div>
+    </div>
+  );
+}
+
+/** One tab per engine. Click a tab to read that engine's answer. */
+function ChatTabs({ engines, find, brand }: { engines: string[]; find: (engine: string) => Chat | undefined; brand: string }) {
+  const [tab, setTab] = useState(engines[0]);
+  const c = find(tab);
+  return (
+    <div className="flex flex-col py-2">
+      <div role="tablist" className="flex flex-wrap gap-1 border-b-2 border-line">
+        {engines.map((e) => (
+          <button
+            key={e}
+            type="button"
+            role="tab"
+            aria-selected={tab === e}
+            onClick={() => setTab(e)}
+            className={`-mb-0.5 flex items-center gap-3 rounded-t-aw border-2 border-b-0 px-4 py-2 text-[15px] font-medium ${
+              tab === e ? "border-line bg-white text-ink" : "border-transparent text-g600 hover:text-brand"
+            }`}
+          >
+            <EngineName engine={e} size={20} />
+            <ChatPill chat={find(e)} brand={brand} />
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-col gap-5 border-2 border-t-0 border-line bg-white p-5">
+        {!c ? (
+          <p className="aw-small">Waiting for {tab}...</p>
+        ) : (
+          <>
+            {c.error ? <p className="aw-error">{c.error}</p> : null}
+            {c.brands.length ? (
+              <div className="flex flex-col gap-2">
+                <span className="aw-label mb-0!">Brands in this answer (position · sentiment)</span>
+                <div className="flex flex-wrap gap-2">
+                  {c.brands.map((b) => (
+                    <span key={b.name} className={`aw-pill ${b.name.toLowerCase() === brand.toLowerCase() ? "is-on" : ""}`}>
+                      #{b.position} {b.name} · {b.sentiment}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {c.text ? <Markdown text={c.text} /> : null}
+            {c.sources.length ? (
+              <div className="flex flex-col gap-2">
+                <span className="aw-label mb-0!">Sources</span>
+                <ul className="aw-list aw-list--tight aw-list--dots">
+                  {c.sources.map((s) => (
+                    <li key={s.url} className="text-[14px]! break-all">
+                      <a href={s.url} target="_blank" rel="noopener noreferrer nofollow">
+                        {s.title || s.domain}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </>
+        )}
       </div>
     </div>
   );
