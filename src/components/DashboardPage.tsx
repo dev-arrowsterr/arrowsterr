@@ -8,28 +8,16 @@ import { BrandLogo } from "./BrandLogo";
 import { ENGINE_LOGOS } from "./Engines";
 import { VisibilityChart, type Series } from "./VisibilityChart";
 
-type SortKey = "position" | "sentiment" | "visibility";
-
 const TIMEFRAMES = [7, 30, 60, 90];
 // Your brand is always brand green. Competitors take the next colors in order (palette checked for color blindness).
 const YOU_COLOR = "#1E7A4D";
 const OTHER_COLORS = ["#2a78d6", "#eb6834", "#4a3aa7", "#e87ba4"];
-const SHOW = 6;
+const MAX_RANKED = 40;
+const SOURCE_TYPES = ["Owned", "Competitor", "Third-party"] as const;
 
 const pct = (n: number) => `${Math.round(n)}%`;
 const favicon = (domain: string) => `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`;
 const when = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
-
-function SentimentPill({ value }: { value: number }) {
-  const tone = value >= 60 ? "ranked" : value >= 40 ? "pending" : "missed";
-  const word = value >= 60 ? "Positive" : value >= 40 ? "Neutral" : "Negative";
-  return (
-    <span className={`aw-status aw-status--${tone}`} title={word}>
-      {Math.round(value)}
-      <span className="sr-only"> {word}</span>
-    </span>
-  );
-}
 
 function BrandCell({ row, brand }: { row: BrandRow; brand: Brand }) {
   // No website saved for this brand (older runs): guess "name.com", which works for most brands.
@@ -41,16 +29,6 @@ function BrandCell({ row, brand }: { row: BrandRow; brand: Brand }) {
       <span className="truncate">{row.name}</span>
       {row.isYou ? <span className="aw-badge">You</span> : null}
     </span>
-  );
-}
-
-function SortHead({ k, label, sort, onSort }: { k: SortKey; label: string; sort: SortKey; onSort: (k: SortKey) => void }) {
-  return (
-    <th>
-      <button type="button" onClick={() => onSort(k)} className="font-medium" aria-pressed={sort === k}>
-        {label} {sort === k ? (k === "position" ? "↑" : "↓") : ""}
-      </button>
-    </th>
   );
 }
 
@@ -66,11 +44,12 @@ function Card({ title, children, foot, flush }: { title: string; children: React
   );
 }
 
-function ShowAll({ open, count, onClick }: { open: boolean; count: number; onClick: () => void }) {
+/** Scrolls inside a card and fills the card's height. */
+function Scroll({ children }: { children: React.ReactNode }) {
   return (
-    <button type="button" className="aw-text-link" onClick={onClick}>
-      {open ? "Show less" : `Show all ${count}`}
-    </button>
+    <div className="relative h-full min-h-80">
+      <div className="absolute inset-0 overflow-auto">{children}</div>
+    </div>
   );
 }
 
@@ -92,9 +71,6 @@ export function DashboardPage({
   const [days, setDays] = useState(30);
   const [now] = useState(() => Date.now());
   const [engine, setEngine] = useState("All");
-  const [sort, setSort] = useState<SortKey>("position");
-  const [allMentions, setAllMentions] = useState(false);
-  const [allSources, setAllSources] = useState(false);
 
   // A run started after the page loaded is always in range.
   const since = new Date(now - days * 864e5).toISOString();
@@ -118,12 +94,22 @@ export function DashboardPage({
   if (!you) series.unshift({ name: brand.name, isYou: true, total: 0, color: YOU_COLOR });
   const points = timeline(inRange, series.map((s) => s.name), pick);
 
-  const order = (list: BrandRow[]) =>
-    [...list].sort((a, b) => (sort === "position" ? a.position - b.position || b.visibility - a.visibility : b[sort] - a[sort]));
-  const ranking = order(rows);
+  // Best average position first. Ties go to the brand mentioned more often.
+  const ranking = [...rows].sort((a, b) => a.position - b.position || b.visibility - a.visibility).slice(0, MAX_RANKED);
+  if (you && !ranking.includes(you)) ranking.push(you);
 
   const mentions = mentionRows(inRange, brand.name, pick);
   const sources = sourceRows(chats);
+
+  // Owned: your site. Competitor: a site of a brand the engines named. Third-party: everything else.
+  const competitorDomains = rows.filter((r) => !r.isYou && r.domain).map((r) => r.domain!);
+  const under = (domain: string, root: string) => domain === root || domain.endsWith("." + root);
+  const sourceType = (domain: string): (typeof SOURCE_TYPES)[number] =>
+    under(domain, brand.domain) ? "Owned" : competitorDomains.some((d) => under(domain, d)) ? "Competitor" : "Third-party";
+  const totalCites = sources.reduce((n, s) => n + s.chats, 0);
+  const typeShare = Object.fromEntries(
+    SOURCE_TYPES.map((t) => [t, totalCites ? (sources.filter((s) => sourceType(s.domain) === t).reduce((n, s) => n + s.chats, 0) / totalCites) * 100 : 0]),
+  ) as Record<(typeof SOURCE_TYPES)[number], number>;
   const latest = runs.at(-1);
   const latestErrors = (latest?.chats ?? []).filter((c) => c.error);
 
@@ -203,63 +189,49 @@ export function DashboardPage({
               <VisibilityChart points={points} series={series} />
             </Card>
 
-            <Card title={`Industry ranking · ${rows.length} brands`} flush>
-              {/* Fills the card's height next to the chart. Scroll to see every brand. */}
-              <div className="relative h-full min-h-80">
-                <div className="absolute inset-0 overflow-auto">
+            <Card title={`Industry ranking · top ${ranking.length}`} flush>
+              <Scroll>
                 <table className="aw-table aw-table--dense aw-table--sticky">
                   <thead>
                     <tr>
                       <th>Brand</th>
-                      <SortHead k="position" label="Position" sort={sort} onSort={setSort} />
-                      <SortHead k="sentiment" label="Sentiment" sort={sort} onSort={setSort} />
-                      <SortHead k="visibility" label="Visibility" sort={sort} onSort={setSort} />
+                      <th>Avg position</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {ranking.map((r, i) => {
-                      return (
-                        <tr key={r.name} className={r.isYou ? "is-you" : undefined}>
-                          <td>
-                            <span className="flex items-center gap-3">
-                              <span className="aw-num w-4 text-g500">{i + 1}</span>
-                              <BrandCell row={r} brand={brand} />
-                            </span>
-                          </td>
-                          <td className="aw-num">{r.position.toFixed(1)}</td>
-                          <td>
-                            <SentimentPill value={r.sentiment} />
-                          </td>
-                          <td className="aw-num">{pct(r.visibility)}</td>
-                        </tr>
-                      );
-                    })}
+                    {ranking.map((r, i) => (
+                      <tr key={r.name} className={r.isYou ? "is-you" : undefined}>
+                        <td>
+                          <span className="flex items-center gap-3">
+                            <span className="aw-num w-5 text-g500">{i + 1}</span>
+                            <BrandCell row={r} brand={brand} />
+                          </span>
+                        </td>
+                        <td className="aw-num">#{r.position.toFixed(1)}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
-                </div>
-              </div>
+              </Scroll>
             </Card>
           </div>
 
           <div className="aw-grid-2">
-            <Card
-              title={`${brand.name} mentions`}
-              foot={mentions.length > SHOW ? <ShowAll open={allMentions} count={mentions.length} onClick={() => setAllMentions(!allMentions)} /> : null}
-            >
+            <Card title={`${brand.name} mentions · ${mentions.length}`} flush>
               {mentions.length ? (
-                <div className="table-scroll -mx-1">
-                  <table className="aw-table aw-table--dense">
+                <Scroll>
+                  <table className="aw-table aw-table--dense aw-table--sticky">
                     <thead>
                       <tr>
                         <th>Prompt</th>
                         <th>Model</th>
                         <th>Position</th>
-                        <th>Sentiment</th>
+                        <th>Sources</th>
                         <th>Date</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {(allMentions ? mentions : mentions.slice(0, SHOW)).map((m, i) => (
+                      {mentions.map((m, i) => (
                         <tr key={`${m.at}-${m.engine}-${m.prompt}-${i}`}>
                           <td className="min-w-36">{m.prompt}</td>
                           <td title={m.engine}>
@@ -267,54 +239,73 @@ export function DashboardPage({
                           </td>
                           <td className="aw-num">#{m.position}</td>
                           <td>
-                            <SentimentPill value={m.sentiment} />
+                            {m.sources.length ? (
+                              <span className="flex flex-wrap gap-1.5">
+                                {m.sources.slice(0, 6).map((src) => (
+                                  <a key={src.url} href={src.url} target="_blank" rel="noopener noreferrer nofollow" title={src.title || src.domain} className="plain">
+                                    <BrandLogo src={favicon(src.domain)} name={src.domain} size={18} />
+                                  </a>
+                                ))}
+                                {m.sources.length > 6 ? <span className="aw-small">+{m.sources.length - 6}</span> : null}
+                              </span>
+                            ) : (
+                              <span className="aw-small">None</span>
+                            )}
                           </td>
                           <td className="whitespace-nowrap">{when(m.at)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
-                </div>
+                </Scroll>
               ) : (
-                <p className="aw-small">No mentions of {brand.name} in this timeframe yet.</p>
+                <p className="aw-small p-6">No mentions of {brand.name} in this timeframe yet.</p>
               )}
             </Card>
 
-            <Card
-              title="Sources"
-              foot={sources.length > SHOW ? <ShowAll open={allSources} count={sources.length} onClick={() => setAllSources(!allSources)} /> : null}
-            >
+            <Card title={`Sources · ${sources.length}`} flush>
               {sources.length ? (
-                <div className="table-scroll -mx-1">
-                  <table className="aw-table aw-table--dense">
-                    <thead>
-                      <tr>
-                        <th>Source</th>
-                        <th>Used</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(allSources ? sources : sources.slice(0, SHOW)).map((s) => {
-                        const mine = s.domain === brand.domain || s.domain.endsWith("." + brand.domain);
-                        return (
-                          <tr key={s.domain} className={mine ? "is-you" : undefined}>
-                            <td>
-                              <span className="flex items-center gap-2 font-medium text-ink">
-                                <BrandLogo src={mine ? brand.logo : favicon(s.domain)} name={s.domain} size={20} />
-                                {s.domain}
-                              </span>
-                            </td>
-                            <td className="aw-num" title={`Cited in ${s.chats} of ${answered.length} chats`}>
-                              {pct(s.used)}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                <div className="flex h-full flex-col">
+                  <div className="flex flex-wrap gap-2 border-b border-border px-4 py-3">
+                    {SOURCE_TYPES.map((t) => (
+                      <span key={t} className={`aw-status ${t === "Owned" ? "aw-status--ranked" : "aw-status--pending"}`}>
+                        {t} {pct(typeShare[t])}
+                      </span>
+                    ))}
+                  </div>
+                  <Scroll>
+                    <table className="aw-table aw-table--dense aw-table--sticky">
+                      <thead>
+                        <tr>
+                          <th>Source</th>
+                          <th>Type</th>
+                          <th>Used</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sources.map((s) => {
+                          const type = sourceType(s.domain);
+                          return (
+                            <tr key={s.domain} className={type === "Owned" ? "is-you" : undefined}>
+                              <td>
+                                <span className="flex items-center gap-2 font-medium text-ink">
+                                  <BrandLogo src={type === "Owned" ? brand.logo : favicon(s.domain)} name={s.domain} size={20} />
+                                  {s.domain}
+                                </span>
+                              </td>
+                              <td className="whitespace-nowrap">{type}</td>
+                              <td className="aw-num" title={`Cited in ${s.chats} of ${answered.length} chats`}>
+                                {pct(s.used)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </Scroll>
                 </div>
               ) : (
-                <p className="aw-small">No sources cited in this timeframe.</p>
+                <p className="aw-small p-6">No sources cited in this timeframe.</p>
               )}
             </Card>
           </div>

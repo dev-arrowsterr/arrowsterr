@@ -70,7 +70,14 @@ export function timeline(runs: Run[], names: string[], filter: (c: Chat) => bool
     });
 }
 
-export type MentionRow = { prompt: string; engine: string; position: number; sentiment: number; at: string };
+export type MentionRow = {
+  prompt: string;
+  engine: string;
+  position: number;
+  sentiment: number;
+  at: string;
+  sources: { url: string; domain: string; title: string | null }[];
+};
 
 /** Chats where the tracked brand was mentioned, newest first. */
 export function mentionRows(runs: Run[], you: string, filter: (c: Chat) => boolean): MentionRow[] {
@@ -79,7 +86,7 @@ export function mentionRows(runs: Run[], you: string, filter: (c: Chat) => boole
     for (const c of r.chats) {
       if (!filter(c)) continue;
       const m = ownMention(c, you);
-      if (m) out.push({ prompt: c.prompt, engine: c.engine, position: m.position, sentiment: m.sentiment, at: r.at });
+      if (m) out.push({ prompt: c.prompt, engine: c.engine, position: m.position, sentiment: m.sentiment, at: r.at, sources: c.sources });
     }
   }
   return out.sort((a, b) => b.at.localeCompare(a.at) || a.position - b.position);
