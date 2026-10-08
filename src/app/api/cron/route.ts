@@ -9,7 +9,7 @@ import { adminClient } from "@/lib/serverAuth";
 // The daily job. scripts/daily-run.mjs calls this over and over until it answers done: true.
 // Each call:
 //   1. starts today's runs for brands that need one,
-//   2. queues every ChatGPT, Gemini and AI Overview question at DataForSEO (the cheap way, ready in up to 45 minutes),
+//   2. queues every ChatGPT, Gemini, AI Overview and AI Mode question at DataForSEO (the cheap way, ready in up to 45 minutes),
 //   3. answers a few Claude and Perplexity questions directly,
 //   4. collects queued answers that are ready.
 

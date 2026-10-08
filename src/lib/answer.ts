@@ -7,7 +7,9 @@ import { extractBrands } from "./extract";
 /** Pull the brands out of an answer we already have. Never throws. */
 export async function readAnswer(engine: string, prompt: string, answer: DfsAnswer, brand: string, domain: string): Promise<Chat> {
   const chat: Chat = { engine, prompt, text: answer.text, sources: answer.sources, brands: [], error: null };
-  // No AI Overview was shown, so there is nothing to read.
+  if (answer.shown !== undefined) chat.shown = answer.shown;
+  if (answer.organic) chat.organic = answer.organic;
+  // Google showed no AI answer, so there is nothing to read.
   if (answer.text === NO_AI_OVERVIEW) return { ...chat, sources: [] };
   try {
     chat.brands = await extractBrands(brand, domain, answer.text);

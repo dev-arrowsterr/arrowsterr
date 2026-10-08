@@ -11,6 +11,8 @@ export type Chat = {
   brands: BrandMention[];
   error: string | null;
   answered?: boolean; // set when saved, because saved chats drop their full text to save space
+  shown?: boolean; // Google engines: false when Google showed no AI answer for the search
+  organic?: { rank: number; domain: string; url: string }[]; // AI Overview: Google's top 20 regular results
 };
 
 export type Run = { at: string; engines: string[]; chats: Chat[] };

@@ -1,20 +1,24 @@
 import "server-only";
 import { cleanSources, linksInText, type Source } from "./sources";
 
-// DataForSEO reads the real ChatGPT and Gemini apps and Google's AI Overview for us.
+// DataForSEO reads the real ChatGPT and Gemini apps, and Google's AI Overview and AI Mode, for us.
 // Live calls answer right away (used by the Run button). Queued tasks are cheaper and
 // finish within about 45 minutes (used by the daily job).
 
-export type DfsEngine = "ChatGPT" | "Gemini" | "AI Overview";
-export type DfsAnswer = { text: string; sources: Source[] };
+export type DfsEngine = "ChatGPT" | "Gemini" | "AI Overview" | "AI Mode";
+export type Organic = { rank: number; domain: string; url: string };
+/** shown: Google showed an AI answer for the search. organic: Google's top 20 regular results (AI Overview only). */
+export type DfsAnswer = { text: string; sources: Source[]; shown?: boolean; organic?: Organic[] };
 
 const API = process.env.DFS_API_URL?.trim() || "https://api.dataforseo.com/v3";
 const PATHS: Record<DfsEngine, string> = {
   ChatGPT: "ai_optimization/chat_gpt/llm_scraper",
   Gemini: "ai_optimization/gemini/llm_scraper",
   "AI Overview": "serp/google/organic",
+  "AI Mode": "serp/google/ai_mode",
 };
 export const NO_AI_OVERVIEW = "_Google showed no AI Overview for this search._";
+const GOOGLE: DfsEngine[] = ["AI Overview", "AI Mode"];
 
 export const dfsReady = () => Boolean(process.env.DFS_LOGIN?.trim() && process.env.DFS_PASSWORD?.trim());
 
@@ -40,7 +44,8 @@ function taskBody(engine: DfsEngine, prompt: string, extra: Record<string, unkno
     ...extra,
   };
   if (engine === "ChatGPT") return { ...base, force_web_search: true };
-  if (engine === "AI Overview") return { ...base, device: "desktop", load_async_ai_overview: true };
+  if (engine === "AI Overview") return { ...base, device: "desktop", depth: 20, load_async_ai_overview: true, expand_ai_overview: true };
+  if (engine === "AI Mode") return { ...base, device: "desktop" };
   return base;
 }
 
@@ -48,18 +53,37 @@ type Raw = { url?: string; domain?: string; title?: string };
 const toSources = (list: Raw[] | undefined): Source[] =>
   (list ?? []).filter((s) => s?.url).map((s) => ({ url: s.url!, title: s.title ?? null, domain: s.domain ?? "" }));
 
-type Item = { type?: string; markdown?: string; text?: string; title?: string; sources?: Raw[]; references?: Raw[]; items?: Item[] };
+type Item = {
+  type?: string;
+  markdown?: string;
+  text?: string;
+  title?: string;
+  url?: string;
+  domain?: string;
+  rank_group?: number;
+  sources?: Raw[];
+  references?: Raw[];
+  items?: Item[];
+};
 
 /** Turn one finished task's result into answer text and cited links. */
 function read(engine: DfsEngine, result: { markdown?: string; sources?: Raw[]; items?: Item[] } | undefined): DfsAnswer {
-  if (engine === "AI Overview") {
-    const aio = (result?.items ?? []).find((i) => i.type === "ai_overview");
-    if (!aio) return { text: NO_AI_OVERVIEW, sources: [] };
+  if (GOOGLE.includes(engine)) {
+    const all = result?.items ?? [];
+    const organic: Organic[] | undefined =
+      engine === "AI Overview"
+        ? all
+            .filter((i) => i.type === "organic" && i.url)
+            .map((i) => ({ rank: i.rank_group ?? 0, domain: (i.domain ?? "").replace(/^www\./, ""), url: i.url! }))
+            .slice(0, 20)
+        : undefined;
+    const aio = all.find((i) => i.type === "ai_overview");
+    if (!aio) return { text: NO_AI_OVERVIEW, sources: [], shown: false, organic };
     const text =
       aio.markdown ||
       (aio.items ?? []).map((i) => [i.title ? `## ${i.title}` : "", i.markdown || i.text || ""].filter(Boolean).join("\n")).join("\n\n");
     const refs = [...(aio.references ?? []), ...(aio.items ?? []).flatMap((i) => i.references ?? [])];
-    return { text, sources: cleanSources(toSources(refs)) };
+    return { text, sources: cleanSources(toSources(refs)), shown: true, organic };
   }
   const items = result?.items ?? [];
   const text = (result?.markdown || items.map((i) => i.markdown ?? "").filter(Boolean).join("\n\n")).replace(/\[\d+\]/g, "");
@@ -93,6 +117,6 @@ export async function getTask(engine: DfsEngine, id: string): Promise<TaskState>
   const code = Number(task?.status_code);
   if (code === 20000) return { state: "done", answer: read(engine, task.result?.[0]) };
   if (code >= 40600 && code < 40700) return { state: "waiting" }; // still in the queue
-  if (engine === "AI Overview" && code === 40102) return { state: "done", answer: { text: NO_AI_OVERVIEW, sources: [] } };
+  if (GOOGLE.includes(engine) && code === 40102) return { state: "done", answer: { text: NO_AI_OVERVIEW, sources: [], shown: false } };
   return { state: "failed", error: `DataForSEO: ${task?.status_message ?? `status ${code}`}` };
 }

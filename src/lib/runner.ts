@@ -25,7 +25,10 @@ async function askOne(engine: string, prompt: string, brand: string, domain: str
       }
       return fail(`The server returned ${res.status}. Check Render Logs for a crash or out of memory message.`);
     }
-    return { engine, prompt, text: data.text ?? "", sources: data.sources ?? [], brands: data.brands ?? [], error: data.error ?? null };
+    const chat: Chat = { engine, prompt, text: data.text ?? "", sources: data.sources ?? [], brands: data.brands ?? [], error: data.error ?? null };
+    if (typeof data.shown === "boolean") chat.shown = data.shown;
+    if (Array.isArray(data.organic)) chat.organic = data.organic;
+    return chat;
   } catch (e) {
     return fail(e instanceof Error ? e.message : String(e));
   }

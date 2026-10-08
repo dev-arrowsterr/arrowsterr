@@ -20,5 +20,12 @@ export async function POST(request: Request) {
 
   const chat = await answerChat(engine, prompt, brand, domain);
   if (chat.error && !chat.text) return Response.json({ error: chat.error }, { status: 502 });
-  return Response.json({ text: chat.text, sources: chat.sources, brands: chat.brands, error: chat.error ?? undefined });
+  return Response.json({
+    text: chat.text,
+    sources: chat.sources,
+    brands: chat.brands,
+    shown: chat.shown,
+    organic: chat.organic,
+    error: chat.error ?? undefined,
+  });
 }

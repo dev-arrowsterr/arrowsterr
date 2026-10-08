@@ -2,10 +2,10 @@ import "server-only";
 import OpenAI from "openai";
 import { GoogleGenAI } from "@google/genai";
 import { askClaude } from "./claude";
-import { askLive, dfsReady, type DfsEngine } from "./dataforseo";
+import { askLive, dfsReady, type DfsAnswer, type DfsEngine } from "./dataforseo";
 import { cleanSources, linksInText, type Source } from "./sources";
 
-export const ENGINES = ["ChatGPT", "Claude", "Gemini", "Perplexity", "AI Overview"] as const;
+export const ENGINES = ["ChatGPT", "Claude", "Gemini", "Perplexity", "AI Overview", "AI Mode"] as const;
 export type Engine = (typeof ENGINES)[number];
 
 // Settings each engine needs. Google AI Overview comes from DataForSEO, which needs a login and a password.
@@ -15,8 +15,9 @@ const KEYS: Record<Engine, string[]> = {
   Gemini: ["GEMINI_API_KEY"],
   Perplexity: ["PERPLEXITY_API_KEY"],
   "AI Overview": ["DFS_LOGIN", "DFS_PASSWORD"],
+  "AI Mode": ["DFS_LOGIN", "DFS_PASSWORD"],
 };
-const DFS_ENGINES: Engine[] = ["ChatGPT", "Gemini", "AI Overview"];
+const DFS_ENGINES: Engine[] = ["ChatGPT", "Gemini", "AI Overview", "AI Mode"];
 
 /**
  * True when DataForSEO answers for this engine. With a DataForSEO login, ChatGPT and Gemini are read
@@ -24,7 +25,7 @@ const DFS_ENGINES: Engine[] = ["ChatGPT", "Gemini", "AI Overview"];
  */
 export function viaDfs(engine: string): engine is DfsEngine {
   if (!DFS_ENGINES.includes(engine as Engine) || !dfsReady()) return false;
-  return engine === "AI Overview" || process.env.DFS_SCRAPER?.trim().toLowerCase() !== "off";
+  return engine === "AI Overview" || engine === "AI Mode" || process.env.DFS_SCRAPER?.trim().toLowerCase() !== "off";
 }
 
 /** Engines that have their keys set on the server. */
@@ -32,7 +33,7 @@ export function availableEngines(): Engine[] {
   return ENGINES.filter((e) => viaDfs(e) || KEYS[e].every((k) => process.env[k]?.trim()));
 }
 
-type Answer = { text: string; sources: Source[] };
+type Answer = DfsAnswer;
 
 async function askChatGPT(prompt: string): Promise<Answer> {
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -121,7 +122,7 @@ export async function askEngine(engine: Engine, userPrompt: string): Promise<Ans
     try {
       const a = dfs ? await askLive(engine, prompt) : await askApi(engine, prompt);
       const text = a.text.replace(/\[\d+\]/g, "");
-      return { text, sources: cleanSources([...a.sources, ...linksInText(text)]) };
+      return { ...a, text, sources: cleanSources([...a.sources, ...linksInText(text)]) };
     } catch (e) {
       lastError = e;
       await sleep(2000);
