@@ -1,6 +1,7 @@
 "use client";
 
 // Small pieces every page shares.
+import { useState } from "react";
 import { BrandLogo } from "./BrandLogo";
 
 export const favicon = (domain: string) => `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`;
@@ -89,5 +90,52 @@ export function Thinking({ text }: { text: string }) {
       <span className="aw-h4">{text}</span>
       <span className="aw-think__bar" aria-hidden="true" />
     </div>
+  );
+}
+
+// ─────────────── Sortable tables ───────────────
+
+export type Sort = { key: string; desc: boolean };
+type Value = string | number | null | undefined;
+
+/** Which column a table is sorted by. Start with the table's natural order. */
+export const useSort = (key: string, desc = true) => useState<Sort>({ key, desc });
+
+/** Sort rows by the picked column. Empty values always go last. */
+export function sortRows<T>(rows: T[], sort: Sort, get: Record<string, (row: T) => Value>): T[] {
+  const f = get[sort.key];
+  if (!f) return rows;
+  return [...rows].sort((a, b) => {
+    const x = f(a);
+    const y = f(b);
+    const xe = x === null || x === undefined || x === "";
+    const ye = y === null || y === undefined || y === "";
+    if (xe || ye) return xe === ye ? 0 : xe ? 1 : -1;
+    const c = typeof x === "number" && typeof y === "number" ? x - y : String(x).localeCompare(String(y), undefined, { sensitivity: "base", numeric: true });
+    return sort.desc ? -c : c;
+  });
+}
+
+/**
+ * A column header you click to sort. One click sorts the column; the next click flips it.
+ * Text columns start A to Z, number columns start high to low.
+ */
+export function SortTh({ id, sort, onSort, text = false, className = "", children }: { id: string; sort: Sort; onSort: (s: Sort) => void; text?: boolean; className?: string; children: React.ReactNode }) {
+  const on = sort.key === id;
+  const label = on ? (text ? (sort.desc ? "Z to A" : "A to Z") : sort.desc ? "high to low" : "low to high") : null;
+  return (
+    <th className={className} aria-sort={on ? (sort.desc ? "descending" : "ascending") : "none"}>
+      <button
+        type="button"
+        className={`aw-sort ${on ? "is-on" : ""}`}
+        onClick={() => onSort(on ? { key: id, desc: !sort.desc } : { key: id, desc: !text })}
+        title={label ? `Sorted ${label}. Click to flip.` : "Click to sort"}
+      >
+        {children}
+        <span aria-hidden="true" className="aw-sort__arrow">
+          {on ? (sort.desc ? "↓" : "↑") : "↕"}
+        </span>
+      </button>
+    </th>
   );
 }

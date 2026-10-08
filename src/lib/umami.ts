@@ -45,39 +45,44 @@ export async function createWebsite(name: string, domain: string): Promise<strin
   return w.id;
 }
 
-type Range = { startAt: number; endAt: number };
+export type Range = { startAt: number; endAt: number };
+export type Row = { x: string; y: number };
 const num = (v: unknown) => (typeof v === "number" ? v : typeof v === "object" && v ? Number((v as { value?: number }).value ?? 0) : 0);
 
 export async function stats(id: string, r: Range, filter: Record<string, string> = {}) {
   const s = await api<Record<string, unknown>>(`/websites/${id}/stats`, { query: { ...r, ...filter } });
-  return { pageviews: num(s.pageviews), visitors: num(s.visitors), visits: num(s.visits) };
+  return { pageviews: num(s.pageviews), visitors: num(s.visitors), visits: num(s.visits), bounces: num(s.bounces), totaltime: num(s.totaltime) };
 }
 
-export async function metrics(id: string, type: "referrer" | "url", r: Range, filter: Record<string, string> = {}) {
-  const rows = await api<{ x: string; y: number }[]>(`/websites/${id}/metrics`, { query: { ...r, type, limit: 500, ...filter } });
-  return Array.isArray(rows) ? rows : [];
+/** People on the site in the last 5 minutes. */
+export async function active(id: string) {
+  const a = await api<Record<string, unknown>>(`/websites/${id}/active`);
+  return num(a.visitors ?? a.x ?? 0);
 }
 
+/**
+ * One breakdown, like top pages or countries. Newer Umami calls pages "path" and older Umami calls them "url",
+ * so each name in `types` is tried in turn. A breakdown this Umami doesn't have comes back empty.
+ */
+export async function metrics(id: string, types: string | string[], r: Range, filter: Record<string, string> = {}, limit = 500): Promise<Row[]> {
+  let last: unknown;
+  for (const type of Array.isArray(types) ? types : [types]) {
+    try {
+      const rows = await api<Row[]>(`/websites/${id}/metrics`, { query: { ...r, type, limit, ...filter } });
+      return Array.isArray(rows) ? rows.filter((x) => x && typeof x.y === "number") : [];
+    } catch (e) {
+      last = e;
+    }
+  }
+  throw last;
+}
+
+/** Pageviews and visitors per day. */
 export async function series(id: string, r: Range, filter: Record<string, string> = {}) {
-  const out = await api<{ pageviews?: { x: string; y: number }[]; sessions?: { x: string; y: number }[] }>(`/websites/${id}/pageviews`, {
+  const out = await api<{ pageviews?: Row[]; sessions?: Row[] }>(`/websites/${id}/pageviews`, {
     query: { ...r, unit: "day", timezone: "UTC", ...filter },
   });
-  return out.sessions ?? out.pageviews ?? [];
+  return { pageviews: out.pageviews ?? [], visitors: out.sessions ?? out.pageviews ?? [] };
 }
 
-// ─────────────── AI sources ───────────────
-
-/** Sites that send visitors from AI assistants, by assistant. */
-export const AI_SOURCES: Record<string, string[]> = {
-  ChatGPT: ["chatgpt.com", "chat.openai.com"],
-  Perplexity: ["perplexity.ai", "www.perplexity.ai"],
-  Gemini: ["gemini.google.com", "bard.google.com"],
-  Claude: ["claude.ai"],
-  Copilot: ["copilot.microsoft.com", "copilot.cloud.microsoft"],
-  "Other AI": ["chat.deepseek.com", "grok.com", "meta.ai", "you.com", "phind.com", "poe.com", "chat.mistral.ai"],
-};
-export function aiSourceOf(referrer: string): string | null {
-  const d = referrer.toLowerCase().replace(/^www\./, "");
-  for (const [name, list] of Object.entries(AI_SOURCES)) if (list.some((x) => d === x.replace(/^www\./, "") || d.endsWith(`.${x}`))) return name;
-  return null;
-}
+export { AI_SOURCES, aiSourceOf } from "./aiSources";

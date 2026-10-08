@@ -1,8 +1,44 @@
 import { requireRole } from "@/lib/serverAuth";
-import { aiSourceOf, AI_SOURCES, metrics, series, stats, umamiReady } from "@/lib/umami";
+import { active, aiSourceOf, AI_SOURCES, metrics, series, stats, umamiReady, type Range, type Row } from "@/lib/umami";
 
-// Visits from AI assistants for one brand's website, from Umami. Cached for 10 minutes.
+// Everything Umami knows about one brand's website, plus visits from AI assistants. Cached for 10 minutes.
 const cache = new Map<string, { at: number; data: unknown }>();
+
+const PAGES = ["path", "url"];
+// Each breakdown on the page and the names Umami uses for it.
+const BREAKDOWNS: Record<string, string[]> = {
+  pages: PAGES,
+  entry: ["entry"],
+  exit: ["exit"],
+  titles: ["title"],
+  referrers: ["referrer"],
+  channels: ["channel"],
+  queries: ["query"],
+  countries: ["country"],
+  regions: ["region"],
+  cities: ["city"],
+  browsers: ["browser"],
+  os: ["os"],
+  devices: ["device"],
+  screens: ["screen"],
+  languages: ["language"],
+  events: ["event"],
+};
+
+/** Run jobs a few at a time so Umami doesn't turn us away. */
+async function pool<T>(jobs: (() => Promise<T>)[], size = 6): Promise<T[]> {
+  const out: T[] = new Array(jobs.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(size, jobs.length) }, async () => {
+      while (next < jobs.length) {
+        const i = next++;
+        out[i] = await jobs[i]();
+      }
+    }),
+  );
+  return out;
+}
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
@@ -23,22 +59,31 @@ export async function POST(request: Request) {
 
   const key = `${id}:${days}`;
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < 10 * 60_000) return Response.json(hit.data);
+  if (hit && Date.now() - hit.at < 10 * 60_000) return Response.json({ ...(hit.data as object), now: await active(id).catch(() => null) });
 
   try {
     const now = Date.now();
-    const cur = { startAt: now - days * 864e5, endAt: now };
-    const prev = { startAt: now - 2 * days * 864e5, endAt: cur.startAt };
-    const [total, totalPrev, refs, refsPrev, totalSeries] = await Promise.all([
-      stats(id, cur),
-      stats(id, prev),
-      metrics(id, "referrer", cur),
-      metrics(id, "referrer", prev),
-      series(id, cur),
+    const cur: Range = { startAt: now - days * 864e5, endAt: now };
+    const prev: Range = { startAt: now - 2 * days * 864e5, endAt: cur.startAt };
+    const soft = <T,>(p: Promise<T>, empty: T) => p.catch(() => empty);
+
+    const names = Object.keys(BREAKDOWNS);
+    const [total, totalPrev, refsPrev, totalSeries, visitorsNow, ...lists] = await pool<unknown>([
+      () => stats(id, cur),
+      () => stats(id, prev),
+      () => soft(metrics(id, "referrer", prev), [] as Row[]),
+      () => series(id, cur),
+      () => soft(active(id), null),
+      ...names.map((n) => () => soft(metrics(id, BREAKDOWNS[n], cur, {}, 100), [] as Row[])),
     ]);
+    const t = total as Awaited<ReturnType<typeof stats>>;
+    const tp = totalPrev as Awaited<ReturnType<typeof stats>>;
+    const s = totalSeries as Awaited<ReturnType<typeof series>>;
+    const breakdowns = Object.fromEntries(names.map((n, i) => [n, (lists[i] as Row[]).map((r) => ({ x: r.x ?? "", y: r.y }))]));
+    const refs = breakdowns.referrers as Row[];
 
     // Visits from each AI assistant, now and in the period before.
-    const sum = (rows: { x: string; y: number }[]) => {
+    const sum = (rows: Row[]) => {
       const out: Record<string, number> = Object.fromEntries(Object.keys(AI_SOURCES).map((k) => [k, 0]));
       for (const r of rows) {
         const src = aiSourceOf(r.x ?? "");
@@ -47,27 +92,29 @@ export async function POST(request: Request) {
       return out;
     };
     const byEngine = sum(refs);
-    const byEnginePrev = sum(refsPrev);
+    const byEnginePrev = sum(refsPrev as Row[]);
     const aiDomains = refs.filter((r) => aiSourceOf(r.x ?? "") && r.y > 0).map((r) => r.x);
 
     // For each AI site that sent visits: visits per day and the pages people landed on.
-    const perDomain = await Promise.all(
-      aiDomains.map(async (d) => ({
+    const perDomain = await pool(
+      aiDomains.map((d) => async () => ({
         domain: d,
         engine: aiSourceOf(d)!,
-        days: await series(id, cur, { referrer: d }).catch(() => []),
-        pages: await metrics(id, "url", cur, { referrer: d }).catch(() => []),
+        days: await soft(series(id, cur, { referrer: d }).then((x) => x.visitors), [] as Row[]),
+        pages: await soft(metrics(id, PAGES, cur, { referrer: d }), [] as Row[]),
       })),
     );
     const dayKey = (x: string) => x.slice(0, 10);
-    const daysMap = new Map<string, { day: string; total: number; ai: Record<string, number> }>();
-    for (const p of totalSeries) daysMap.set(dayKey(p.x), { day: dayKey(p.x), total: p.y, ai: {} });
-    for (const d of perDomain)
-      for (const p of d.days) {
-        const row = daysMap.get(dayKey(p.x)) ?? { day: dayKey(p.x), total: 0, ai: {} };
-        row.ai[d.engine] = (row.ai[d.engine] ?? 0) + p.y;
-        daysMap.set(row.day, row);
-      }
+    const daysMap = new Map<string, { day: string; visitors: number; pageviews: number; ai: Record<string, number> }>();
+    const day = (x: string) => {
+      const k = dayKey(x);
+      const row = daysMap.get(k) ?? { day: k, visitors: 0, pageviews: 0, ai: {} };
+      daysMap.set(k, row);
+      return row;
+    };
+    for (const p of s.visitors) day(p.x).visitors = p.y;
+    for (const p of s.pageviews) day(p.x).pageviews = p.y;
+    for (const d of perDomain) for (const p of d.days) day(p.x).ai[d.engine] = (day(p.x).ai[d.engine] ?? 0) + p.y;
     const pages = new Map<string, { path: string; visits: number; engines: Record<string, number> }>();
     for (const d of perDomain)
       for (const p of d.pages) {
@@ -79,18 +126,19 @@ export async function POST(request: Request) {
 
     const data = {
       days,
-      visits: total.visits || total.visitors,
-      visitsPrev: totalPrev.visits || totalPrev.visitors,
-      pageviews: total.pageviews,
+      totals: t,
+      totalsPrev: tp,
+      visits: t.visits || t.visitors,
+      visitsPrev: tp.visits || tp.visitors,
       ai: Object.values(byEngine).reduce((a, b) => a + b, 0),
       aiPrev: Object.values(byEnginePrev).reduce((a, b) => a + b, 0),
       byEngine: Object.keys(AI_SOURCES).map((engine) => ({ engine, visits: byEngine[engine], prev: byEnginePrev[engine] })),
       series: [...daysMap.values()].sort((a, b) => a.day.localeCompare(b.day)),
       pages: [...pages.values()].sort((a, b) => b.visits - a.visits).slice(0, 50),
-      topReferrers: refs.slice(0, 10).map((r) => ({ referrer: r.x || "Direct", visits: r.y, ai: aiSourceOf(r.x ?? "") })),
+      breakdowns,
     };
     cache.set(key, { at: Date.now(), data });
-    return Response.json(data);
+    return Response.json({ ...data, now: visitorsNow });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("Traffic failed:", message);

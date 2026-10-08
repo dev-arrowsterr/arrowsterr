@@ -6,7 +6,7 @@ import type { View } from "@/lib/view";
 import { BrandLogo } from "./BrandLogo";
 import { EngineName } from "./Engines";
 import { TrendChart } from "./TrendChart";
-import { BrandName, Card, Delta, Empty, favicon, pct, pos, score, Seg, YOU_COLOR } from "./ui";
+import { BrandName, Card, Delta, Empty, favicon, pct, pos, score, Seg, sortRows, SortTh, useSort, YOU_COLOR } from "./ui";
 
 const THEM_COLOR = "#F5B70A";
 
@@ -33,6 +33,8 @@ export function CompetitorsPage({ view, initial }: { view: View; initial?: strin
   const others = stats.filter((s) => !s.isYou);
   const [picked, setPicked] = useState<string | null>(initial ?? null);
   const [split, setSplit] = useState<"model" | "topic">("model");
+  const [sort, setSort] = useSort("visibility");
+  const [h2h, setH2h] = useSort("key", false);
   const sel = others.find((s) => s.name.toLowerCase() === picked?.toLowerCase()) ?? others[0];
 
   if (!chats.length) return <Empty>No results in the last {days} days yet. They show up after the first check finishes, then update every day.</Empty>;
@@ -51,14 +53,27 @@ export function CompetitorsPage({ view, initial }: { view: View; initial?: strin
               <thead className="sticky top-0 z-10">
                 <tr>
                   <th className="w-8">#</th>
-                  <th>Brand</th>
-                  <th>Visibility</th>
-                  <th>Sentiment</th>
-                  <th>Position</th>
+                  <SortTh id="name" sort={sort} onSort={setSort} text>
+                    Brand
+                  </SortTh>
+                  <SortTh id="visibility" sort={sort} onSort={setSort}>
+                    Visibility
+                  </SortTh>
+                  <SortTh id="sentiment" sort={sort} onSort={setSort}>
+                    Sentiment
+                  </SortTh>
+                  <SortTh id="position" sort={sort} onSort={setSort}>
+                    Position
+                  </SortTh>
                 </tr>
               </thead>
               <tbody>
-                {stats.map((s, i) => {
+                {sortRows(stats.map((s, i) => ({ ...s, rank: i + 1 })), sort, {
+                  name: (s) => s.name,
+                  visibility: (s) => s.visibility,
+                  sentiment: (s) => s.sentiment,
+                  position: (s) => (s.position === null ? null : -s.position),
+                }).map((s) => {
                   const b = before.find((x) => x.name.toLowerCase() === s.name.toLowerCase());
                   return (
                     <tr
@@ -67,7 +82,7 @@ export function CompetitorsPage({ view, initial }: { view: View; initial?: strin
                       className={`${s.isYou ? "is-you" : "cursor-pointer"} ${sel?.name === s.name ? "bg-brand-pale" : ""}`}
                       aria-selected={sel?.name === s.name}
                     >
-                      <td className="aw-num text-muted">{i + 1}</td>
+                      <td className="aw-num text-muted">{s.rank}</td>
                       <td className="max-w-48">
                         <BrandName name={s.name} domain={s.domain} logo={s.isYou ? brand.logo : undefined} isYou={s.isYou} size={18} />
                       </td>
@@ -129,24 +144,33 @@ export function CompetitorsPage({ view, initial }: { view: View; initial?: strin
                 <table className="aw-table aw-table--compact">
                   <thead>
                     <tr>
-                      <th>{split === "model" ? "Model" : "Topic"}</th>
-                      <th>
+                      <SortTh id="key" sort={h2h} onSort={setH2h} text>
+                        {split === "model" ? "Model" : "Topic"}
+                      </SortTh>
+                      <SortTh id="them" sort={h2h} onSort={setH2h}>
                         <span className="flex items-center gap-1.5">
                           <i className="inline-block h-2 w-2" style={{ background: THEM_COLOR }} />
                           {sel.name}
                         </span>
-                      </th>
-                      <th>
+                      </SortTh>
+                      <SortTh id="you" sort={h2h} onSort={setH2h}>
                         <span className="flex items-center gap-1.5">
                           <i className="inline-block h-2 w-2" style={{ background: YOU_COLOR }} />
                           {brand.name}
                         </span>
-                      </th>
-                      <th>Gap</th>
+                      </SortTh>
+                      <SortTh id="gap" sort={h2h} onSort={setH2h}>
+                        Gap
+                      </SortTh>
                     </tr>
                   </thead>
                   <tbody>
-                    {(split === "model" ? detail.byEngine.map((e) => ({ key: e.engine, them: e.them, you: e.you })) : detail.byTopic.map((t) => ({ key: t.topic, them: t.them, you: t.you }))).map((r) => {
+                    {sortRows(split === "model" ? detail.byEngine.map((e) => ({ key: e.engine, them: e.them, you: e.you })) : detail.byTopic.map((t) => ({ key: t.topic, them: t.them, you: t.you })), h2h, {
+                      key: (r) => r.key,
+                      them: (r) => r.them,
+                      you: (r) => r.you,
+                      gap: (r) => (r.them === null || r.you === null ? null : r.you - r.them),
+                    }).map((r) => {
                       const gap = r.them === null || r.you === null ? null : Math.round(r.you - r.them);
                       return (
                         <tr key={r.key}>

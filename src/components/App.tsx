@@ -436,7 +436,7 @@ const NAV: { group: string; items: { id: Page; label: string; icon: string }[] }
       { id: "urls", label: "URLs", icon: "⛓" },
     ],
   },
-  { group: "Website", items: [{ id: "traffic", label: "AI traffic", icon: "↗" }] },
+  { group: "Website", items: [{ id: "traffic", label: "Analytics", icon: "↗" }] },
   { group: "Settings", items: [{ id: "members", label: "Workspace & members", icon: "⚙" }] },
 ];
 

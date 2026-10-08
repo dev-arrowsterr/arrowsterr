@@ -1,16 +1,17 @@
 import { randomBytes } from "node:crypto";
 import { inspectSite } from "@/lib/platform";
 import { requireRole } from "@/lib/serverAuth";
-import { createWebsite, stats, umamiReady } from "@/lib/umami";
+import { active, createWebsite, stats, trackerOrigin, umamiReady } from "@/lib/umami";
 
 type SiteRow = { id: string; name: string; domain: string; umami_website_id: string | null; site_platform: string | null; install_token: string | null };
 
 // Website tracking for one brand.
 //   action "connect": create the brand's website in Umami and a private install link. Editors only.
 //   action "status": is the snippet on the homepage, and has the first visit arrived?
+//   action "verify": a step by step check of the install, with a fix for each step that fails.
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
-  const action = body.action === "connect" ? "connect" : "status";
+  const action = body.action === "connect" ? "connect" : body.action === "verify" ? "verify" : "status";
   const auth = await requireRole(request, body.workspaceId, action === "connect" ? "editor" : "viewer");
   if ("denied" in auth) return auth.denied;
   if (!umamiReady()) return Response.json({ error: "Website tracking is not set up yet. Add UMAMI_API_KEY on Render." }, { status: 500 });
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
       site = { ...site, ...update };
     }
     if (!site.umami_website_id) return Response.json({ connected: false });
+    if (action === "verify") return Response.json(await verify(site.domain, site.umami_website_id));
 
     const now = Date.now();
     const [page, recent] = await Promise.all([
@@ -59,4 +61,89 @@ export async function POST(request: Request) {
     console.error("Site tracking failed:", message);
     return Response.json({ error: message }, { status: 500 });
   }
+}
+
+type Check = { label: string; state: "ok" | "warn" | "fail"; note: string };
+
+/** Walk through every place the install can break, in order, and say how to fix each one. */
+async function verify(domain: string, id: string) {
+  const now = Date.now();
+  const [page, upstream, day, month, here] = await Promise.all([
+    inspectSite(domain, id),
+    fetch(`${trackerOrigin()}/script.js`, { method: "HEAD", signal: AbortSignal.timeout(10_000) }).then((r) => r.ok).catch(() => false),
+    stats(id, { startAt: now - 864e5, endAt: now }).catch(() => null),
+    stats(id, { startAt: now - 30 * 864e5, endAt: now }).catch(() => null),
+    active(id).catch(() => null),
+  ]);
+  const checks: Check[] = [];
+  const sn = page.snippet;
+  const bare = domain.toLowerCase().replace(/^www\./, "");
+
+  checks.push(
+    page.reachable
+      ? { label: "Your website opens", state: "ok", note: `We loaded https://${domain}.` }
+      : { label: "Your website opens", state: "fail", note: `We could not load https://${domain}. Check that the brand's domain is right and the site is online.` },
+  );
+  if (page.reachable) {
+    if (!sn) {
+      checks.push(
+        page.platform === "gtm"
+          ? { label: "Code found on your homepage", state: "warn", note: "Your site uses Google Tag Manager, which hides the code from us. That is fine if visits show up below." }
+          : {
+              label: "Code found on your homepage",
+              state: "fail",
+              note: "The code is not on your homepage yet. Paste it into the site's head, save, then clear your site's cache (on WordPress: LiteSpeed Cache → Purge All).",
+            },
+      );
+    } else {
+      checks.push({ label: "Code found on your homepage", state: "ok", note: "The tracking code is on the page." });
+      if (sn.tag) {
+        checks.push(
+          sn.delayed
+            ? {
+                label: "Code loads right away",
+                state: "fail",
+                note: "A speed plugin is delaying the code, so most visits are missed. In LiteSpeed Cache go to Page Optimization → Tuning and add t/script.js to JS Excludes, JS Deferred Excludes and JS Delayed Excludes. Then Purge All.",
+              }
+            : { label: "Code loads right away", state: "ok", note: "No speed plugin is holding it back." },
+        );
+        checks.push(
+          sn.src && /\/t\/script\.js|umami/.test(sn.src)
+            ? { label: "Code points to Arrowsterr", state: "ok", note: sn.src }
+            : { label: "Code points to Arrowsterr", state: "fail", note: "The script address was changed. Copy the code again from the install steps and paste it as is." },
+        );
+        checks.push(
+          !sn.domains || sn.domains.some((d) => d.replace(/^www\./, "") === bare)
+            ? { label: "Domain matches", state: "ok", note: sn.domains ? `Counts visits on ${sn.domains.join(", ")}.` : "Counts visits on any domain." }
+            : {
+                label: "Domain matches",
+                state: "fail",
+                note: `The code only counts visits on ${sn.domains.join(", ")}, but your site is ${domain}. Copy the code again from the install steps.`,
+              },
+        );
+      } else {
+        checks.push({ label: "Code loads right away", state: "warn", note: "Your site ID is on the page, but a plugin has changed the code. If no visits show up below, exclude t/script.js from your speed plugin." });
+      }
+    }
+  }
+  checks.push(
+    upstream
+      ? { label: "Tracking server answers", state: "ok", note: "Arrowsterr can reach the tracking server." }
+      : { label: "Tracking server answers", state: "fail", note: "The tracking server did not answer. Try again in a few minutes." },
+  );
+  const views = month?.pageviews ?? 0;
+  checks.push(
+    views > 0
+      ? {
+          label: "Visits are arriving",
+          state: "ok",
+          note: `${day?.pageviews ?? 0} pageviews in the last 24 hours, ${views} in the last 30 days${here ? `, ${here} on the site right now` : ""}.`,
+        }
+      : {
+          label: "Visits are arriving",
+          state: checks.some((c) => c.state === "fail") ? "fail" : "warn",
+          note: `No visits yet. Open ${domain} in a new private window, click around, then verify again. Ad blockers in your own browser can block your visit.`,
+        },
+  );
+  return { checks, live: views > 0, at: new Date().toISOString() };
 }

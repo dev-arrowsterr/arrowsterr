@@ -21,9 +21,8 @@ import type { View } from "@/lib/view";
 import { BrandLogo } from "./BrandLogo";
 import { Donut, Legend } from "./Donut";
 import { TYPE_COLORS, TypeTag } from "./OverviewPage";
-import { Card, Empty, favicon, pct } from "./ui";
+import { Card, Empty, favicon, pct, type Sort, sortRows, SortTh, useSort } from "./ui";
 
-type Sort = "cited" | "az" | "za";
 type Insights = {
   summary: string;
   actions: { title: string; why: string; how: string }[];
@@ -53,7 +52,7 @@ const VERDICT: Record<string, string> = { strong: "aw-status--ranked", okay: "aw
 export function SourcesPage({ view, mode, auth }: { view: View; mode: "domains" | "urls"; auth: RunAuth | null }) {
   const { brand, current, filter, days, topics, engines } = view;
   const [type, setType] = useState<SourceType | "All">("All");
-  const [sort, setSort] = useState<Sort>("cited");
+  const [sort, setSort] = useSort("used");
   const [shut, setShut] = useState<Set<string>>(new Set());
   const [more, setMore] = useState<Set<string>>(new Set());
   const cacheKey = `arrowsterr.insights.${brand.id}.${days}`;
@@ -70,8 +69,7 @@ export function SourcesPage({ view, mode, auth }: { view: View; mode: "domains" 
   const shares = typeShares(domains);
   const rows = mode === "domains" ? domains : urls;
   const counts = new Map(SOURCE_TYPES.map((t) => [t, rows.filter((r) => r.type === t).length]));
-  const order = <T extends { domain: string; chats: number }>(list: T[]) =>
-    sort === "cited" ? list : [...list].sort((a, b) => (sort === "az" ? a.domain.localeCompare(b.domain) : b.domain.localeCompare(a.domain)));
+  const domainSort = { domain: (r: (typeof domains)[number]) => r.domain, type: (r: (typeof domains)[number]) => r.type, used: (r: (typeof domains)[number]) => r.used, chats: (r: (typeof domains)[number]) => r.chats, avg: (r: (typeof domains)[number]) => r.avgCitations };
   const notes = new Map((insights?.pages ?? []).map((p) => [pageKey(p.url), p]));
 
   async function analyze() {
@@ -144,11 +142,6 @@ export function SourcesPage({ view, mode, auth }: { view: View; mode: "domains" 
                 ) : null,
               )}
             </div>
-            <select aria-label="Sort" value={sort} onChange={(e) => setSort(e.target.value as Sort)} className="border border-rule bg-white px-3 py-1.5 text-[13px] text-ink">
-              <option value="cited">Most cited first</option>
-              <option value="az">Site name A to Z</option>
-              <option value="za">Site name Z to A</option>
-            </select>
           </div>
 
           {mode === "domains" ? (
@@ -157,15 +150,25 @@ export function SourcesPage({ view, mode, auth }: { view: View; mode: "domains" 
                 <thead>
                   <tr>
                     <th className="w-8">#</th>
-                    <th>Domain</th>
-                    <th>Type</th>
-                    <th>Used</th>
-                    <th>Answers</th>
-                    <th>Avg. citations</th>
+                    <SortTh id="domain" sort={sort} onSort={setSort} text>
+                      Domain
+                    </SortTh>
+                    <SortTh id="type" sort={sort} onSort={setSort} text>
+                      Type
+                    </SortTh>
+                    <SortTh id="used" sort={sort} onSort={setSort}>
+                      Used
+                    </SortTh>
+                    <SortTh id="chats" sort={sort} onSort={setSort}>
+                      Answers
+                    </SortTh>
+                    <SortTh id="avg" sort={sort} onSort={setSort}>
+                      Avg. citations
+                    </SortTh>
                   </tr>
                 </thead>
                 <tbody>
-                  {order(domains.filter((d) => type === "All" || d.type === type)).map((d, i) => (
+                  {sortRows(domains.filter((d) => type === "All" || d.type === type), sort, domainSort).map((d, i) => (
                     <tr key={d.domain} className={d.type === "You" ? "is-you" : ""}>
                       <td className="aw-num text-muted">{i + 1}</td>
                       <td>
@@ -187,7 +190,13 @@ export function SourcesPage({ view, mode, auth }: { view: View; mode: "domains" 
             </div>
           ) : (
             <div className="flex flex-col gap-3">
-              {order(urlGroups(urls, domains).filter((g) => type === "All" || g.type === type)).map((g) => {
+              <GroupSort sort={sort} onSort={setSort} />
+              {sortRows(urlGroups(urls, domains).filter((g) => type === "All" || g.type === type), sort, {
+                domain: (g) => g.domain,
+                type: (g) => g.type,
+                pages: (g) => g.pages.length,
+                used: (g) => g.used,
+              }).map((g) => {
                 const open = !shut.has(g.domain);
                 const all = more.has(g.domain);
                 return (
@@ -328,5 +337,29 @@ export function SourcesPage({ view, mode, auth }: { view: View; mode: "domains" 
         </div>
       </div>
     </div>
+  );
+}
+
+/** Column names above the URL groups. Click one to sort the groups by it; click again to flip. */
+function GroupSort({ sort, onSort }: { sort: Sort; onSort: (s: Sort) => void }) {
+  return (
+    <table className="aw-table" aria-label="Sort sites">
+      <thead>
+        <tr>
+          <SortTh id="domain" sort={sort} onSort={onSort} text>
+            Site
+          </SortTh>
+          <SortTh id="type" sort={sort} onSort={onSort} text>
+            Type
+          </SortTh>
+          <SortTh id="pages" sort={sort} onSort={onSort} className="w-28">
+            Pages
+          </SortTh>
+          <SortTh id="used" sort={sort} onSort={onSort} className="w-28">
+            Used
+          </SortTh>
+        </tr>
+      </thead>
+    </table>
   );
 }

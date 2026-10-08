@@ -5,7 +5,7 @@ import { answered, brandStats, competitorDomains, domainRows, metricOf, rankOf, 
 import type { View } from "@/lib/view";
 import { Donut, Legend } from "./Donut";
 import { TrendChart, type Line } from "./TrendChart";
-import { BrandName, Card, Delta, Empty, favicon, OTHER_COLORS, pct, pos, score, Seg, YOU_COLOR } from "./ui";
+import { BrandName, Card, Delta, Empty, favicon, OTHER_COLORS, pct, pos, score, Seg, sortRows, SortTh, useSort, YOU_COLOR } from "./ui";
 import { BrandLogo } from "./BrandLogo";
 
 export const TYPE_COLORS: Record<SourceType, string> = {
@@ -41,6 +41,8 @@ export function OverviewPage({ view, onOpen }: { view: View; onOpen: (page: "com
   const [metric, setMetric] = useState<Metric>("visibility");
   const [mode, setMode] = useState<"line" | "bar">("line");
   const [srcTab, setSrcTab] = useState<"domains" | "urls">("domains");
+  const [brandSort, setBrandSort] = useSort("visibility");
+  const [srcSort, setSrcSort] = useSort("used");
   const { brand, current, previous, filter, days } = view;
   const you = { name: brand.name, domain: brand.domain };
 
@@ -156,14 +158,27 @@ export function OverviewPage({ view, onOpen }: { view: View; onOpen: (page: "com
               <thead>
                 <tr>
                   <th className="w-8">#</th>
-                  <th>Brand</th>
-                  <th>Visibility</th>
-                  <th>Sentiment</th>
-                  <th>Position</th>
+                  <SortTh id="name" sort={brandSort} onSort={setBrandSort} text>
+                    Brand
+                  </SortTh>
+                  <SortTh id="visibility" sort={brandSort} onSort={setBrandSort}>
+                    Visibility
+                  </SortTh>
+                  <SortTh id="sentiment" sort={brandSort} onSort={setBrandSort}>
+                    Sentiment
+                  </SortTh>
+                  <SortTh id="position" sort={brandSort} onSort={setBrandSort}>
+                    Position
+                  </SortTh>
                 </tr>
               </thead>
               <tbody>
-                {stats.slice(0, 8).map((s, i) => {
+                {sortRows(stats.slice(0, 8).map((s, i) => ({ ...s, rank: i + 1 })), brandSort, {
+                  name: (s) => s.name,
+                  visibility: (s) => s.visibility,
+                  sentiment: (s) => s.sentiment,
+                  position: (s) => (s.position === null ? null : -s.position),
+                }).map((s) => {
                   const b = prevOf(s.name);
                   return (
                     <tr
@@ -172,7 +187,7 @@ export function OverviewPage({ view, onOpen }: { view: View; onOpen: (page: "com
                       onClick={() => !s.isYou && onOpen("competitors", s.name)}
                       title={s.isYou ? undefined : `Open ${s.name}`}
                     >
-                      <td className="aw-num text-muted">{i + 1}</td>
+                      <td className="aw-num text-muted">{s.rank}</td>
                       <td className="max-w-40">
                         <BrandName name={s.name} domain={s.domain} logo={s.isYou ? brand.logo : undefined} isYou={s.isYou} size={18} />
                       </td>
@@ -216,16 +231,29 @@ export function OverviewPage({ view, onOpen }: { view: View; onOpen: (page: "com
                 <thead>
                   <tr>
                     <th className="w-8">#</th>
-                    <th>Domain</th>
-                    <th>Type</th>
-                    <th>Used</th>
-                    <th>Avg. citations</th>
+                    <SortTh id="name" sort={srcSort} onSort={setSrcSort} text>
+                      Domain
+                    </SortTh>
+                    <SortTh id="type" sort={srcSort} onSort={setSrcSort} text>
+                      Type
+                    </SortTh>
+                    <SortTh id="used" sort={srcSort} onSort={setSrcSort}>
+                      Used
+                    </SortTh>
+                    <SortTh id="avg" sort={srcSort} onSort={setSrcSort}>
+                      Avg. citations
+                    </SortTh>
                   </tr>
                 </thead>
                 <tbody>
-                  {domains.slice(0, 8).map((d, i) => (
+                  {sortRows(domains.slice(0, 8).map((d, i) => ({ ...d, rank: i + 1 })), srcSort, {
+                    name: (d) => d.domain,
+                    type: (d) => d.type,
+                    used: (d) => d.used,
+                    avg: (d) => d.avgCitations,
+                  }).map((d) => (
                     <tr key={d.domain} className={d.type === "You" ? "is-you" : ""}>
-                      <td className="aw-num text-muted">{i + 1}</td>
+                      <td className="aw-num text-muted">{d.rank}</td>
                       <td>
                         <span className="flex items-center gap-2 text-ink">
                           <BrandLogo src={favicon(d.domain)} name={d.domain} size={18} />
@@ -253,15 +281,25 @@ export function OverviewPage({ view, onOpen }: { view: View; onOpen: (page: "com
                 <thead>
                   <tr>
                     <th className="w-8">#</th>
-                    <th>URL</th>
-                    <th>Type</th>
-                    <th>Used</th>
+                    <SortTh id="name" sort={srcSort} onSort={setSrcSort} text>
+                      URL
+                    </SortTh>
+                    <SortTh id="type" sort={srcSort} onSort={setSrcSort} text>
+                      Type
+                    </SortTh>
+                    <SortTh id="used" sort={srcSort} onSort={setSrcSort}>
+                      Used
+                    </SortTh>
                   </tr>
                 </thead>
                 <tbody>
-                  {urls.slice(0, 8).map((u, i) => (
+                  {sortRows(urls.slice(0, 8).map((u, i) => ({ ...u, rank: i + 1 })), srcSort, {
+                    name: (u) => u.title || u.url.replace(/^https?:\/\/(www\.)?/, ""),
+                    type: (u) => u.type,
+                    used: (u) => u.used,
+                  }).map((u) => (
                     <tr key={u.url}>
-                      <td className="aw-num text-muted">{i + 1}</td>
+                      <td className="aw-num text-muted">{u.rank}</td>
                       <td className="max-w-md">
                         <a href={u.url} target="_blank" rel="noopener noreferrer nofollow" className="flex min-w-0 items-center gap-2">
                           <BrandLogo src={favicon(u.domain)} name={u.domain} size={18} />
