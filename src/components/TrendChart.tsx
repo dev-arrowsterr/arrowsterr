@@ -111,7 +111,7 @@ export function TrendChart({ points, lines, metric, mode }: { points: Point[]; l
                   <i className="inline-block h-2 w-2" style={{ background: l.color }} />
                   {l.name}
                 </span>
-                <b>{fmt(metric, p.values[l.name])}</b>
+                <span style={{ color: "#FFFFFF" }}>{fmt(metric, p.values[l.name])}</span>
               </div>
             ))}
         </div>

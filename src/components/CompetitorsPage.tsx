@@ -30,7 +30,7 @@ function Pair({ them, you, name, youName }: { them: number | null; you: number |
 }
 
 /** Every competitor ranked, and a detailed view of the one you pick. */
-export function CompetitorsPage({ view }: { view: View }) {
+export function CompetitorsPage({ view, initial }: { view: View; initial?: string | null }) {
   const { brand, current, previous, filter, topics, engines, days } = view;
   const you = { name: brand.name, domain: brand.domain };
   const chats = answered(current, filter);
@@ -38,10 +38,10 @@ export function CompetitorsPage({ view }: { view: View }) {
   const before = brandStats(answered(previous, filter), you);
   const hadBefore = answered(previous, filter).length > 0;
   const others = stats.filter((s) => !s.isYou);
-  const [picked, setPicked] = useState<string | null>(null);
-  const sel = others.find((s) => s.name === picked) ?? others[0];
+  const [picked, setPicked] = useState<string | null>(initial ?? null);
+  const sel = others.find((s) => s.name.toLowerCase() === picked?.toLowerCase()) ?? others[0];
 
-  if (!chats.length) return <Empty>No results in the last {days} days. Click Run now, or wait for the daily run.</Empty>;
+  if (!chats.length) return <Empty>No results in the last {days} days yet. They show up after the first check finishes, then update every day.</Empty>;
 
   const detail = sel ? competitorDetail(chats, sel.name, brand.name, engines, topics) : null;
   const me = stats.find((s) => s.isYou)!;

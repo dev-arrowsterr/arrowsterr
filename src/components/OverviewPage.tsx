@@ -33,22 +33,11 @@ const METRICS: { id: Metric; label: string }[] = [
   { id: "position", label: "Position" },
 ];
 
-function Rank({ label, now, before }: { label: string; now: { rank: number; of: number } | null; before: { rank: number; of: number } | null }) {
-  return (
-    <span className="flex items-center gap-1.5 whitespace-nowrap text-[13px] text-muted">
-      {label}:
-      <b className="aw-num text-ink">{now ? `${now.rank}/${now.of}` : "–"}</b>
-      {now && before && now.rank !== before.rank ? (
-        <span className={now.rank < before.rank ? "text-pos" : "text-neg"} title={now.rank < before.rank ? "Moved up" : "Moved down"}>
-          {now.rank < before.rank ? "↑" : "↓"}
-        </span>
-      ) : null}
-    </span>
-  );
-}
+/** Position as a 0 to 100 score: #1 is 100, and each spot down takes 10 points off. */
+export const positionScore = (p: number | null) => (p === null ? null : Math.max(0, 110 - p * 10));
 
 /** Peec-style overview: trend chart, competitors, sites and site types. */
-export function OverviewPage({ view, onOpen }: { view: View; onOpen: (page: "competitors" | "domains" | "urls") => void }) {
+export function OverviewPage({ view, onOpen }: { view: View; onOpen: (page: "competitors" | "domains" | "urls", competitor?: string) => void }) {
   const [metric, setMetric] = useState<Metric>("visibility");
   const [mode, setMode] = useState<"line" | "bar">("line");
   const [srcTab, setSrcTab] = useState<"domains" | "urls">("domains");
@@ -57,7 +46,7 @@ export function OverviewPage({ view, onOpen }: { view: View; onOpen: (page: "com
 
   const chats = answered(current, filter);
   if (!chats.length) {
-    return <Empty>No results in the last {days} days. Click Run now, or wait for the daily run.</Empty>;
+    return <Empty>No results in the last {days} days yet. They show up after the first check finishes, then update every day.</Empty>;
   }
   const stats = brandStats(chats, you);
   const before = brandStats(answered(previous, filter), you);
@@ -84,20 +73,47 @@ export function OverviewPage({ view, onOpen }: { view: View; onOpen: (page: "com
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="aw-frame flex flex-wrap items-center justify-between gap-3 px-5 py-3.5">
-        <span className="text-[15px] text-ink">
-          <span className="font-medium">Overview</span>
-          <span className="text-muted"> · </span>
-          {headline}
-        </span>
-        <span className="flex flex-wrap items-center gap-4">
-          <Rank label="Visibility" now={rankOf(stats, "visibility")} before={hadBefore ? rankOf(before, "visibility") : null} />
-          <Rank label="Sentiment" now={rankOf(stats, "sentiment")} before={hadBefore ? rankOf(before, "sentiment") : null} />
-          <Rank label="Position" now={rankOf(stats, "position")} before={hadBefore ? rankOf(before, "position") : null} />
-        </span>
-      </div>
+      <section className="aw-frame">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rule px-5 py-3.5">
+          <span className="text-[15px] text-ink">
+            <span className="font-medium">Overview</span>
+            <span className="text-muted"> · </span>
+            {headline}
+          </span>
+          <span className="aw-label">Scores out of 100</span>
+        </div>
+        <div className="grid sm:grid-cols-3">
+          {(
+            [
+              { id: "visibility", lab: "Visibility", now: me.visibility, before: hadBefore ? (meBefore?.visibility ?? 0) : null, help: "Share of AI answers that name you" },
+              { id: "sentiment", lab: "Sentiment", now: me.sentiment, before: hadBefore ? (meBefore?.sentiment ?? null) : null, help: "How well AI talks about you" },
+              { id: "position", lab: "Position", now: positionScore(me.position), before: hadBefore ? positionScore(meBefore?.position ?? null) : null, help: me.position === null ? "Not named yet" : `Average spot #${me.position.toFixed(1)} in the list` },
+            ] as const
+          ).map((m, i) => {
+            const r = rankOf(stats, m.id);
+            const rb = hadBefore ? rankOf(before, m.id) : null;
+            return (
+              <div key={m.id} className={`flex flex-col gap-3 px-5 py-5 ${i ? "border-t border-rule sm:border-t-0 sm:border-l" : ""}`}>
+                <span className="aw-label">{m.lab}</span>
+                <span className="flex items-baseline gap-2">
+                  <span className="aw-num text-[38px] leading-none tracking-tight text-ink">{m.now === null ? "–" : Math.round(m.now)}</span>
+                  <span className="aw-num text-[14px] text-muted">/100</span>
+                  <Delta now={m.now} before={m.before} digits={0} />
+                </span>
+                <span className="flex flex-wrap items-center justify-between gap-2 text-[13px] text-muted">
+                  {m.help}
+                  <span className="aw-num">
+                    {r ? `Rank ${r.rank} of ${r.of}` : "Not ranked"}
+                    {r && rb && r.rank !== rb.rank ? <span className={r.rank < rb.rank ? "text-pos" : "text-neg"}>{r.rank < rb.rank ? " ↑" : " ↓"}</span> : null}
+                  </span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </section>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <Card>
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rule-faint px-5 py-3">
             <Seg label="Metric" value={metric} onChange={setMetric} options={METRICS} />
@@ -150,7 +166,12 @@ export function OverviewPage({ view, onOpen }: { view: View; onOpen: (page: "com
                 {stats.slice(0, 8).map((s, i) => {
                   const b = prevOf(s.name);
                   return (
-                    <tr key={s.name} className={s.isYou ? "is-you" : ""}>
+                    <tr
+                      key={s.name}
+                      className={s.isYou ? "is-you" : "cursor-pointer"}
+                      onClick={() => !s.isYou && onOpen("competitors", s.name)}
+                      title={s.isYou ? undefined : `Open ${s.name}`}
+                    >
                       <td className="aw-num text-muted">{i + 1}</td>
                       <td className="max-w-40">
                         <BrandName name={s.name} domain={s.domain} logo={s.isYou ? brand.logo : undefined} isYou={s.isYou} size={18} />
@@ -173,7 +194,7 @@ export function OverviewPage({ view, onOpen }: { view: View; onOpen: (page: "com
         </Card>
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
         <Card>
           <div className="flex items-center justify-between gap-3 border-b border-rule-faint px-5 py-3">
             <Seg

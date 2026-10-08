@@ -102,6 +102,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   const [days, setDays] = useState(30);
   const [model, setModel] = useState("All");
   const [topic, setTopic] = useState("All");
+  const [focus, setFocus] = useState<string | null>(null); // competitor to open on the Competitors page
   const [error, setError] = useState("");
 
   const token = useCallback(async () => (await sb.auth.getSession()).data.session?.access_token ?? "", [sb]);
@@ -213,6 +214,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
     setActiveId(brand.id);
     setPage("overview");
     setAdding(false);
+    // The first check runs right away. After that the daily job keeps it fresh.
+    void runBrand(brand);
   }
 
   async function update(brand: Brand) {
@@ -308,18 +311,6 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
     ? { brand: active, current, previous, filter, topics: topicList, engines: model === "All" ? modelList : [model], days }
     : null;
 
-  const canRun = !canEdit
-    ? "Viewers can see results. Ask an admin for editor access to run checks."
-    : engines === null
-      ? "Loading models..."
-      : !engines.length
-        ? "No model keys are set on Render."
-        : !active?.prompts.length
-          ? "Add prompts on the Prompts page first."
-          : running && running !== active.id
-            ? "Another brand is running. Wait for it to finish."
-            : null;
-
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       <Sidebar
@@ -340,7 +331,10 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           setBrands(null);
         }}
         page={page}
-        onPage={setPage}
+        onPage={(p) => {
+          setFocus(null);
+          setPage(p);
+        }}
       />
       <div className="flex min-w-0 flex-1 flex-col">
         {page !== "members" ? (
@@ -363,8 +357,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             onModel={setModel}
             running={running === active?.id}
             progress={progress}
-            canRun={canRun}
-            onRun={() => active && runBrand(active)}
+            hasRuns={brandRuns.length > 0}
           />
         ) : null}
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">
@@ -389,13 +382,30 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           ) : !view ? (
             <div className="aw-callout max-w-xl">This workspace has no brands yet. Ask an editor or admin to add one.</div>
           ) : page === "prompts" ? (
-            <PromptsPage key={view.brand.id} view={view} readOnly={!canEdit} onChange={update} onRemove={() => remove(view.brand.id)} />
+            <PromptsPage
+              key={view.brand.id}
+              view={view}
+              readOnly={!canEdit}
+              onChange={update}
+              onRemove={() => remove(view.brand.id)}
+              onCompetitor={(name) => {
+                setFocus(name);
+                setPage("competitors");
+              }}
+            />
           ) : page === "competitors" ? (
-            <CompetitorsPage key={view.brand.id} view={view} />
+            <CompetitorsPage key={`${view.brand.id}-${focus ?? ""}`} view={view} initial={focus} />
           ) : page === "domains" || page === "urls" ? (
             <SourcesPage key={`${view.brand.id}-${page}`} view={view} mode={page} />
           ) : (
-            <OverviewPage key={view.brand.id} view={view} onOpen={setPage} />
+            <OverviewPage
+              key={view.brand.id}
+              view={view}
+              onOpen={(p, name) => {
+                setFocus(name ?? null);
+                setPage(p);
+              }}
+            />
           )}
         </main>
       </div>
@@ -554,8 +564,7 @@ function TopBar(p: {
   onModel: (m: string) => void;
   running: boolean;
   progress: { done: number; total: number };
-  canRun: string | null;
-  onRun: () => void;
+  hasRuns: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const pill = "flex items-center gap-2 rounded-aw border border-rule bg-white px-3 py-1.5 text-[13px] font-medium text-ink shadow-aw-sm";
@@ -626,20 +635,20 @@ function TopBar(p: {
       </select>
       <div className="ml-auto flex items-center gap-3">
         {p.running ? (
-          <span className="flex items-center gap-2 text-[13px] text-muted">
-            <span className="aw-progress w-28">
+          <span className="flex items-center gap-3">
+            <span className="aw-label aw-label--brand">First check running</span>
+            <span className="aw-progress w-32">
               <span className="aw-progress__fill block" style={{ width: `${(p.progress.done / Math.max(p.progress.total, 1)) * 100}%` }} />
             </span>
-            {p.progress.done}/{p.progress.total}
+            <span className="aw-num text-[12px] text-muted">
+              {p.progress.done}/{p.progress.total}
+            </span>
           </span>
-        ) : p.canRun ? (
-          <span className="hidden max-w-72 truncate text-[12px] text-muted lg:inline" title={p.canRun}>
-            {p.canRun}
+        ) : (
+          <span className="aw-live" title="The daily job checks every prompt on every model">
+            {p.hasRuns ? "Updates daily at 06:00 UTC" : "First results after the next daily check"}
           </span>
-        ) : null}
-        <button type="button" className="aw-btn aw-btn--accent aw-btn--sm" onClick={p.onRun} disabled={p.running || Boolean(p.canRun)} title={p.canRun ?? undefined}>
-          {p.running ? "Running..." : "Run now"}
-        </button>
+        )}
       </div>
     </div>
   );

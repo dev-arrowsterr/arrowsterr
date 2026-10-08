@@ -185,8 +185,8 @@ export type PromptRow = {
   position: number | null;
   sentiment: number | null;
   latest: EngineCell[]; // from the most recent run that asked it
-  topBrands: { name: string; count: number; isYou: boolean }[];
-  sources: { domain: string; count: number }[];
+  topBrands: { name: string; domain: string | null; count: number; isYou: boolean }[];
+  sources: { domain: string; count: number; urls: { url: string; title: string | null; count: number }[] }[];
   latestAt: string | null;
 };
 
@@ -205,10 +205,28 @@ export function promptRows(runs: Run[], topics: { name: string; prompts: string[
         const m = c.brands.find((b) => same(b.name, you));
         return { engine, status: m ? "named" : "missed", position: m?.position ?? null };
       });
-      const brands = new Map<string, number>();
-      for (const x of ok) for (const b of x.c.brands) brands.set(b.name, (brands.get(b.name) ?? 0) + 1);
-      const doms = new Map<string, number>();
-      for (const x of ok) for (const d of new Set(x.c.sources.map((s) => s.domain))) doms.set(d, (doms.get(d) ?? 0) + 1);
+      const brands = new Map<string, { count: number; domain: string | null }>();
+      for (const x of ok)
+        for (const b of x.c.brands) {
+          const row = brands.get(b.name) ?? { count: 0, domain: null };
+          row.count++;
+          row.domain ??= b.domain ?? null;
+          brands.set(b.name, row);
+        }
+      const doms = new Map<string, { count: number; urls: Map<string, { title: string | null; count: number }> }>();
+      for (const x of ok) {
+        const seen = new Set<string>();
+        for (const src of x.c.sources) {
+          const d = src.domain || domainOf(src.url);
+          const row = doms.get(d) ?? { count: 0, urls: new Map() };
+          if (!seen.has(d)) row.count++;
+          seen.add(d);
+          const u = row.urls.get(src.url) ?? { title: src.title, count: 0 };
+          u.count++;
+          row.urls.set(src.url, u);
+          doms.set(d, row);
+        }
+      }
       return {
         prompt,
         topic: t.name,
@@ -218,8 +236,15 @@ export function promptRows(runs: Run[], topics: { name: string; prompts: string[
         sentiment: avg(mine.map((m) => m.sentiment)),
         latest,
         latestAt: lastRun?.at ?? null,
-        topBrands: [...brands.entries()].map(([name, count]) => ({ name, count, isYou: same(name, you) })).sort((a, b) => b.count - a.count).slice(0, 6),
-        sources: [...doms.entries()].map(([domain, count]) => ({ domain, count })).sort((a, b) => b.count - a.count).slice(0, 6),
+        topBrands: [...brands.entries()].map(([name, r]) => ({ name, domain: r.domain, count: r.count, isYou: same(name, you) })).sort((a, b) => b.count - a.count).slice(0, 10),
+        sources: [...doms.entries()]
+          .map(([domain, r]) => ({
+            domain,
+            count: r.count,
+            urls: [...r.urls.entries()].map(([url, u]) => ({ url, title: u.title, count: u.count })).sort((a, b) => b.count - a.count),
+          }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 10),
       };
     }),
   );

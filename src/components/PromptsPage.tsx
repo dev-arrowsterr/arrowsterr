@@ -1,6 +1,6 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { useState } from "react";
 import { flatPrompts, type Brand, type Topic } from "@/lib/db";
 import { promptRows } from "@/lib/metrics";
 import { MAX_PROMPTS, MAX_TOPICS, PROMPTS_PER_TOPIC } from "@/lib/onboarding";
@@ -10,7 +10,19 @@ import { ENGINE_LOGOS } from "./Engines";
 import { BrandName, favicon, pct, pos, score, Seg } from "./ui";
 
 /** Prompt performance in detail, and the editor for topics and prompts. */
-export function PromptsPage({ view, readOnly, onChange, onRemove }: { view: View; readOnly: boolean; onChange: (b: Brand) => void; onRemove: () => void }) {
+export function PromptsPage({
+  view,
+  readOnly,
+  onChange,
+  onRemove,
+  onCompetitor,
+}: {
+  view: View;
+  readOnly: boolean;
+  onChange: (b: Brand) => void;
+  onRemove: () => void;
+  onCompetitor: (name: string) => void;
+}) {
   const [tab, setTab] = useState<"results" | "edit">("results");
   return (
     <div className="flex flex-col gap-5">
@@ -33,14 +45,30 @@ export function PromptsPage({ view, readOnly, onChange, onRemove }: { view: View
           ) : null}
         </div>
       </div>
-      {tab === "results" || readOnly ? <Results view={view} /> : <Editor brand={view.brand} onChange={onChange} onRemove={onRemove} />}
+      {tab === "results" || readOnly ? <Results view={view} onCompetitor={onCompetitor} /> : <Editor brand={view.brand} onChange={onChange} onRemove={onRemove} />}
     </div>
   );
 }
 
-const ENGINE_SHORT: Record<string, string> = { ChatGPT: "ChatGPT", Claude: "Claude", Gemini: "Gemini", Perplexity: "Perplexity", "AI Overview": "AIO", "AI Mode": "AI Mode" };
+const ENGINE_SHORT: Record<string, string> = { ChatGPT: "ChatGPT", Claude: "Claude", Gemini: "Gemini", Perplexity: "Perplexity", "AI Overview": "AI Overview", "AI Mode": "AI Mode" };
+const shortUrl = (u: string) => u.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
 
-function Results({ view }: { view: View }) {
+/** One status chip per model, with a word as well as a color. */
+function ModelChip({ c }: { c: { engine: string; status: string; position: number | null } }) {
+  return (
+    <span
+      title={`${c.engine}: ${c.status === "named" ? `named at #${c.position}` : c.status === "missed" ? "not named" : c.status === "error" ? "no answer" : "not checked"}`}
+      className={`inline-flex items-center gap-1.5 border px-2 py-1 font-mono text-[11px] ${
+        c.status === "named" ? "border-[#BFDED1] bg-pos-bg text-pos" : c.status === "missed" ? "border-[#E8CBC7] bg-neg-bg text-neg" : "border-rule bg-surface-2 text-muted"
+      }`}
+    >
+      <BrandLogo src={ENGINE_LOGOS[c.engine] ?? ""} name={c.engine} size={13} />
+      {c.status === "named" ? `#${c.position}` : c.status === "missed" ? "NO" : "–"}
+    </span>
+  );
+}
+
+function Results({ view, onCompetitor }: { view: View; onCompetitor: (name: string) => void }) {
   const { brand, current, filter, topics, engines } = view;
   const [open, setOpen] = useState<string | null>(null);
   const [closed, setClosed] = useState<Set<string>>(new Set());
@@ -48,7 +76,7 @@ function Results({ view }: { view: View }) {
   if (!topics.length) return <div className="aw-callout">No prompts yet. Open Edit topics and prompts to add some.</div>;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       {topics.map((t) => {
         const list = rows.filter((r) => r.topic === t.name);
         const seen = list.filter((r) => r.visibility !== null);
@@ -59,124 +87,139 @@ function Results({ view }: { view: View }) {
             <button
               type="button"
               onClick={() => setClosed((s) => (s.has(t.name) ? new Set([...s].filter((x) => x !== t.name)) : new Set([...s, t.name])))}
-              className="flex w-full items-center justify-between gap-3 rounded-none border-b border-rule-faint px-5 py-3.5 text-left hover:bg-surface-2"
+              className="flex w-full items-center justify-between gap-4 border-b border-rule px-6 py-5 text-left hover:bg-surface-2"
               aria-expanded={!isClosed}
             >
-              <span className="text-[15px] font-medium text-ink">
-                {t.name} <span className="font-normal text-muted">({t.prompts.length} prompts)</span>
+              <span className="flex flex-col gap-1">
+                <span className="aw-label">Topic</span>
+                <span className="text-[18px] font-medium text-ink">
+                  {t.name} <span className="font-normal text-muted">· {t.prompts.length} prompts</span>
+                </span>
               </span>
-              <span className="flex items-center gap-3 text-[13px] text-muted">
-                Visibility <b className="aw-num text-ink">{pct(vis)}</b>
-                <span aria-hidden="true">{isClosed ? "▾" : "▴"}</span>
+              <span className="flex items-center gap-4">
+                <span className="flex flex-col items-end gap-1">
+                  <span className="aw-label">Visibility</span>
+                  <span className="aw-num text-[20px] text-ink">{pct(vis)}</span>
+                </span>
+                <span aria-hidden="true" className="text-muted">
+                  {isClosed ? "▾" : "▴"}
+                </span>
               </span>
             </button>
             {isClosed ? null : (
-              <div className="overflow-x-auto">
-                <table className="aw-table aw-table--compact">
-                  <thead>
-                    <tr>
-                      <th>Prompt</th>
-                      <th>Visibility</th>
-                      <th>Position</th>
-                      <th>Sentiment</th>
-                      <th>Latest by model</th>
-                      <th>Top brands</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {list.map((r) => (
-                      <Fragment key={r.prompt}>
-                        <tr className="cursor-pointer" onClick={() => setOpen(open === r.prompt ? null : r.prompt)} aria-expanded={open === r.prompt}>
-                          <td className="min-w-64 text-ink">
-                            <span className="mr-2 text-muted">{open === r.prompt ? "▾" : "▸"}</span>
-                            {r.prompt}
-                          </td>
-                          <td className="aw-num">{pct(r.visibility)}</td>
-                          <td className="aw-num">{pos(r.position)}</td>
-                          <td className="aw-num">{score(r.sentiment)}</td>
-                          <td>
-                            <span className="flex flex-wrap gap-1">
+              <ul className="divide-y divide-rule-faint">
+                {list.map((r) => {
+                  const isOpen = open === r.prompt;
+                  return (
+                    <li key={r.prompt}>
+                      <button
+                        type="button"
+                        onClick={() => setOpen(isOpen ? null : r.prompt)}
+                        aria-expanded={isOpen}
+                        className={`grid w-full gap-4 px-6 py-5 text-left hover:bg-paper lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center ${isOpen ? "bg-paper" : ""}`}
+                      >
+                        <span className="flex min-w-0 items-start gap-3">
+                          <span className="pt-0.5 text-muted" aria-hidden="true">
+                            {isOpen ? "▾" : "▸"}
+                          </span>
+                          <span className="text-[16px] leading-snug text-ink">{r.prompt}</span>
+                        </span>
+                        <span className="flex flex-wrap items-center gap-6 pl-7 lg:pl-0">
+                          {[
+                            { lab: "Visibility", v: pct(r.visibility) },
+                            { lab: "Position", v: pos(r.position) },
+                            { lab: "Sentiment", v: score(r.sentiment) },
+                          ].map((m) => (
+                            <span key={m.lab} className="flex w-20 flex-col gap-1">
+                              <span className="aw-label">{m.lab}</span>
+                              <span className="aw-num text-[16px] text-ink">{m.v}</span>
+                            </span>
+                          ))}
+                          <span className="flex flex-wrap gap-1.5">
+                            {r.latest.map((c) => (
+                              <ModelChip key={c.engine} c={c} />
+                            ))}
+                          </span>
+                        </span>
+                      </button>
+                      {isOpen ? (
+                        <div className="grid gap-px border-t border-rule bg-rule lg:grid-cols-[1fr_1fr_1.4fr]">
+                          <div className="flex flex-col gap-4 bg-white p-6">
+                            <span className="aw-label">Latest by model</span>
+                            <ul className="flex flex-col gap-3">
                               {r.latest.map((c) => (
-                                <span
-                                  key={c.engine}
-                                  title={`${c.engine}: ${c.status === "named" ? `named at #${c.position}` : c.status === "missed" ? "not named" : c.status === "error" ? "no answer" : "not checked"}`}
-                                  className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[11px] font-medium ${
-                                    c.status === "named" ? "border-pos/30 bg-pos-bg text-pos" : c.status === "missed" ? "border-neg/20 bg-neg-bg text-neg" : "border-rule bg-surface-2 text-muted"
-                                  }`}
-                                >
-                                  <BrandLogo src={ENGINE_LOGOS[c.engine] ?? ""} name={c.engine} size={12} />
-                                  {c.status === "named" ? `#${c.position}` : c.status === "missed" ? "No" : "–"}
-                                </span>
+                                <li key={c.engine} className="flex items-center justify-between gap-3 text-[14px]">
+                                  <span className="flex items-center gap-2.5 text-ink">
+                                    <BrandLogo src={ENGINE_LOGOS[c.engine] ?? ""} name={c.engine} size={16} />
+                                    {ENGINE_SHORT[c.engine] ?? c.engine}
+                                  </span>
+                                  <span className={`aw-status ${c.status === "named" ? "aw-status--ranked" : c.status === "missed" ? "aw-status--missed" : "aw-status--pending"}`}>
+                                    {c.status === "named" ? `Named #${c.position}` : c.status === "missed" ? "Not named" : c.status === "error" ? "No answer" : "Not checked"}
+                                  </span>
+                                </li>
                               ))}
-                            </span>
-                          </td>
-                          <td>
-                            <span className="flex items-center gap-1">
-                              {r.topBrands.slice(0, 4).map((b) => (
-                                <span key={b.name} title={`${b.name}: named ${b.count} times`}>
-                                  <BrandLogo src={b.isYou ? brand.logo : favicon(`${b.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.com`)} name={b.name} size={18} />
-                                </span>
+                            </ul>
+                            {r.latestAt ? <span className="aw-label">Checked {new Date(r.latestAt).toLocaleString()}</span> : null}
+                          </div>
+                          <div className="flex flex-col gap-4 bg-white p-6">
+                            <span className="aw-label">Brands named · {r.answers} answers</span>
+                            <ul className="flex flex-col gap-1">
+                              {r.topBrands.map((b) => (
+                                <li key={b.name}>
+                                  <button
+                                    type="button"
+                                    onClick={() => !b.isYou && onCompetitor(b.name)}
+                                    disabled={b.isYou}
+                                    title={b.isYou ? undefined : `Open ${b.name} on the Competitors page`}
+                                    className="flex w-full items-center justify-between gap-3 px-2 py-2 text-left text-[14px] hover:bg-surface-2 disabled:cursor-default disabled:hover:bg-transparent"
+                                  >
+                                    <BrandName name={b.name} domain={b.domain} logo={b.isYou ? brand.logo : undefined} isYou={b.isYou} size={18} />
+                                    <span className="flex items-center gap-3">
+                                      <span className="aw-num text-muted">{pct((b.count / Math.max(r.answers, 1)) * 100)}</span>
+                                      {!b.isYou ? (
+                                        <span aria-hidden="true" className="text-muted">
+                                          →
+                                        </span>
+                                      ) : null}
+                                    </span>
+                                  </button>
+                                </li>
                               ))}
-                            </span>
-                          </td>
-                        </tr>
-                        {open === r.prompt ? (
-                          <tr>
-                            <td colSpan={6} className="bg-surface-2">
-                              <div className="grid gap-5 py-2 md:grid-cols-3">
-                                <div className="flex flex-col gap-2">
-                                  <span className="aw-label mb-0">Latest by model</span>
-                                  <ul className="flex flex-col gap-1.5">
-                                    {r.latest.map((c) => (
-                                      <li key={c.engine} className="flex items-center justify-between gap-3 text-[13px]">
-                                        <span className="flex items-center gap-2">
-                                          <BrandLogo src={ENGINE_LOGOS[c.engine] ?? ""} name={c.engine} size={14} />
-                                          {ENGINE_SHORT[c.engine] ?? c.engine}
-                                        </span>
-                                        <span className={`aw-status ${c.status === "named" ? "aw-status--ranked" : c.status === "missed" ? "aw-status--missed" : "aw-status--pending"}`}>
-                                          {c.status === "named" ? `Named #${c.position}` : c.status === "missed" ? "Not named" : c.status === "error" ? "No answer" : "Not checked"}
-                                        </span>
+                              {!r.topBrands.length ? <li className="aw-small">No brands named yet.</li> : null}
+                            </ul>
+                          </div>
+                          <div className="flex flex-col gap-4 bg-white p-6">
+                            <span className="aw-label">Sites cited</span>
+                            <ul className="flex flex-col gap-4">
+                              {r.sources.map((s) => (
+                                <li key={s.domain} className="flex flex-col gap-1.5">
+                                  <span className="flex items-center justify-between gap-3 text-[14px]">
+                                    <span className="flex min-w-0 items-center gap-2 text-ink">
+                                      <BrandLogo src={favicon(s.domain)} name={s.domain} size={16} />
+                                      <span className="truncate">{s.domain}</span>
+                                    </span>
+                                    <span className="aw-num text-muted">{s.count}×</span>
+                                  </span>
+                                  <ul className="flex flex-col gap-1 pl-6">
+                                    {s.urls.slice(0, 4).map((u) => (
+                                      <li key={u.url} className="min-w-0 text-[13px]">
+                                        <a href={u.url} target="_blank" rel="noopener noreferrer nofollow" className="block truncate" title={u.url}>
+                                          {u.title || shortUrl(u.url)} ↗
+                                        </a>
                                       </li>
                                     ))}
                                   </ul>
-                                  {r.latestAt ? <span className="aw-micro">Checked {new Date(r.latestAt).toLocaleString()}</span> : null}
-                                </div>
-                                <div className="flex flex-col gap-2">
-                                  <span className="aw-label mb-0">Brands named ({r.answers} answers)</span>
-                                  <ul className="flex flex-col gap-1.5">
-                                    {r.topBrands.map((b) => (
-                                      <li key={b.name} className="flex items-center justify-between gap-3 text-[13px]">
-                                        <BrandName name={b.name} logo={b.isYou ? brand.logo : undefined} isYou={b.isYou} size={16} />
-                                        <span className="aw-num text-muted">{pct((b.count / Math.max(r.answers, 1)) * 100)}</span>
-                                      </li>
-                                    ))}
-                                    {!r.topBrands.length ? <li className="aw-small">No brands named yet.</li> : null}
-                                  </ul>
-                                </div>
-                                <div className="flex flex-col gap-2">
-                                  <span className="aw-label mb-0">Sites cited</span>
-                                  <ul className="flex flex-col gap-1.5">
-                                    {r.sources.map((s) => (
-                                      <li key={s.domain} className="flex items-center justify-between gap-3 text-[13px]">
-                                        <span className="flex min-w-0 items-center gap-2">
-                                          <BrandLogo src={favicon(s.domain)} name={s.domain} size={16} />
-                                          <span className="truncate">{s.domain}</span>
-                                        </span>
-                                        <span className="aw-num text-muted">{s.count}×</span>
-                                      </li>
-                                    ))}
-                                    {!r.sources.length ? <li className="aw-small">No sites cited yet.</li> : null}
-                                  </ul>
-                                </div>
-                              </div>
-                            </td>
-                          </tr>
-                        ) : null}
-                      </Fragment>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                                </li>
+                              ))}
+                              {!r.sources.length ? <li className="aw-small">No sites cited yet.</li> : null}
+                            </ul>
+                          </div>
+                        </div>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
             )}
           </section>
         );
@@ -198,8 +241,8 @@ function Editor({ brand, onChange, onRemove }: { brand: Brand; onChange: (b: Bra
       <label className="flex cursor-pointer items-start gap-3 rounded-aw border border-rule bg-white px-4 py-3 shadow-aw-sm">
         <input type="checkbox" checked={brand.daily} onChange={(e) => onChange({ ...brand, daily: e.target.checked })} className="mt-1 h-4 w-4 accent-[#0943B0]" />
         <span className="flex flex-col">
-          <span className="text-[14px] font-medium text-ink">Run every day</span>
-          <span className="aw-small">{brand.daily ? "On. The server checks every prompt on every model once a day." : "Off. Prompts only run when you click Run now."}</span>
+          <span className="text-[14px] font-medium text-ink">Check every day</span>
+          <span className="aw-small">{brand.daily ? "On. The server checks every prompt on every model once a day." : "Off. This brand is paused and is not checked."}</span>
         </span>
       </label>
 

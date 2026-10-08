@@ -13,7 +13,7 @@ export function SourcesPage({ view, mode }: { view: View; mode: "domains" | "url
   const { brand, current, filter, days } = view;
   const [type, setType] = useState<SourceType | "All">("All");
   const chats = answered(current, filter);
-  if (!chats.length) return <Empty>No results in the last {days} days. Click Run now, or wait for the daily run.</Empty>;
+  if (!chats.length) return <Empty>No results in the last {days} days yet. They show up after the first check finishes, then update every day.</Empty>;
   const comp = competitorDomains(brandStats(chats, { name: brand.name, domain: brand.domain }));
   const domains = domainRows(chats, brand.domain, comp);
   const urls = urlRows(chats, brand.domain, comp);
