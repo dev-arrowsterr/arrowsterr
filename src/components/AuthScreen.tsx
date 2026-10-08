@@ -66,7 +66,7 @@ export function AuthScreen({ sb, invited }: { sb: SupabaseClient; invited: boole
         setError("");
         setSent("");
       }}
-      className={`flex-1 px-3 py-2 text-[15px] font-medium ${mode === m ? "bg-ink text-white" : "text-body hover:bg-paper"}`}
+      className={`flex-1 px-3 py-2 text-[15px] font-medium ${mode === m ? "bg-brand text-white" : "text-body hover:bg-surface-2"}`}
     >
       {label}
     </button>
@@ -77,13 +77,13 @@ export function AuthScreen({ sb, invited }: { sb: SupabaseClient; invited: boole
       {mode === "forgot" ? (
         <h1 className="aw-h3 mb-0!">Reset your password</h1>
       ) : (
-        <div role="tablist" className="flex gap-2 border border-rule p-1">
+        <div role="tablist" className="flex gap-2 rounded-aw border border-rule bg-surface-2 p-1">
           {tab("signin", "Sign in")}
           {tab("signup", "Create account")}
         </div>
       )}
       {invited ? (
-        <p className="aw-callout text-[15px]!">You were invited to a workspace. Use the email address the invite was sent to.</p>
+        <p className="aw-callout">You were invited to a workspace. Use the email address the invite was sent to.</p>
       ) : null}
       <form onSubmit={submit} className="flex flex-col gap-5">
         <div>

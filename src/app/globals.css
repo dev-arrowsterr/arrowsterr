@@ -5,17 +5,16 @@
 .aw {
   --aw-font: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --aw-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
-  /* Older token names some components still use, pointed at the v2 palette. */
+  /* Older token names some components still use. */
   --aw-skel: var(--aw-rule-faint);
   --aw-line: var(--aw-rule);
   --aw-border: var(--aw-rule-faint);
-  --aw-g500: var(--aw-muted);
+  --aw-g500: var(--aw-subtle);
 }
 
 /*
  * Brand tokens as Tailwind utilities (bg-brand, text-muted, border-rule ...).
  * Values live in brand.css. Change them there.
- * Radius and shadow are zero on purpose: the brand is square and flat.
  */
 @theme inline {
   --color-brand: var(--aw-brand);
@@ -23,11 +22,15 @@
   --color-brand-deep: var(--aw-brand-deep);
   --color-brand-bg: var(--aw-brand-bg);
   --color-brand-pale: var(--aw-brand-pale);
+  --color-brand-mist: var(--aw-brand-mist);
 
   --color-ink: var(--aw-ink);
   --color-ink-hover: var(--aw-ink-hover);
   --color-body: var(--aw-body);
   --color-muted: var(--aw-muted);
+  --color-subtle: var(--aw-subtle);
+  --color-label: var(--aw-label);
+  --color-gold: var(--aw-gold);
   --color-faint: var(--aw-faint);
   --color-rule: var(--aw-rule);
   --color-rule-faint: var(--aw-rule-faint);
@@ -55,12 +58,17 @@
   --font-sans: var(--aw-font);
   --font-mono: var(--aw-mono);
 
-  --radius-aw: 0px;
+  --radius-aw-sm: var(--aw-radius-sm);
+  --radius-aw: var(--aw-radius);
+  --radius-aw-lg: var(--aw-radius-lg);
+  --shadow-aw-sm: var(--aw-shadow-sm);
+  --shadow-aw: var(--aw-shadow);
+  --shadow-aw-lg: var(--aw-shadow-lg);
 }
 
 html,
 body {
-  background: #f5f4f0; /* --aw-paper, set here because body sits outside .aw */
+  background: #f8f8ff; /* --aw-paper, set here because body sits outside .aw */
 }
 /* ─────────────── App additions built on the brand tokens ─────────────── */
 
@@ -70,7 +78,7 @@ body {
 .aw a.nav-link:visited {
   color: var(--aw-body) !important;
   text-decoration: none !important;
-  font-weight: 400;
+  font-weight: 500;
 }
 .aw a.nav-link:hover {
   color: var(--aw-brand) !important;
@@ -103,7 +111,6 @@ body {
 /* AI answers rendered from markdown */
 .aw .md {
   font-size: 15px;
-  font-weight: 300;
   line-height: 1.7;
   color: var(--aw-body);
 }
@@ -111,7 +118,7 @@ body {
   margin-top: 10px !important;
 }
 .aw .md-h {
-  font-weight: 500;
+  font-weight: 600;
   color: var(--aw-ink) !important;
 }
 .aw .md-ol {
@@ -122,8 +129,8 @@ body {
   margin-top: 6px;
 }
 .aw .md-ol li::marker {
-  color: var(--aw-muted);
-  font-weight: 400;
+  color: var(--aw-brand);
+  font-weight: 600;
 }
 
 /* Details/summary used for answers */
@@ -166,49 +173,3 @@ body {
   }
 }
 
-/* ─────────────── App pieces in the v2 style ─────────────── */
-
-/* A single number on a white card with a hairline border. */
-.aw .aw-card-stat {
-  background: var(--aw-surface);
-  border: 1px solid var(--aw-rule);
-  padding: 16px 18px;
-}
-
-/* Page background behind sign-in and onboarding. */
-.aw .aw-dotgrid {
-  background-color: var(--aw-paper);
-  background-image:
-    linear-gradient(to right, var(--aw-rule-faint) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--aw-rule-faint) 1px, transparent 1px);
-  background-size: 48px 48px;
-}
-
-/* Small square marker list for links. */
-.aw .aw-list--dots > li::before { background: var(--aw-muted); }
-
-/* A brand name chip inside an answer. */
-.aw .aw-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 4px 10px;
-  font-size: var(--aw-fs-small) !important;
-  font-weight: 400 !important;
-  color: var(--aw-body) !important;
-  background: var(--aw-surface);
-  border: 1px solid var(--aw-rule);
-}
-.aw .aw-pill.is-on {
-  color: var(--aw-brand) !important;
-  border-color: var(--aw-brand);
-  background: var(--aw-brand-pale);
-}
-
-/* The large website field on onboarding. */
-.aw .aw-input--hero { padding: 16px 18px; font-size: 17px !important; }
-
-/* Selected item in a segmented switch or the sidebar. Dark fill keeps blue for the data. */
-.aw .is-active {
-  background: var(--aw-ink) !important;
-  color: var(--aw-on-dark) !important;
-}

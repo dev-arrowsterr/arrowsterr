@@ -49,9 +49,9 @@ export function VisibilityChart({ points, series }: { points: DayPoint[]; series
             const d = pts.reduce((acc, pt, i) => (pt ? acc + `${acc && pts[i - 1] ? "L" : "M"}${pt[0]},${pt[1]}` : acc), "");
             return (
               <g key={s.name}>
-                <path d={d} fill="none" stroke={s.color} strokeWidth={s.isYou ? 1.75 : 1.25} strokeLinecap="round" strokeLinejoin="round" />
+                <path d={d} fill="none" stroke={s.color} strokeWidth={s.isYou ? 2.5 : 1.5} strokeLinecap="round" strokeLinejoin="round" />
                 {pts.map((pt, i) =>
-                  pt ? <circle key={i} cx={pt[0]} cy={pt[1]} r={s.isYou ? 3.5 : 2.5} fill={s.color} stroke="#fff" strokeWidth={1} /> : null,
+                  pt ? <circle key={i} cx={pt[0]} cy={pt[1]} r={s.isYou ? 4 : 3} fill={s.color} stroke="#fff" strokeWidth={1.5} /> : null,
                 )}
               </g>
             );

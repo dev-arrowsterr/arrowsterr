@@ -8,7 +8,7 @@ import { BrandLogo } from "./BrandLogo";
 import { EngineName } from "./Engines";
 
 const YOU_COLOR = "#0943B0";
-const OTHER_COLOR = "#767570";
+const OTHER_COLOR = "#7C8697";
 const favicon = (domain: string) => `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`;
 const when = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
@@ -44,9 +44,9 @@ function CardRow({ card, brand, engines, total, updated, next }: { card: Competi
   const color = card.isYou ? YOU_COLOR : OTHER_COLOR;
   return (
     <article
-      className="flex flex-col gap-4 border border-rule bg-surface p-5"
+      className="flex flex-col gap-4 rounded-aw-lg border border-rule bg-surface p-5 shadow-aw"
       // Your own card carries the 2px blue marker on its left edge.
-      style={card.isYou ? { boxShadow: "inset 2px 0 0 #0943B0" } : undefined}
+      style={card.isYou ? { boxShadow: "inset 3px 0 0 #0943B0, 0 1px 3px rgba(11,13,18,.06)" } : undefined}
     >
       <div className="flex flex-wrap items-center justify-between gap-5">
         <div className="flex min-w-0 items-center gap-3 ">
@@ -126,7 +126,7 @@ export function CompetitorsPage({ brand, runs }: { brand: Brand; runs: Run[] }) 
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="aw-h2 mb-0!">Competitors</h1>
-        <div role="tablist" aria-label="Measure" className="flex gap-1 border border-rule bg-white p-1">
+        <div role="tablist" aria-label="Measure" className="flex gap-1 rounded-aw border border-rule bg-white p-1 shadow-aw-sm">
           {(["mentions", "citations"] as const).map((m) => (
             <button
               key={m}
@@ -134,7 +134,7 @@ export function CompetitorsPage({ brand, runs }: { brand: Brand; runs: Run[] }) 
               role="tab"
               aria-selected={mode === m}
               onClick={() => setMode(m)}
-              className={` px-4 py-1.5 text-[14px] font-medium ${mode === m ? "bg-ink text-white" : "text-body hover:bg-paper"}`}
+              className={` px-4 py-1.5 text-[14px] font-medium ${mode === m ? "bg-brand text-white" : "text-body hover:bg-surface-2"}`}
             >
               {m === "mentions" ? "Mentions" : "Citations"}
             </button>

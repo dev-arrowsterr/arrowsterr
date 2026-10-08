@@ -57,14 +57,14 @@ function Meter({ label, used, limit }: { label: string; used: number; limit: num
         {used} <span className="text-[15px] font-normal text-muted">of {limit}</span>
       </span>
       <div
-        className="h-2 overflow-hidden bg-rule-faint"
+        className="h-2 overflow-hidden rounded-full bg-rule-faint"
         role="meter"
         aria-label={label}
         aria-valuenow={used}
         aria-valuemin={0}
         aria-valuemax={limit}
       >
-        <div className={`h-full ${full ? "bg-neg" : "bg-ink"}`} style={{ width: `${pct}%` }} />
+        <div className={`h-full ${full ? "bg-neg" : "bg-brand"}`} style={{ width: `${pct}%` }} />
       </div>
       {full ? <span className="text-[13px] font-medium text-neg">Limit reached</span> : null}
     </div>

@@ -10,9 +10,9 @@ import { Donut, Legend, type Slice } from "./Donut";
 import { VisibilityChart, type Series } from "./VisibilityChart";
 
 const TIMEFRAMES = [7, 30, 60, 90];
-// Your brand is the one blue series. Competitors take quiet warm tones, and every series is named in a legend.
+// Your brand is the blue series. Competitors use the Perceptric neutrals and gold, and every series is named in a legend.
 const YOU_COLOR = "#0943B0";
-const OTHER_COLORS = ["#121212", "#B07A4A", "#5E8A7A", "#A3A29D"];
+const OTHER_COLORS = ["#2B3242", "#F5B70A", "#D08A4E", "#A6AEBB"];
 const MAX_RANKED = 40;
 const SOURCE_TYPES = ["Owned", "Competitor", "Third-party"] as const;
 
@@ -46,7 +46,7 @@ function Card({ title, children, foot, flush }: { title: string; children: React
 }
 
 // Ring colors. Blue is you, green and red are good and bad sentiment, grey is the rest. Every slice also shows in a legend with its %.
-const COLORS = { you: "#0943B0", no: "#D3D2CD", pos: "#1A6B3C", neg: "#A3321F", neutral: "#D3D2CD", competitor: "#767570", thirdParty: "#D3D2CD", more: "#E7E6DF" };
+const COLORS = { you: "#0943B0", no: "#D9DEE6", pos: "#28C840", neg: "#B3241A", neutral: "#D9DEE6", competitor: "#7C8697", thirdParty: "#C9D7F3", more: "#EDF0F4" };
 
 /** Change vs the period just before this one. */
 function Delta({ now, before, days, unit }: { now: number; before: number | null; days: number; unit: string }) {
@@ -350,8 +350,8 @@ export function DashboardPage({
                       </span>
                       <span className="aw-num font-medium text-ink">{pct(b.share)}</span>
                     </div>
-                    <div className="h-2 w-full overflow-hidden bg-rule-faint">
-                      <div className="h-full" style={{ width: `${b.share}%`, background: b.color }} />
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-rule-faint">
+                      <div className="h-full rounded-full" style={{ width: `${b.share}%`, background: b.color }} />
                     </div>
                   </div>
                 ))}

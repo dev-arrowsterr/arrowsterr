@@ -420,14 +420,14 @@ function Sidebar({
         <button
           type="button"
           onClick={() => setWsOpen(!wsOpen)}
-          className="mt-1 flex w-full items-center gap-2 border border-rule bg-white px-3 py-2 text-left hover:border-rule"
+          className="mt-1 flex w-full items-center gap-2 rounded-aw border border-rule bg-white px-3 py-2 text-left shadow-aw-sm hover:border-brand-mist"
         >
           <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-ink">{ws.name}</span>
           <span className="aw-tag">{ROLE_LABEL[ws.role]}</span>
           <span aria-hidden="true">▾</span>
         </button>
         {wsOpen ? (
-          <div className="absolute z-20 mt-2 w-full border border-rule bg-white">
+          <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-aw border border-rule bg-white shadow-aw-lg">
             {workspaces.map((w) => (
               <button
                 key={w.id}
@@ -436,7 +436,7 @@ function Sidebar({
                   onWorkspace(w.id);
                   setWsOpen(false);
                 }}
-                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[14px] hover:bg-paper"
+                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[14px] hover:bg-surface-2"
               >
                 <span className="truncate">{w.name}</span>
                 <span className="text-[12px] text-muted">{ROLE_LABEL[w.role]}</span>
@@ -449,7 +449,7 @@ function Sidebar({
                 if (name?.trim()) await onNewWorkspace(name.trim());
                 setWsOpen(false);
               }}
-              className="w-full border-t border-rule px-3 py-2 text-left text-[14px] text-ink hover:bg-paper"
+              className="w-full border-t border-rule px-3 py-2 text-left text-[14px] text-ink hover:bg-surface-2"
             >
               + New workspace
             </button>
@@ -463,14 +463,14 @@ function Sidebar({
           <button
             type="button"
             onClick={() => setBrandOpen(!brandOpen)}
-            className="mt-1 flex w-full items-center gap-3 border border-rule bg-white px-3 py-2 text-left"
+            className="mt-1 flex w-full items-center gap-3 rounded-aw border border-rule bg-white px-3 py-2 text-left shadow-aw-sm"
           >
             <BrandLogo src={active.logo} name={active.name} />
             <span className="min-w-0 flex-1 truncate font-medium text-ink">{active.name}</span>
             <span aria-hidden="true">▾</span>
           </button>
           {brandOpen ? (
-            <div className="absolute z-10 mt-2 w-full border border-rule bg-white">
+            <div className="absolute z-10 mt-2 w-full overflow-hidden rounded-aw border border-rule bg-white shadow-aw-lg">
               {brands.map((b) => (
                 <button
                   key={b.id}
@@ -479,7 +479,7 @@ function Sidebar({
                     onSwitch(b.id);
                     setBrandOpen(false);
                   }}
-                  className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-paper"
+                  className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-surface-2"
                 >
                   <BrandLogo src={b.logo} name={b.name} size={22} />
                   <span className="truncate text-[15px]">{b.name}</span>
@@ -492,7 +492,7 @@ function Sidebar({
                     setBrandOpen(false);
                     onAdd();
                   }}
-                  className="w-full border-t border-rule px-3 py-2 text-left text-[15px] text-ink hover:bg-paper"
+                  className="w-full border-t border-rule px-3 py-2 text-left text-[15px] text-ink hover:bg-surface-2"
                 >
                   + Add a brand
                 </button>
@@ -512,7 +512,7 @@ function Sidebar({
                 type="button"
                 onClick={() => onPage(item.id)}
                 className={` px-3 py-2 text-left text-[15px] font-medium ${
-                  page === item.id ? "bg-ink text-white" : "text-body hover:bg-paper"
+                  page === item.id ? "bg-brand-bg text-brand" : "text-body hover:bg-surface-2"
                 }`}
               >
                 {item.label}
@@ -650,15 +650,15 @@ function Onboarding({
             <div className="aw-frame__body flex flex-col gap-6">
               <h1 className="aw-h3">Suggested prompts</h1>
               {found.category ? <p className="aw-small">{found.category}</p> : null}
-              <ul className="flex flex-col divide-y divide-rule-faint border border-rule">
+              <ul className="flex flex-col divide-y divide-rule-faint overflow-hidden rounded-aw border border-rule">
                 {found.prompts.map((p) => (
                   <li key={p}>
-                    <label className="flex cursor-pointer items-start gap-3 px-4 py-3 hover:bg-paper">
+                    <label className="flex cursor-pointer items-start gap-3 px-4 py-3 hover:bg-surface-2">
                       <input
                         type="checkbox"
                         checked={picked.has(p)}
                         onChange={() => toggle(p)}
-                        className="mt-1 h-4 w-4 accent-[#121212]"
+                        className="mt-1 h-4 w-4 accent-[#0943B0]"
                       />
                       <span className="text-[15px] text-body">{p}</span>
                     </label>
