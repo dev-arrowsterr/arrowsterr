@@ -3,6 +3,7 @@ import type { Chat } from "./chats";
 import { NO_AI_OVERVIEW, type DfsAnswer } from "./dataforseo";
 import { askEngine, type Engine } from "./engines";
 import { extractBrands } from "./extract";
+import { quoteOf } from "./quote";
 
 /** Pull the brands out of an answer we already have. Never throws. */
 export async function readAnswer(engine: string, prompt: string, answer: DfsAnswer, brand: string, domain: string): Promise<Chat> {
@@ -13,6 +14,11 @@ export async function readAnswer(engine: string, prompt: string, answer: DfsAnsw
   if (answer.text === NO_AI_OVERVIEW) return { ...chat, sources: [] };
   try {
     chat.brands = await extractBrands(brand, domain, answer.text);
+    // Keep one sentence, since saved chats drop the full text.
+    const you = chat.brands.find((b) => b.name.toLowerCase() === brand.toLowerCase());
+    const target = you ?? [...chat.brands].sort((a, b) => a.position - b.position)[0];
+    const text = target ? quoteOf(answer.text, target.name) : null;
+    chat.quote = target && text ? { brand: target.name, text } : null;
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("Brand extraction failed:", message);

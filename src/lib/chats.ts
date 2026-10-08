@@ -13,6 +13,7 @@ export type Chat = {
   answered?: boolean; // set when saved, because saved chats drop their full text to save space
   shown?: boolean; // Google engines: false when Google showed no AI answer for the search
   organic?: { rank: number; domain: string; url: string }[]; // AI Overview: Google's top 20 regular results
+  quote?: { brand: string; text: string } | null; // the sentence about you, or about the top brand when you are not named
 };
 
 export type Run = { at: string; engines: string[]; chats: Chat[] };

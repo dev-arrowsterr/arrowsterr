@@ -396,3 +396,105 @@ export function promptGaps(chats: Chat[], topics: { name: string; prompts: strin
     .sort((a, b) => b.them - b.you - (a.them - a.you))
     .map((g) => ({ prompt: g.prompt, topic: g.topic, you: g.you, leader: g.leader, them: g.them }));
 }
+
+// ─────────────── one prompt ───────────────
+
+export type PromptEngine = {
+  engine: string;
+  at: string | null;
+  answered: boolean;
+  rank: number | null;
+  sentiment: number | null;
+  cited: { rank: number; url: string } | null;
+  brands: { name: string; domain: string | null; position: number; isYou: boolean }[];
+  sources: { url: string; title: string | null; domain: string; isYou: boolean }[];
+  quote: { brand: string; text: string } | null;
+};
+export type PromptBrand = { name: string; domain: string | null; isYou: boolean; engines: number; rank: number };
+export type PromptSite = {
+  domain: string;
+  type: SourceType;
+  engines: number; // how many models cited it
+  pages: { url: string; title: string | null }[];
+  withoutYou: boolean; // cited in answers that named competitors and did not name you
+};
+export type PromptDetail = { engines: PromptEngine[]; answered: number; brands: PromptBrand[]; sites: PromptSite[] };
+
+/** The latest answer from each model for one prompt, and the brands and sites across those answers. */
+export function promptDetail(runs: Run[], prompt: string, engines: string[], you: { name: string; domain: string }, filter: Filter): PromptDetail {
+  const sorted = [...runs].sort((a, b) => b.at.localeCompare(a.at));
+  const latest = engines.map((engine) => {
+    for (const r of sorted) {
+      const c = r.chats.find((x) => x.prompt === prompt && x.engine === engine && filter(x));
+      if (c) return { engine, c, at: r.at };
+    }
+    return { engine, c: null, at: null };
+  });
+
+  const rows: PromptEngine[] = latest.map(({ engine, c, at }) => {
+    const ok = Boolean(c && isAnswered(c));
+    const me = ok ? c!.brands.find((b) => same(b.name, you.name)) : undefined;
+    const seen = new Set<string>();
+    return {
+      engine,
+      at,
+      answered: ok,
+      rank: me?.position ?? null,
+      sentiment: me?.sentiment ?? null,
+      cited: ok ? citedRank(c!, you.domain) : null,
+      brands: ok ? [...c!.brands].sort((a, b) => a.position - b.position).map((b) => ({ name: b.name, domain: b.domain ?? null, position: b.position, isYou: same(b.name, you.name) })) : [],
+      sources: ok
+        ? c!.sources
+            .filter((s) => {
+              const k = pageKey(s.url);
+              if (seen.has(k)) return false;
+              seen.add(k);
+              return true;
+            })
+            .map((s) => {
+              const d = s.domain || domainOf(s.url);
+              return { url: s.url.split("#")[0], title: s.title, domain: d, isYou: ownsDomain(d.replace(/^www\./, ""), you.domain.replace(/^www\./, "")) };
+            })
+        : [],
+      quote: ok ? (c!.quote ?? null) : null,
+    };
+  });
+  const answeredRows = rows.filter((r) => r.answered);
+
+  const brands = new Map<string, { name: string; domain: string | null; ranks: number[] }>();
+  for (const r of answeredRows)
+    for (const b of r.brands) {
+      const row = brands.get(b.name.toLowerCase()) ?? { name: b.name, domain: b.domain, ranks: [] };
+      row.ranks.push(b.position);
+      row.domain ??= b.domain;
+      brands.set(b.name.toLowerCase(), row);
+    }
+  const brandList: PromptBrand[] = [...brands.values()]
+    .map((b) => ({ name: b.name, domain: same(b.name, you.name) ? you.domain : b.domain, isYou: same(b.name, you.name), engines: b.ranks.length, rank: avg(b.ranks)! }))
+    .sort((a, b) => b.engines - a.engines || a.rank - b.rank);
+
+  const comp = new Set(brandList.filter((b) => !b.isYou && b.domain).map((b) => b.domain!));
+  const sites = new Map<string, { engines: Set<string>; pages: Map<string, { url: string; title: string | null }>; withoutYou: boolean }>();
+  for (const r of answeredRows) {
+    const named = r.rank !== null;
+    for (const s of r.sources) {
+      const d = s.domain.replace(/^www\./, "");
+      const row = sites.get(d) ?? { engines: new Set<string>(), pages: new Map(), withoutYou: false };
+      row.engines.add(r.engine);
+      const k = pageKey(s.url);
+      const page = row.pages.get(k);
+      if (!page) row.pages.set(k, { url: s.url, title: s.title });
+      else if (!page.title && s.title) page.title = s.title;
+      if (!named && r.brands.length) row.withoutYou = true;
+      sites.set(d, row);
+    }
+  }
+  const siteList: PromptSite[] = [...sites.entries()]
+    .map(([domain, s]) => {
+      const type = sourceType(domain, you.domain.replace(/^www\./, ""), comp);
+      return { domain, type, engines: s.engines.size, pages: [...s.pages.values()], withoutYou: s.withoutYou && type !== "You" && type !== "Competitor" };
+    })
+    .sort((a, b) => b.engines - a.engines || b.pages.length - a.pages.length);
+
+  return { engines: rows, answered: answeredRows.length, brands: brandList, sites: siteList };
+}
