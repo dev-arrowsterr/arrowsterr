@@ -20,7 +20,7 @@ import type { RunAuth } from "@/lib/runner";
 import type { View } from "@/lib/view";
 import { BrandLogo } from "./BrandLogo";
 import { Donut, Legend } from "./Donut";
-import { Card, Empty, favicon, pct, Seg, type Sort, sortRows, SortTh, useSort } from "./ui";
+import { Card, Empty, favicon, pct, Seg, type Sort, sortRows, SortTh, Tip, TIPS, useSort } from "./ui";
 
 export const TYPE_COLORS: Record<SourceType, string> = {
   You: "#0943B0",
@@ -187,12 +187,15 @@ export function SourcesPage({ view, mode, auth, onMode }: { view: View; mode: "d
                     </SortTh>
                     <SortTh id="used" sort={sort} onSort={setSort}>
                       Used
+                      <Tip text={TIPS.used} />
                     </SortTh>
                     <SortTh id="chats" sort={sort} onSort={setSort}>
                       Answers
+                      <Tip text={TIPS.answers} />
                     </SortTh>
                     <SortTh id="avg" sort={sort} onSort={setSort}>
                       Avg. citations
+                      <Tip text={TIPS.avgCitations} />
                     </SortTh>
                   </tr>
                 </thead>
@@ -383,9 +386,11 @@ function GroupSort({ sort, onSort }: { sort: Sort; onSort: (s: Sort) => void }) 
           </SortTh>
           <SortTh id="pages" sort={sort} onSort={onSort} className="w-28">
             Pages
+            <Tip text={TIPS.pages} />
           </SortTh>
           <SortTh id="used" sort={sort} onSort={onSort} className="w-28">
             Used
+            <Tip text={TIPS.used} />
           </SortTh>
         </tr>
       </thead>

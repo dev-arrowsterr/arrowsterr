@@ -19,6 +19,9 @@ const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.le
 const same = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 export const ownsDomain = (d: string, domain: string | null | undefined) => Boolean(domain) && (d === domain || d.endsWith(`.${domain}`));
 
+/** A source's site, without "www.", so www.momos.com and momos.com count as one site. */
+export const siteOf = (s: { url: string; domain?: string | null }) => (s.domain || domainOf(s.url)).toLowerCase().replace(/^www\./, "");
+
 export function answered(runs: Run[], filter: Filter): Chat[] {
   return runs.flatMap((r) => r.chats).filter((c) => filter(c) && isAnswered(c));
 }
@@ -130,7 +133,7 @@ export function domainRows(chats: Chat[], you: string, comp: Set<string>): Domai
   for (const c of chats) {
     const counts = new Map<string, number>();
     for (const s of c.sources) {
-      const d = s.domain || domainOf(s.url);
+      const d = siteOf(s);
       if (d) counts.set(d, (counts.get(d) ?? 0) + 1);
     }
     for (const [d, n] of counts) {
@@ -172,7 +175,7 @@ export function urlRows(chats: Chat[], you: string, comp: Set<string>): UrlRow[]
   chats.forEach((c, ci) => {
     for (const s of c.sources) {
       const key = pageKey(s.url);
-      const row = map.get(key) ?? { url: s.url.split("#")[0], title: s.title, domain: s.domain || domainOf(s.url), chats: new Set<number>(), prompts: new Set<string>() };
+      const row = map.get(key) ?? { url: s.url.split("#")[0], title: s.title, domain: siteOf(s), chats: new Set<number>(), prompts: new Set<string>() };
       row.chats.add(ci);
       row.prompts.add(c.prompt);
       if (!row.title && s.title) row.title = s.title;
@@ -237,7 +240,7 @@ export type EngineCell = {
 
 /** Where your site sits in an answer's list of sources, counting from 1. */
 export function citedRank(c: Chat, domain: string | null | undefined): { rank: number; url: string } | null {
-  const i = c.sources.findIndex((s) => ownsDomain((s.domain || domainOf(s.url)).replace(/^www\./, ""), domain?.replace(/^www\./, "")));
+  const i = c.sources.findIndex((s) => ownsDomain(siteOf(s), domain?.replace(/^www\./, "")));
   return i < 0 ? null : { rank: i + 1, url: c.sources[i].url };
 }
 export type PromptRow = {
@@ -280,7 +283,7 @@ export function promptRows(runs: Run[], topics: { name: string; prompts: string[
       for (const x of ok) {
         const seen = new Set<string>();
         for (const src of x.c.sources) {
-          const d = src.domain || domainOf(src.url);
+          const d = siteOf(src);
           const row = doms.get(d) ?? { count: 0, urls: new Map() };
           if (!seen.has(d)) row.count++;
           seen.add(d);
@@ -311,42 +314,6 @@ export function promptRows(runs: Run[], topics: { name: string; prompts: string[
       };
     }),
   );
-}
-
-// ─────────────── one competitor ───────────────
-
-export type CompetitorDetail = {
-  byEngine: { engine: string; them: number | null; you: number | null }[];
-  byTopic: { topic: string; them: number | null; you: number | null }[];
-  gaps: { prompt: string; topic: string; them: number; you: number }[]; // prompts where they show up more than you
-  domains: { domain: string; count: number }[]; // sites cited in answers that name them
-};
-
-export function competitorDetail(chats: Chat[], name: string, you: string, engines: string[], topics: { name: string; prompts: string[] }[]): CompetitorDetail {
-  const share = (list: Chat[], n: string) => (list.length ? (list.filter((c) => c.brands.some((b) => same(b.name, n))).length / list.length) * 100 : null);
-  const topicOf = new Map(topics.flatMap((t) => t.prompts.map((p) => [p, t.name] as const)));
-  const prompts = [...new Set(chats.map((c) => c.prompt))];
-  const doms = new Map<string, number>();
-  for (const c of chats) if (c.brands.some((b) => same(b.name, name))) for (const d of new Set(c.sources.map((s) => s.domain))) doms.set(d, (doms.get(d) ?? 0) + 1);
-  return {
-    byEngine: engines.map((engine) => {
-      const list = chats.filter((c) => c.engine === engine);
-      return { engine, them: share(list, name), you: share(list, you) };
-    }),
-    byTopic: topics.map((t) => {
-      const list = chats.filter((c) => t.prompts.includes(c.prompt));
-      return { topic: t.name, them: share(list, name), you: share(list, you) };
-    }),
-    gaps: prompts
-      .map((p) => {
-        const list = chats.filter((c) => c.prompt === p);
-        return { prompt: p, topic: topicOf.get(p) ?? "", them: share(list, name) ?? 0, you: share(list, you) ?? 0 };
-      })
-      .filter((g) => g.them > g.you)
-      .sort((a, b) => b.them - b.you - (a.them - a.you))
-      .slice(0, 10),
-    domains: [...doms.entries()].map(([domain, count]) => ({ domain, count })).sort((a, b) => b.count - a.count).slice(0, 8),
-  };
 }
 
 // ─────────────── topics ───────────────
@@ -457,7 +424,7 @@ export function promptDetail(runs: Run[], prompt: string, engines: string[], you
               return true;
             })
             .map((s) => {
-              const d = s.domain || domainOf(s.url);
+              const d = siteOf(s);
               return { url: s.url.split("#")[0], title: s.title, domain: d, isYou: ownsDomain(d.replace(/^www\./, ""), you.domain.replace(/^www\./, "")) };
             })
         : [],
@@ -483,7 +450,7 @@ export function promptDetail(runs: Run[], prompt: string, engines: string[], you
   const sites = new Map<string, { engines: Set<string>; pages: Map<string, { url: string; title: string | null }>; urls: Set<string> }>();
   for (const r of answeredRows)
     for (const s of r.sources) {
-      const d = s.domain.replace(/^www\./, "");
+      const d = siteOf(s);
       const row = sites.get(d) ?? { engines: new Set<string>(), pages: new Map(), urls: new Set<string>() };
       row.engines.add(r.engine);
       const u = pageKey(s.url);
@@ -576,17 +543,25 @@ export function stability(runs: Run[], prompt: string, engine: string, you: stri
   };
 }
 
-// ─────────────── tracked competitors ───────────────
+// ─────────────── battle card: any two brands ───────────────
 
-export type CompetitorRow = BrandStat & { tracked: boolean };
+export type BattleRow = { key: string; topic?: string; a: number | null; b: number | null };
+export type Battle = { byEngine: BattleRow[]; byTopic: BattleRow[]; byPrompt: BattleRow[]; sitesA: { domain: string; count: number }[]; sitesB: { domain: string; count: number }[] };
 
-/** Every brand with a tracked flag. A tracked competitor matches by name or domain, and shows at 0% when no answer named it. */
-export function withTracked(stats: BrandStat[], tracked: { name: string; domain: string }[]): CompetitorRow[] {
-  const bare = (d: string | null | undefined) => (d ?? "").toLowerCase().replace(/^www\./, "");
-  const isTracked = (s: BrandStat) => tracked.some((t) => same(t.name, s.name) || (t.domain && bare(t.domain) === bare(s.domain)));
-  const rows: CompetitorRow[] = stats.map((s) => ({ ...s, tracked: !s.isYou && isTracked(s) }));
-  for (const t of tracked)
-    if (!rows.some((r) => r.tracked && (same(r.name, t.name) || (t.domain && bare(t.domain) === bare(r.domain)))))
-      rows.push({ name: t.name, domain: t.domain || null, isYou: false, visibility: 0, sentiment: null, position: null, mentions: 0, tracked: true });
-  return rows;
+/** Brand A against brand B: visibility by model, by topic and by prompt, and the sites cited when each is named. */
+export function battle(chats: Chat[], a: string, b: string, engines: string[], topics: { name: string; prompts: string[] }[]): Battle {
+  const share = (list: Chat[], n: string) => (list.length ? (list.filter((c) => c.brands.some((x) => same(x.name, n))).length / list.length) * 100 : null);
+  const sites = (n: string) => {
+    const doms = new Map<string, number>();
+    for (const c of chats) if (c.brands.some((x) => same(x.name, n))) for (const d of new Set(c.sources.map(siteOf))) doms.set(d, (doms.get(d) ?? 0) + 1);
+    return [...doms.entries()].map(([domain, count]) => ({ domain, count })).sort((x, y) => y.count - x.count).slice(0, 8);
+  };
+  const row = (key: string, list: Chat[], topic?: string): BattleRow => ({ key, topic, a: share(list, a), b: share(list, b) });
+  return {
+    byEngine: engines.map((e) => row(e, chats.filter((c) => c.engine === e))).filter((r) => r.a !== null),
+    byTopic: topics.map((t) => row(t.name, chats.filter((c) => t.prompts.includes(c.prompt)))).filter((r) => r.a !== null),
+    byPrompt: topics.flatMap((t) => t.prompts.map((p) => row(p, chats.filter((c) => c.prompt === p), t.name))).filter((r) => r.a !== null),
+    sitesA: sites(a),
+    sitesB: sites(b),
+  };
 }

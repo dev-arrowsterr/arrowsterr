@@ -113,12 +113,21 @@ test("stability counts flips, overlap and new brands across checks", async () =>
   assert.equal(one.newBrandRate, 0);
 });
 
-test("tracked competitors match by name or domain and show at 0% when never named", async () => {
-  const { withTracked } = await import("../src/lib/metrics.ts");
-  const stats = [
-    { name: "Acme", domain: "acme.com", isYou: true, visibility: 50, sentiment: 70, position: 2, mentions: 1 },
-    { name: "Birdeye Inc", domain: "birdeye.com", isYou: false, visibility: 100, sentiment: 80, position: 1, mentions: 2 },
-  ];
-  const rows = withTracked(stats, [{ name: "Birdeye", domain: "www.birdeye.com" }, { name: "Podium", domain: "podium.com" }]);
-  assert.deepEqual(rows.map((r) => [r.name, r.tracked, r.visibility]), [["Acme", false, 50], ["Birdeye Inc", true, 100], ["Podium", true, 0]]);
+test("www and bare domains count as one site", async () => {
+  const { domainRows } = await import("../src/lib/metrics.ts");
+  const c1 = chat("ChatGPT", "q", ["Acme"], ["https://www.momos.com/a"]);
+  const c2 = chat("Gemini", "q", ["Acme"], ["https://momos.com/b"]);
+  c1.sources[0].domain = "www.momos.com";
+  const rows = domainRows([c1, c2], "acme.com", new Set());
+  assert.deepEqual(rows.map((r) => [r.domain, r.chats]), [["momos.com", 2]]);
+});
+
+test("battle compares two brands by model, topic and prompt", async () => {
+  const { battle } = await import("../src/lib/metrics.ts");
+  const topics = [{ name: "CRM", prompts: ["best crm", "crm for startups"] }];
+  const chats = [chat("ChatGPT", "best crm", ["Acme", "Rival"]), chat("Gemini", "best crm", ["Rival"]), chat("ChatGPT", "crm for startups", ["Rival"])];
+  const b = battle(chats, "Acme", "Rival", ["ChatGPT", "Gemini", "Claude"], topics);
+  assert.deepEqual(b.byEngine.map((r) => [r.key, r.a, r.b]), [["ChatGPT", 50, 100], ["Gemini", 0, 100]]);
+  assert.equal(Math.round(b.byTopic[0].a!), 33);
+  assert.deepEqual(b.byPrompt.map((r) => [r.key, r.topic, r.a]), [["best crm", "CRM", 50], ["crm for startups", "CRM", 0]]);
 });

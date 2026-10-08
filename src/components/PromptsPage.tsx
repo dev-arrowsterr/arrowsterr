@@ -13,7 +13,7 @@ import { BrandLogo } from "./BrandLogo";
 import { ENGINE_LOGOS, EngineName } from "./Engines";
 import { Markdown } from "./Markdown";
 import { TrendChart } from "./TrendChart";
-import { BrandName, Delta, Empty, favicon, OTHER_COLORS, pct, Seg, YOU_COLOR } from "./ui";
+import { BrandName, Delta, Empty, favicon, OTHER_COLORS, pct, Seg, Tip, TIPS, YOU_COLOR } from "./ui";
 
 type Props = {
   sb: SupabaseClient;
@@ -26,37 +26,18 @@ type Props = {
   onCompetitor: (name: string) => void;
 };
 
-const HIDDEN_KEY = "arrowsterr.prompts.hidden";
-const readHidden = (): string[] => {
-  try {
-    return JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? "[]");
-  } catch {
-    return [];
-  }
-};
-
 /** The home page for AI visibility: your scores and every topic and prompt. Editors change topics and prompts in place. */
 export function PromptsPage(p: Props) {
   const { view, readOnly } = p;
   const brand = view.brand;
   const all = topicsOf(brand);
-  const [hidden, setHiddenState] = useState<string[]>(readHidden);
-  const [menu, setMenu] = useState(false);
   const [newTopic, setNewTopic] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
   const [link, setLink] = useState("");
   const [error, setError] = useState("");
-  const shown = view.engines.filter((e) => !hidden.includes(e));
+  const shown = view.engines;
   const total = flatPrompts(all).length;
 
-  const setHidden = (next: string[]) => {
-    setHiddenState(next);
-    try {
-      localStorage.setItem(HIDDEN_KEY, JSON.stringify(next));
-    } catch {
-      // Storage blocked. The choice lasts until the page reloads.
-    }
-  };
   const save = (next: Topic[]) => p.onChange({ ...brand, topics: next, prompts: flatPrompts(next) });
   const edit: Editing | null = readOnly
     ? null
@@ -102,21 +83,6 @@ export function PromptsPage(p: Props) {
               Daily checks {brand.daily ? "on" : "off"}
             </button>
           ) : null}
-          <div className="relative">
-            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => setMenu(!menu)} aria-expanded={menu}>
-              Columns{hidden.filter((h) => view.engines.includes(h)).length ? ` · ${hidden.filter((h) => view.engines.includes(h)).length} hidden` : ""}
-            </button>
-            {menu ? (
-              <div className="absolute right-0 z-30 mt-1 flex w-52 flex-col border border-rule bg-white py-1 shadow-aw-sm" onMouseLeave={() => setMenu(false)}>
-                {view.engines.map((e) => (
-                  <label key={e} className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-[13px] text-ink hover:bg-surface-2">
-                    <input type="checkbox" checked={!hidden.includes(e)} onChange={() => setHidden(hidden.includes(e) ? hidden.filter((x) => x !== e) : [...hidden, e])} className="h-3.5 w-3.5 accent-[var(--aw-brand)]" />
-                    <EngineName engine={e} size={14} />
-                  </label>
-                ))}
-              </div>
-            ) : null}
-          </div>
           {!readOnly ? (
             <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={share} disabled={sharing}>
               {sharing ? "Creating link..." : "Share"}
@@ -240,9 +206,9 @@ function RowTools({ label, onEdit, onRemove }: { label: string; onEdit: () => vo
           e.stopPropagation();
           onRemove();
         }}
-        className="px-1.5 text-[14px] text-neg hover:text-ink"
+        className="px-1.5 text-[16px] leading-none text-neg hover:text-ink"
       >
-        🗑
+        ×
       </button>
     </span>
   );
@@ -303,16 +269,19 @@ function Scores({ view }: { view: View }) {
       <div className="grid sm:grid-cols-3">
         {(
           [
-            { id: "visibility", lab: "Visibility", now: me.visibility, before: hadBefore ? (meBefore?.visibility ?? 0) : null, help: "Share of AI answers that name you" },
-            { id: "sentiment", lab: "Sentiment", now: me.sentiment, before: hadBefore ? (meBefore?.sentiment ?? null) : null, help: "How well AI talks about you" },
-            { id: "position", lab: "Position", now: positionScore(me.position), before: hadBefore ? positionScore(meBefore?.position ?? null) : null, help: me.position === null ? "Not named yet" : `Average spot #${me.position.toFixed(1)} in the list` },
+            { id: "visibility", lab: "Visibility", tip: TIPS.visibility, now: me.visibility, before: hadBefore ? (meBefore?.visibility ?? 0) : null, help: "Share of AI answers that name you" },
+            { id: "sentiment", lab: "Sentiment", tip: TIPS.sentiment, now: me.sentiment, before: hadBefore ? (meBefore?.sentiment ?? null) : null, help: "How well AI talks about you" },
+            { id: "position", lab: "Position", tip: TIPS.positionScore, now: positionScore(me.position), before: hadBefore ? positionScore(meBefore?.position ?? null) : null, help: me.position === null ? "Not named yet" : `Average spot #${me.position.toFixed(1)} in the list` },
           ] as const
         ).map((m, i) => {
           const r = rankOf(stats, m.id);
           const rb = hadBefore ? rankOf(before, m.id) : null;
           return (
             <div key={m.id} className={`flex flex-col gap-3 px-5 py-5 ${i ? "border-t border-rule sm:border-t-0 sm:border-l" : ""}`}>
-              <span className="aw-label">{m.lab}</span>
+              <span className="aw-label">
+                {m.lab}
+                <Tip text={m.tip} />
+              </span>
               <span className="flex items-baseline gap-2">
                 <span className="aw-num text-[38px] leading-none tracking-tight text-ink">{m.now === null ? "–" : Math.round(m.now)}</span>
                 <span className="aw-num text-[14px] text-muted">/100</span>
@@ -402,7 +371,10 @@ function Results({
         <thead>
           <tr>
             <th>Topic and prompt</th>
-            <th className="w-24">Visibility</th>
+            <th className="w-24">
+              Visibility
+              <Tip text={TIPS.visibility} />
+            </th>
             {engines.map((e) => (
               <th key={e} className="w-28">
                 <span className="inline-flex items-center gap-1.5 whitespace-nowrap">

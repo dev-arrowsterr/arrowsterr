@@ -139,3 +139,34 @@ export function SortTh({ id, sort, onSort, text = false, className = "", childre
     </th>
   );
 }
+
+/** What each metric means, for tooltips. */
+export const TIPS = {
+  visibility: "Share of AI answers that name the brand. 50% means half the answers named it.",
+  sentiment: "How well AI talks about the brand, from 0 to 100. 50 is neutral, higher is better.",
+  position: "Average spot in the list of brands an answer names. #1 is the first brand named.",
+  positionScore: "Your average spot as a score: #1 is 100, and each spot down takes 10 points off.",
+  mentions: "How many AI answers named the brand in this period.",
+  used: "Share of AI answers that cite this site at least once.",
+  answers: "How many AI answers cite this site.",
+  avgCitations: "Links to this site in each answer that cites it.",
+  pages: "Pages on this site that AI answers cite.",
+  gap: "Brand A's share minus brand B's share, in points.",
+} as const;
+
+/** A small "i" that shows what a metric means on hover or focus. */
+export function Tip({ text }: { text: string }) {
+  return (
+    <span className="group/tip relative ml-1 inline-flex align-middle normal-case">
+      <span role="img" aria-label={text} className="inline-flex h-3.5 w-3.5 cursor-help items-center justify-center rounded-full border border-current font-sans text-[9px] leading-none font-medium opacity-60">
+        i
+      </span>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute top-full left-1/2 z-40 mt-1.5 w-56 -translate-x-1/2 whitespace-normal bg-[var(--aw-ink)] px-2.5 py-1.5 text-left font-sans text-[12px] leading-snug font-normal tracking-normal text-white opacity-0 shadow-aw-sm transition-opacity group-hover/tip:opacity-100"
+      >
+        {text}
+      </span>
+    </span>
+  );
+}

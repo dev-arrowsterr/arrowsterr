@@ -451,8 +451,6 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
               key={`${view.brand.id}-${focus ?? ""}`}
               view={view}
               initial={focus}
-              canEdit={canEdit}
-              onBrand={update}
               onTopic={(t) => {
                 setFocusTopic(t);
                 go("prompts");
