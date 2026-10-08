@@ -467,11 +467,11 @@ function Results({
                     const key = `p:${t.name}\n${r.prompt}`;
                     return (
                       <Fragment key={r.prompt}>
-                        <tr onClick={() => editing !== key && setOpen(isOpen ? null : r.prompt)} aria-expanded={isOpen} className={`group cursor-pointer ${isOpen ? "bg-paper" : ""}`}>
+                        <tr onClick={() => editing !== key && setOpen(r.prompt)} className={`group cursor-pointer hover:bg-paper ${isOpen ? "bg-paper" : ""}`}>
                           <td>
                             <span className="flex items-start gap-2 pl-5">
                               <span aria-hidden="true" className="text-muted">
-                                {isOpen ? "▾" : "▸"}
+                                ▸
                               </span>
                               {edit && editing === key ? (
                                 <InlineInput
@@ -497,13 +497,6 @@ function Results({
                           ))}
                           <td className="aw-small whitespace-nowrap">{ago(r.latestAt)}</td>
                         </tr>
-                        {isOpen ? (
-                          <tr>
-                            <td colSpan={cols} className="p-0!">
-                              <Detail sb={sb} view={view} prompt={r.prompt} topic={r.topic} onCompetitor={onCompetitor} />
-                            </td>
-                          </tr>
-                        ) : null}
                       </Fragment>
                     );
                   })}
@@ -536,6 +529,22 @@ function Results({
       <p className="aw-small border-t border-rule-faint px-4 py-3">
         #N is your spot in the list of brands that answer named. Blank means it did not name you. Click a prompt to see the brands and sites in its answers.
       </p>
+      {open && rows.some((r) => r.prompt === open) ? (
+        <Detail
+          key={open}
+          sb={sb}
+          view={view}
+          prompt={open}
+          topic={rows.find((r) => r.prompt === open)!.topic}
+          onCompetitor={onCompetitor}
+          onClose={() => setOpen(null)}
+          onStep={(by) => {
+            const i = rows.findIndex((r) => r.prompt === open);
+            const next = rows[i + by];
+            if (next) setOpen(next.prompt);
+          }}
+        />
+      ) : null}
     </section>
   );
 }
@@ -543,7 +552,23 @@ function Results({
 const level = (n: number) => (n >= 80 ? "High" : n >= 50 ? "Medium" : "Low");
 
 /** One prompt, one model at a time: rank, how steady the answers are, the brands, the linked sites and the full answer. */
-function Detail({ sb, view, prompt, topic, onCompetitor }: { sb: SupabaseClient; view: View; prompt: string; topic: string; onCompetitor: (name: string) => void }) {
+function Detail({
+  sb,
+  view,
+  prompt,
+  topic,
+  onCompetitor,
+  onClose,
+  onStep,
+}: {
+  sb: SupabaseClient;
+  view: View;
+  prompt: string;
+  topic: string;
+  onCompetitor: (name: string) => void;
+  onClose: () => void;
+  onStep: (by: number) => void;
+}) {
   const { brand, current, engines, filter } = view;
   const d = promptDetail(current, prompt, engines, { name: brand.name, domain: brand.domain }, filter);
   const [tab, setTab] = useState(d.engines.find((e) => e.answered)?.engine ?? engines[0]);
@@ -558,6 +583,23 @@ function Detail({ sb, view, prompt, topic, onCompetitor }: { sb: SupabaseClient;
     };
   }, [sb, brand.id, prompt]);
 
+  // Escape closes. Up and down arrows move to the prior or next prompt. The page behind does not scroll.
+  useEffect(() => {
+    const keys = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.closest("input, textarea, select")) return;
+      if (e.key === "Escape") onClose();
+      if (e.key === "ArrowDown") onStep(1);
+      if (e.key === "ArrowUp") onStep(-1);
+    };
+    window.addEventListener("keydown", keys);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", keys);
+      document.body.style.overflow = overflow;
+    };
+  }, [onClose, onStep]);
+
   const cur = d.engines.find((e) => e.engine === tab) ?? d.engines[0];
   const st = stability(current, prompt, cur.engine, brand.name, filter);
   const last = d.engines.map((e) => e.at).filter(Boolean).sort().pop() ?? null;
@@ -566,16 +608,36 @@ function Detail({ sb, view, prompt, topic, onCompetitor }: { sb: SupabaseClient;
   const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
   return (
-    <div className="flex flex-col gap-5 border-t border-rule bg-paper p-5">
-      <div className="flex flex-col gap-1">
-        <span className="aw-micro">
-          {topic} · {last ? `Checked ${new Date(last).toLocaleString()}` : "Not checked yet"}
+    <div className="fixed inset-0 z-50 flex justify-end bg-[rgba(16,20,30,0.45)] print:hidden" onClick={onClose}>
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={prompt}
+      onClick={(e) => e.stopPropagation()}
+      className="flex h-full w-full max-w-[1320px] flex-col gap-6 overflow-y-auto bg-white px-6 py-6 shadow-aw-sm md:w-[calc(100%-240px)] md:px-10"
+    >
+      <div className="flex items-start justify-between gap-6">
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <span className="aw-micro">
+            Prompt · {topic} · {last ? `Checked ${new Date(last).toLocaleString()}` : "Not checked yet"}
+          </span>
+          <h2 className="text-[24px] leading-snug font-medium text-ink">{prompt}</h2>
+        </div>
+        <span className="flex shrink-0 items-center gap-1">
+          <button type="button" aria-label="Previous prompt" title="Previous prompt (↑)" onClick={() => onStep(-1)} className="px-2 py-1 text-[18px] text-body hover:text-ink">
+            ↑
+          </button>
+          <button type="button" aria-label="Next prompt" title="Next prompt (↓)" onClick={() => onStep(1)} className="px-2 py-1 text-[18px] text-body hover:text-ink">
+            ↓
+          </button>
+          <button type="button" aria-label="Close" title="Close (Esc)" onClick={onClose} className="px-2 py-1 text-[26px] leading-none text-body hover:text-ink">
+            ×
+          </button>
         </span>
-        <span className="text-[17px] font-medium text-ink">{prompt}</span>
       </div>
 
       {/* Rank on each model. Pick one to see its answer. */}
-      <div className="grid grid-cols-2 gap-px border border-rule bg-rule sm:grid-cols-3 xl:grid-cols-6" role="tablist" aria-label="Model">
+      <div className="grid grid-cols-2 gap-px border border-rule bg-rule sm:grid-cols-3 xl:grid-cols-[repeat(var(--n),minmax(0,1fr))]" style={{ ["--n" as string]: d.engines.length }} role="tablist" aria-label="Model">
         {d.engines.map((e) => (
           <button
             key={e.engine}
@@ -761,6 +823,7 @@ function Detail({ sb, view, prompt, topic, onCompetitor }: { sb: SupabaseClient;
           </section>
         </>
       )}
+    </div>
     </div>
   );
 }

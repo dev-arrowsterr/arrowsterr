@@ -219,9 +219,7 @@ export function SourcesPage({ view, auth }: { view: View; auth: RunAuth | null }
               <button type="button" className="aw-text-link text-[13px]" onClick={() => setFocus(null)}>
                 Show all sites
               </button>
-            ) : (
-              <span className="aw-small">Top {boxes.length} sites by answers that cite them</span>
-            )}
+            ) : null}
           </div>
           <div className="relative m-3 h-[340px]">
             {boxes.map(({ item: d, x, y, w, h }) => {

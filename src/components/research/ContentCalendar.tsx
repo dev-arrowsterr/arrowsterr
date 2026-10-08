@@ -178,7 +178,7 @@ export function ContentCalendar({
   });
   const ed = <E,>(x: E) => (canEdit ? x : undefined);
   const cols: Col<CalendarItem>[] = [
-    { id: "keyword", label: "Keyword", type: "text", value: (i) => i.keyword, width: 220, edit: ed(text("keyword")) },
+    { id: "keyword", label: "Keyword", type: "text", value: (i) => i.keyword, width: 220 },
     {
       id: "brief",
       label: "Brief",

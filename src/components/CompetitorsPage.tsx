@@ -27,10 +27,10 @@ function Bar({ v, color }: { v: number | null; color: string }) {
 
 type Dot = { name: string; domain: string | null; isYou: boolean; visibility: number; position: number };
 const QUADRANTS = [
-  { id: "leaders", label: "Leaders", help: "Named often and near the top", cls: "top-2 right-3 items-end text-right" },
-  { id: "challengers", label: "Challengers", help: "Named often, lower in the list", cls: "top-2 left-3" },
-  { id: "kings", label: "Lowkey Kings", help: "Named less often, near the top", cls: "bottom-2 right-3 items-end text-right" },
-  { id: "rising", label: "Rising Stars", help: "Named less often, lower in the list", cls: "bottom-2 left-3" },
+  { id: "leaders", label: "Leaders", help: "Often named and ranked high in the list", cls: "top-2 right-3 items-end text-right" },
+  { id: "challengers", label: "Challengers", help: "Often named but ranked low in the list", cls: "top-2 left-3" },
+  { id: "kings", label: "Niche Kings", help: "Less named but ranked high", cls: "bottom-2 right-3 items-end text-right" },
+  { id: "rising", label: "Rising Stars", help: "Less named and ranked low", cls: "bottom-2 left-3" },
 ];
 
 /**
@@ -85,7 +85,7 @@ function Quadrant({
           ))}
           {dots.map((d) => {
             const on = hover === d.name;
-            const size = d.isYou ? 38 : 32;
+            const size = d.isYou ? 36 : 30;
             return (
               <button
                 key={d.name}
@@ -96,7 +96,7 @@ function Quadrant({
                 onFocus={() => onHover(d.name)}
                 onBlur={() => onHover(null)}
                 aria-label={`${d.name}: visibility ${Math.round(d.visibility)}%, average position #${d.position.toFixed(1)}`}
-                className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-[9px] bg-white p-0.5 shadow-aw-sm ring-2 transition-transform ${d.isYou ? "ring-brand" : picked === d.name ? "ring-[#F5B70A]" : "ring-rule"} ${on ? "z-30 scale-125" : "z-10 hover:z-30"}`}
+                className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-[10px] border-2 bg-white p-1 transition-transform ${d.isYou ? "border-brand shadow-[3px_3px_0_0_var(--aw-brand)]" : picked === d.name ? "border-ink shadow-[3px_3px_0_0_#F5B70A]" : "border-ink shadow-[3px_3px_0_0_var(--aw-ink)]"} ${on ? "z-30 -translate-y-[calc(50%+2px)] scale-115" : "z-10 hover:z-30"}`}
                 style={{ left: `${x(d.position)}%`, top: `${y(d.visibility)}%` }}
               >
                 {crown === d.name ? (
@@ -209,29 +209,28 @@ export function CompetitorsPage({ view, initial, onTopic }: { view: View; initia
       <h1 className="aw-h2">Competitors</h1>
 
       <section className="aw-frame">
-        <div className="aw-frame__head justify-between">
+        <div className="aw-frame__head">
           <h2 className="aw-h4">Competitive analysis</h2>
-          <span className="aw-small">
-            {on.size} of {top.length} brands on the chart · click a logo or row to compare
-          </span>
         </div>
         <div className="grid xl:h-[600px] xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
           {/* Left: every brand, with search and a box to show it on the chart */}
           <div className="flex min-h-0 flex-col border-rule xl:border-r">
             <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint px-4 py-3">
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search brands" aria-label="Search brands" className="aw-input min-w-40 flex-1 py-1.5! text-[14px]!" />
-              <button type="button" className="aw-text-link text-[13px]" onClick={() => setShown(defaults())}>
-                Top {SHOWN}
-              </button>
-              <button type="button" className="aw-text-link text-[13px]" onClick={() => setShown(new Set([brand.name]))}>
-                Only me
-              </button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto max-xl:max-h-[480px]">
               <table className="aw-table">
                 <thead className="sticky top-0 z-10">
                   <tr>
-                    <th className="w-9" aria-label="On chart" />
+                    <th className="w-9">
+                      <input
+                        type="checkbox"
+                        aria-label="Show every listed brand on the chart"
+                        checked={listed.length > 0 && listed.every((s) => on.has(s.name))}
+                        onChange={(e) => setShown(e.target.checked ? new Set([...on, ...listed.map((s) => s.name)]) : new Set([...on].filter((n) => n === brand.name || !listed.some((s) => s.name === n))))}
+                        className="h-4 w-4 accent-[var(--aw-brand)]"
+                      />
+                    </th>
                     <th className="w-10">#</th>
                     <SortTh id="name" sort={sort} onSort={setSort} text>
                       Brand
@@ -312,7 +311,7 @@ export function CompetitorsPage({ view, initial, onTopic }: { view: View; initia
       </section>
 
       {topics.length ? (
-        <Card title="Who wins each topic">
+        <Card title="Topic Leaders">
           <div className="overflow-x-auto">
             <table className="aw-table">
               <thead>
@@ -398,7 +397,6 @@ export function CompetitorsPage({ view, initial, onTopic }: { view: View; initia
                   <span className="aw-label flex items-center">
                     {m.lab}
                     <Tip text={m.tip} />
-                    {m.id ? <span className={`ml-auto text-[11px] normal-case ${active ? "text-brand" : "text-muted"}`}>{active ? "On the chart" : "Chart it"}</span> : null}
                   </span>
                   {[
                     { s: A, color: YOU_COLOR },
@@ -424,7 +422,7 @@ export function CompetitorsPage({ view, initial, onTopic }: { view: View; initia
                   role="tab"
                   aria-selected={active}
                   onClick={() => setMetric(m.id!)}
-                  className={`flex flex-col gap-3 px-6 py-5 text-left ${active ? "bg-brand-pale shadow-[inset_0_-3px_0_var(--aw-brand)]" : "bg-white hover:bg-surface-2"}`}
+                  className={`flex cursor-pointer flex-col gap-3 px-6 py-5 text-left transition-colors ${active ? "bg-brand-pale shadow-[inset_0_-3px_0_var(--aw-brand)]" : "bg-white hover:bg-surface-2 hover:shadow-[inset_0_-3px_0_var(--aw-rule)]"}`}
                 >
                   {body}
                 </button>
