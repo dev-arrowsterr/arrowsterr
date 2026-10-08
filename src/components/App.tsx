@@ -23,6 +23,7 @@ import { runAll, type RunAuth } from "@/lib/runner";
 import { getSupabase, type SupaConfig } from "@/lib/supa";
 import { AuthScreen, NewPassword } from "./AuthScreen";
 import { BrandLogo } from "./BrandLogo";
+import { CompetitorsPage } from "./CompetitorsPage";
 import { DashboardPage } from "./DashboardPage";
 import { Logo } from "./Logo";
 import { MembersPage } from "./MembersPage";
@@ -30,7 +31,7 @@ import { PromptsPage } from "./PromptsPage";
 
 export type { Brand } from "@/lib/db";
 type Suggestion = Omit<Brand, "id" | "workspace_id" | "daily">;
-type Page = "dashboard" | "prompts" | "members";
+type Page = "dashboard" | "competitors" | "prompts" | "members";
 
 const INVITE_KEY = "arrowsterr.invite";
 const LEGACY_BRANDS = "arrowsterr.brands";
@@ -336,6 +337,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           <div className="aw-callout max-w-xl text-[16px]!">
             This workspace has no brands yet. Ask an editor or admin to add one.
           </div>
+        ) : page === "competitors" ? (
+          <CompetitorsPage key={active.id} brand={active} runs={runs[active.id] ?? []} />
         ) : page === "prompts" ? (
           <PromptsPage key={active.id} brand={active} readOnly={!canEdit} onChange={update} onRemove={() => remove(active.id)} />
         ) : (
@@ -402,7 +405,7 @@ function Sidebar({
   const [wsOpen, setWsOpen] = useState(false);
   const [brandOpen, setBrandOpen] = useState(false);
   const nav: { group: string; items: { id: Page; label: string }[] }[] = [
-    { group: "General", items: [{ id: "dashboard", label: "Dashboard" }, { id: "prompts", label: "Prompts" }] },
+    { group: "General", items: [{ id: "dashboard", label: "Dashboard" }, { id: "competitors", label: "Competitors" }, { id: "prompts", label: "Prompts" }] },
     { group: "Settings", items: [{ id: "members", label: "Workspace & members" }] },
   ];
   return (

@@ -126,3 +126,49 @@ export function sentimentRows(chats: Chat[], names: string[]): SentimentRow[] {
 export function marketSentiment(chats: Chat[], you: string, label = "Market benchmark"): SentimentRow {
   return sentimentOf(label, scoresFor(chats, (b) => b !== you.toLowerCase()));
 }
+
+export type CompetitorCard = {
+  name: string;
+  domain: string | null;
+  isYou: boolean;
+  prompts: number; // prompts that named this brand at least once
+  position: number; // average position when mentioned
+  mentions: number;
+  byEngine: Record<string, number | null>; // % of that engine's answers, null when the engine had no answers
+  before: Record<string, number | null>; // the same numbers from the run before, for change arrows
+};
+
+const ownsDomain = (sourceDomain: string, domain: string) => sourceDomain === domain || sourceDomain.endsWith(`.${domain}`);
+
+/**
+ * One card per brand from the latest run: how often each engine mentioned it, or cited its website.
+ * `mode` "mentions" counts answers that name the brand. "citations" counts answers that link to its domain.
+ */
+export function competitorCards(latest: Run, previous: Run | null, you: { name: string; domain: string }, mode: "mentions" | "citations", limit = 12): CompetitorCard[] {
+  const rows = brandRows(latest.chats, you.name);
+  // Your brand always shows first, even when no answer named it.
+  if (!rows.some((r) => r.isYou)) rows.push({ name: you.name, domain: you.domain, visibility: 0, position: 0, sentiment: 0, mentions: 0, isYou: true });
+  const top = rows.sort((a, b) => Number(b.isYou) - Number(a.isYou) || b.mentions - a.mentions).slice(0, limit);
+
+  const share = (run: Run, row: BrandRow, engine: string): number | null => {
+    const answered = run.chats.filter((c) => c.engine === engine && isAnswered(c));
+    if (!answered.length) return null;
+    const domain = row.isYou ? you.domain : row.domain;
+    const hit = (c: Chat) =>
+      mode === "mentions"
+        ? c.brands.some((b) => b.name.toLowerCase() === row.name.toLowerCase())
+        : Boolean(domain) && c.sources.some((s) => ownsDomain(s.domain, domain!));
+    return (answered.filter(hit).length / answered.length) * 100;
+  };
+
+  return top.map((row) => ({
+    name: row.name,
+    domain: row.isYou ? you.domain : row.domain,
+    isYou: row.isYou,
+    mentions: row.mentions,
+    position: row.position,
+    prompts: new Set(latest.chats.filter((c) => c.brands.some((b) => b.name.toLowerCase() === row.name.toLowerCase())).map((c) => c.prompt)).size,
+    byEngine: Object.fromEntries(latest.engines.map((e) => [e, share(latest, row, e)])),
+    before: Object.fromEntries(latest.engines.map((e) => [e, previous ? share(previous, row, e) : null])),
+  }));
+}
