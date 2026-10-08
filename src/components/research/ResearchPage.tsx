@@ -61,7 +61,7 @@ export function ResearchPage({ sb, auth, view, canEdit, tool, onTool }: { sb: Su
       ) : tool === "agentic" ? (
         <AgenticResearch sb={sb} auth={auth} site={site} canEdit={canEdit} onOpenCalendar={() => onTool("calendar")} />
       ) : (
-        <ContentCalendar sb={sb} auth={auth} site={site} canEdit={canEdit} onFind={() => onTool("agentic")} onWrite={() => onTool("writer")} results={{ brandId: brand.id, days: view.days, chats: answered(view.current, view.filter) }} />
+        <ContentCalendar sb={sb} auth={auth} site={site} canEdit={canEdit} onFind={() => onTool("agentic")} onWrite={() => onTool("writer")} results={{ brandId: brand.id, days: view.days, chats: answered(view.current, view.filter) }} onSite={setSite} />
       )}
     </div>
   );

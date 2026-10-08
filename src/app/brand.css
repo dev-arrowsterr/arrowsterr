@@ -366,7 +366,7 @@
 /* Interactive filter chip */
 .aw .aw-chip--btn { cursor: pointer; transition: background var(--aw-fast), color var(--aw-fast), border-color var(--aw-fast); }
 .aw .aw-chip--btn:hover { border-color: var(--aw-ink); color: var(--aw-ink) !important; }
-.aw .aw-chip--btn.is-on { background: var(--aw-ink); border-color: var(--aw-ink); color: var(--aw-on-dark) !important; }
+.aw .aw-chip--btn.is-on, .aw .aw-chip--btn.is-on:hover { background: var(--aw-ink); border-color: var(--aw-ink); color: var(--aw-on-dark) !important; }
 
 /* "Most popular" — the one filled badge */
 .aw .aw-badge {
@@ -721,6 +721,9 @@
 .aw .aw-sheet tbody tr:hover td { background: var(--aw-paper); }
 .aw .aw-sheet tbody tr.is-picked td { background: var(--aw-brand-pale); }
 .aw .aw-sheet__open { padding: 0; border: 0; background: none; color: var(--aw-ink); font: inherit; text-align: left; cursor: pointer; text-decoration: underline; text-decoration-color: var(--aw-rule); text-underline-offset: 3px; }
+.aw .aw-sheet__cell { display: block; width: 100%; min-height: 20px; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: inherit; cursor: text; overflow: hidden; text-overflow: ellipsis; }
+.aw .aw-sheet__cell:hover { box-shadow: inset 0 -1px 0 var(--aw-rule); }
+.aw .aw-sheet td.is-num .aw-sheet__cell { text-align: right; }
 .aw .aw-sheet__open:hover { color: var(--aw-brand); text-decoration-color: var(--aw-brand); }
 .aw .aw-sheet td input:not([type=checkbox]), .aw .aw-sheet td select {
   padding: 2px 6px; border: 1px solid transparent; background: transparent; font: inherit; color: var(--aw-ink);

@@ -32,7 +32,9 @@ export type Profile = {
   features?: string;
   businessType?: BusinessType;
   country?: string;
+  columns?: SheetColumn[]; // custom columns in the Content calendar
 };
+export type SheetColumn = { id: string; name: string; type: "text" | "number" | "date" };
 /** A buying category the brand wants to win, and the prompts that track it. */
 export type Topic = { name: string; prompts: string[] };
 
@@ -282,17 +284,21 @@ export type CalendarItem = {
   brief_status: "running" | "done" | "failed" | null;
   brief_error: string | null;
   brief_at: string | null;
+  extra?: Record<string, string | number | null>; // values for custom columns
 };
 export type NewCalendarItem = Omit<
   CalendarItem,
-  "id" | "status" | "due_date" | "owner" | "url" | "notes" | "created_at" | "action" | "current_url" | "current_rank" | "brief_status" | "brief_error" | "brief_at"
+  "id" | "status" | "due_date" | "owner" | "url" | "notes" | "created_at" | "action" | "current_url" | "current_rank" | "brief_status" | "brief_error" | "brief_at" | "extra"
 > &
   Partial<Pick<CalendarItem, "status" | "action" | "current_url" | "current_rank" | "notes">>;
 const CAL_COLS =
   "id, site_id, keyword, secondary, stage, theme, volume, difficulty, intent, cpc, status, due_date, owner, url, notes, source, created_at, action, current_url, current_rank, brief_status, brief_error, brief_at";
 
 export async function listCalendar(sb: SupabaseClient, siteId: string): Promise<CalendarItem[]> {
-  return check(await sb.from("calendar_items").select(CAL_COLS).eq("site_id", siteId).order("created_at")) as CalendarItem[];
+  const res = await sb.from("calendar_items").select(`${CAL_COLS}, extra`).eq("site_id", siteId).order("created_at");
+  // Before 013_calendar_columns.sql the extra column is missing. Load without it.
+  if (res.error && /extra/.test(res.error.message)) return check(await sb.from("calendar_items").select(CAL_COLS).eq("site_id", siteId).order("created_at")) as CalendarItem[];
+  return check(res) as CalendarItem[];
 }
 
 /** Add pages to the calendar. A keyword already on it is skipped. Returns how many were new. */

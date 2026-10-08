@@ -9,6 +9,7 @@ import { useStash } from "@/lib/stash";
 import { Sheet, type Col } from "../Sheet";
 import { SampleRows, SampleStats, ToolIntro } from "../ToolIntro";
 import { Card, Thinking } from "../ui";
+import { AiBar } from "./AiBar";
 import { Difficulty, downloadCsv, FIELD, fmtCpc, fmtNum, post, STAGE_LABEL, StageTag } from "./shared";
 
 const STEPS = [
@@ -250,9 +251,26 @@ export function AgenticResearch({ sb, auth, site, canEdit, onOpenCalendar }: { s
   ];
   const pageCount = rows.filter((r) => r.action === "new").length;
   const updateCount = rows.length - pageCount;
+  const totalVolume = rows.reduce((n, r) => n + (r.volume ?? 0), 0);
+  const byTheme = themes
+    .map((t) => ({ t, v: rows.filter((r) => r.theme === t).reduce((n, r) => n + (r.volume ?? 0), 0) }))
+    .sort((a, b) => b.v - a.v);
+  const quick = rows
+    .filter((r) => r.action === "new" && r.stage === "bofu" && (r.volume ?? 0) > 0 && (r.kd ?? 100) <= 30)
+    .sort((a, b) => (b.volume ?? 0) - (a.volume ?? 0))
+    .slice(0, 3);
+  const fromRivals = keywords.filter((k) => k.competitor).length;
+  const summary = [
+    `${fmtNum(pageCount)} new pages to write and ${fmtNum(updateCount)} pages to update, worth about ${fmtNum(totalVolume)} searches a month.`,
+    byTheme.length ? `Biggest themes: ${byTheme.slice(0, 3).map((x) => `${x.t} (${fmtNum(x.v)})`).join(", ")}.` : "",
+    quick.length ? `Start with these easy ready-to-buy pages: ${quick.map((r) => `"${r.keyword}"`).join(", ")}.` : "",
+    updateCount ? `${fmtNum(updateCount)} of your articles sit below the top 10. Updating them is often faster than writing new ones.` : "",
+    fromRivals ? `${fmtNum(fromRivals)} keywords are ones your competitors${res.competitors?.length ? ` like ${res.competitors.slice(0, 2).map((c) => c.domain).join(" and ")}` : ""} already rank for.` : "",
+    `${approved.size} of ${rows.length} rows are on your calendar.`,
+  ].filter(Boolean);
 
-  async function approve() {
-    const list = rows.filter((r) => picked.has(r.key) && !approved.has(r.key));
+  async function approve(keys: Set<string> = picked) {
+    const list = rows.filter((r) => keys.has(r.key) && !approved.has(r.key));
     setError("");
     try {
       const n = await addCalendarItems(
@@ -363,77 +381,47 @@ export function AgenticResearch({ sb, auth, site, canEdit, onOpenCalendar }: { s
         ))}
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-2">
-        <Card title="What we found">
-          <ul className="flex flex-col gap-2 p-5 text-[14px] text-body">
-            <li>
-              <span className="aw-label mr-2">Sitemap</span>
-              {res.sitemap?.source ? (
-                <>
-                  {fmtNum(res.sitemap.pages)} pages, {fmtNum(res.sitemap.articles)} articles, from{" "}
-                  <a href={res.sitemap.source.startsWith("http") ? res.sitemap.source : `https://${site.domain}`} target="_blank" rel="noopener noreferrer">
-                    {res.sitemap.source.replace(/^https?:\/\//, "")}
-                  </a>
-                </>
-              ) : (
-                "No sitemap, feed or links found. The site may block bots."
-              )}
-            </li>
-            <li>
-              <span className="aw-label mr-2">Ranking</span>
-              {fmtNum(res.sitemap?.ranking ?? 0)} of your pages show up on Google. {fmtNum(updateCount)} articles rank below the top 10 or not at all.
-            </li>
-            <li>
-              <span className="aw-label mr-2">Competitors</span>
-              {res.competitors?.length
-                ? res.competitors.map((c, i) => (
-                    <span key={c.domain}>
-                      {i ? ", " : ""}
-                      <a href={`https://${c.domain}`} target="_blank" rel="noopener noreferrer nofollow">
-                        {c.domain}
-                      </a>{" "}
-                      <span className="text-muted">({fmtNum(c.keywords)} keywords)</span>
-                    </span>
-                  ))
-                : "None found."}
-            </li>
-            <li>
-              <span className="aw-label mr-2">From competitors</span>
-              {fmtNum(keywords.filter((k) => k.competitor).length)} of the new keywords are ones your competitors already rank for.
-            </li>
+      <Card title="Plan summary">
+        <div className="grid gap-px bg-rule-faint lg:grid-cols-2">
+          <ul className="flex list-disc flex-col gap-2 bg-white py-4 pr-5 pl-9 text-[14px] text-body">
+            {summary.map((x) => (
+              <li key={x}>{x}</li>
+            ))}
           </ul>
-        </Card>
-
-        <Card title="Coverage map" action={<span className="aw-label">Rows per theme and stage</span>}>
-          <div className="overflow-x-auto">
-            <table className="aw-table aw-table--compact">
-              <thead>
-                <tr>
-                  <th>Theme</th>
-                  {STAGES.map((x) => (
-                    <th key={x.id}>{x.label}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {themes.map((t) => (
-                  <tr key={t}>
-                    <td className="text-ink">{t}</td>
-                    {STAGES.map((x) => {
-                      const n = rows.filter((r) => r.theme === t && r.stage === x.id).length;
-                      return (
-                        <td key={x.id} className="aw-num">
-                          {n ? n : <span className="text-neg">0 · gap</span>}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="flex flex-col gap-2 bg-white px-5 py-4 text-[14px] text-body">
+            <span className="aw-label">How to use it</span>
+            <ol className="flex list-decimal flex-col gap-1.5 pl-5">
+              <li>Tick the pages you want and click Approve to calendar, or ask the AI below to pick them.</li>
+              <li>In the Calendar, click Plan dates to spread them out, and set an owner for each page.</li>
+              <li>Click a keyword in the Calendar to write its content brief from Google&apos;s top 10.</li>
+              <li>Click Write in Writer. The draft opens with the outline, and the assistant helps you fill it in.</li>
+              <li>When it is live, paste the URL in the Calendar. Calendar Results shows its visits and AI citations.</li>
+            </ol>
           </div>
-        </Card>
-      </div>
+        </div>
+      </Card>
+
+      {canEdit ? (
+        <AiBar
+          kind="plan"
+          auth={auth}
+          domain={site.domain}
+          rows={rows.map((r) => ({ id: r.key, keyword: r.keyword, job: r.action, stage: r.stage, theme: r.theme, volume: r.volume, kd: r.kd, cpc: r.cpc, intent: r.intent, rank: r.rank, added: approved.has(r.key) }))}
+          tips={[
+            "Approve every BOFU page with volume over 50",
+            "Approve the 10 easiest pages that have search volume",
+            "Select the pages to update that rank 11 to 30",
+            "Approve the biggest page in each theme",
+          ]}
+          label={(id) => rows.find((r) => r.key === id)?.keyword ?? id}
+          onApply={async (ops) => {
+            const toApprove = new Set(ops.flatMap((o) => (o.op === "approve" ? o.ids : [])));
+            const toSelect = ops.flatMap((o) => (o.op === "select" ? o.ids : []));
+            if (toSelect.length) setPicked(new Set([...picked, ...toSelect]));
+            if (toApprove.size) await approve(toApprove);
+          }}
+        />
+      ) : null}
 
       <Card
         title="Keyword plan"
@@ -465,7 +453,7 @@ export function AgenticResearch({ sb, auth, site, canEdit, onOpenCalendar }: { s
         {picked.size && canEdit ? (
           <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint bg-brand-pale px-5 py-2.5">
             <span className="text-[13px] font-medium text-ink">{picked.size} selected</span>
-            <button type="button" className="aw-btn aw-btn--accent aw-btn--sm" onClick={approve}>
+            <button type="button" className="aw-btn aw-btn--accent aw-btn--sm" onClick={() => approve()}>
               Approve to calendar
             </button>
             <button type="button" className="aw-text-link text-[13px]" onClick={() => setPicked(new Set())}>
@@ -474,6 +462,7 @@ export function AgenticResearch({ sb, auth, site, canEdit, onOpenCalendar }: { s
           </div>
         ) : null}
         <Sheet
+          id={`plan:${site.id}`}
           label="Keyword plan"
           rows={rows}
           cols={cols}

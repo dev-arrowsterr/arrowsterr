@@ -2,15 +2,17 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useState } from "react";
-import { addCalendarItems, deleteCalendarItems, listCalendar, updateCalendarItem, type CalendarItem, type CalendarStatus, type Site } from "@/lib/db";
+import { addCalendarItems, deleteCalendarItems, listCalendar, saveSite, updateCalendarItem, type CalendarItem, type CalendarStatus, type SheetColumn, type Site } from "@/lib/db";
 import { slots, STAGES, type Stage } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
-import { Sheet, type Col } from "../Sheet";
+import type { SheetOp } from "@/lib/sheetAi";
+import { Sheet, type Col, type Edit } from "../Sheet";
 import { SampleRows, SampleStats, ToolIntro } from "../ToolIntro";
 import type { Chat } from "@/lib/chats";
 import { Card, Seg, Thinking } from "../ui";
 import { ContentResults } from "./ContentResults";
+import { AiBar } from "./AiBar";
 import { BriefPanel } from "./BriefPanel";
 import { Difficulty, downloadCsv, FIELD, STAGE_LABEL, StageTag } from "./shared";
 
@@ -37,7 +39,9 @@ export function ContentCalendar({
   onFind,
   onWrite,
   results,
+  onSite,
 }: {
+  onSite: (s: Site) => void;
   sb: SupabaseClient;
   auth: RunAuth;
   site: Site;
@@ -55,6 +59,10 @@ export function ContentCalendar({
   const [newKw, setNewKw] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState<string | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [colName, setColName] = useState("");
+  const [colType, setColType] = useState<SheetColumn["type"]>("text");
+  const custom = site.profile.columns ?? [];
 
   const load = useCallback(async () => {
     try {
@@ -164,8 +172,13 @@ export function ContentCalendar({
     );
   }
 
+  const text = (k: "keyword" | "theme" | "owner" | "notes"): Edit<CalendarItem> => ({
+    kind: "text",
+    save: (i, v) => (k === "keyword" ? v && patch(i.id, { keyword: v }) : patch(i.id, { [k]: v })),
+  });
+  const ed = <E,>(x: E) => (canEdit ? x : undefined);
   const cols: Col<CalendarItem>[] = [
-    { id: "keyword", label: "Keyword", type: "text", value: (i) => i.keyword, width: 220 },
+    { id: "keyword", label: "Keyword", type: "text", value: (i) => i.keyword, width: 220, edit: ed(text("keyword")) },
     {
       id: "brief",
       label: "Brief",
@@ -178,78 +191,120 @@ export function ContentCalendar({
         </button>
       ),
     },
-    { id: "action", label: "Job", type: "list", value: (i) => (i.action === "update" ? "Update page" : "New page"), options: ["New page", "Update page"] },
-    { id: "stage", label: "Stage", type: "list", value: (i) => (i.stage ? STAGE_LABEL[i.stage] : ""), options: ["BOFU", "MOFU", "TOFU"], cell: (i) => <StageTag stage={i.stage} /> },
-    { id: "theme", label: "Theme", type: "list", value: (i) => i.theme },
-    { id: "volume", label: "Volume", type: "number", value: (i) => i.volume },
-    { id: "kd", label: "Difficulty", type: "number", value: (i) => i.difficulty, cell: (i) => <Difficulty kd={i.difficulty} /> },
     {
       id: "status",
       label: "Status",
       type: "list",
       value: (i) => STATUSES.find((s) => s.id === i.status)?.label,
       options: STATUSES.map((s) => s.label),
-      cell: (i) => (
-        <select aria-label={`Status of ${i.keyword}`} value={i.status} disabled={!canEdit} onChange={(e) => patch(i.id, { status: e.target.value as CalendarStatus })}>
-          {STATUSES.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.label}
-            </option>
-          ))}
-        </select>
-      ),
+      edit: ed<Edit<CalendarItem>>({ kind: "select", options: STATUSES, value: (i) => i.status, save: (i, v) => v && patch(i.id, { status: v as CalendarStatus }) }),
     },
     {
       id: "due",
       label: "Due",
       type: "date",
       value: (i) => i.due_date,
-      cell: (i) => (
-        <input type="date" aria-label={`Due date for ${i.keyword}`} value={i.due_date ?? ""} disabled={!canEdit} onChange={(e) => patch(i.id, { due_date: e.target.value || null })} />
-      ),
+      cell: (i) => (i.due_date ? parse(i.due_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : <span className="text-muted">–</span>),
+      edit: ed<Edit<CalendarItem>>({ kind: "date", value: (i) => i.due_date ?? "", save: (i, v) => patch(i.id, { due_date: v }) }),
     },
+    { id: "owner", label: "Owner", type: "text", value: (i) => i.owner, edit: ed(text("owner")) },
+    { id: "action", label: "Job", type: "list", value: (i) => (i.action === "update" ? "Update page" : "New page"), options: ["New page", "Update page"] },
     {
-      id: "owner",
-      label: "Owner",
-      type: "text",
-      value: (i) => i.owner,
-      cell: (i) => (
-        <input
-          key={`${i.id}-owner-${i.owner ?? ""}`}
-          defaultValue={i.owner ?? ""}
-          aria-label={`Owner of ${i.keyword}`}
-          placeholder="Name"
-          disabled={!canEdit}
-          onBlur={(e) => e.target.value.trim() !== (i.owner ?? "") && patch(i.id, { owner: e.target.value.trim() || null })}
-          className="w-28"
-        />
-      ),
+      id: "stage",
+      label: "Stage",
+      type: "list",
+      value: (i) => (i.stage ? STAGE_LABEL[i.stage] : ""),
+      options: ["BOFU", "MOFU", "TOFU"],
+      cell: (i) => <StageTag stage={i.stage} />,
+      edit: ed<Edit<CalendarItem>>({
+        kind: "select",
+        options: [{ id: "", label: "None" }, ...STAGES.map((x) => ({ id: x.id, label: STAGE_LABEL[x.id] }))],
+        value: (i) => i.stage ?? "",
+        save: (i, v) => patch(i.id, { stage: (v || null) as Stage | null }),
+      }),
     },
+    { id: "theme", label: "Theme", type: "list", value: (i) => i.theme, edit: ed(text("theme")) },
+    { id: "volume", label: "Volume", type: "number", value: (i) => i.volume },
+    { id: "kd", label: "Difficulty", type: "number", value: (i) => i.difficulty, cell: (i) => <Difficulty kd={i.difficulty} /> },
     {
       id: "url",
       label: "Page URL",
       type: "text",
       value: (i) => i.url ?? i.current_url,
-      width: 220,
-      cell: (i) => (
-        <input
-          key={`${i.id}-url-${i.url ?? ""}`}
-          defaultValue={i.url ?? i.current_url ?? ""}
-          aria-label={`Page URL for ${i.keyword}`}
-          placeholder="https://"
-          disabled={!canEdit}
-          onBlur={(e) => {
-            const url = e.target.value.trim() || null;
-            if (url !== (i.url ?? i.current_url)) patch(i.id, url && i.action === "new" ? { url, status: "published" } : { url });
-          }}
-          className="w-52"
-        />
-      ),
+      width: 200,
+      edit: ed<Edit<CalendarItem>>({
+        kind: "text",
+        save: (i, url) => patch(i.id, url && i.action === "new" ? { url, status: "published" } : { url }),
+      }),
     },
+    { id: "notes", label: "Notes", type: "text", value: (i) => i.notes, width: 180, edit: ed(text("notes")) },
     { id: "rank", label: "Now ranks", type: "number", value: (i) => i.current_rank, cell: (i) => (i.current_rank ? `#${i.current_rank}` : <span className="text-muted">–</span>) },
     { id: "also", label: "Also covers", type: "text", value: (i) => i.secondary.join(", "), width: 200, cell: (i) => <span className="block max-w-72 truncate" title={i.secondary.join("\n")}>{i.secondary.join(" · ") || "–"}</span> },
     { id: "source", label: "Source", type: "list", value: (i) => i.source },
+    ...custom.map(
+      (c): Col<CalendarItem> => ({
+        id: `x:${c.id}`,
+        label: c.name,
+        type: c.type === "number" ? "number" : c.type === "date" ? "date" : "text",
+        value: (i) => i.extra?.[c.id] ?? null,
+        edit: ed<Edit<CalendarItem>>({
+          kind: c.type,
+          value: (i) => String(i.extra?.[c.id] ?? ""),
+          save: (i, v) => patch(i.id, { extra: { ...(i.extra ?? {}), [c.id]: c.type === "number" && v !== null ? Number(v) : v } }),
+        }),
+        onRemove: canEdit ? () => removeColumn(c.id) : undefined,
+      }),
+    ),
   ];
+
+  async function saveColumns(next: SheetColumn[]) {
+    const s2 = { ...site, profile: { ...site.profile, columns: next } };
+    try {
+      await saveSite(sb, s2);
+      onSite(s2);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+  function removeColumn(cid: string) {
+    const c = custom.find((x) => x.id === cid);
+    if (c && confirm(`Delete the column "${c.name}"? Its values stay saved but hidden.`)) saveColumns(custom.filter((x) => x.id !== cid));
+  }
+
+  /** Make the AI's changes: one save per row, so changes to the same row do not overwrite each other. */
+  async function applyOps(ops: SheetOp[]) {
+    const byRow = new Map<string, Partial<CalendarItem>>();
+    for (const o of ops) {
+      if (o.op !== "update") continue;
+      for (const id of o.ids) {
+        const item = items!.find((i) => i.id === id);
+        if (!item) continue;
+        const p = byRow.get(id) ?? {};
+        for (const [k, v] of Object.entries(o.set)) {
+          if (custom.some((c) => c.id === k)) p.extra = { ...(item.extra ?? {}), ...(p.extra ?? {}), [k]: v };
+          else (p as Record<string, unknown>)[k] = v;
+        }
+        byRow.set(id, p);
+      }
+    }
+    await Promise.all([...byRow].map(([id, p]) => patch(id, p)));
+    const gone = ops.flatMap((o) => (o.op === "delete" ? o.ids : []));
+    if (gone.length) {
+      await deleteCalendarItems(sb, gone);
+      setItems((list) => list?.filter((i) => !gone.includes(i.id)) ?? null);
+    }
+    const added = ops.flatMap((o) => (o.op === "add" ? o.keywords : []));
+    if (added.length) {
+      await addCalendarItems(
+        sb,
+        auth.workspaceId,
+        added.map((keyword) => ({ site_id: site.id, keyword, secondary: [], stage: null, theme: null, volume: null, difficulty: null, intent: null, cpc: null, source: "added by AI" })),
+      );
+      await load();
+    }
+    const sel = ops.flatMap((o) => (o.op === "select" ? o.ids : []));
+    if (sel.length) setPicked(new Set([...picked, ...sel]));
+  }
 
   const switcher = (
     <Seg
@@ -276,14 +331,38 @@ export function ContentCalendar({
       {error ? <p className="aw-error">{error}</p> : null}
       <div>{switcher}</div>
 
-      <div className="aw-stats" style={{ ["--cols" as string]: 4 }}>
-        {STATUSES.map((s) => (
-          <div key={s.id} className="aw-stat">
-            <div className="aw-stat__lab">{s.label}</div>
-            <span className="aw-stat__num">{items.filter((i) => i.status === s.id).length}</span>
-          </div>
-        ))}
-      </div>
+      {canEdit ? (
+        <AiBar
+          kind="calendar"
+          auth={auth}
+          domain={site.domain}
+          rows={items.map((i) => ({
+            id: i.id,
+            keyword: i.keyword,
+            status: i.status,
+            due: i.due_date,
+            owner: i.owner,
+            job: i.action,
+            stage: i.stage,
+            theme: i.theme,
+            volume: i.volume,
+            kd: i.difficulty,
+            notes: i.notes,
+            brief: i.brief_status,
+            ...Object.fromEntries(custom.map((c) => [c.id, i.extra?.[c.id] ?? null])),
+          }))}
+          columns={custom.map((c) => ({ id: c.id, name: c.name }))}
+          tips={[
+            "Schedule all undated pages, 2 a week from next Monday, BOFU first",
+            "Mark pages with a ready brief as Writing",
+            "Push every TOFU page with volume under 20 to the end of the schedule",
+            "Remove keywords with no search volume",
+          ]}
+          label={(id) => items.find((i) => i.id === id)?.keyword ?? id}
+          columnName={(k) => custom.find((c) => c.id === k)?.name ?? k.replace("_", " ")}
+          onApply={applyOps}
+        />
+      ) : null}
 
       {planning ? (
         <section className="aw-frame flex flex-wrap items-end gap-4 px-4 py-4">
@@ -372,7 +451,35 @@ export function ContentCalendar({
             </button>
           </div>
         ) : null}
+        {adding ? (
+          <form
+            className="flex flex-wrap items-center gap-2 border-b border-rule-faint bg-surface-2 px-5 py-2.5"
+            onSubmit={(e) => {
+              e.preventDefault();
+              const name = colName.trim();
+              if (!name) return;
+              saveColumns([...custom, { id: `c${Date.now().toString(36)}`, name: name.slice(0, 40), type: colType }]);
+              setColName("");
+              setAdding(false);
+            }}
+          >
+            <input autoFocus value={colName} onChange={(e) => setColName(e.target.value)} placeholder="Column name, like Writer or Word count" aria-label="Column name" className={`${FIELD} w-64`} />
+            <select value={colType} onChange={(e) => setColType(e.target.value as SheetColumn["type"])} aria-label="Column type" className={FIELD}>
+              <option value="text">Text</option>
+              <option value="number">Number</option>
+              <option value="date">Date</option>
+            </select>
+            <button type="submit" className="aw-btn aw-btn--primary aw-btn--sm" disabled={!colName.trim()}>
+              Add column
+            </button>
+            <button type="button" className="aw-text-link text-[13px]" onClick={() => setAdding(false)}>
+              Cancel
+            </button>
+          </form>
+        ) : null}
         <Sheet
+          id={`cal:${site.id}`}
+          onAddColumn={canEdit ? () => setAdding(true) : undefined}
           label="Content calendar"
           rows={items}
           cols={cols}
