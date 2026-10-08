@@ -20,8 +20,26 @@ import type { RunAuth } from "@/lib/runner";
 import type { View } from "@/lib/view";
 import { BrandLogo } from "./BrandLogo";
 import { Donut, Legend } from "./Donut";
-import { TYPE_COLORS, TypeTag } from "./OverviewPage";
 import { Card, Empty, favicon, pct, Seg, type Sort, sortRows, SortTh, useSort } from "./ui";
+
+export const TYPE_COLORS: Record<SourceType, string> = {
+  You: "#0943B0",
+  Competitor: "#B3241A",
+  UGC: "#2E6BE0",
+  Reviews: "#F5B70A",
+  Editorial: "#D08A4E",
+  Reference: "#28A745",
+  Corporate: "#A6AEBB",
+};
+
+export function TypeTag({ type }: { type: SourceType }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-rule bg-white px-2 py-0.5 text-[12px] font-medium text-body">
+      <i className="inline-block h-2 w-2 rounded-full" style={{ background: TYPE_COLORS[type] }} />
+      {type}
+    </span>
+  );
+}
 
 type Insights = {
   summary: string;

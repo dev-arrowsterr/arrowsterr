@@ -1,11 +1,11 @@
 "use client";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { addCalendarItems, type Site } from "@/lib/db";
 import { MARKETS, stageFromIntent, type KeywordReport, type KwList, type KwSummary } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
-import { useStash } from "@/lib/stash";
+import { peek, putStash, useStash } from "@/lib/stash";
 import { BrandLogo } from "../BrandLogo";
 import { Sheet } from "../Sheet";
 import { SampleBars, SampleChips, SampleRing, SampleRows, SampleStats, ToolIntro } from "../ToolIntro";
@@ -48,6 +48,17 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+
+  // A topic sent from Prompts: fill it in and, for editors, run it once.
+  useEffect(() => {
+    const seed = peek<string | null>(k("seed"));
+    if (!seed) return;
+    putStash(k("seed"), null);
+    if (canEdit && seed !== query) analyze(seed);
+    else setQuery(seed);
+    // Only on first load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const many = (q: string) => q.split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
 

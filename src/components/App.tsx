@@ -31,7 +31,6 @@ import { CompetitorsPage } from "./CompetitorsPage";
 import { Logo } from "./Logo";
 import { MembersPage } from "./MembersPage";
 import { Onboarding, type NewBrand } from "./Onboarding";
-import { OverviewPage } from "./OverviewPage";
 import { PromptsPage } from "./PromptsPage";
 import { ResearchPage, type Tool } from "./research/ResearchPage";
 import { SourcesPage } from "./SourcesPage";
@@ -40,12 +39,11 @@ import { ReportsPage } from "./reports/ReportsPage";
 import { VisitorsPage } from "./VisitorsPage";
 
 export type { Brand } from "@/lib/db";
-type Page = "overview" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "agentic" | "calendar" | "writer" | "summary" | "members";
+type Page = "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "agentic" | "calendar" | "writer" | "summary" | "members";
 const RESEARCH: Page[] = ["keywords", "domain", "agentic", "calendar", "writer"];
 
-/** Each page's address. "/" opens the overview. */
+/** Each page's address. "/" opens Prompts. */
 const SLUGS: Record<Page, string> = {
-  overview: "/overview",
   prompts: "/prompts",
   competitors: "/competitors",
   domains: "/sources",
@@ -62,6 +60,7 @@ const SLUGS: Record<Page, string> = {
 };
 /** Older addresses still open the right page. */
 const ALIASES: Record<string, Page> = {
+  "/overview": "prompts",
   "/domains": "domains",
   "/urls": "urls",
   "/analytics": "traffic",
@@ -72,7 +71,7 @@ const ALIASES: Record<string, Page> = {
 };
 const pageFromPath = (path: string): Page => {
   const p = path.replace(/\/+$/, "") || "/";
-  return (Object.entries(SLUGS).find(([, slug]) => slug === p)?.[0] as Page | undefined) ?? ALIASES[p] ?? "overview";
+  return (Object.entries(SLUGS).find(([, slug]) => slug === p)?.[0] as Page | undefined) ?? ALIASES[p] ?? "prompts";
 };
 const PENDING_BRAND = "arrowsterr.brand.pending";
 
@@ -271,7 +270,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
     setBrands((list) => [...(list ?? []), brand]);
     setRuns((r) => ({ ...r, [brand.id]: [] }));
     setActiveId(brand.id);
-    go("overview");
+    go("prompts");
     setAdding(false);
     // The first check runs right away. After that the daily job keeps it fresh.
     void runBrand(brand);
@@ -381,7 +380,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           setWsId(id);
           setBrands(null);
           setTopic("All");
-          go("overview");
+          go("prompts");
         }}
         onNewWorkspace={async (name) => {
           const id = await createWorkspace(sb, name);
@@ -444,19 +443,6 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             <div className="aw-callout max-w-xl">This workspace has no brands yet. Ask an editor or admin to add one.</div>
           ) : RESEARCH.includes(page) ? (
             <ResearchPage key={view.brand.id} sb={sb} auth={auth} view={view} canEdit={canEdit} tool={page as Tool} onTool={(t) => go(t)} />
-          ) : page === "prompts" ? (
-            <PromptsPage
-              key={`${view.brand.id}-${focusTopic ?? ""}`}
-              view={view}
-              focusTopic={focusTopic}
-              readOnly={!canEdit}
-              onChange={update}
-              onRemove={() => remove(view.brand.id)}
-              onCompetitor={(name) => {
-                setFocus(name);
-                go("competitors");
-              }}
-            />
           ) : page === "competitors" ? (
             <CompetitorsPage
               key={`${view.brand.id}-${focus ?? ""}`}
@@ -476,14 +462,20 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           ) : page === "domains" || page === "urls" ? (
             <SourcesPage key={`${view.brand.id}-${page}`} view={view} mode={page} auth={canEdit ? auth : null} onMode={(m) => go(m)} />
           ) : (
-            <OverviewPage
-              key={view.brand.id}
+            <PromptsPage
+              key={`${view.brand.id}-${focusTopic ?? ""}`}
+              sb={sb}
+              auth={auth}
               view={view}
-              onOpen={(p, name) => {
-                if (p === "prompts") setFocusTopic(name ?? null);
-                else setFocus(name ?? null);
-                go(p);
+              focusTopic={focusTopic}
+              readOnly={!canEdit}
+              onChange={update}
+              onRemove={() => remove(view.brand.id)}
+              onCompetitor={(name) => {
+                setFocus(name);
+                go("competitors");
               }}
+              onOpen={(p) => go(p)}
             />
           )}
         </main>
@@ -520,7 +512,6 @@ const NAV: { group: string; items: { id: Page; label: string; icon: string; also
   {
     group: "AI visibility",
     items: [
-      { id: "overview", label: "Overview", icon: "◰" },
       { id: "prompts", label: "Prompts", icon: "☰" },
       { id: "competitors", label: "Competitors", icon: "⇅" },
       { id: "domains", label: "Sources", icon: "◍", also: ["urls"] },

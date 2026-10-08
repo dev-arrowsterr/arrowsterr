@@ -1,32 +1,34 @@
 "use client";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { Chat } from "@/lib/chats";
-import { flatPrompts, type Brand, type Topic } from "@/lib/db";
-import { answered, brandStats, promptRows, topicRows, trend, type EngineCell, type PromptRow } from "@/lib/metrics";
+import { addCalendarItems, flatPrompts, siteForBrand, type Brand, type Topic } from "@/lib/db";
+import { answered, brandStats, promptGaps, promptRows, rankOf, topicRows, trend, type EngineCell, type Gap, type PromptRow } from "@/lib/metrics";
+import type { RunAuth } from "@/lib/runner";
+import { putStash } from "@/lib/stash";
 import { MAX_PROMPTS, MAX_TOPICS, PROMPTS_PER_TOPIC } from "@/lib/onboarding";
 import type { View } from "@/lib/view";
 import { BrandLogo } from "./BrandLogo";
 import { ENGINE_LOGOS } from "./Engines";
 import { TrendChart } from "./TrendChart";
-import { BrandName, favicon, OTHER_COLORS, pct, pos, score, Seg, YOU_COLOR } from "./ui";
+import { BrandName, Card, Delta, Empty, favicon, OTHER_COLORS, pct, pos, score, Seg, YOU_COLOR } from "./ui";
 
-/** Prompt performance in detail, and the editor for topics and prompts. */
-export function PromptsPage({
-  view,
-  readOnly,
-  onChange,
-  onRemove,
-  onCompetitor,
-  focusTopic,
-}: {
+type Props = {
+  sb: SupabaseClient;
+  auth: RunAuth;
   view: View;
-  focusTopic?: string | null;
   readOnly: boolean;
+  focusTopic?: string | null;
   onChange: (b: Brand) => void;
   onRemove: () => void;
   onCompetitor: (name: string) => void;
-}) {
+  onOpen: (page: "keywords" | "calendar") => void;
+};
+
+/** The home page for AI visibility: your scores, every topic and prompt, and the biggest gaps with a way to act on each. */
+export function PromptsPage(p: Props) {
+  const { view, readOnly } = p;
   const [tab, setTab] = useState<"results" | "edit">("results");
   return (
     <div className="flex flex-col gap-5">
@@ -49,8 +51,170 @@ export function PromptsPage({
           ) : null}
         </div>
       </div>
-      {tab === "results" || readOnly ? <Results view={view} focusTopic={focusTopic} onCompetitor={onCompetitor} /> : <Editor brand={view.brand} onChange={onChange} onRemove={onRemove} />}
+      {tab === "results" || readOnly ? (
+        <>
+          <Scores view={view} />
+          <Results view={view} focusTopic={p.focusTopic} onCompetitor={p.onCompetitor} />
+          <Gaps {...p} />
+        </>
+      ) : (
+        <Editor brand={view.brand} onChange={p.onChange} onRemove={p.onRemove} />
+      )}
     </div>
+  );
+}
+
+/** Position as a 0 to 100 score: #1 is 100, and each spot down takes 10 points off. */
+const positionScore = (n: number | null) => (n === null ? null : Math.max(0, 110 - n * 10));
+
+/** Visibility, sentiment and position, with change and rank. */
+function Scores({ view }: { view: View }) {
+  const { brand, current, previous, filter, days } = view;
+  const you = { name: brand.name, domain: brand.domain };
+  const chats = answered(current, filter);
+  if (!chats.length) return <Empty>No results in the last {days} days yet. They show up after the first check finishes, then update every day.</Empty>;
+  const prev = answered(previous, filter);
+  const stats = brandStats(chats, you);
+  const before = brandStats(prev, you);
+  const me = stats.find((s) => s.isYou)!;
+  const meBefore = before.find((s) => s.isYou);
+  const hadBefore = prev.length > 0;
+  const change = hadBefore ? me.visibility - (meBefore?.visibility ?? 0) : null;
+  const headline =
+    change === null
+      ? `${brand.name}'s visibility is ${pct(me.visibility)} in the last ${days} days`
+      : `${brand.name}'s visibility is ${Math.abs(change) < 0.5 ? "steady" : `trending ${change > 0 ? "up" : "down"} by ${Math.abs(change).toFixed(1)} points`} vs the ${days} days before`;
+
+  return (
+    <section className="aw-frame">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rule px-5 py-3.5">
+        <span className="text-[15px] text-ink">{headline}</span>
+        <span className="aw-label">Scores out of 100</span>
+      </div>
+      <div className="grid sm:grid-cols-3">
+        {(
+          [
+            { id: "visibility", lab: "Visibility", now: me.visibility, before: hadBefore ? (meBefore?.visibility ?? 0) : null, help: "Share of AI answers that name you" },
+            { id: "sentiment", lab: "Sentiment", now: me.sentiment, before: hadBefore ? (meBefore?.sentiment ?? null) : null, help: "How well AI talks about you" },
+            { id: "position", lab: "Position", now: positionScore(me.position), before: hadBefore ? positionScore(meBefore?.position ?? null) : null, help: me.position === null ? "Not named yet" : `Average spot #${me.position.toFixed(1)} in the list` },
+          ] as const
+        ).map((m, i) => {
+          const r = rankOf(stats, m.id);
+          const rb = hadBefore ? rankOf(before, m.id) : null;
+          return (
+            <div key={m.id} className={`flex flex-col gap-3 px-5 py-5 ${i ? "border-t border-rule sm:border-t-0 sm:border-l" : ""}`}>
+              <span className="aw-label">{m.lab}</span>
+              <span className="flex items-baseline gap-2">
+                <span className="aw-num text-[38px] leading-none tracking-tight text-ink">{m.now === null ? "–" : Math.round(m.now)}</span>
+                <span className="aw-num text-[14px] text-muted">/100</span>
+                <Delta now={m.now} before={m.before} digits={0} />
+              </span>
+              <span className="flex flex-wrap items-center justify-between gap-2 text-[13px] text-muted">
+                {m.help}
+                <span className="aw-num">
+                  {r ? `Rank ${r.rank} of ${r.of}` : "Not ranked"}
+                  {r && rb && r.rank !== rb.rank ? <span className={r.rank < rb.rank ? "text-pos" : "text-neg"}>{r.rank < rb.rank ? " ↑" : " ↓"}</span> : null}
+                </span>
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+/** Prompts where another brand beats you, each with a way into the SEO tools. */
+function Gaps({ sb, auth, view, readOnly, onOpen }: Props) {
+  const { brand, current, filter, topics } = view;
+  const [busy, setBusy] = useState("");
+  const [added, setAdded] = useState<Set<string>>(new Set());
+  const [error, setError] = useState("");
+  const gaps = promptGaps(answered(current, filter), topics, brand.name).slice(0, 8);
+  if (!answered(current, filter).length) return null;
+
+  async function site() {
+    const s = await siteForBrand(sb, brand, !readOnly);
+    if (!s) throw new Error(`Ask an editor to open Keywords once for ${brand.domain} to set it up.`);
+    return s;
+  }
+  async function keywords(term: string) {
+    setError("");
+    try {
+      const s = await site();
+      putStash(`kw:${s.id}:seed`, term);
+      onOpen("keywords");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+  async function plan(g: Gap) {
+    setBusy(g.prompt);
+    setError("");
+    try {
+      const s = await site();
+      await addCalendarItems(sb, auth.workspaceId, [
+        {
+          site_id: s.id,
+          keyword: g.prompt,
+          secondary: [],
+          stage: null,
+          theme: g.topic,
+          volume: null,
+          difficulty: null,
+          intent: null,
+          cpc: null,
+          source: "AI gap",
+          notes: `AI answers name ${g.leader} in ${pct(g.them)} and ${brand.name} in ${pct(g.you)}. Write a page that answers this prompt.`,
+        },
+      ]);
+      putStash(`cal:${s.id}:items`, null);
+      setAdded((x) => new Set([...x, g.prompt]));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy("");
+    }
+  }
+
+  return (
+    <Card title="Biggest gaps" action={<span className="aw-small">Prompts where another brand shows up more than you</span>}>
+      {error ? <p className="aw-error m-4">{error}</p> : null}
+      <ul className="divide-y divide-rule-faint">
+        {gaps.map((g) => (
+          <li key={g.prompt} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
+            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+              <span className="text-[14px] text-ink">{g.prompt}</span>
+              <span className="aw-micro">
+                {g.topic} · {g.leader} {pct(g.them)} · you {pct(g.you)}
+              </span>
+            </span>
+            {!readOnly ? (
+              <span className="flex shrink-0 gap-2">
+                <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => keywords(g.topic)} title={`Research keywords for ${g.topic}`}>
+                  Find keywords
+                </button>
+                {added.has(g.prompt) ? (
+                  <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => onOpen("calendar")}>
+                    Added. Open Calendar
+                  </button>
+                ) : (
+                  <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={() => plan(g)} disabled={Boolean(busy)}>
+                    {busy === g.prompt ? "Adding..." : "Add to Calendar"}
+                  </button>
+                )}
+              </span>
+            ) : null}
+          </li>
+        ))}
+        {!gaps.length ? <li className="aw-small px-5 py-4">No gaps. You show up at least as often as any other brand on every prompt.</li> : null}
+      </ul>
+      {!readOnly && gaps.length ? (
+        <p className="aw-small border-t border-rule-faint px-5 py-3">
+          Find keywords opens Keyword research for the topic. Add to Calendar plans a page for the prompt. From the Calendar, build a brief and write it in the Writer. Its AI citations show up in Calendar Results.
+        </p>
+      ) : null}
+    </Card>
   );
 }
 
@@ -74,30 +238,12 @@ function Share({ v }: { v: number | null }) {
   );
 }
 
-/** One model's latest answer to a prompt: named or not, and where your site was cited. */
+/** One model's latest answer to a prompt: your spot in the list when it named you, blank when it did not. */
 function Cell({ c }: { c: EngineCell }) {
-  if (c.status === "none") return <span className="text-muted">–</span>;
-  if (c.status === "error") return <span className="aw-small">No answer</span>;
+  if (c.status !== "named") return null;
   return (
-    <span className="flex flex-col items-start gap-1">
-      <span
-        title={c.status === "named" ? `${c.engine} named you at #${c.position}` : `${c.engine} did not name you`}
-        className={`aw-status ${c.status === "named" ? "aw-status--ranked" : "aw-status--missed"} px-1.5! py-0.5! text-[11px]!`}
-      >
-        {c.status === "named" ? `Brand #${c.position}` : "Missing"}
-      </span>
-      {c.cited ? (
-        <a
-          href={c.cited.url}
-          target="_blank"
-          rel="noopener noreferrer nofollow"
-          onClick={(e) => e.stopPropagation()}
-          title={`Your page is source #${c.cited.rank}: ${shortUrl(c.cited.url)}`}
-          className="aw-status aw-status--pending px-1.5! py-0.5! text-[11px]! no-underline"
-        >
-          Cited #{c.cited.rank} ↗
-        </a>
-      ) : null}
+    <span title={`${c.engine} named you at #${c.position}`} className="aw-status aw-status--ranked px-1.5! py-0.5! text-[12px]!">
+      #{c.position}
     </span>
   );
 }
@@ -236,7 +382,7 @@ function Results({ view, focusTopic, onCompetitor }: { view: View; focusTopic?: 
         })}
       </table>
       <p className="aw-small border-t border-rule-faint px-4 py-3">
-        Brand #N means the answer named you at that spot. Cited #N means your site was source number N. Click a prompt to see the brands and sites in its answers.
+        #N is your spot in the list of brands that answer named. Blank means it did not name you. Click a prompt to see the brands and sites in its answers.
       </p>
     </section>
   );
