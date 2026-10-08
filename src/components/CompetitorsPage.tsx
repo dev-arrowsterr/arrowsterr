@@ -23,6 +23,87 @@ function Bar({ v, color }: { v: number | null; color: string }) {
   );
 }
 
+type Dot = { name: string; domain: string | null; isYou: boolean; visibility: number; position: number };
+
+/**
+ * Each brand as its logo. Up is named more often. Right is named higher in the list.
+ * Top right is where you want to be.
+ */
+function Scatter({ dots, logo, picked, onPick }: { dots: Dot[]; logo?: string; picked?: string; onPick: (name: string) => void }) {
+  const [hover, setHover] = useState<string | null>(null);
+  const worst = Math.max(4, Math.ceil(Math.max(...dots.map((d) => d.position), 1)));
+  // Left edge is the worst average spot, right edge is #1.
+  // Kept 4% in from each edge so logos at the ends are not cut off.
+  const x = (p: number) => 4 + ((worst - p) / (worst - 1)) * 92;
+  const y = (v: number) => 4 + (100 - v) * 0.92;
+  const xTicks = Array.from({ length: worst }, (_, i) => i + 1).filter((t) => worst <= 8 || t % 2 === 1 || t === worst);
+  return (
+    <div className="flex gap-3 px-5 pt-6 pb-4">
+      <div className="relative h-[420px] w-10 shrink-0 font-mono text-[11px] text-muted">
+        {[100, 75, 50, 25, 0].map((t) => (
+          <span key={t} className="absolute right-0 -translate-y-1/2" style={{ top: `${y(t)}%` }}>
+            {t}%
+          </span>
+        ))}
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <div className="relative h-[420px] border-b border-l border-rule">
+          {[0, 25, 50, 75, 100].map((t) => (
+            <span key={t} className="absolute right-0 left-0 border-t border-rule-faint" style={{ top: `${y(t)}%` }} />
+          ))}
+          {xTicks.map((t) => (
+            <span key={t} className="absolute top-0 bottom-0 border-l border-rule-faint" style={{ left: `${x(t)}%` }} />
+          ))}
+          <span className="absolute top-2 right-3 font-mono text-[11px] tracking-wide text-muted uppercase">Leaders</span>
+          {dots.map((d) => {
+            const on = hover === d.name;
+            const size = d.isYou ? 34 : 28;
+            return (
+              <button
+                key={d.name}
+                type="button"
+                onClick={() => !d.isYou && onPick(d.name)}
+                onMouseEnter={() => setHover(d.name)}
+                onMouseLeave={() => setHover(null)}
+                onFocus={() => setHover(d.name)}
+                onBlur={() => setHover(null)}
+                aria-label={`${d.name}: visibility ${Math.round(d.visibility)}%, average position #${d.position.toFixed(1)}`}
+                className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-[8px] bg-white p-0.5 ring-2 ${d.isYou ? "ring-brand" : picked === d.name ? "ring-[#F5B70A]" : "ring-white"} ${on ? "z-20 scale-110" : "z-10"} transition-transform`}
+                style={{ left: `${x(d.position)}%`, top: `${y(d.visibility)}%` }}
+              >
+                <BrandLogo src={d.isYou && logo ? logo : favicon(d.domain || `${d.name.toLowerCase().replace(/[^a-z0-9]/g, "")}.com`)} name={d.name} size={size} />
+                {on || d.isYou ? (
+                  <span className={`pointer-events-none absolute left-1/2 -translate-x-1/2 whitespace-nowrap px-2 py-1 text-left text-[12px] ${on ? "top-full mt-1.5 bg-[var(--aw-ink)] text-white" : "top-full mt-1 font-medium text-ink"}`}>
+                    {on ? (
+                      <>
+                        <span className="font-medium text-white!">{d.name}</span> · {pct(d.visibility)} · #{d.position.toFixed(1)}
+                      </>
+                    ) : (
+                      "You"
+                    )}
+                  </span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+        <div className="relative h-6 font-mono text-[11px] text-muted">
+          {xTicks.map((t) => (
+            <span key={t} className="absolute top-1.5 -translate-x-1/2" style={{ left: `${x(t)}%` }}>
+              #{t}
+            </span>
+          ))}
+        </div>
+        <div className="flex justify-between pt-1 text-[12px] text-muted">
+          <span>← Named lower in the list</span>
+          <span className="aw-label">Average position</span>
+          <span>Named first →</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** Every brand AI names next to yours, who wins each topic, and a battle card for any two brands. */
 export function CompetitorsPage({ view, initial, onTopic }: { view: View; initial?: string | null; onTopic: (topic: string) => void }) {
   const { brand, current, previous, filter, topics, engines, days } = view;
@@ -38,6 +119,7 @@ export function CompetitorsPage({ view, initial, onTopic }: { view: View; initia
   const [b, setB] = useState<string | null>(initial ?? null);
   const [split, setSplit] = useState<"model" | "topic" | "prompt">("model");
   const [h2h, setH2h] = useSort("gap", false);
+  const [metric, setMetric] = useState<"visibility" | "sentiment" | "position">("visibility");
 
   if (!chats.length) return <Empty>No results in the last {days} days yet. They show up after the first check finishes, then update every day.</Empty>;
 
@@ -69,8 +151,22 @@ export function CompetitorsPage({ view, initial, onTopic }: { view: View; initia
     <div className="flex flex-col gap-8">
       <h1 className="aw-h2">Competitors</h1>
 
-      <Card title={`Brands named alongside ${brand.name}`} action={<span className="aw-small">Top {Math.min(stats.length, MAX_BRANDS)} of {stats.length} · click one to compare</span>}>
-        <div className="max-h-[560px] overflow-y-auto">
+      <Card
+        title="Competitive analysis"
+        action={
+          <span className="aw-small">
+            Top {Math.min(stats.length, MAX_BRANDS)} of {stats.length} brands · click one to compare
+          </span>
+        }
+      >
+        <Scatter
+          dots={stats.slice(0, MAX_BRANDS).filter((s): s is typeof s & { position: number } => s.position !== null).map((s) => ({ name: s.name, domain: s.domain, isYou: s.isYou, visibility: s.visibility, position: s.position }))}
+          logo={brand.logo}
+          picked={B?.name}
+          onPick={setB}
+        />
+        {stats.some((s) => s.position === null) ? <p className="aw-small px-5 pb-3">Brands never named have no position, so they are not on the chart. They are in the table below.</p> : null}
+        <div className="max-h-[480px] overflow-y-auto border-t border-rule">
           <table className="aw-table">
             <thead className="sticky top-0 z-10">
               <tr>
@@ -78,27 +174,22 @@ export function CompetitorsPage({ view, initial, onTopic }: { view: View; initia
                 <SortTh id="name" sort={sort} onSort={setSort} text>
                   Brand
                 </SortTh>
-                <SortTh id="visibility" sort={sort} onSort={setSort} className="w-48">
+                <SortTh id="visibility" sort={sort} onSort={setSort} className="w-56">
                   Visibility
                   <Tip text={TIPS.visibility} />
                 </SortTh>
-                <SortTh id="sentiment" sort={sort} onSort={setSort} className="w-40">
-                  Sentiment
-                  <Tip text={TIPS.sentiment} />
-                </SortTh>
-                <SortTh id="position" sort={sort} onSort={setSort} className="w-40">
+                <SortTh id="position" sort={sort} onSort={setSort} className="w-56">
                   Position
                   <Tip text={TIPS.position} />
                 </SortTh>
               </tr>
             </thead>
             <tbody>
-              {sortRows(stats.slice(0, MAX_BRANDS).map((s, i) => ({ ...s, rank: i + 1 })), sort, {
+              {sortRows(stats.slice(0, MAX_BRANDS), sort, {
                 name: (s) => s.name,
                 visibility: (s) => s.visibility,
-                sentiment: (s) => s.sentiment,
                 position: (s) => (s.position === null ? null : -s.position),
-              }).map((s) => {
+              }).map((s, i) => {
                 const w = was(s.name);
                 return (
                   <tr
@@ -108,15 +199,12 @@ export function CompetitorsPage({ view, initial, onTopic }: { view: View; initia
                     aria-selected={B?.name === s.name}
                     title={s.isYou ? undefined : `Compare ${s.name} with ${A.name}`}
                   >
-                    <td className="aw-num text-muted">{s.rank}</td>
+                    <td className="aw-num text-muted">{i + 1}</td>
                     <td>
                       <BrandName name={s.name} domain={s.domain} logo={s.isYou ? brand.logo : undefined} isYou={s.isYou} size={20} />
                     </td>
                     <td className="aw-num whitespace-nowrap">
                       {pct(s.visibility)} {hadBefore ? <Delta now={s.visibility} before={w?.visibility ?? 0} /> : null}
-                    </td>
-                    <td className="aw-num whitespace-nowrap">
-                      {score(s.sentiment)} {hadBefore && w ? <Delta now={s.sentiment} before={w.sentiment} digits={0} /> : null}
                     </td>
                     <td className="aw-num whitespace-nowrap">
                       {pos(s.position)} {hadBefore && w ? <Delta now={s.position} before={w.position} lowerIsBetter /> : null}
@@ -232,11 +320,23 @@ export function CompetitorsPage({ view, initial, onTopic }: { view: View; initia
             ))}
           </div>
 
-          <div className="border-t border-rule-faint px-4 pt-5 pb-2">
-            <span className="aw-label px-2">Visibility over time</span>
+          <div className="border-t border-rule-faint px-4 pt-4 pb-2">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-2 pb-2">
+              <span className="aw-label">Over time</span>
+              <Seg
+                label="Chart metric"
+                value={metric}
+                onChange={setMetric}
+                options={[
+                  { id: "visibility", label: "Visibility" },
+                  { id: "sentiment", label: "Sentiment" },
+                  { id: "position", label: "Position" },
+                ]}
+              />
+            </div>
             <TrendChart
-              points={trend(current, [A.name, B.name], "visibility", filter)}
-              metric="visibility"
+              points={trend(current, [A.name, B.name], metric, filter)}
+              metric={metric}
               mode="line"
               lines={[
                 { name: A.name, color: YOU_COLOR, isYou: true },
@@ -321,31 +421,6 @@ export function CompetitorsPage({ view, initial, onTopic }: { view: View; initia
             </table>
           </div>
 
-          <div className="grid gap-px border-t border-rule bg-rule-faint lg:grid-cols-2">
-            {[
-              { s: A, list: card.sitesA, color: YOU_COLOR },
-              { s: B, list: card.sitesB, color: B_COLOR },
-            ].map(({ s, list, color }) => (
-              <div key={s.name} className="flex flex-col bg-white">
-                <span className="aw-label flex items-center gap-2 px-6 pt-5 pb-2">
-                  <i className="inline-block h-2.5 w-2.5" style={{ background: color }} />
-                  Sites cited when {s.name} is named
-                </span>
-                <ul className="divide-y divide-rule-faint">
-                  {list.map((d) => (
-                    <li key={d.domain} className="flex items-center justify-between gap-3 px-6 py-2.5 text-[14px]">
-                      <span className="flex min-w-0 items-center gap-2 text-ink">
-                        <BrandLogo src={favicon(d.domain)} name={d.domain} size={16} />
-                        <span className="truncate">{d.domain}</span>
-                      </span>
-                      <span className="aw-num text-muted">{d.count}×</span>
-                    </li>
-                  ))}
-                  {!list.length ? <li className="aw-small px-6 py-4">No sites cited yet.</li> : null}
-                </ul>
-              </div>
-            ))}
-          </div>
         </section>
       ) : null}
     </div>

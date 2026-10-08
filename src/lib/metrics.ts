@@ -546,22 +546,15 @@ export function stability(runs: Run[], prompt: string, engine: string, you: stri
 // ─────────────── battle card: any two brands ───────────────
 
 export type BattleRow = { key: string; topic?: string; a: number | null; b: number | null };
-export type Battle = { byEngine: BattleRow[]; byTopic: BattleRow[]; byPrompt: BattleRow[]; sitesA: { domain: string; count: number }[]; sitesB: { domain: string; count: number }[] };
+export type Battle = { byEngine: BattleRow[]; byTopic: BattleRow[]; byPrompt: BattleRow[] };
 
-/** Brand A against brand B: visibility by model, by topic and by prompt, and the sites cited when each is named. */
+/** Brand A against brand B: visibility by model, by topic and by prompt. */
 export function battle(chats: Chat[], a: string, b: string, engines: string[], topics: { name: string; prompts: string[] }[]): Battle {
   const share = (list: Chat[], n: string) => (list.length ? (list.filter((c) => c.brands.some((x) => same(x.name, n))).length / list.length) * 100 : null);
-  const sites = (n: string) => {
-    const doms = new Map<string, number>();
-    for (const c of chats) if (c.brands.some((x) => same(x.name, n))) for (const d of new Set(c.sources.map(siteOf))) doms.set(d, (doms.get(d) ?? 0) + 1);
-    return [...doms.entries()].map(([domain, count]) => ({ domain, count })).sort((x, y) => y.count - x.count).slice(0, 8);
-  };
   const row = (key: string, list: Chat[], topic?: string): BattleRow => ({ key, topic, a: share(list, a), b: share(list, b) });
   return {
     byEngine: engines.map((e) => row(e, chats.filter((c) => c.engine === e))).filter((r) => r.a !== null),
     byTopic: topics.map((t) => row(t.name, chats.filter((c) => t.prompts.includes(c.prompt)))).filter((r) => r.a !== null),
     byPrompt: topics.flatMap((t) => t.prompts.map((p) => row(p, chats.filter((c) => c.prompt === p), t.name))).filter((r) => r.a !== null),
-    sitesA: sites(a),
-    sitesB: sites(b),
   };
 }
