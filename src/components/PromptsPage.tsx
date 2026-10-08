@@ -1,13 +1,15 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
+import type { Chat } from "@/lib/chats";
 import { flatPrompts, type Brand, type Topic } from "@/lib/db";
-import { promptRows } from "@/lib/metrics";
+import { answered, brandStats, promptRows, topicRows, trend, type EngineCell, type PromptRow } from "@/lib/metrics";
 import { MAX_PROMPTS, MAX_TOPICS, PROMPTS_PER_TOPIC } from "@/lib/onboarding";
 import type { View } from "@/lib/view";
 import { BrandLogo } from "./BrandLogo";
 import { ENGINE_LOGOS } from "./Engines";
-import { BrandName, favicon, pct, pos, score, Seg } from "./ui";
+import { TrendChart } from "./TrendChart";
+import { BrandName, favicon, OTHER_COLORS, pct, pos, score, Seg, YOU_COLOR } from "./ui";
 
 /** Prompt performance in detail, and the editor for topics and prompts. */
 export function PromptsPage({
@@ -16,8 +18,10 @@ export function PromptsPage({
   onChange,
   onRemove,
   onCompetitor,
+  focusTopic,
 }: {
   view: View;
+  focusTopic?: string | null;
   readOnly: boolean;
   onChange: (b: Brand) => void;
   onRemove: () => void;
@@ -45,185 +49,265 @@ export function PromptsPage({
           ) : null}
         </div>
       </div>
-      {tab === "results" || readOnly ? <Results view={view} onCompetitor={onCompetitor} /> : <Editor brand={view.brand} onChange={onChange} onRemove={onRemove} />}
+      {tab === "results" || readOnly ? <Results view={view} focusTopic={focusTopic} onCompetitor={onCompetitor} /> : <Editor brand={view.brand} onChange={onChange} onRemove={onRemove} />}
     </div>
   );
 }
 
-const ENGINE_SHORT: Record<string, string> = { ChatGPT: "ChatGPT", Claude: "Claude", Gemini: "Gemini", Perplexity: "Perplexity", "AI Overview": "AI Overview", "AI Mode": "AI Mode" };
+const ENGINE_SHORT: Record<string, string> = { ChatGPT: "ChatGPT", Claude: "Claude", Gemini: "Gemini", Perplexity: "Perplexity", "AI Overview": "AIO", "AI Mode": "AI Mode" };
 const shortUrl = (u: string) => u.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
+const ago = (iso: string | null) => {
+  if (!iso) return "–";
+  const d = Math.floor((Date.now() - Date.parse(iso)) / 864e5);
+  return d <= 0 ? "Today" : d === 1 ? "Yesterday" : `${d} days ago`;
+};
 
-/** One status chip per model, with a word as well as a color. */
-function ModelChip({ c }: { c: { engine: string; status: string; position: number | null } }) {
+/** A share with a thin bar under it. */
+function Share({ v }: { v: number | null }) {
   return (
-    <span
-      title={`${c.engine}: ${c.status === "named" ? `named at #${c.position}` : c.status === "missed" ? "not named" : c.status === "error" ? "no answer" : "not checked"}`}
-      className={`inline-flex items-center gap-1.5 border px-2 py-1 font-mono text-[11px] ${
-        c.status === "named" ? "border-[#BFDED1] bg-pos-bg text-pos" : c.status === "missed" ? "border-[#E8CBC7] bg-neg-bg text-neg" : "border-rule bg-surface-2 text-muted"
-      }`}
-    >
-      <BrandLogo src={ENGINE_LOGOS[c.engine] ?? ""} name={c.engine} size={13} />
-      {c.status === "named" ? `#${c.position}` : c.status === "missed" ? "NO" : "–"}
+    <span className="flex flex-col gap-1">
+      <span className="aw-num text-[14px] text-ink">{pct(v)}</span>
+      <span className="block h-1 w-14 bg-rule-faint">
+        <span className="block h-full bg-brand" style={{ width: `${v ?? 0}%` }} />
+      </span>
     </span>
   );
 }
 
-function Results({ view, onCompetitor }: { view: View; onCompetitor: (name: string) => void }) {
+/** One model's latest answer to a prompt: named or not, and where your site was cited. */
+function Cell({ c }: { c: EngineCell }) {
+  if (c.status === "none") return <span className="text-muted">–</span>;
+  if (c.status === "error") return <span className="aw-small">No answer</span>;
+  return (
+    <span className="flex flex-col items-start gap-1">
+      <span
+        title={c.status === "named" ? `${c.engine} named you at #${c.position}` : `${c.engine} did not name you`}
+        className={`aw-status ${c.status === "named" ? "aw-status--ranked" : "aw-status--missed"} px-1.5! py-0.5! text-[11px]!`}
+      >
+        {c.status === "named" ? `Brand #${c.position}` : "Missing"}
+      </span>
+      {c.cited ? (
+        <a
+          href={c.cited.url}
+          target="_blank"
+          rel="noopener noreferrer nofollow"
+          onClick={(e) => e.stopPropagation()}
+          title={`Your page is source #${c.cited.rank}: ${shortUrl(c.cited.url)}`}
+          className="aw-status aw-status--pending px-1.5! py-0.5! text-[11px]! no-underline"
+        >
+          Cited #{c.cited.rank} ↗
+        </a>
+      ) : null}
+    </span>
+  );
+}
+
+function Results({ view, focusTopic, onCompetitor }: { view: View; focusTopic?: string | null; onCompetitor: (name: string) => void }) {
   const { brand, current, filter, topics, engines } = view;
   const [open, setOpen] = useState<string | null>(null);
   const [closed, setClosed] = useState<Set<string>>(new Set());
-  const rows = promptRows(current, topics, engines, brand.name, filter);
+  const [charts, setCharts] = useState<Set<string>>(new Set());
+  const focusRef = useRef<HTMLTableRowElement | null>(null);
+  useEffect(() => {
+    focusRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+  }, []);
+
+  const chats = answered(current, filter);
+  const rows = promptRows(current, topics, engines, brand.name, filter, brand.domain);
+  const tops = topicRows(chats, topics, engines, brand.name);
   if (!topics.length) return <div className="aw-callout">No prompts yet. Open Edit topics and prompts to add some.</div>;
+  const flip = (set: Set<string>, k: string) => (set.has(k) ? new Set([...set].filter((x) => x !== k)) : new Set([...set, k]));
+  const cols = engines.length + 3;
 
   return (
-    <div className="flex flex-col gap-6">
-      {topics.map((t) => {
-        const list = rows.filter((r) => r.topic === t.name);
-        const seen = list.filter((r) => r.visibility !== null);
-        const vis = seen.length ? seen.reduce((n, r) => n + r.visibility!, 0) / seen.length : null;
-        const isClosed = closed.has(t.name);
-        return (
-          <section key={t.name} className="aw-frame">
-            <button
-              type="button"
-              onClick={() => setClosed((s) => (s.has(t.name) ? new Set([...s].filter((x) => x !== t.name)) : new Set([...s, t.name])))}
-              className="flex w-full items-center justify-between gap-4 border-b border-rule px-6 py-5 text-left hover:bg-surface-2"
-              aria-expanded={!isClosed}
-            >
-              <span className="flex flex-col gap-1">
-                <span className="aw-label">Topic</span>
-                <span className="text-[18px] font-medium text-ink">
-                  {t.name} <span className="font-normal text-muted">· {t.prompts.length} prompts</span>
+    <section className="aw-frame overflow-x-auto">
+      <table className="aw-table aw-table--compact aw-table--tight min-w-[880px]">
+        <thead>
+          <tr>
+            <th>Topic and prompt</th>
+            <th className="w-24">Visibility</th>
+            {engines.map((e) => (
+              <th key={e} className="w-28">
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                  <BrandLogo src={ENGINE_LOGOS[e] ?? ""} name={e} size={14} />
+                  {ENGINE_SHORT[e] ?? e}
                 </span>
-              </span>
-              <span className="flex items-center gap-4">
-                <span className="flex flex-col items-end gap-1">
-                  <span className="aw-label">Visibility</span>
-                  <span className="aw-num text-[20px] text-ink">{pct(vis)}</span>
-                </span>
-                <span aria-hidden="true" className="text-muted">
-                  {isClosed ? "▾" : "▴"}
-                </span>
-              </span>
-            </button>
-            {isClosed ? null : (
-              <ul className="divide-y divide-rule-faint">
-                {list.map((r) => {
-                  const isOpen = open === r.prompt;
-                  return (
-                    <li key={r.prompt}>
-                      <button
-                        type="button"
-                        onClick={() => setOpen(isOpen ? null : r.prompt)}
-                        aria-expanded={isOpen}
-                        className={`grid w-full gap-4 px-6 py-5 text-left hover:bg-paper lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center ${isOpen ? "bg-paper" : ""}`}
-                      >
-                        <span className="flex min-w-0 items-start gap-3">
-                          <span className="pt-0.5 text-muted" aria-hidden="true">
-                            {isOpen ? "▾" : "▸"}
-                          </span>
-                          <span className="text-[16px] leading-snug text-ink">{r.prompt}</span>
-                        </span>
-                        <span className="flex flex-wrap items-center gap-6 pl-7 lg:pl-0">
-                          {[
-                            { lab: "Visibility", v: pct(r.visibility) },
-                            { lab: "Position", v: pos(r.position) },
-                            { lab: "Sentiment", v: score(r.sentiment) },
-                          ].map((m) => (
-                            <span key={m.lab} className="flex w-20 flex-col gap-1">
-                              <span className="aw-label">{m.lab}</span>
-                              <span className="aw-num text-[16px] text-ink">{m.v}</span>
+              </th>
+            ))}
+            <th className="w-28">Last checked</th>
+          </tr>
+        </thead>
+        {topics.map((t) => {
+          const top = tops.find((x) => x.topic === t.name)!;
+          const list = rows.filter((r) => r.topic === t.name);
+          const isClosed = closed.has(t.name);
+          const last = list.map((r) => r.latestAt).filter(Boolean).sort().pop() ?? null;
+          const showChart = charts.has(t.name);
+          const inTopic = (c: Chat) => filter(c) && t.prompts.includes(c.prompt);
+          const leaders = showChart
+            ? brandStats(answered(current, inTopic), { name: brand.name, domain: brand.domain })
+                .filter((s) => !s.isYou)
+                .slice(0, 3)
+                .map((s) => s.name)
+            : [];
+          const lines = [brand.name, ...leaders].map((n, i) => ({ name: n, isYou: i === 0, color: i === 0 ? YOU_COLOR : OTHER_COLORS[i - 1] }));
+          return (
+            <tbody key={t.name}>
+              <tr ref={focusTopic === t.name ? focusRef : undefined} className={`bg-surface-2 ${focusTopic === t.name ? "is-you" : ""}`}>
+                <td>
+                  <span className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setClosed((s) => flip(s, t.name))}
+                      aria-expanded={!isClosed}
+                      className="flex items-center gap-2 text-left text-[15px] font-medium text-ink"
+                    >
+                      <span aria-hidden="true" className="text-muted">
+                        {isClosed ? "▸" : "▾"}
+                      </span>
+                      {t.name}
+                      <span className="font-normal text-muted">· {t.prompts.length} prompts</span>
+                    </button>
+                    <button type="button" className={`aw-chip aw-chip--btn ${showChart ? "is-on" : ""}`} onClick={() => setCharts((s) => flip(s, t.name))} aria-pressed={showChart}>
+                      {showChart ? "Hide trend" : "Show trend"}
+                    </button>
+                  </span>
+                </td>
+                <td>
+                  <Share v={top.visibility} />
+                </td>
+                {engines.map((e) => (
+                  <td key={e}>
+                    <Share v={top.byEngine[e]} />
+                  </td>
+                ))}
+                <td className="aw-small whitespace-nowrap">{ago(last)}</td>
+              </tr>
+              {showChart ? (
+                <tr>
+                  <td colSpan={cols} className="bg-white">
+                    <TrendChart points={trend(current, lines.map((l) => l.name), "visibility", inTopic)} lines={lines} metric="visibility" mode="line" />
+                    <ul className="flex flex-wrap gap-x-5 gap-y-1 px-2 pb-2">
+                      {lines.map((l) => (
+                        <li key={l.name} className="flex items-center gap-2 text-[13px] text-body">
+                          <i className="inline-block h-2.5 w-2.5" style={{ background: l.color }} />
+                          {l.isYou ? `${l.name} (you)` : l.name}
+                        </li>
+                      ))}
+                    </ul>
+                  </td>
+                </tr>
+              ) : null}
+              {isClosed
+                ? null
+                : list.map((r) => {
+                    const isOpen = open === r.prompt;
+                    return (
+                      <Fragment key={r.prompt}>
+                        <tr onClick={() => setOpen(isOpen ? null : r.prompt)} aria-expanded={isOpen} className={`cursor-pointer ${isOpen ? "bg-paper" : ""}`}>
+                          <td>
+                            <span className="flex items-start gap-2 pl-5">
+                              <span aria-hidden="true" className="text-muted">
+                                {isOpen ? "▾" : "▸"}
+                              </span>
+                              <span className="text-[14px] leading-snug text-ink">{r.prompt}</span>
                             </span>
+                          </td>
+                          <td className="aw-num">{pct(r.visibility)}</td>
+                          {r.latest.map((c) => (
+                            <td key={c.engine}>
+                              <Cell c={c} />
+                            </td>
                           ))}
-                          <span className="flex flex-wrap gap-1.5">
-                            {r.latest.map((c) => (
-                              <ModelChip key={c.engine} c={c} />
-                            ))}
-                          </span>
-                        </span>
-                      </button>
-                      {isOpen ? (
-                        <div className="grid gap-px border-t border-rule bg-rule lg:grid-cols-[1fr_1fr_1.4fr]">
-                          <div className="flex flex-col gap-4 bg-white p-6">
-                            <span className="aw-label">Latest by model</span>
-                            <ul className="flex flex-col gap-3">
-                              {r.latest.map((c) => (
-                                <li key={c.engine} className="flex items-center justify-between gap-3 text-[14px]">
-                                  <span className="flex items-center gap-2.5 text-ink">
-                                    <BrandLogo src={ENGINE_LOGOS[c.engine] ?? ""} name={c.engine} size={16} />
-                                    {ENGINE_SHORT[c.engine] ?? c.engine}
-                                  </span>
-                                  <span className={`aw-status ${c.status === "named" ? "aw-status--ranked" : c.status === "missed" ? "aw-status--missed" : "aw-status--pending"}`}>
-                                    {c.status === "named" ? `Named #${c.position}` : c.status === "missed" ? "Not named" : c.status === "error" ? "No answer" : "Not checked"}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
-                            {r.latestAt ? <span className="aw-label">Checked {new Date(r.latestAt).toLocaleString()}</span> : null}
-                          </div>
-                          <div className="flex flex-col gap-4 bg-white p-6">
-                            <span className="aw-label">Brands named · {r.answers} answers</span>
-                            <ul className="flex flex-col gap-1">
-                              {r.topBrands.map((b) => (
-                                <li key={b.name}>
-                                  <button
-                                    type="button"
-                                    onClick={() => !b.isYou && onCompetitor(b.name)}
-                                    disabled={b.isYou}
-                                    title={b.isYou ? undefined : `Open ${b.name} on the Competitors page`}
-                                    className="flex w-full items-center justify-between gap-3 px-2 py-2 text-left text-[14px] hover:bg-surface-2 disabled:cursor-default disabled:hover:bg-transparent"
-                                  >
-                                    <BrandName name={b.name} domain={b.domain} logo={b.isYou ? brand.logo : undefined} isYou={b.isYou} size={18} />
-                                    <span className="flex items-center gap-3">
-                                      <span className="aw-num text-muted">{pct((b.count / Math.max(r.answers, 1)) * 100)}</span>
-                                      {!b.isYou ? (
-                                        <span aria-hidden="true" className="text-muted">
-                                          →
-                                        </span>
-                                      ) : null}
-                                    </span>
-                                  </button>
-                                </li>
-                              ))}
-                              {!r.topBrands.length ? <li className="aw-small">No brands named yet.</li> : null}
-                            </ul>
-                          </div>
-                          <div className="flex flex-col gap-4 bg-white p-6">
-                            <span className="aw-label">Sites cited</span>
-                            <ul className="flex flex-col gap-4">
-                              {r.sources.map((s) => (
-                                <li key={s.domain} className="flex flex-col gap-1.5">
-                                  <span className="flex items-center justify-between gap-3 text-[14px]">
-                                    <span className="flex min-w-0 items-center gap-2 text-ink">
-                                      <BrandLogo src={favicon(s.domain)} name={s.domain} size={16} />
-                                      <span className="truncate">{s.domain}</span>
-                                    </span>
-                                    <span className="aw-num text-muted">{s.count}×</span>
-                                  </span>
-                                  <ul className="flex flex-col gap-1 pl-6">
-                                    {s.urls.slice(0, 4).map((u) => (
-                                      <li key={u.url} className="min-w-0 text-[13px]">
-                                        <a href={u.url} target="_blank" rel="noopener noreferrer nofollow" className="block truncate" title={u.url}>
-                                          {u.title || shortUrl(u.url)} ↗
-                                        </a>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </li>
-                              ))}
-                              {!r.sources.length ? <li className="aw-small">No sites cited yet.</li> : null}
-                            </ul>
-                          </div>
-                        </div>
-                      ) : null}
-                    </li>
-                  );
-                })}
+                          <td className="aw-small whitespace-nowrap">{ago(r.latestAt)}</td>
+                        </tr>
+                        {isOpen ? (
+                          <tr>
+                            <td colSpan={cols} className="p-0!">
+                              <Detail r={r} logo={brand.logo} onCompetitor={onCompetitor} />
+                            </td>
+                          </tr>
+                        ) : null}
+                      </Fragment>
+                    );
+                  })}
+            </tbody>
+          );
+        })}
+      </table>
+      <p className="aw-small border-t border-rule-faint px-4 py-3">
+        Brand #N means the answer named you at that spot. Cited #N means your site was source number N. Click a prompt to see the brands and sites in its answers.
+      </p>
+    </section>
+  );
+}
+
+/** Everything about one prompt: position and sentiment, brands named and sites cited. */
+function Detail({ r, logo, onCompetitor }: { r: PromptRow; logo?: string; onCompetitor: (name: string) => void }) {
+  return (
+    <div className="grid gap-px border-t border-rule bg-rule lg:grid-cols-[0.8fr_1fr_1.4fr]">
+      <div className="flex flex-col gap-4 bg-white p-5">
+        <span className="aw-label">Your results · {r.answers} answers</span>
+        <ul className="flex flex-col gap-3 text-[14px]">
+          {[
+            { lab: "Visibility", v: pct(r.visibility) },
+            { lab: "Average position", v: pos(r.position) },
+            { lab: "Sentiment", v: score(r.sentiment) },
+          ].map((m) => (
+            <li key={m.lab} className="flex items-center justify-between gap-3">
+              <span className="text-body">{m.lab}</span>
+              <span className="aw-num text-ink">{m.v}</span>
+            </li>
+          ))}
+        </ul>
+        {r.latestAt ? <span className="aw-label">Checked {new Date(r.latestAt).toLocaleString()}</span> : null}
+      </div>
+      <div className="flex flex-col gap-4 bg-white p-5">
+        <span className="aw-label">Brands named</span>
+        <ul className="flex flex-col gap-1">
+          {r.topBrands.map((b) => (
+            <li key={b.name}>
+              <button
+                type="button"
+                onClick={() => !b.isYou && onCompetitor(b.name)}
+                disabled={b.isYou}
+                title={b.isYou ? undefined : `Open ${b.name} on the Competitors page`}
+                className="flex w-full items-center justify-between gap-3 px-2 py-1.5 text-left text-[14px] hover:bg-surface-2 disabled:cursor-default disabled:hover:bg-transparent"
+              >
+                <BrandName name={b.name} domain={b.domain} logo={b.isYou ? logo : undefined} isYou={b.isYou} size={18} />
+                <span className="aw-num text-muted">{pct((b.count / Math.max(r.answers, 1)) * 100)}</span>
+              </button>
+            </li>
+          ))}
+          {!r.topBrands.length ? <li className="aw-small">No brands named yet.</li> : null}
+        </ul>
+      </div>
+      <div className="flex flex-col gap-4 bg-white p-5">
+        <span className="aw-label">Sites cited</span>
+        <ul className="flex flex-col gap-3">
+          {r.sources.map((s) => (
+            <li key={s.domain} className="flex flex-col gap-1">
+              <span className="flex items-center justify-between gap-3 text-[14px]">
+                <span className="flex min-w-0 items-center gap-2 text-ink">
+                  <BrandLogo src={favicon(s.domain)} name={s.domain} size={16} />
+                  <span className="truncate">{s.domain}</span>
+                </span>
+                <span className="aw-num text-muted">{s.count}×</span>
+              </span>
+              <ul className="flex flex-col gap-0.5 pl-6">
+                {s.urls.slice(0, 3).map((u) => (
+                  <li key={u.url} className="min-w-0 text-[13px]">
+                    <a href={u.url} target="_blank" rel="noopener noreferrer nofollow" className="block truncate" title={u.url}>
+                      {u.title || shortUrl(u.url)} ↗
+                    </a>
+                  </li>
+                ))}
               </ul>
-            )}
-          </section>
-        );
-      })}
+            </li>
+          ))}
+          {!r.sources.length ? <li className="aw-small">No sites cited yet.</li> : null}
+        </ul>
+      </div>
     </div>
   );
 }

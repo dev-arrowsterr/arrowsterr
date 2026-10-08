@@ -1,6 +1,6 @@
 // Numbers for every page, worked out from saved runs. Pure functions, no network.
-import { isAnswered, type Chat, type Run } from "./chats";
-import { domainOf } from "./sources";
+import { isAnswered, type Chat, type Run } from "./chats.ts";
+import { domainOf } from "./sources.ts";
 
 export type Metric = "visibility" | "sentiment" | "position";
 
@@ -228,7 +228,18 @@ export function typeShares(rows: DomainRow[]): { type: SourceType; share: number
 
 // ─────────────── prompts ───────────────
 
-export type EngineCell = { engine: string; status: "named" | "missed" | "error" | "none"; position: number | null };
+export type EngineCell = {
+  engine: string;
+  status: "named" | "missed" | "error" | "none";
+  position: number | null;
+  cited: { rank: number; url: string } | null; // your site's spot in the answer's sources
+};
+
+/** Where your site sits in an answer's list of sources, counting from 1. */
+export function citedRank(c: Chat, domain: string | null | undefined): { rank: number; url: string } | null {
+  const i = c.sources.findIndex((s) => ownsDomain((s.domain || domainOf(s.url)).replace(/^www\./, ""), domain?.replace(/^www\./, "")));
+  return i < 0 ? null : { rank: i + 1, url: c.sources[i].url };
+}
 export type PromptRow = {
   prompt: string;
   topic: string;
@@ -242,7 +253,7 @@ export type PromptRow = {
   latestAt: string | null;
 };
 
-export function promptRows(runs: Run[], topics: { name: string; prompts: string[] }[], engines: string[], you: string, filter: Filter): PromptRow[] {
+export function promptRows(runs: Run[], topics: { name: string; prompts: string[] }[], engines: string[], you: string, filter: Filter, domain?: string): PromptRow[] {
   const sorted = [...runs].sort((a, b) => a.at.localeCompare(b.at));
   return topics.flatMap((t) =>
     t.prompts.map((prompt) => {
@@ -252,10 +263,10 @@ export function promptRows(runs: Run[], topics: { name: string; prompts: string[
       const lastRun = [...sorted].reverse().find((r) => r.chats.some((c) => c.prompt === prompt && filter(c)));
       const latest: EngineCell[] = engines.map((engine) => {
         const c = lastRun?.chats.find((x) => x.prompt === prompt && x.engine === engine);
-        if (!c) return { engine, status: "none", position: null };
-        if (!isAnswered(c)) return { engine, status: "error", position: null };
+        if (!c) return { engine, status: "none", position: null, cited: null };
+        if (!isAnswered(c)) return { engine, status: "error", position: null, cited: null };
         const m = c.brands.find((b) => same(b.name, you));
-        return { engine, status: m ? "named" : "missed", position: m?.position ?? null };
+        return { engine, status: m ? "named" : "missed", position: m?.position ?? null, cited: citedRank(c, domain) };
       });
       const brands = new Map<string, { count: number; domain: string | null }>();
       for (const x of ok)
@@ -336,4 +347,52 @@ export function competitorDetail(chats: Chat[], name: string, you: string, engin
       .slice(0, 10),
     domains: [...doms.entries()].map(([domain, count]) => ({ domain, count })).sort((a, b) => b.count - a.count).slice(0, 8),
   };
+}
+
+// ─────────────── topics ───────────────
+
+const shareOf = (list: Chat[], n: string) => (list.length ? (list.filter((c) => c.brands.some((b) => same(b.name, n))).length / list.length) * 100 : null);
+
+export type TopicRow = { topic: string; prompts: number; visibility: number | null; byEngine: Record<string, number | null> };
+
+/** Your visibility in each topic, overall and per model. */
+export function topicRows(chats: Chat[], topics: { name: string; prompts: string[] }[], engines: string[], you: string): TopicRow[] {
+  return topics.map((t) => {
+    const list = chats.filter((c) => t.prompts.includes(c.prompt));
+    return {
+      topic: t.name,
+      prompts: t.prompts.length,
+      visibility: shareOf(list, you),
+      byEngine: Object.fromEntries(engines.map((e) => [e, shareOf(list.filter((c) => c.engine === e), you)])),
+    };
+  });
+}
+
+/** Visibility of each brand in each topic. The leader is the brand with the highest share. */
+export function topicGrid(chats: Chat[], topics: { name: string; prompts: string[] }[], names: string[]) {
+  return topics.map((t) => {
+    const list = chats.filter((c) => t.prompts.includes(c.prompt));
+    const values: Record<string, number | null> = Object.fromEntries(names.map((n) => [n, shareOf(list, n)]));
+    const best = Math.max(0, ...names.map((n) => values[n] ?? 0));
+    return { topic: t.name, values, leader: best > 0 ? names.find((n) => values[n] === best)! : null };
+  });
+}
+
+export type Gap = { prompt: string; topic: string; you: number; leader: string; them: number };
+
+/** Prompts where another brand shows up more than you, biggest gap first. */
+export function promptGaps(chats: Chat[], topics: { name: string; prompts: string[] }[], you: string): Gap[] {
+  return topics
+    .flatMap((t) =>
+      t.prompts.map((prompt) => {
+        const list = chats.filter((c) => c.prompt === prompt);
+        const counts = new Map<string, number>();
+        for (const c of list) for (const n of new Set(c.brands.map((b) => b.name))) if (!same(n, you)) counts.set(n, (counts.get(n) ?? 0) + 1);
+        const [leader, n] = [...counts.entries()].sort((a, b) => b[1] - a[1])[0] ?? ["", 0];
+        return { prompt, topic: t.name, you: shareOf(list, you) ?? 0, leader, them: list.length ? (n / list.length) * 100 : 0, asked: list.length };
+      }),
+    )
+    .filter((g) => g.asked && g.them > g.you)
+    .sort((a, b) => b.them - b.you - (a.them - a.you))
+    .map((g) => ({ prompt: g.prompt, topic: g.topic, you: g.you, leader: g.leader, them: g.them }));
 }

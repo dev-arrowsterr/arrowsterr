@@ -155,6 +155,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   const [model, setModel] = useState("All");
   const [topic, setTopic] = useState("All");
   const [focus, setFocus] = useState<string | null>(null); // competitor to open on the Competitors page
+  const [focusTopic, setFocusTopic] = useState<string | null>(null); // topic to scroll to on the Prompts page
   const [error, setError] = useState("");
 
   const token = useCallback(async () => (await sb.auth.getSession()).data.session?.access_token ?? "", [sb]);
@@ -391,6 +392,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
         page={page}
         onPage={(p) => {
           setFocus(null);
+          setFocusTopic(null);
           go(p);
         }}
       />
@@ -444,8 +446,9 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             <ResearchPage key={view.brand.id} sb={sb} auth={auth} view={view} canEdit={canEdit} tool={page as Tool} onTool={(t) => go(t)} />
           ) : page === "prompts" ? (
             <PromptsPage
-              key={view.brand.id}
+              key={`${view.brand.id}-${focusTopic ?? ""}`}
               view={view}
+              focusTopic={focusTopic}
               readOnly={!canEdit}
               onChange={update}
               onRemove={() => remove(view.brand.id)}
@@ -455,7 +458,15 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
               }}
             />
           ) : page === "competitors" ? (
-            <CompetitorsPage key={`${view.brand.id}-${focus ?? ""}`} view={view} initial={focus} />
+            <CompetitorsPage
+              key={`${view.brand.id}-${focus ?? ""}`}
+              view={view}
+              initial={focus}
+              onTopic={(t) => {
+                setFocusTopic(t);
+                go("prompts");
+              }}
+            />
           ) : page === "summary" ? (
             <ReportsPage key={view.brand.id} sb={sb} auth={auth} view={view} canEdit={canEdit} />
           ) : page === "visitors" ? (
@@ -469,7 +480,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
               key={view.brand.id}
               view={view}
               onOpen={(p, name) => {
-                setFocus(name ?? null);
+                if (p === "prompts") setFocusTopic(name ?? null);
+                else setFocus(name ?? null);
                 go(p);
               }}
             />

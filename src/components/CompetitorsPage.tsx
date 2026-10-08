@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { answered, brandStats, competitorDetail, trend } from "@/lib/metrics";
+import { answered, brandStats, competitorDetail, topicGrid, trend } from "@/lib/metrics";
 import type { View } from "@/lib/view";
 import { BrandLogo } from "./BrandLogo";
 import { EngineName } from "./Engines";
@@ -23,7 +23,7 @@ function Bar({ v, color }: { v: number | null; color: string }) {
 }
 
 /** Every competitor ranked, and a detailed view of the one you pick. */
-export function CompetitorsPage({ view, initial }: { view: View; initial?: string | null }) {
+export function CompetitorsPage({ view, initial, onTopic }: { view: View; initial?: string | null; onTopic: (topic: string) => void }) {
   const { brand, current, previous, filter, topics, engines, days } = view;
   const you = { name: brand.name, domain: brand.domain };
   const chats = answered(current, filter);
@@ -35,6 +35,7 @@ export function CompetitorsPage({ view, initial }: { view: View; initial?: strin
   const [split, setSplit] = useState<"model" | "topic">("model");
   const [sort, setSort] = useSort("visibility");
   const [h2h, setH2h] = useSort("key", false);
+  const [all, setAll] = useState(false);
   const sel = others.find((s) => s.name.toLowerCase() === picked?.toLowerCase()) ?? others[0];
 
   if (!chats.length) return <Empty>No results in the last {days} days yet. They show up after the first check finishes, then update every day.</Empty>;
@@ -42,13 +43,62 @@ export function CompetitorsPage({ view, initial }: { view: View; initial?: strin
   const detail = sel ? competitorDetail(chats, sel.name, brand.name, engines, topics) : null;
   const me = stats.find((s) => s.isYou)!;
   const points = sel ? trend(current, [sel.name, brand.name], "visibility", filter) : [];
+  const gridBrands = [me, ...others.slice(0, 5)];
+  const grid = topicGrid(chats, topics, gridBrands.map((s) => s.name));
 
   return (
     <div className="flex flex-col gap-5">
       <h1 className="aw-h2">Competitors</h1>
+      {topics.length ? (
+        <Card title="Who wins each topic">
+          <div className="overflow-x-auto">
+            <table className="aw-table aw-table--compact aw-table--tight">
+              <thead>
+                <tr>
+                  <th>Topic</th>
+                  {gridBrands.map((b) => (
+                    <th key={b.name} className="w-36">
+                      {b.isYou ? (
+                        <BrandName name={b.name} domain={b.domain} logo={brand.logo} isYou size={16} />
+                      ) : (
+                        <button type="button" onClick={() => setPicked(b.name)} title={`Compare with ${b.name}`} className="text-left">
+                          <BrandName name={b.name} domain={b.domain} size={16} />
+                        </button>
+                      )}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {grid.map((g) => (
+                  <tr key={g.topic}>
+                    <td className="max-w-64">
+                      <button type="button" onClick={() => onTopic(g.topic)} className="aw-text-link truncate text-left" title={`Open ${g.topic} on the Prompts page`}>
+                        {g.topic}
+                      </button>
+                    </td>
+                    {gridBrands.map((b) => {
+                      const v = g.values[b.name];
+                      const lead = g.leader === b.name;
+                      return (
+                        <td key={b.name} className={b.isYou ? "bg-brand-pale" : ""}>
+                          <span className="flex items-center gap-2">
+                            <span className={`aw-num ${lead ? "font-medium text-ink" : "text-body"}`}>{pct(v)}</span>
+                            {lead ? <span className="aw-status aw-status--ranked px-1.5! py-0.5! text-[10px]!">Leader</span> : null}
+                          </span>
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      ) : null}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Card title={`${others.length} brands named alongside ${brand.name}`} className="self-start">
-          <div className="max-h-[720px] overflow-y-auto">
+          <div>
             <table className="aw-table aw-table--compact aw-table--tight">
               <thead className="sticky top-0 z-10">
                 <tr>
@@ -68,7 +118,7 @@ export function CompetitorsPage({ view, initial }: { view: View; initial?: strin
                 </tr>
               </thead>
               <tbody>
-                {sortRows(stats.map((s, i) => ({ ...s, rank: i + 1 })), sort, {
+                {sortRows((all ? stats : stats.slice(0, 8)).map((s, i) => ({ ...s, rank: i + 1 })), sort, {
                   name: (s) => s.name,
                   visibility: (s) => s.visibility,
                   sentiment: (s) => s.sentiment,
@@ -96,6 +146,11 @@ export function CompetitorsPage({ view, initial }: { view: View; initial?: strin
                 })}
               </tbody>
             </table>
+            {stats.length > 8 ? (
+              <button type="button" className="aw-text-link px-4 py-3 text-[13px]" onClick={() => setAll(!all)}>
+                {all ? "Show top 8" : `Show all ${stats.length} brands`}
+              </button>
+            ) : null}
           </div>
         </Card>
 

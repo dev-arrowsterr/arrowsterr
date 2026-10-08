@@ -1,12 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { answered, brandStats, competitorDomains, domainRows, metricOf, rankOf, trend, typeShares, urlRows, type Metric, type SourceType } from "@/lib/metrics";
+import { answered, brandStats, metricOf, promptGaps, rankOf, topicGrid, topicRows, trend, type Metric, type SourceType } from "@/lib/metrics";
 import type { View } from "@/lib/view";
-import { Donut, Legend } from "./Donut";
 import { TrendChart, type Line } from "./TrendChart";
-import { BrandName, Card, Delta, Empty, favicon, OTHER_COLORS, pct, pos, score, Seg, sortRows, SortTh, useSort, YOU_COLOR } from "./ui";
-import { BrandLogo } from "./BrandLogo";
+import { BrandName, Card, Delta, Empty, OTHER_COLORS, pct, pos, score, Seg, sortRows, SortTh, useSort, YOU_COLOR } from "./ui";
 
 export const TYPE_COLORS: Record<SourceType, string> = {
   You: "#0943B0",
@@ -36,14 +34,12 @@ const METRICS: { id: Metric; label: string }[] = [
 /** Position as a 0 to 100 score: #1 is 100, and each spot down takes 10 points off. */
 export const positionScore = (p: number | null) => (p === null ? null : Math.max(0, 110 - p * 10));
 
-/** Peec-style overview: trend chart, competitors, sites and site types. */
-export function OverviewPage({ view, onOpen }: { view: View; onOpen: (page: "competitors" | "domains" | "urls", competitor?: string) => void }) {
+/** The scoreboard: your scores, trend, top competitors, each topic and the biggest gaps. Topics and gaps open the Prompts page. */
+export function OverviewPage({ view, onOpen }: { view: View; onOpen: (page: "competitors" | "prompts", name?: string) => void }) {
   const [metric, setMetric] = useState<Metric>("visibility");
   const [mode, setMode] = useState<"line" | "bar">("line");
-  const [srcTab, setSrcTab] = useState<"domains" | "urls">("domains");
   const [brandSort, setBrandSort] = useSort("visibility");
-  const [srcSort, setSrcSort] = useSort("used");
-  const { brand, current, previous, filter, days } = view;
+  const { brand, current, previous, filter, days, topics, engines } = view;
   const you = { name: brand.name, domain: brand.domain };
 
   const chats = answered(current, filter);
@@ -61,11 +57,9 @@ export function OverviewPage({ view, onOpen }: { view: View; onOpen: (page: "com
   const lines: Line[] = top.map((s, i) => ({ name: s.name, isYou: s.isYou, color: s.isYou ? YOU_COLOR : OTHER_COLORS[(i - 1) % OTHER_COLORS.length] }));
   const points = trend(current, lines.map((l) => l.name), metric, filter);
 
-  const comp = competitorDomains(stats);
-  const domains = domainRows(chats, brand.domain, comp);
-  const urls = urlRows(chats, brand.domain, comp);
-  const shares = typeShares(domains);
-  const ownShare = shares.find((s) => s.type === "You")?.share ?? 0;
+  const byTopic = topicRows(chats, topics, engines, brand.name);
+  const grid = topicGrid(chats, topics, [...new Set([me.name, ...stats.slice(0, 10).map((s) => s.name)])]);
+  const gaps = promptGaps(chats, topics, brand.name);
 
   const change = hadBefore ? me.visibility - (meBefore?.visibility ?? 0) : null;
   const headline =
@@ -173,7 +167,7 @@ export function OverviewPage({ view, onOpen }: { view: View; onOpen: (page: "com
                 </tr>
               </thead>
               <tbody>
-                {sortRows(stats.slice(0, 8).map((s, i) => ({ ...s, rank: i + 1 })), brandSort, {
+                {sortRows(stats.slice(0, 6).map((s, i) => ({ ...s, rank: i + 1 })), brandSort, {
                   name: (s) => s.name,
                   visibility: (s) => s.visibility,
                   sentiment: (s) => s.sentiment,
@@ -210,135 +204,59 @@ export function OverviewPage({ view, onOpen }: { view: View; onOpen: (page: "com
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-        <Card>
-          <div className="flex items-center justify-between gap-3 border-b border-rule-faint px-5 py-3">
-            <Seg
-              label="Sources"
-              value={srcTab}
-              onChange={setSrcTab}
-              options={[
-                { id: "domains", label: "Domains" },
-                { id: "urls", label: "URLs" },
-              ]}
-            />
-            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => onOpen(srcTab)}>
-              View all
-            </button>
-          </div>
-          <div className="overflow-x-auto">
-            {srcTab === "domains" ? (
-              <table className="aw-table aw-table--compact">
-                <thead>
-                  <tr>
-                    <th className="w-8">#</th>
-                    <SortTh id="name" sort={srcSort} onSort={setSrcSort} text>
-                      Domain
-                    </SortTh>
-                    <SortTh id="type" sort={srcSort} onSort={setSrcSort} text>
-                      Type
-                    </SortTh>
-                    <SortTh id="used" sort={srcSort} onSort={setSrcSort}>
-                      Used
-                    </SortTh>
-                    <SortTh id="avg" sort={srcSort} onSort={setSrcSort}>
-                      Avg. citations
-                    </SortTh>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortRows(domains.slice(0, 8).map((d, i) => ({ ...d, rank: i + 1 })), srcSort, {
-                    name: (d) => d.domain,
-                    type: (d) => d.type,
-                    used: (d) => d.used,
-                    avg: (d) => d.avgCitations,
-                  }).map((d) => (
-                    <tr key={d.domain} className={d.type === "You" ? "is-you" : ""}>
-                      <td className="aw-num text-muted">{d.rank}</td>
-                      <td>
-                        <span className="flex items-center gap-2 text-ink">
-                          <BrandLogo src={favicon(d.domain)} name={d.domain} size={18} />
-                          {d.domain}
-                        </span>
-                      </td>
-                      <td>
-                        <TypeTag type={d.type} />
-                      </td>
-                      <td className="aw-num">{pct(d.used)}</td>
-                      <td className="aw-num">{d.avgCitations.toFixed(1)}</td>
-                    </tr>
-                  ))}
-                  {!domains.length ? (
-                    <tr>
-                      <td colSpan={5} className="aw-small">
-                        No sites cited yet.
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            ) : (
-              <table className="aw-table aw-table--compact">
-                <thead>
-                  <tr>
-                    <th className="w-8">#</th>
-                    <SortTh id="name" sort={srcSort} onSort={setSrcSort} text>
-                      URL
-                    </SortTh>
-                    <SortTh id="type" sort={srcSort} onSort={setSrcSort} text>
-                      Type
-                    </SortTh>
-                    <SortTh id="used" sort={srcSort} onSort={setSrcSort}>
-                      Used
-                    </SortTh>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortRows(urls.slice(0, 8).map((u, i) => ({ ...u, rank: i + 1 })), srcSort, {
-                    name: (u) => u.title || u.url.replace(/^https?:\/\/(www\.)?/, ""),
-                    type: (u) => u.type,
-                    used: (u) => u.used,
-                  }).map((u) => (
-                    <tr key={u.url}>
-                      <td className="aw-num text-muted">{u.rank}</td>
-                      <td className="max-w-md">
-                        <a href={u.url} target="_blank" rel="noopener noreferrer nofollow" className="flex min-w-0 items-center gap-2">
-                          <BrandLogo src={favicon(u.domain)} name={u.domain} size={18} />
-                          <span className="truncate">{u.title || u.url.replace(/^https?:\/\/(www\.)?/, "")}</span>
-                        </a>
-                      </td>
-                      <td>
-                        <TypeTag type={u.type} />
-                      </td>
-                      <td className="aw-num">{pct(u.used)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </Card>
-
         <Card
-          title="Domains by type"
+          title="Visibility by topic"
           action={
-            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => onOpen("domains")} aria-label="Open domains">
-              ↗
+            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => onOpen("prompts")}>
+              All prompts
             </button>
           }
         >
-          <div className="flex flex-col items-center gap-5 p-5 sm:flex-row sm:items-center">
-            <Donut
-              label="Share of citations by site type"
-              slices={shares.map((s) => ({ label: s.type, value: s.share, color: TYPE_COLORS[s.type] }))}
-              center={
-                <>
-                  <span className="aw-num text-[24px] font-medium text-ink">{pct(ownShare)}</span>
-                  <span className="text-[11px] text-muted">your site</span>
-                </>
-              }
-            />
-            <Legend slices={shares.filter((s) => s.share > 0).map((s) => ({ label: s.type, value: s.share, color: TYPE_COLORS[s.type] }))} />
-          </div>
+          <ul className="divide-y divide-rule-faint">
+            {byTopic.map((t) => {
+              const g = grid.find((x) => x.topic === t.topic);
+              const lead = g?.leader && g.leader.toLowerCase() !== brand.name.toLowerCase() ? g.leader : null;
+              return (
+                <li key={t.topic}>
+                  <button type="button" onClick={() => onOpen("prompts", t.topic)} className="flex w-full flex-col gap-2 px-5 py-3.5 text-left hover:bg-surface-2" title={`Open ${t.topic} on the Prompts page`}>
+                    <span className="flex items-center justify-between gap-3">
+                      <span className="text-[14px] text-ink">
+                        {t.topic} <span className="text-muted">· {t.prompts} prompts</span>
+                      </span>
+                      <span className="aw-num text-[15px] text-ink">{pct(t.visibility)}</span>
+                    </span>
+                    <span className="block h-1.5 bg-rule-faint">
+                      <span className="block h-full bg-brand" style={{ width: `${t.visibility ?? 0}%` }} />
+                    </span>
+                    <span className="aw-small">{g?.leader ? (lead ? `Leader: ${lead} at ${pct(g.values[lead])}` : "You lead this topic") : "No brands named yet"}</span>
+                  </button>
+                </li>
+              );
+            })}
+            {!byTopic.length ? <li className="aw-small px-5 py-4">No topics yet. Add them on the Prompts page.</li> : null}
+          </ul>
+        </Card>
+
+        <Card title="Biggest gaps">
+          <ul className="divide-y divide-rule-faint">
+            {gaps.slice(0, 5).map((g) => (
+              <li key={g.prompt}>
+                <button type="button" onClick={() => onOpen("prompts", g.topic)} className="flex w-full items-start justify-between gap-3 px-5 py-3 text-left hover:bg-surface-2">
+                  <span className="flex min-w-0 flex-col gap-0.5">
+                    <span className="text-[14px] text-ink">{g.prompt}</span>
+                    <span className="aw-micro">{g.topic}</span>
+                  </span>
+                  <span className="aw-num shrink-0 text-right text-[12px]">
+                    <span className="block text-ink">
+                      {g.leader} {pct(g.them)}
+                    </span>
+                    <span className="text-muted">you {pct(g.you)}</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+            {!gaps.length ? <li className="aw-small px-5 py-4">No gaps. You show up at least as often as any other brand on every prompt.</li> : null}
+          </ul>
         </Card>
       </div>
     </div>
