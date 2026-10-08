@@ -412,22 +412,22 @@ function Sidebar({
     { group: "Settings", items: [{ id: "members", label: "Workspace & members" }] },
   ];
   return (
-    <aside className="flex shrink-0 flex-col gap-5 border-b-2 border-line bg-white px-4 py-5 md:min-h-screen md:w-64 md:border-r-2 md:border-b-0">
+    <aside className="flex shrink-0 flex-col gap-5 border-b border-rule bg-white px-4 py-5 md:min-h-screen md:w-64 md:border-r md:border-b-0">
       <Logo size="md" />
 
       <div className="relative">
-        <span className="text-[12px] text-g500">Workspace</span>
+        <span className="text-[12px] text-muted">Workspace</span>
         <button
           type="button"
           onClick={() => setWsOpen(!wsOpen)}
-          className="mt-1 flex w-full items-center gap-2 rounded-aw border border-border bg-white px-3 py-2 text-left hover:border-line"
+          className="mt-1 flex w-full items-center gap-2 border border-rule bg-white px-3 py-2 text-left hover:border-rule"
         >
           <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-ink">{ws.name}</span>
           <span className="aw-tag">{ROLE_LABEL[ws.role]}</span>
           <span aria-hidden="true">▾</span>
         </button>
         {wsOpen ? (
-          <div className="absolute z-20 mt-2 w-full rounded-aw border-2 border-line bg-white shadow-aw-sm">
+          <div className="absolute z-20 mt-2 w-full border border-rule bg-white">
             {workspaces.map((w) => (
               <button
                 key={w.id}
@@ -436,10 +436,10 @@ function Sidebar({
                   onWorkspace(w.id);
                   setWsOpen(false);
                 }}
-                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[14px] hover:bg-brand-pale"
+                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[14px] hover:bg-paper"
               >
                 <span className="truncate">{w.name}</span>
-                <span className="text-[12px] text-g500">{ROLE_LABEL[w.role]}</span>
+                <span className="text-[12px] text-muted">{ROLE_LABEL[w.role]}</span>
               </button>
             ))}
             <button
@@ -449,7 +449,7 @@ function Sidebar({
                 if (name?.trim()) await onNewWorkspace(name.trim());
                 setWsOpen(false);
               }}
-              className="w-full border-t border-border px-3 py-2 text-left text-[14px] font-medium text-brand hover:bg-brand-pale"
+              className="w-full border-t border-rule px-3 py-2 text-left text-[14px] text-ink hover:bg-paper"
             >
               + New workspace
             </button>
@@ -459,18 +459,18 @@ function Sidebar({
 
       {active ? (
         <div className="relative">
-          <span className="text-[12px] text-g500">Brand</span>
+          <span className="text-[12px] text-muted">Brand</span>
           <button
             type="button"
             onClick={() => setBrandOpen(!brandOpen)}
-            className="mt-1 flex w-full items-center gap-3 rounded-aw border-2 border-line bg-white px-3 py-2 text-left"
+            className="mt-1 flex w-full items-center gap-3 border border-rule bg-white px-3 py-2 text-left"
           >
             <BrandLogo src={active.logo} name={active.name} />
             <span className="min-w-0 flex-1 truncate font-medium text-ink">{active.name}</span>
             <span aria-hidden="true">▾</span>
           </button>
           {brandOpen ? (
-            <div className="absolute z-10 mt-2 w-full rounded-aw border-2 border-line bg-white shadow-aw-sm">
+            <div className="absolute z-10 mt-2 w-full border border-rule bg-white">
               {brands.map((b) => (
                 <button
                   key={b.id}
@@ -479,7 +479,7 @@ function Sidebar({
                     onSwitch(b.id);
                     setBrandOpen(false);
                   }}
-                  className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-brand-pale"
+                  className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-paper"
                 >
                   <BrandLogo src={b.logo} name={b.name} size={22} />
                   <span className="truncate text-[15px]">{b.name}</span>
@@ -492,7 +492,7 @@ function Sidebar({
                     setBrandOpen(false);
                     onAdd();
                   }}
-                  className="w-full border-t border-border px-3 py-2 text-left text-[15px] font-medium text-brand hover:bg-brand-pale"
+                  className="w-full border-t border-rule px-3 py-2 text-left text-[15px] text-ink hover:bg-paper"
                 >
                   + Add a brand
                 </button>
@@ -505,14 +505,14 @@ function Sidebar({
       <nav className="flex flex-row flex-wrap gap-x-6 gap-y-4 md:flex-col">
         {nav.map((g) => (
           <div key={g.group} className="flex flex-col gap-1">
-            <span className="text-[12px] text-g500">{g.group}</span>
+            <span className="text-[12px] text-muted">{g.group}</span>
             {g.items.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => onPage(item.id)}
-                className={`rounded-aw px-3 py-2 text-left text-[15px] font-medium ${
-                  page === item.id ? "bg-brand text-white" : "text-ink-2 hover:bg-brand-pale"
+                className={` px-3 py-2 text-left text-[15px] font-medium ${
+                  page === item.id ? "bg-ink text-white" : "text-body hover:bg-paper"
                 }`}
               >
                 {item.label}
@@ -522,8 +522,8 @@ function Sidebar({
         ))}
       </nav>
 
-      <div className="mt-auto flex flex-col gap-2 border-t border-border pt-4">
-        <span className="truncate text-[13px] text-g600" title={email}>
+      <div className="mt-auto flex flex-col gap-2 border-t border-rule pt-4">
+        <span className="truncate text-[13px] text-muted" title={email}>
           {email}
         </span>
         <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm self-start" onClick={() => sb.auth.signOut()}>
@@ -613,7 +613,7 @@ function Onboarding({
           </div>
         ) : null}
         {!found ? (
-          <form onSubmit={lookUp} className="aw-frame aw-frame--shadow">
+          <form onSubmit={lookUp} className="aw-frame">
             <div className="aw-frame__body flex flex-col gap-6">
               <h1 className="aw-h2 mb-0!">Track your brand in AI search</h1>
               <div>
@@ -639,7 +639,7 @@ function Onboarding({
             </div>
           </form>
         ) : (
-          <div className="aw-frame aw-frame--shadow">
+          <div className="aw-frame">
             <div className="aw-frame__head">
               <BrandLogo src={found.logo} name={found.name} size={36} />
               <div className="min-w-0">
@@ -650,17 +650,17 @@ function Onboarding({
             <div className="aw-frame__body flex flex-col gap-6">
               <h1 className="aw-h3">Suggested prompts</h1>
               {found.category ? <p className="aw-small">{found.category}</p> : null}
-              <ul className="flex flex-col divide-y divide-border rounded-aw border border-border">
+              <ul className="flex flex-col divide-y divide-rule-faint border border-rule">
                 {found.prompts.map((p) => (
                   <li key={p}>
-                    <label className="flex cursor-pointer items-start gap-3 px-4 py-3 hover:bg-brand-pale">
+                    <label className="flex cursor-pointer items-start gap-3 px-4 py-3 hover:bg-paper">
                       <input
                         type="checkbox"
                         checked={picked.has(p)}
                         onChange={() => toggle(p)}
-                        className="mt-1 h-4 w-4 accent-[#1E7A4D]"
+                        className="mt-1 h-4 w-4 accent-[#121212]"
                       />
-                      <span className="text-[15px] text-ink-2">{p}</span>
+                      <span className="text-[15px] text-body">{p}</span>
                     </label>
                   </li>
                 ))}

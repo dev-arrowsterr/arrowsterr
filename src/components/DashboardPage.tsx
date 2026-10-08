@@ -10,9 +10,9 @@ import { Donut, Legend, type Slice } from "./Donut";
 import { VisibilityChart, type Series } from "./VisibilityChart";
 
 const TIMEFRAMES = [7, 30, 60, 90];
-// Your brand is always brand green. Competitors take the next colors in order (palette checked for color blindness).
-const YOU_COLOR = "#1E7A4D";
-const OTHER_COLORS = ["#2a78d6", "#eb6834", "#4a3aa7", "#e87ba4"];
+// Your brand is the one blue series. Competitors take quiet warm tones, and every series is named in a legend.
+const YOU_COLOR = "#0943B0";
+const OTHER_COLORS = ["#121212", "#B07A4A", "#5E8A7A", "#A3A29D"];
 const MAX_RANKED = 40;
 const SOURCE_TYPES = ["Owned", "Competitor", "Third-party"] as const;
 
@@ -35,7 +35,7 @@ function BrandCell({ row, brand }: { row: BrandRow; brand: Brand }) {
 
 function Card({ title, children, foot, flush }: { title: string; children: React.ReactNode; foot?: React.ReactNode; flush?: boolean }) {
   return (
-    <section className="aw-frame aw-frame--shadow flex min-w-0 flex-col">
+    <section className="aw-frame flex min-w-0 flex-col">
       <div className="aw-frame__head">
         <h2 className="aw-h4">{title}</h2>
       </div>
@@ -45,8 +45,8 @@ function Card({ title, children, foot, flush }: { title: string; children: React
   );
 }
 
-// Ring colors. Green is always you or good, red is missing or negative. Every slice also shows in a legend with its %.
-const COLORS = { you: "#1E7A4D", no: "#B3241A", neutral: "#C8DDD1", competitor: "#eb6834", thirdParty: "#2a78d6", more: "#9BB5A3" };
+// Ring colors. Blue is you, green and red are good and bad sentiment, grey is the rest. Every slice also shows in a legend with its %.
+const COLORS = { you: "#0943B0", no: "#D3D2CD", pos: "#1A6B3C", neg: "#A3321F", neutral: "#D3D2CD", competitor: "#767570", thirdParty: "#D3D2CD", more: "#E7E6DF" };
 
 /** Change vs the period just before this one. */
 function Delta({ now, before, days, unit }: { now: number; before: number | null; days: number; unit: string }) {
@@ -54,7 +54,7 @@ function Delta({ now, before, days, unit }: { now: number; before: number | null
   const d = Math.round(now - before);
   const tone = d > 0 ? "ranked" : d < 0 ? "missed" : "pending";
   return (
-    <span className="flex items-center gap-2 text-[13px] text-g600">
+    <span className="flex items-center gap-2 text-[13px] text-muted">
       <span className={`aw-status aw-status--${tone}`}>
         {d > 0 ? "+" : d < 0 ? "−" : "±"}
         {Math.abs(d)} {unit}
@@ -152,9 +152,9 @@ export function DashboardPage({
     { label: "Not mentioned", value: 100 - (you?.visibility ?? 0), color: COLORS.no },
   ];
   const sentimentSlices: Slice[] = [
-    { label: "Positive", value: youSentiment.positive, color: COLORS.you },
+    { label: "Positive", value: youSentiment.positive, color: COLORS.pos },
     { label: "Neutral", value: youSentiment.neutral, color: COLORS.neutral },
-    { label: "Negative", value: youSentiment.negative, color: COLORS.no },
+    { label: "Negative", value: youSentiment.negative, color: COLORS.neg },
   ];
   const citationSlices: Slice[] = [
     { label: "Your site", value: typeShare.Owned, color: COLORS.you },
@@ -204,7 +204,7 @@ export function DashboardPage({
               </option>
             ))}
           </select>
-          <button type="button" className="aw-btn aw-btn--primary" onClick={onRun} disabled={running || Boolean(canRun)}>
+          <button type="button" className="aw-btn aw-btn--accent" onClick={onRun} disabled={running || Boolean(canRun)}>
             {running ? "Running..." : "Run now"}
           </button>
         </div>
@@ -271,7 +271,7 @@ export function DashboardPage({
                     center={
                       <>
                         <span className="aw-num text-[26px] font-medium text-ink">{pct(you?.visibility ?? 0)}</span>
-                        <span className="text-[12px] text-g500">of chats</span>
+                        <span className="text-[12px] text-muted">of chats</span>
                       </>
                     }
                   />
@@ -290,20 +290,20 @@ export function DashboardPage({
                     center={
                       <>
                         <span className="aw-num text-[26px] font-medium text-ink">{youSentiment.mentions ? Math.round(youSentiment.score) : "–"}</span>
-                        <span className="text-[12px] text-g500">out of 100</span>
+                        <span className="text-[12px] text-muted">out of 100</span>
                       </>
                     }
                   />
                   <Legend slices={sentimentSlices} />
                 </div>
-                <div className="flex flex-col gap-1.5 border-t border-border pt-3 text-[14px]">
+                <div className="flex flex-col gap-1.5 border-t border-rule pt-3 text-[14px]">
                   <div className="flex justify-between gap-3">
-                    <span className="text-g600">Top competitors</span>
-                    <span className="aw-num font-semibold text-ink">{competitorSentiment.some((r) => r.mentions) ? Math.round(topAvg) : "–"}</span>
+                    <span className="text-muted">Top competitors</span>
+                    <span className="aw-num font-medium text-ink">{competitorSentiment.some((r) => r.mentions) ? Math.round(topAvg) : "–"}</span>
                   </div>
                   <div className="flex justify-between gap-3">
-                    <span className="text-g600">Market benchmark</span>
-                    <span className="aw-num font-semibold text-ink">{market.mentions ? Math.round(market.score) : "–"}</span>
+                    <span className="text-muted">Market benchmark</span>
+                    <span className="aw-num font-medium text-ink">{market.mentions ? Math.round(market.score) : "–"}</span>
                   </div>
                   {youSentiment.mentions && market.mentions ? (
                     <span className={`aw-status mt-1 self-start ${diff >= 0 ? "aw-status--ranked" : "aw-status--missed"}`}>
@@ -323,7 +323,7 @@ export function DashboardPage({
                     center={
                       <>
                         <span className="aw-num text-[26px] font-medium text-ink">{pct(typeShare.Owned)}</span>
-                        <span className="text-[12px] text-g500">your site</span>
+                        <span className="text-[12px] text-muted">your site</span>
                       </>
                     }
                   />
@@ -344,14 +344,14 @@ export function DashboardPage({
                 {presenceBars.map((b) => (
                   <div key={b.name} className="flex flex-col gap-1.5">
                     <div className="flex items-center justify-between gap-3 text-[14px]">
-                      <span className={`flex min-w-0 items-center gap-2 ${b.isYou ? "font-semibold text-ink" : "text-ink-2"}`}>
+                      <span className={`flex min-w-0 items-center gap-2 ${b.isYou ? "font-medium text-ink" : "text-body"}`}>
                         {b.logo ? <BrandLogo src={b.logo} name={b.name} size={18} /> : null}
                         <span className="truncate">{b.name}</span>
                       </span>
-                      <span className="aw-num font-semibold text-ink">{pct(b.share)}</span>
+                      <span className="aw-num font-medium text-ink">{pct(b.share)}</span>
                     </div>
-                    <div className="h-2 w-full overflow-hidden rounded bg-skel">
-                      <div className="h-full rounded" style={{ width: `${b.share}%`, background: b.color }} />
+                    <div className="h-2 w-full overflow-hidden bg-rule-faint">
+                      <div className="h-full" style={{ width: `${b.share}%`, background: b.color }} />
                     </div>
                   </div>
                 ))}
@@ -375,7 +375,7 @@ export function DashboardPage({
                       <tr key={r.name} className={r.isYou ? "is-you" : undefined}>
                         <td>
                           <span className="flex items-center gap-3">
-                            <span className="aw-num w-5 text-g500">{i + 1}</span>
+                            <span className="aw-num w-5 text-muted">{i + 1}</span>
                             <BrandCell row={r} brand={brand} />
                           </span>
                         </td>
@@ -390,7 +390,7 @@ export function DashboardPage({
             <Card title={`Sources · ${sources.length}`} flush>
               {sources.length ? (
                 <div className="flex h-full flex-col">
-                  <div className="flex flex-wrap gap-2 border-b border-border px-4 py-3">
+                  <div className="flex flex-wrap gap-2 border-b border-rule px-4 py-3">
                     {SOURCE_TYPES.map((t) => (
                       <span key={t} className={`aw-status ${t === "Owned" ? "aw-status--ranked" : "aw-status--pending"}`}>
                         {t} {pct(typeShare[t])}

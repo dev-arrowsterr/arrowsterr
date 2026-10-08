@@ -53,20 +53,20 @@ function Meter({ label, used, limit }: { label: string; used: number; limit: num
   return (
     <div className="aw-card-stat flex flex-col gap-2">
       <span className="aw-small">{label}</span>
-      <span className="aw-num text-[22px] font-semibold text-ink">
-        {used} <span className="text-[15px] font-normal text-g600">of {limit}</span>
+      <span className="aw-num text-[22px] font-medium text-ink">
+        {used} <span className="text-[15px] font-normal text-muted">of {limit}</span>
       </span>
       <div
-        className="h-2 overflow-hidden rounded-full bg-skel"
+        className="h-2 overflow-hidden bg-rule-faint"
         role="meter"
         aria-label={label}
         aria-valuenow={used}
         aria-valuemin={0}
         aria-valuemax={limit}
       >
-        <div className={`h-full ${full ? "bg-danger" : "bg-brand"}`} style={{ width: `${pct}%` }} />
+        <div className={`h-full ${full ? "bg-neg" : "bg-ink"}`} style={{ width: `${pct}%` }} />
       </div>
-      {full ? <span className="text-[13px] font-medium text-danger">Limit reached</span> : null}
+      {full ? <span className="text-[13px] font-medium text-neg">Limit reached</span> : null}
     </div>
   );
 }

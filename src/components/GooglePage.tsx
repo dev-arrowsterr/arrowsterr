@@ -12,9 +12,9 @@ const when = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month:
 function Tile({ label, value, note }: { label: string; value: string; note: string }) {
   return (
     <div className="aw-card-stat flex flex-col gap-1">
-      <span className="text-[13px] text-g600">{label}</span>
-      <span className="aw-num text-[26px] font-semibold text-ink">{value}</span>
-      <span className="text-[12px] text-g500">{note}</span>
+      <span className="text-[13px] text-muted">{label}</span>
+      <span className="aw-num text-[26px] font-medium text-ink">{value}</span>
+      <span className="text-[12px] text-muted">{note}</span>
     </div>
   );
 }
@@ -94,13 +94,13 @@ export function GooglePage({ brand, runs }: { brand: Brand; runs: Run[] }) {
                     {r.aioShown ? (
                       <Yes on={r.aioMentioned || r.aioCited} yes={r.aioCited ? (r.aioMentioned ? "Named + cited" : "Cited") : "Named"} no="Missing" />
                     ) : (
-                      <span className="text-g500">–</span>
+                      <span className="text-muted">–</span>
                     )}
                   </td>
                   <td>
                     <Yes on={r.modeMentioned === null ? null : r.modeMentioned || r.modeCited} yes={r.modeCited ? (r.modeMentioned ? "Named + cited" : "Cited") : "Named"} no="Missing" />
                   </td>
-                  <td className="aw-num whitespace-nowrap">{r.rank === null ? <span className="text-g500">Not in top 20</span> : `#${r.rank}`}</td>
+                  <td className="aw-num whitespace-nowrap">{r.rank === null ? <span className="text-muted">Not in top 20</span> : `#${r.rank}`}</td>
                   <td>
                     <span className="flex items-center gap-1">
                       {r.topSources.map((d) => (
@@ -108,7 +108,7 @@ export function GooglePage({ brand, runs }: { brand: Brand; runs: Run[] }) {
                           <BrandLogo src={favicon(d)} name={d} size={18} />
                         </span>
                       ))}
-                      {!r.topSources.length ? <span className="text-g500">–</span> : null}
+                      {!r.topSources.length ? <span className="text-muted">–</span> : null}
                     </span>
                   </td>
                 </tr>
@@ -125,13 +125,13 @@ export function GooglePage({ brand, runs }: { brand: Brand; runs: Run[] }) {
             {g.topDomains.map((d) => {
               const own = d.domain === brand.domain || d.domain.endsWith(`.${brand.domain}`);
               return (
-                <li key={d.domain} className="flex items-center justify-between gap-3 rounded-aw border border-border bg-white px-3 py-2">
+                <li key={d.domain} className="flex items-center justify-between gap-3 border border-rule bg-white px-3 py-2">
                   <span className="flex min-w-0 items-center gap-2">
                     <BrandLogo src={favicon(d.domain)} name={d.domain} size={20} />
                     <span className="truncate text-[15px] text-ink">{d.domain}</span>
                     {own ? <span className="aw-badge">You</span> : null}
                   </span>
-                  <span className="aw-num shrink-0 text-[14px] text-g600">
+                  <span className="aw-num shrink-0 text-[14px] text-muted">
                     {d.count} of {g.prompts}
                   </span>
                 </li>

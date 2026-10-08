@@ -5,12 +5,17 @@
 .aw {
   --aw-font: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --aw-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Older token names some components still use, pointed at the v2 palette. */
+  --aw-skel: var(--aw-rule-faint);
+  --aw-line: var(--aw-rule);
+  --aw-border: var(--aw-rule-faint);
+  --aw-g500: var(--aw-muted);
 }
 
 /*
- * Expose the brand tokens to Tailwind so utilities like bg-brand,
- * text-ink-2, border-line and shadow-aw work inside .aw.
- * The values live in brand.css. Change them there.
+ * Brand tokens as Tailwind utilities (bg-brand, text-muted, border-rule ...).
+ * Values live in brand.css. Change them there.
+ * Radius and shadow are zero on purpose: the brand is square and flat.
  */
 @theme inline {
   --color-brand: var(--aw-brand);
@@ -18,28 +23,25 @@
   --color-brand-deep: var(--aw-brand-deep);
   --color-brand-bg: var(--aw-brand-bg);
   --color-brand-pale: var(--aw-brand-pale);
-  --color-brand-mist: var(--aw-brand-mist);
 
-  --color-line: var(--aw-line);
   --color-ink: var(--aw-ink);
-  --color-ink-2: var(--aw-ink-2);
-  --color-n700: var(--aw-n700);
-  --color-g600: var(--aw-g600);
-  --color-g500: var(--aw-g500);
-  --color-g-dis: var(--aw-g-dis);
-  --color-border: var(--aw-border);
-  --color-border-faint: var(--aw-border-faint);
-  --color-skel: var(--aw-skel);
-
+  --color-ink-hover: var(--aw-ink-hover);
+  --color-body: var(--aw-body);
+  --color-muted: var(--aw-muted);
+  --color-faint: var(--aw-faint);
+  --color-rule: var(--aw-rule);
+  --color-rule-faint: var(--aw-rule-faint);
   --color-paper: var(--aw-paper);
-  --color-bg-ink: var(--aw-bg-ink);
-  --color-bg-ink-2: var(--aw-bg-ink-2);
+  --color-surface: var(--aw-surface);
+  --color-surface-2: var(--aw-surface-2);
+  --color-surface-3: var(--aw-surface-3);
+  --color-dark: var(--aw-dark);
+  --color-dark-2: var(--aw-dark-2);
 
-  --color-amber: var(--aw-amber);
-  --color-success: var(--aw-success);
-  --color-success-bg: var(--aw-success-bg);
-  --color-danger: var(--aw-danger);
-  --color-danger-bg: var(--aw-danger-bg);
+  --color-pos: var(--aw-pos);
+  --color-pos-bg: var(--aw-pos-bg);
+  --color-neg: var(--aw-neg);
+  --color-neg-bg: var(--aw-neg-bg);
   --color-warn: var(--aw-warn);
   --color-warn-bg: var(--aw-warn-bg);
 
@@ -53,21 +55,12 @@
   --font-sans: var(--aw-font);
   --font-mono: var(--aw-mono);
 
-  --radius-aw-sm: var(--aw-radius-sm);
-  --radius-aw: var(--aw-radius);
-  --radius-aw-md: var(--aw-radius-md);
-  --radius-aw-lg: var(--aw-radius-lg);
-
-  --shadow-aw-sm: var(--aw-shadow-sm);
-  --shadow-aw: var(--aw-shadow);
-  --shadow-aw-lg: var(--aw-shadow-lg);
-  --shadow-aw-ink: var(--aw-shadow-ink);
-  --shadow-aw-ink-lg: var(--aw-shadow-ink-lg);
+  --radius-aw: 0px;
 }
 
 html,
 body {
-  background: #f7fbf8; /* --aw-paper, set here because body sits outside .aw */
+  background: #f5f4f0; /* --aw-paper, set here because body sits outside .aw */
 }
 /* ─────────────── App additions built on the brand tokens ─────────────── */
 
@@ -75,9 +68,9 @@ body {
 .aw a.nav-link,
 .aw a.nav-link:link,
 .aw a.nav-link:visited {
-  color: var(--aw-ink-2) !important;
+  color: var(--aw-body) !important;
   text-decoration: none !important;
-  font-weight: 500;
+  font-weight: 400;
 }
 .aw a.nav-link:hover {
   color: var(--aw-brand) !important;
@@ -110,14 +103,15 @@ body {
 /* AI answers rendered from markdown */
 .aw .md {
   font-size: 15px;
-  line-height: 1.6;
-  color: var(--aw-ink-2);
+  font-weight: 300;
+  line-height: 1.7;
+  color: var(--aw-body);
 }
 .aw .md > * + * {
   margin-top: 10px !important;
 }
 .aw .md-h {
-  font-weight: 600;
+  font-weight: 500;
   color: var(--aw-ink) !important;
 }
 .aw .md-ol {
@@ -128,8 +122,8 @@ body {
   margin-top: 6px;
 }
 .aw .md-ol li::marker {
-  color: var(--aw-brand);
-  font-weight: 600;
+  color: var(--aw-muted);
+  font-weight: 400;
 }
 
 /* Details/summary used for answers */
@@ -142,11 +136,6 @@ body {
 }
 .aw details.answer[open] .aw-plus {
   transform: rotate(45deg);
-  background: var(--aw-brand);
-  border-color: var(--aw-brand);
-}
-.aw details.answer[open] .aw-plus svg {
-  stroke: #fff;
 }
 
 /* Tables that scroll sideways on small screens instead of stacking. */
@@ -173,6 +162,53 @@ body {
     display: table-cell;
     width: auto !important;
     padding: 11px 14px !important;
-    border-bottom: 1px solid var(--aw-border) !important;
+    border-bottom: 1px solid var(--aw-rule-faint) !important;
   }
+}
+
+/* ─────────────── App pieces in the v2 style ─────────────── */
+
+/* A single number on a white card with a hairline border. */
+.aw .aw-card-stat {
+  background: var(--aw-surface);
+  border: 1px solid var(--aw-rule);
+  padding: 16px 18px;
+}
+
+/* Page background behind sign-in and onboarding. */
+.aw .aw-dotgrid {
+  background-color: var(--aw-paper);
+  background-image:
+    linear-gradient(to right, var(--aw-rule-faint) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--aw-rule-faint) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* Small square marker list for links. */
+.aw .aw-list--dots > li::before { background: var(--aw-muted); }
+
+/* A brand name chip inside an answer. */
+.aw .aw-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  font-size: var(--aw-fs-small) !important;
+  font-weight: 400 !important;
+  color: var(--aw-body) !important;
+  background: var(--aw-surface);
+  border: 1px solid var(--aw-rule);
+}
+.aw .aw-pill.is-on {
+  color: var(--aw-brand) !important;
+  border-color: var(--aw-brand);
+  background: var(--aw-brand-pale);
+}
+
+/* The large website field on onboarding. */
+.aw .aw-input--hero { padding: 16px 18px; font-size: 17px !important; }
+
+/* Selected item in a segmented switch or the sidebar. Dark fill keeps blue for the data. */
+.aw .is-active {
+  background: var(--aw-ink) !important;
+  color: var(--aw-on-dark) !important;
 }

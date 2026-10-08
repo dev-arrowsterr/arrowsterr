@@ -28,13 +28,13 @@ export function PromptsPage({
         <h1 className="aw-h2 mb-0!">Prompts</h1>
         <span className="aw-tag">{brand.prompts.length} tracked</span>
       </div>
-      <label className={`flex items-start gap-3 rounded-aw border border-border bg-white px-4 py-3 ${readOnly ? "" : "cursor-pointer"}`}>
+      <label className={`flex items-start gap-3 border border-rule bg-white px-4 py-3 ${readOnly ? "" : "cursor-pointer"}`}>
         <input
           type="checkbox"
           checked={brand.daily}
           disabled={readOnly}
           onChange={(e) => onChange({ ...brand, daily: e.target.checked })}
-          className="mt-1 h-4 w-4 accent-[#1E7A4D]"
+          className="mt-1 h-4 w-4 accent-[#121212]"
         />
         <span className="flex flex-col">
           <span className="text-[15px] font-medium text-ink">Run every day</span>

@@ -7,8 +7,8 @@ import { competitorCards, type CompetitorCard } from "@/lib/stats";
 import { BrandLogo } from "./BrandLogo";
 import { EngineName } from "./Engines";
 
-const YOU_COLOR = "#1E7A4D";
-const OTHER_COLOR = "#2a78d6";
+const YOU_COLOR = "#0943B0";
+const OTHER_COLOR = "#767570";
 const favicon = (domain: string) => `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`;
 const when = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
@@ -32,7 +32,7 @@ function Change({ now, before }: { now: number | null; before: number | null }) 
   const d = Math.round(now - before);
   if (!d) return null;
   return (
-    <span className={`whitespace-nowrap text-[12px] font-medium ${d > 0 ? "text-brand" : "text-danger"}`}>
+    <span className={`whitespace-nowrap text-[12px] font-medium ${d > 0 ? "text-pos" : "text-neg"}`}>
       {d > 0 ? "▲" : "▼"} {Math.abs(d)} pts
     </span>
   );
@@ -43,43 +43,47 @@ function CardRow({ card, brand, engines, total, updated, next }: { card: Competi
   const logo = card.isYou ? brand.logo : favicon(card.domain ?? guess);
   const color = card.isYou ? YOU_COLOR : OTHER_COLOR;
   return (
-    <article className={`flex flex-col gap-4 rounded-aw border-2 bg-white p-5 ${card.isYou ? "border-brand" : "border-line"}`}>
+    <article
+      className="flex flex-col gap-4 border border-rule bg-surface p-5"
+      // Your own card carries the 2px blue marker on its left edge.
+      style={card.isYou ? { boxShadow: "inset 2px 0 0 #0943B0" } : undefined}
+    >
       <div className="flex flex-wrap items-center justify-between gap-5">
         <div className="flex min-w-0 items-center gap-3 ">
           <BrandLogo src={logo} name={card.name} size={44} />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className="truncate text-[17px] font-semibold text-ink">{card.name}</span>
+              <span className="truncate text-[17px] font-medium text-ink">{card.name}</span>
               {card.isYou ? <span className="aw-badge">You</span> : null}
             </div>
-            <div className="truncate text-[14px] text-g600">{card.domain ?? "Website unknown"}</div>
+            <div className="truncate text-[14px] text-muted">{card.domain ?? "Website unknown"}</div>
           </div>
         </div>
 
         <div className="flex shrink-0 gap-8">
           <div className="flex flex-col">
-            <span className="text-[13px] text-g600">Prompts</span>
-            <span className="aw-num text-[22px] font-semibold text-ink">
+            <span className="text-[13px] text-muted">Prompts</span>
+            <span className="aw-num text-[22px] font-medium text-ink">
               {card.prompts}
-              <span className="text-[14px] font-normal text-g500">/{total}</span>
+              <span className="text-[14px] font-normal text-muted">/{total}</span>
             </span>
           </div>
           <div className="flex flex-col">
-            <span className="text-[13px] text-g600">Avg position</span>
-            <span className="aw-num text-[22px] font-semibold text-ink">{card.mentions ? `#${card.position.toFixed(1)}` : "–"}</span>
+            <span className="text-[13px] text-muted">Avg position</span>
+            <span className="aw-num text-[22px] font-medium text-ink">{card.mentions ? `#${card.position.toFixed(1)}` : "–"}</span>
           </div>
         </div>
 
       </div>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-4 border-t border-border pt-4 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-4 border-t border-rule pt-4 sm:grid-cols-3 lg:grid-cols-6">
           {engines.map((e) => {
             const v = card.byEngine[e];
             return (
               <div key={e} className="flex min-w-0 items-center gap-2">
                 <Ring value={v} color={color} size={40} />
                 <div className="flex min-w-0 flex-col">
-                  <span className="aw-num text-[20px] font-semibold leading-tight text-ink">{v === null ? "–" : `${Math.round(v)}%`}</span>
-                  <span className="truncate text-[12px] text-g600">
+                  <span className="aw-num text-[20px] font-medium leading-tight text-ink">{v === null ? "–" : `${Math.round(v)}%`}</span>
+                  <span className="truncate text-[12px] text-muted">
                     <EngineName engine={e} size={12} />
                   </span>
                   <Change now={v} before={card.before[e]} />
@@ -88,7 +92,7 @@ function CardRow({ card, brand, engines, total, updated, next }: { card: Competi
             );
           })}
       </div>
-      <div className="text-right text-[12px] text-g500">
+      <div className="text-right text-[12px] text-muted">
         Updated: {updated} → Next: {next}
       </div>
     </article>
@@ -122,7 +126,7 @@ export function CompetitorsPage({ brand, runs }: { brand: Brand; runs: Run[] }) 
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="aw-h2 mb-0!">Competitors</h1>
-        <div role="tablist" aria-label="Measure" className="flex gap-1 rounded-aw border-2 border-line bg-white p-1">
+        <div role="tablist" aria-label="Measure" className="flex gap-1 border border-rule bg-white p-1">
           {(["mentions", "citations"] as const).map((m) => (
             <button
               key={m}
@@ -130,18 +134,13 @@ export function CompetitorsPage({ brand, runs }: { brand: Brand; runs: Run[] }) 
               role="tab"
               aria-selected={mode === m}
               onClick={() => setMode(m)}
-              className={`rounded-aw px-4 py-1.5 text-[14px] font-medium ${mode === m ? "bg-brand text-white" : "text-ink-2 hover:bg-brand-pale"}`}
+              className={` px-4 py-1.5 text-[14px] font-medium ${mode === m ? "bg-ink text-white" : "text-body hover:bg-paper"}`}
             >
               {m === "mentions" ? "Mentions" : "Citations"}
             </button>
           ))}
         </div>
       </div>
-      <p className="aw-small">
-        {mode === "mentions"
-          ? "Share of each engine's answers that name the brand, from the latest run. Changes compare with the run before."
-          : "Share of each engine's answers that link to the brand's website, from the latest run. Changes compare with the run before."}
-      </p>
       <div className="flex flex-col gap-4">
         {cards.map((c) => (
           <CardRow key={c.name} card={c} brand={brand} engines={engines} total={total} updated={updated} next={next} />

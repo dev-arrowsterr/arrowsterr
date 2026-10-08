@@ -49,9 +49,9 @@ export function VisibilityChart({ points, series }: { points: DayPoint[]; series
             const d = pts.reduce((acc, pt, i) => (pt ? acc + `${acc && pts[i - 1] ? "L" : "M"}${pt[0]},${pt[1]}` : acc), "");
             return (
               <g key={s.name}>
-                <path d={d} fill="none" stroke={s.color} strokeWidth={s.isYou ? 3 : 2} strokeLinecap="round" strokeLinejoin="round" />
+                <path d={d} fill="none" stroke={s.color} strokeWidth={s.isYou ? 1.75 : 1.25} strokeLinecap="round" strokeLinejoin="round" />
                 {pts.map((pt, i) =>
-                  pt ? <circle key={i} cx={pt[0]} cy={pt[1]} r={s.isYou ? 5 : 4} fill={s.color} stroke="#fff" strokeWidth={2} /> : null,
+                  pt ? <circle key={i} cx={pt[0]} cy={pt[1]} r={s.isYou ? 3.5 : 2.5} fill={s.color} stroke="#fff" strokeWidth={1} /> : null,
                 )}
               </g>
             );
@@ -81,7 +81,7 @@ export function VisibilityChart({ points, series }: { points: DayPoint[]; series
             {series.map((s) => (
               <div key={s.name} className="flex items-center justify-between gap-4">
                 <span className="flex items-center gap-2">
-                  <i className="inline-block h-2 w-2 rounded-full" style={{ background: s.color }} />
+                  <i className="inline-block h-2 w-2" style={{ background: s.color }} />
                   {s.name}
                 </span>
                 <span>{points[hover].values[s.name] == null ? "–" : `${Math.round(points[hover].values[s.name]!)}%`}</span>
@@ -93,11 +93,11 @@ export function VisibilityChart({ points, series }: { points: DayPoint[]; series
       <ul className="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
         {series.map((s) => (
           <li key={s.name} className="flex items-center justify-between gap-3 text-[14px]">
-            <span className={`flex min-w-0 items-center gap-2 ${s.isYou ? "font-semibold text-ink" : "text-ink-2"}`}>
-              <i className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: s.color }} />
+            <span className={`flex min-w-0 items-center gap-2 ${s.isYou ? "font-medium text-ink" : "text-body"}`}>
+              <i className="inline-block h-2.5 w-2.5 shrink-0" style={{ background: s.color }} />
               <span className="truncate">{s.name}</span>
             </span>
-            <span className="aw-num font-semibold text-ink">{Math.round(s.total)}%</span>
+            <span className="aw-num font-medium text-ink">{Math.round(s.total)}%</span>
           </li>
         ))}
       </ul>

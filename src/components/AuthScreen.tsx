@@ -13,7 +13,7 @@ function Frame({ children }: { children: React.ReactNode }) {
     <main className="aw-dotgrid flex min-h-screen justify-center px-4 py-10">
       <div className="flex w-full max-w-md flex-col gap-6">
         <Logo size="md" />
-        <div className="aw-frame aw-frame--shadow">
+        <div className="aw-frame">
           <div className="aw-frame__body flex flex-col gap-5">{children}</div>
         </div>
       </div>
@@ -66,7 +66,7 @@ export function AuthScreen({ sb, invited }: { sb: SupabaseClient; invited: boole
         setError("");
         setSent("");
       }}
-      className={`flex-1 rounded-aw px-3 py-2 text-[15px] font-medium ${mode === m ? "bg-brand text-white" : "text-ink-2 hover:bg-brand-pale"}`}
+      className={`flex-1 px-3 py-2 text-[15px] font-medium ${mode === m ? "bg-ink text-white" : "text-body hover:bg-paper"}`}
     >
       {label}
     </button>
@@ -77,7 +77,7 @@ export function AuthScreen({ sb, invited }: { sb: SupabaseClient; invited: boole
       {mode === "forgot" ? (
         <h1 className="aw-h3 mb-0!">Reset your password</h1>
       ) : (
-        <div role="tablist" className="flex gap-2 rounded-aw border-2 border-line p-1">
+        <div role="tablist" className="flex gap-2 border border-rule p-1">
           {tab("signin", "Sign in")}
           {tab("signup", "Create account")}
         </div>

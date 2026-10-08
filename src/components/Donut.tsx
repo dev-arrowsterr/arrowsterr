@@ -47,11 +47,11 @@ export function Legend({ slices }: { slices: Slice[] }) {
     <ul className="flex w-full min-w-0 flex-col gap-2.5">
       {slices.map((s) => (
         <li key={s.label} className="flex items-center justify-between gap-3 text-[14px]">
-          <span className="flex min-w-0 items-center gap-2 text-ink-2">
-            <i className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: s.color }} />
+          <span className="flex min-w-0 items-center gap-2 text-body">
+            <i className="inline-block h-2.5 w-2.5 shrink-0" style={{ background: s.color }} />
             <span className="truncate">{s.label}</span>
           </span>
-          <span className="aw-num font-semibold text-ink">{Math.round((s.value / total) * 100)}%</span>
+          <span className="aw-num font-medium text-ink">{Math.round((s.value / total) * 100)}%</span>
         </li>
       ))}
     </ul>

@@ -38,7 +38,7 @@ export function ChatTabs({ engines, find, brand }: { engines: string[]; find: (e
   const c = find(tab);
   return (
     <div className="flex flex-col">
-      <div role="tablist" className="flex flex-wrap gap-1 border-b-2 border-line">
+      <div role="tablist" className="flex flex-wrap gap-1 border-b border-rule">
         {engines.map((e) => (
           <button
             key={e}
@@ -46,8 +46,8 @@ export function ChatTabs({ engines, find, brand }: { engines: string[]; find: (e
             role="tab"
             aria-selected={tab === e}
             onClick={() => setTab(e)}
-            className={`-mb-0.5 flex items-center gap-3 rounded-t-aw border-2 border-b-0 px-4 py-2 text-[15px] font-medium ${
-              tab === e ? "border-line bg-white text-ink" : "border-transparent text-g600 hover:text-brand"
+            className={`-mb-0.5 flex items-center gap-3 border border-b-0 px-4 py-2 text-[15px] font-medium ${
+              tab === e ? "border-rule bg-surface text-ink" : "border-transparent text-muted hover:text-ink"
             }`}
           >
             <EngineName engine={e} size={20} />
@@ -55,7 +55,7 @@ export function ChatTabs({ engines, find, brand }: { engines: string[]; find: (e
           </button>
         ))}
       </div>
-      <div className="flex flex-col gap-5 border-2 border-t-0 border-line bg-white p-5">
+      <div className="flex flex-col gap-5 border border-t-0 border-rule bg-white p-5">
         {!c ? (
           <p className="aw-small">Waiting for {tab}...</p>
         ) : (

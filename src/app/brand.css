@@ -1,15 +1,12 @@
 /* ═══════════════════════════════════════════════════════════════════════
    ARROWSTERR BRAND SYSTEM — CSS
-   Version 1 · Neo-brutalist, green
+   Version 2 · Editorial / quiet
    ─────────────────────────────────────────────────────────────────────
    HOW TO USE
    Wrap any embed in <div class="aw"> … </div>. Everything is scoped to
    .aw so it never leaks into (or gets broken by) the WordPress theme.
    Load Inter once per page:
-   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-
-   In the Next.js app, layout.tsx wraps every page in .aw and loads
-   Inter and JetBrains Mono through next/font.
+   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
 
    BRAND RULES (apply to every graphic, embed and page)
    1. Logo: always the image file, never the "arrowsterr.com" text.
@@ -18,18 +15,24 @@
    2. Titles stand alone. No subtitle or explanation line under a title.
    3. Embeds: outer container has margin: 0, internal padding only,
       and a little bottom padding so content never sits flush at the bottom.
-   4. Colour: green does the talking, black draws the lines, amber is the
-      rare accent (alerts, one highlight). Never more than one amber element
-      competing for attention.
-   5. Shape language: 2px black borders, small radii (4–6px), hard offset
-      shadows (no blur). Shadows are green on light cards, black on green cards.
-   6. Bullets: green squares for top-level items, small green dots for nested items.
-   7. Copy: 9th-grade vocabulary, short sentences, direct "you". No em dashes.
+   4. NO ROUNDED CORNERS. Every edge is square. Radius is 0 everywhere.
+   5. NO SHADOWS. Surfaces are flat. Separation comes from hairline rules
+      and background tint, never from depth.
+   6. Borders are 1px hairlines in --aw-rule. Black borders are reserved
+      for the dark button and nothing else.
+   7. Surfaces are warm paper, never white-blue. Warm neutrals are what
+      make the blue read as considered instead of corporate.
+   8. Type is light. Body is 300, UI is 400, headings are 500. Nothing
+      is ever bold. Headings carry tight negative tracking; small caps
+      labels carry positive tracking.
+   9. Blue is the accent, not the field. One blue element per view holds
+      the eye. If two things are blue, neither is important.
+   10. Copy: 9th-grade vocabulary, short sentences, direct "you". No em dashes.
       Avoid "not X, Y" and "X, not Y" phrasing. Avoid lists of three in prose.
-   8. Featured images: 1200×630, no text, logo in a centered top badge.
-   9. Data colour rules: ranked/present = green, missed/absent = red,
-      neutral/pending = grey. Never use green and red as the only difference
-      between two states; always pair with a word or icon.
+   11. Data states never rely on colour alone. Ranked and missed always
+      carry a word, because red-green colour blindness affects ~8% of men
+      and your users are marketers reading tables all day.
+   12. Featured images: 1200×630, no text, logo in a centered top badge.
    ═══════════════════════════════════════════════════════════════════════ */
 
 
@@ -37,95 +40,90 @@
    1. TOKENS
    ─────────────────────────────────────────────────────────────────────── */
 .aw {
-  /* Brand green */
-  --aw-brand: #1E7A4D;          /* primary: buttons, bullets, key data */
-  --aw-brand-fg: #2CA666;       /* lighter green for links on dark, hover glows */
-  --aw-brand-deep: #145934;     /* hover/pressed state for primary */
-  --aw-brand-bg: #E6F4EC;       /* tinted fills, tags, chart bars */
-  --aw-brand-pale: #F2FAF5;     /* card headers, highlighted rows */
-  --aw-brand-mist: #BCDCC9;     /* skeleton lines on green-tinted surfaces */
+  /* Brand blue — the accent, used sparingly */
+  --aw-brand: #0943B0;          /* primary: one element per view */
+  --aw-brand-deep: #06308A;     /* hover / pressed */
+  --aw-brand-fg: #2E6BE0;       /* links on dark surfaces */
+  --aw-brand-bg: #EAEFF9;       /* tinted fills, warm-leaning */
+  --aw-brand-pale: #F3F6FC;     /* highlighted rows */
 
-  /* Ink and neutrals (green-leaning, never pure grey) */
-  --aw-line: #000000;           /* all structural borders */
-  --aw-ink: #0A150E;            /* headings, strong text */
-  --aw-ink-2: #253329;          /* body text */
-  --aw-n700: #1E2E24;           /* labels, form text */
-  --aw-g600: #3F5447;           /* secondary text */
-  --aw-g500: #6B8575;           /* captions, axis labels */
-  --aw-g-dis: #9BB5A3;          /* placeholders, disabled */
-  --aw-border: #C8DDD1;         /* inner dividers */
-  --aw-border-faint: #E4F0E8;   /* gridlines */
-  --aw-skel: #DCEBE2;           /* skeleton text in illustrations */
+  /* Ink — near-black, never pure black for text */
+  --aw-ink: #121212;            /* headings, strong text, dark fills */
+  --aw-ink-hover: #242424;      /* dark button hover */
+  --aw-body: #4D4D4D;           /* body copy */
+  --aw-muted: #767570;          /* captions, axis labels, secondary */
+  --aw-faint: #A3A29D;          /* placeholders, disabled */
 
-  /* Surfaces */
-  --aw-white: #FFFFFF;
-  --aw-paper: #F7FBF8;          /* page background */
-  --aw-bg-ink: #0A150E;         /* dark panels */
-  --aw-bg-ink-2: #122018;
+  /* Rules and surfaces — warm paper */
+  --aw-rule: #D3D2CD;           /* every hairline border */
+  --aw-rule-faint: #E7E6DF;     /* inner dividers, gridlines */
+  --aw-paper: #F5F4F0;          /* page background */
+  --aw-surface: #FFFFFF;        /* cards sitting on paper */
+  --aw-surface-2: #E7E6DF;      /* tinted blocks, table headers */
+  --aw-surface-3: #E7E6DD;      /* pressed / active tint */
+
+  /* Dark surfaces */
+  --aw-dark: #121212;
+  --aw-dark-2: #242424;
   --aw-on-dark: #FFFFFF;
-  --aw-on-dark-2: #B8D4C2;
-  --aw-on-dark-3: #6F9A7E;
+  --aw-on-dark-2: #B8B7B4;
+  --aw-on-dark-3: #767570;
 
-  /* Accents (use sparingly) */
-  --aw-amber: #F5B70A;          /* one highlight per piece */
-  --aw-medal-silver: #C9D0DA;
-  --aw-medal-bronze: #D08A4E;
-  --aw-success: #1E7A4D;        /* ranked, present, passing */
-  --aw-success-bg: #E6F4EC;
-  --aw-danger: #B3241A;         /* missed, absent, failing */
-  --aw-danger-bg: #FFE1DE;
-  --aw-warn: #9A6B00;
-  --aw-warn-bg: #FFF3D4;
+  /* Data states — desaturated to sit inside the warm palette */
+  --aw-pos: #1A6B3C;            /* ranked, present, up */
+  --aw-pos-bg: #E4EFE7;
+  --aw-neg: #A3321F;            /* missed, absent, down */
+  --aw-neg-bg: #F6E6E2;
+  --aw-warn: #8A6410;           /* needs attention */
+  --aw-warn-bg: #F6EFDD;
 
-  /* Engine colours (for charts and legends only) */
+  /* Engine colours — charts and legends only, never UI chrome */
   --aw-e-chatgpt: #10A37F;
   --aw-e-perplexity: #20808D;
   --aw-e-claude: #D97757;
   --aw-e-gemini: #4285F4;
-  --aw-e-grok: #1E2E24;
-  --aw-e-aimode: #6B8575;
+  --aw-e-grok: #121212;
+  --aw-e-aimode: #767570;
 
   /* Typography */
   --aw-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --aw-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  --aw-fs-display: 48px;    /* hero H1 */
-  --aw-fs-hero: 64px;       /* landing hero */
-  --aw-fs-h2: 34px;         /* section heading in posts */
-  --aw-fs-h2-section: 44px; /* landing page section heading */
-  --aw-fs-h3: 22px;         /* sub-heading, FAQ question */
-  --aw-fs-h4: 18px;         /* card title */
-  --aw-fs-body: 18px;       /* article body */
-  --aw-fs-ui: 16px;         /* UI text, summaries, buttons */
-  --aw-fs-small: 15px;
-  --aw-fs-label: 14px;
+  --aw-fs-hero: 56px;
+  --aw-fs-display: 44px;
+  --aw-fs-h2: 36px;
+  --aw-fs-h3: 24px;
+  --aw-fs-h4: 20px;
+  --aw-fs-body: 18px;
+  --aw-fs-ui: 16px;
+  --aw-fs-small: 14px;
   --aw-fs-micro: 12px;
-  --aw-lh-tight: 1.05;
+
+  /* Weights — nothing is ever bold */
+  --aw-w-light: 300;
+  --aw-w-normal: 400;
+  --aw-w-medium: 500;
+
+  /* Tracking — tight on headings, open on small caps */
+  --aw-tr-hero: -2px;
+  --aw-tr-display: -1.5px;
+  --aw-tr-h2: -1px;
+  --aw-tr-h3: -0.5px;
+  --aw-tr-caps: 1px;
+
+  /* Line heights */
+  --aw-lh-tight: 1.1;
   --aw-lh-heading: 1.25;
   --aw-lh-ui: 1.6;
-  --aw-lh-body: 1.75;
-  --aw-tracking-hero: -0.04em;
-  --aw-tracking-display: -0.035em;
-  --aw-tracking-heading: -0.02em;
+  --aw-lh-body: 1.7;
 
   /* Spacing (4px base) */
   --aw-s1: 4px;  --aw-s2: 8px;  --aw-s3: 12px; --aw-s4: 16px;
-  --aw-s5: 20px; --aw-s6: 24px; --aw-s7: 28px; --aw-s8: 32px;
-  --aw-s10: 40px; --aw-s12: 48px; --aw-s16: 64px; --aw-s20: 80px;
+  --aw-s5: 20px; --aw-s6: 24px; --aw-s8: 32px; --aw-s10: 40px;
+  --aw-s12: 48px; --aw-s16: 64px; --aw-s20: 80px; --aw-s28: 112px;
 
-  /* Shape */
-  --aw-border-w: 2px;
-  --aw-radius-sm: 3px;
-  --aw-radius: 4px;
-  --aw-radius-md: 6px;
-  --aw-radius-lg: 10px;
-  --aw-radius-pill: 999px;
-
-  /* Hard offset shadows (never blurred) */
-  --aw-shadow-sm: 4px 4px 0 var(--aw-brand);
-  --aw-shadow: 6px 6px 0 var(--aw-brand);
-  --aw-shadow-lg: 8px 8px 0 var(--aw-brand);
-  --aw-shadow-ink: 6px 6px 0 var(--aw-line);
-  --aw-shadow-ink-lg: 10px 10px 0 var(--aw-line);
+  /* Shape — square, always */
+  --aw-radius: 0;
+  --aw-border-w: 1px;
 
   /* Motion */
   --aw-ease: cubic-bezier(.2,.7,.2,1);
@@ -136,411 +134,633 @@
   --aw-gutter: 40px;
 
   margin: 0 !important;
-  padding: 0 8px 12px 0 !important;  /* room for offset shadow + bottom breathing room */
+  padding: 0 0 12px 0 !important;  /* bottom breathing room, no shadow gutter */
   font-family: var(--aw-font) !important;
-  color: var(--aw-ink-2);
+  font-weight: var(--aw-w-light);
+  color: var(--aw-body);
+  background: var(--aw-paper);
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-/* Scoped reset: blocks theme styles from leaking in */
+/* Scoped reset */
 .aw, .aw *, .aw *::before, .aw *::after { box-sizing: border-box; font-family: var(--aw-font) !important; }
 .aw h1, .aw h2, .aw h3, .aw h4, .aw p, .aw ul, .aw ol, .aw li, .aw figure, .aw table {
   margin: 0; padding: 0; text-transform: none !important;
 }
-.aw img { max-width: 100%; height: auto; }
+.aw img { max-width: 100%; height: auto; display: block; }
+/* Nothing in this system is ever round */
+.aw * { border-radius: 0 !important; }
 
 
 /* ───────────────────────────────────────────────────────────────────────
    2. TYPOGRAPHY
    ─────────────────────────────────────────────────────────────────────── */
-.aw .aw-hero { font-size: var(--aw-fs-hero) !important; font-weight: 500 !important; line-height: var(--aw-lh-tight) !important; letter-spacing: var(--aw-tracking-hero) !important; color: var(--aw-ink) !important; }
-.aw .aw-display { font-size: var(--aw-fs-display) !important; font-weight: 500 !important; line-height: 1.1 !important; letter-spacing: var(--aw-tracking-display) !important; color: var(--aw-ink) !important; }
-.aw .aw-h2 { font-size: var(--aw-fs-h2) !important; font-weight: 500 !important; line-height: 1.2 !important; letter-spacing: -0.025em !important; color: var(--aw-ink) !important; margin-bottom: var(--aw-s8) !important; }
-.aw .aw-h2--section { font-size: var(--aw-fs-h2-section) !important; letter-spacing: -0.035em !important; line-height: 1.08 !important; }
-.aw .aw-h3 { font-size: var(--aw-fs-h3) !important; font-weight: 500 !important; line-height: 1.35 !important; letter-spacing: -0.015em !important; color: var(--aw-ink) !important; }
-.aw .aw-h4 { font-size: var(--aw-fs-h4) !important; font-weight: 500 !important; line-height: 1.35 !important; letter-spacing: -0.015em !important; color: var(--aw-ink) !important; }
-.aw .aw-body { font-size: var(--aw-fs-body) !important; line-height: var(--aw-lh-body) !important; color: var(--aw-ink-2) !important; }
+.aw .aw-hero { font-size: var(--aw-fs-hero) !important; font-weight: var(--aw-w-medium) !important; line-height: var(--aw-lh-tight) !important; letter-spacing: var(--aw-tr-hero) !important; color: var(--aw-ink) !important; }
+.aw .aw-display { font-size: var(--aw-fs-display) !important; font-weight: var(--aw-w-medium) !important; line-height: 1.12 !important; letter-spacing: var(--aw-tr-display) !important; color: var(--aw-ink) !important; }
+.aw .aw-h2 { font-size: var(--aw-fs-h2) !important; font-weight: var(--aw-w-medium) !important; line-height: 1.18 !important; letter-spacing: var(--aw-tr-h2) !important; color: var(--aw-ink) !important; }
+.aw .aw-h3 { font-size: var(--aw-fs-h3) !important; font-weight: var(--aw-w-medium) !important; line-height: 1.3 !important; letter-spacing: var(--aw-tr-h3) !important; color: var(--aw-ink) !important; }
+.aw .aw-h4 { font-size: var(--aw-fs-h4) !important; font-weight: var(--aw-w-medium) !important; line-height: 1.35 !important; letter-spacing: -0.4px !important; color: var(--aw-ink) !important; }
+
+.aw .aw-body { font-size: var(--aw-fs-body) !important; font-weight: var(--aw-w-light) !important; line-height: var(--aw-lh-body) !important; color: var(--aw-body) !important; }
 .aw .aw-body + .aw-body { margin-top: var(--aw-s4) !important; }
-.aw .aw-ui { font-size: var(--aw-fs-ui) !important; line-height: var(--aw-lh-ui) !important; color: var(--aw-ink-2) !important; }
-.aw .aw-small { font-size: var(--aw-fs-small) !important; line-height: 1.5 !important; color: var(--aw-g600) !important; }
-.aw .aw-caption { font-size: var(--aw-fs-label) !important; line-height: 1.5 !important; color: var(--aw-g600) !important; text-align: center; }
-.aw b, .aw strong { font-weight: 600 !important; color: var(--aw-ink) !important; }
+.aw .aw-ui { font-size: var(--aw-fs-ui) !important; font-weight: var(--aw-w-normal) !important; line-height: var(--aw-lh-ui) !important; color: var(--aw-body) !important; }
+.aw .aw-small { font-size: var(--aw-fs-small) !important; font-weight: var(--aw-w-normal) !important; line-height: 1.55 !important; color: var(--aw-muted) !important; }
+.aw .aw-micro { font-size: var(--aw-fs-micro) !important; font-weight: var(--aw-w-normal) !important; line-height: 1.4 !important; color: var(--aw-muted) !important; }
+
+/* Small caps label — the eyebrow above a section heading */
+.aw .aw-eyebrow {
+  font-size: var(--aw-fs-micro) !important; font-weight: var(--aw-w-medium) !important;
+  letter-spacing: var(--aw-tr-caps) !important; text-transform: uppercase !important;
+  color: var(--aw-muted) !important; line-height: 1.4 !important;
+}
+.aw .aw-eyebrow--brand { color: var(--aw-brand) !important; }
+
+.aw strong, .aw b { font-weight: var(--aw-w-medium) !important; color: var(--aw-ink) !important; }
 .aw .aw-num { font-variant-numeric: tabular-nums; }
 .aw .aw-mono { font-family: var(--aw-mono) !important; font-size: 13px !important; }
 
-/* Accent word inside a heading */
+/* One accented word inside a heading. Use once per view. */
 .aw .aw-accent { color: var(--aw-brand) !important; font-style: normal; }
 
-/* Links */
+/* Links — underline on a hairline, never a colour block */
 .aw a, .aw a:link, .aw a:visited {
-  color: var(--aw-brand) !important; font-weight: 500;
+  color: var(--aw-ink) !important; font-weight: var(--aw-w-normal);
   text-decoration: underline !important;
-  text-decoration-color: rgba(30,122,77,.35) !important;
+  text-decoration-color: var(--aw-rule) !important;
   text-decoration-thickness: 1px !important;
   text-underline-offset: 4px !important;
   transition: color var(--aw-fast), text-decoration-color var(--aw-fast);
 }
-.aw a:hover { color: var(--aw-brand-deep) !important; text-decoration-color: var(--aw-brand) !important; }
-.aw a:focus-visible { outline: 2px solid var(--aw-brand); outline-offset: 3px; }
+.aw a:hover { color: var(--aw-brand) !important; text-decoration-color: var(--aw-brand) !important; }
+.aw a:focus-visible { outline: 1px solid var(--aw-brand); outline-offset: 3px; }
 
 
 /* ───────────────────────────────────────────────────────────────────────
    3. LOGO
    ─────────────────────────────────────────────────────────────────────── */
 .aw .aw-logo { display: block; width: auto !important; object-fit: contain; margin: 0 !important; }
-.aw .aw-logo--sm { height: 18px !important; max-width: 100px !important; }  /* inside tables, chips */
-.aw .aw-logo--md { height: 26px !important; max-width: 150px !important; }  /* nav, cards */
-.aw .aw-logo--lg { height: 36px !important; max-width: 200px !important; }  /* featured image badges */
-.aw .aw-logo--invert { filter: brightness(0) invert(1); }                   /* on dark panels */
+.aw .aw-logo--sm { height: 18px !important; max-width: 100px !important; }
+.aw .aw-logo--md { height: 26px !important; max-width: 150px !important; }
+.aw .aw-logo--lg { height: 34px !important; max-width: 200px !important; }
+.aw .aw-logo--invert { filter: brightness(0) invert(1); }
 
 /* Centered logo badge (featured images) */
-.aw .aw-logo-badge { display: inline-flex; align-items: center; justify-content: center; width: 250px; height: 68px; padding: 0 24px; background: var(--aw-white); border: var(--aw-border-w) solid var(--aw-line); border-radius: 8px; box-shadow: 5px 5px 0 var(--aw-brand); }
+.aw .aw-logo-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 250px; height: 64px; padding: 0 24px;
+  background: var(--aw-surface); border: 1px solid var(--aw-rule);
+}
 
 
 /* ───────────────────────────────────────────────────────────────────────
    4. BUTTONS
+   Dark fill is the primary. Outline is the secondary. Blue is reserved
+   for the single highest-intent action on a page, used rarely.
    ─────────────────────────────────────────────────────────────────────── */
 .aw .aw-btn, .aw a.aw-btn, .aw a.aw-btn:link, .aw a.aw-btn:visited {
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  font-size: var(--aw-fs-ui) !important; font-weight: 500 !important; line-height: 1.2 !important;
-  padding: 14px 22px; border: var(--aw-border-w) solid var(--aw-line) !important; border-radius: var(--aw-radius);
+  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
+  font-size: var(--aw-fs-ui) !important; font-weight: var(--aw-w-normal) !important;
+  line-height: 1.2 !important; letter-spacing: -0.2px;
+  padding: 14px 24px; border: 1px solid transparent;
   text-decoration: none !important; white-space: nowrap; cursor: pointer;
-  transition: background var(--aw-fast), color var(--aw-fast), transform var(--aw-fast) var(--aw-ease), box-shadow var(--aw-fast) var(--aw-ease);
+  transition: background var(--aw-fast), color var(--aw-fast), border-color var(--aw-fast);
 }
-.aw .aw-btn svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform var(--aw-fast); }
+.aw .aw-btn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: square; transition: transform var(--aw-fast); }
 .aw .aw-btn:hover svg { transform: translateX(3px); }
-.aw .aw-btn:focus-visible { outline: 2px solid var(--aw-brand); outline-offset: 3px; }
-.aw .aw-btn:disabled, .aw .aw-btn[aria-disabled="true"] { background: var(--aw-skel) !important; color: var(--aw-g-dis) !important; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
+.aw .aw-btn:focus-visible { outline: 1px solid var(--aw-brand); outline-offset: 3px; }
+.aw .aw-btn:disabled, .aw .aw-btn[aria-disabled="true"] {
+  background: var(--aw-surface-2) !important; color: var(--aw-faint) !important;
+  border-color: var(--aw-rule) !important; cursor: not-allowed;
+}
 
-/* Primary: green fill, black shadow on hover */
-.aw .aw-btn--primary, .aw a.aw-btn--primary:link, .aw a.aw-btn--primary:visited { background: var(--aw-brand) !important; color: var(--aw-white) !important; }
-.aw .aw-btn--primary:hover { background: var(--aw-brand-deep) !important; color: var(--aw-white) !important; transform: translate(-2px,-2px); box-shadow: 4px 4px 0 var(--aw-line); }
+/* Primary: dark fill */
+.aw .aw-btn--primary, .aw a.aw-btn--primary:link, .aw a.aw-btn--primary:visited {
+  background: var(--aw-ink) !important; color: var(--aw-on-dark) !important; border-color: var(--aw-ink) !important;
+}
+.aw .aw-btn--primary:hover { background: var(--aw-ink-hover) !important; border-color: var(--aw-ink-hover) !important; color: var(--aw-on-dark) !important; }
 
-/* Secondary: white fill, green shadow on hover */
-.aw .aw-btn--secondary, .aw a.aw-btn--secondary:link, .aw a.aw-btn--secondary:visited { background: var(--aw-white) !important; color: var(--aw-ink) !important; }
-.aw .aw-btn--secondary:hover { color: var(--aw-ink) !important; transform: translate(-2px,-2px); box-shadow: 4px 4px 0 var(--aw-brand); }
+/* Secondary: white fill, hairline border */
+.aw .aw-btn--secondary, .aw a.aw-btn--secondary:link, .aw a.aw-btn--secondary:visited {
+  background: var(--aw-surface) !important; color: var(--aw-ink) !important; border-color: var(--aw-rule) !important;
+}
+.aw .aw-btn--secondary:hover { background: var(--aw-surface-2) !important; color: var(--aw-ink) !important; }
+
+/* Accent: the one blue button. One per page, maximum. */
+.aw .aw-btn--accent, .aw a.aw-btn--accent:link, .aw a.aw-btn--accent:visited {
+  background: var(--aw-brand) !important; color: var(--aw-on-dark) !important; border-color: var(--aw-brand) !important;
+}
+.aw .aw-btn--accent:hover { background: var(--aw-brand-deep) !important; border-color: var(--aw-brand-deep) !important; color: var(--aw-on-dark) !important; }
 
 /* On dark panels */
-.aw .aw-btn--on-dark { background: var(--aw-white) !important; color: var(--aw-ink) !important; border-color: var(--aw-white) !important; }
-.aw .aw-btn--on-dark:hover { box-shadow: 4px 4px 0 var(--aw-brand-fg); transform: translate(-2px,-2px); }
-.aw .aw-btn--ghost-dark { background: transparent !important; color: var(--aw-white) !important; border: 1px solid rgba(255,255,255,.35) !important; }
-.aw .aw-btn--ghost-dark:hover { background: var(--aw-bg-ink-2) !important; border-color: var(--aw-white) !important; }
+.aw .aw-btn--on-dark { background: var(--aw-surface) !important; color: var(--aw-ink) !important; border-color: var(--aw-surface) !important; }
+.aw .aw-btn--on-dark:hover { background: var(--aw-on-dark-2) !important; border-color: var(--aw-on-dark-2) !important; }
+.aw .aw-btn--ghost-dark { background: transparent !important; color: var(--aw-on-dark) !important; border-color: rgba(255,255,255,.3) !important; }
+.aw .aw-btn--ghost-dark:hover { background: var(--aw-dark-2) !important; border-color: rgba(255,255,255,.6) !important; }
 
-/* Destructive */
-.aw .aw-btn--danger { background: var(--aw-danger) !important; color: var(--aw-white) !important; }
-.aw .aw-btn--danger:hover { transform: translate(-2px,-2px); box-shadow: 4px 4px 0 var(--aw-line); }
-
-.aw .aw-btn--lg { font-size: 18px !important; padding: 18px 28px; }
-.aw .aw-btn--sm { font-size: 14px !important; padding: 9px 14px; }
+.aw .aw-btn--lg { font-size: 17px !important; padding: 17px 30px; }
+.aw .aw-btn--sm { font-size: var(--aw-fs-small) !important; padding: 9px 16px; }
 .aw .aw-btn--block { width: 100%; }
 
 /* Text link with arrow */
-.aw .aw-text-link, .aw a.aw-text-link:link, .aw a.aw-text-link:visited { display: inline-flex; align-items: center; gap: 6px; font-size: var(--aw-fs-small) !important; font-weight: 500 !important; color: var(--aw-ink) !important; text-decoration: none !important; border-bottom: 1px solid var(--aw-line); padding-bottom: 2px; }
+.aw .aw-text-link, .aw a.aw-text-link:link, .aw a.aw-text-link:visited {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: var(--aw-fs-small) !important; font-weight: var(--aw-w-normal) !important;
+  color: var(--aw-ink) !important; text-decoration: none !important;
+  border-bottom: 1px solid var(--aw-ink); padding-bottom: 3px;
+  transition: color var(--aw-fast), border-color var(--aw-fast);
+}
 .aw a.aw-text-link:hover { color: var(--aw-brand) !important; border-color: var(--aw-brand); }
+.aw .aw-text-link svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: square; }
 
 
 /* ───────────────────────────────────────────────────────────────────────
-   5. TAGS, BADGES, CHIPS, STATUS
+   5. TAGS, BADGES, STATUS
    ─────────────────────────────────────────────────────────────────────── */
-/* Small label above a title (sentence case, never uppercase) */
-.aw .aw-tag { display: inline-block; font-size: var(--aw-fs-micro) !important; font-weight: 500 !important; line-height: 1.3 !important; color: var(--aw-brand) !important; background: var(--aw-brand-bg); border-radius: 2px; padding: 4px 8px; }
-.aw .aw-tag--on-dark { background: rgba(255,255,255,.08); color: #6FCF97 !important; }
+/* Eyebrow tag above a title */
+.aw .aw-tag {
+  display: inline-block; padding: 5px 10px;
+  font-size: var(--aw-fs-micro) !important; font-weight: var(--aw-w-medium) !important;
+  letter-spacing: var(--aw-tr-caps) !important; text-transform: uppercase;
+  color: var(--aw-muted) !important; background: transparent;
+  border: 1px solid var(--aw-rule); line-height: 1.3 !important;
+}
+.aw .aw-tag--brand { color: var(--aw-brand) !important; border-color: var(--aw-brand); }
+.aw .aw-tag--on-dark { color: var(--aw-on-dark-2) !important; border-color: rgba(255,255,255,.25); }
 
-/* "Recommended" / "Most popular" */
-.aw .aw-badge { display: inline-block; font-size: var(--aw-fs-micro) !important; font-weight: 500 !important; line-height: 1.3 !important; color: var(--aw-white) !important; background: var(--aw-brand); border: 1px solid var(--aw-line); border-radius: var(--aw-radius-sm); padding: 3px 8px; white-space: nowrap; }
+/* "Most popular" — the one filled badge */
+.aw .aw-badge {
+  display: inline-block; padding: 4px 10px;
+  font-size: var(--aw-fs-micro) !important; font-weight: var(--aw-w-medium) !important;
+  letter-spacing: var(--aw-tr-caps) !important; text-transform: uppercase;
+  color: var(--aw-on-dark) !important; background: var(--aw-ink);
+  line-height: 1.3 !important; white-space: nowrap;
+}
+.aw .aw-badge--brand { background: var(--aw-brand); }
 
-/* Status pills: ALWAYS carry a word, never colour alone */
-.aw .aw-status { display: inline-flex; align-items: center; gap: 5px; font-size: 11px !important; font-weight: 500 !important; line-height: 1.3 !important; padding: 3px 9px; border-radius: var(--aw-radius-pill); white-space: nowrap; }
-.aw .aw-status--ranked  { background: var(--aw-success-bg); color: var(--aw-brand-deep) !important; }
-.aw .aw-status--missed  { background: var(--aw-danger-bg);  color: #7A1810 !important; }
-.aw .aw-status--pending { background: var(--aw-skel);       color: var(--aw-g600) !important; }
-.aw .aw-status--warn    { background: var(--aw-warn-bg);    color: var(--aw-warn) !important; }
+/* Status — ALWAYS carries a word, never colour alone (rule 11) */
+.aw .aw-status {
+  display: inline-flex; align-items: center; gap: 7px;
+  font-size: var(--aw-fs-micro) !important; font-weight: var(--aw-w-normal) !important;
+  line-height: 1.3 !important; padding: 4px 10px; white-space: nowrap;
+  border: 1px solid transparent;
+}
+.aw .aw-status::before { content: ''; width: 6px; height: 6px; flex-shrink: 0; }
+.aw .aw-status--ranked  { color: var(--aw-pos) !important;  background: var(--aw-pos-bg);  border-color: #C8DECE; }
+.aw .aw-status--ranked::before  { background: var(--aw-pos); }
+.aw .aw-status--missed  { color: var(--aw-neg) !important;  background: var(--aw-neg-bg);  border-color: #E8CFC8; }
+.aw .aw-status--missed::before  { background: var(--aw-neg); }
+.aw .aw-status--pending { color: var(--aw-muted) !important; background: var(--aw-surface-2); border-color: var(--aw-rule); }
+.aw .aw-status--pending::before { background: var(--aw-muted); }
+.aw .aw-status--warn    { color: var(--aw-warn) !important; background: var(--aw-warn-bg); border-color: #E3D6B4; }
+.aw .aw-status--warn::before    { background: var(--aw-warn); }
 
 /* Priority chips (task list) */
-.aw .aw-pri { font-size: 11px !important; font-weight: 500 !important; padding: 3px 8px; border-radius: var(--aw-radius-sm); white-space: nowrap; }
-.aw .aw-pri--high { background: var(--aw-brand); color: var(--aw-white) !important; }
-.aw .aw-pri--mid  { background: var(--aw-brand-bg); color: var(--aw-brand-deep) !important; }
-.aw .aw-pri--low  { background: var(--aw-skel); color: var(--aw-g600) !important; }
+.aw .aw-pri {
+  display: inline-block; padding: 3px 9px; white-space: nowrap;
+  font-size: var(--aw-fs-micro) !important; font-weight: var(--aw-w-medium) !important;
+  letter-spacing: 0.4px; text-transform: uppercase; line-height: 1.3 !important;
+}
+.aw .aw-pri--high { background: var(--aw-brand); color: var(--aw-on-dark) !important; }
+.aw .aw-pri--mid  { background: var(--aw-brand-bg); color: var(--aw-brand) !important; }
+.aw .aw-pri--low  { background: var(--aw-surface-2); color: var(--aw-muted) !important; }
 
-/* Rank number square */
-.aw .aw-rank { display: inline-flex; align-items: center; justify-content: center; min-width: 30px; height: 30px; padding: 0 7px; flex-shrink: 0; border: 1px solid var(--aw-line); border-radius: var(--aw-radius); background: var(--aw-white); font-size: var(--aw-fs-label) !important; font-weight: 500 !important; color: var(--aw-ink) !important; font-variant-numeric: tabular-nums; }
-.aw .aw-rank--top { background: var(--aw-brand); color: var(--aw-white) !important; }
+/* Rank number — square cell, hairline */
+.aw .aw-rank {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 28px; height: 28px; padding: 0 7px; flex-shrink: 0;
+  border: 1px solid var(--aw-rule); background: var(--aw-surface);
+  font-size: var(--aw-fs-small) !important; font-weight: var(--aw-w-normal) !important;
+  color: var(--aw-ink) !important; font-variant-numeric: tabular-nums;
+}
+.aw .aw-rank--top { background: var(--aw-brand); border-color: var(--aw-brand); color: var(--aw-on-dark) !important; }
 
-/* Engine chip (ChatGPT, Claude, ...) */
-.aw .aw-engine { display: inline-flex; align-items: center; gap: 6px; font-size: var(--aw-fs-label) !important; font-weight: 500 !important; color: var(--aw-n700) !important; background: var(--aw-white); border: 1px solid var(--aw-border); border-radius: var(--aw-radius-pill); padding: 5px 12px; }
-.aw .aw-engine i { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+/* Engine chip */
+.aw .aw-engine {
+  display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px;
+  font-size: var(--aw-fs-small) !important; font-weight: var(--aw-w-normal) !important;
+  color: var(--aw-body) !important; background: var(--aw-surface);
+  border: 1px solid var(--aw-rule);
+}
+.aw .aw-engine i { width: 7px; height: 7px; flex-shrink: 0; display: block; }
 
-/* Filter / choice chips */
-.aw .aw-pill { display: inline-flex; align-items: center; font-size: var(--aw-fs-label) !important; color: var(--aw-n700) !important; background: var(--aw-white); border: 1px solid var(--aw-border); border-radius: var(--aw-radius-pill); padding: 7px 14px; cursor: pointer; transition: background var(--aw-fast), color var(--aw-fast), border-color var(--aw-fast); }
-.aw .aw-pill:hover { border-color: var(--aw-line); }
-.aw .aw-pill.is-on { background: var(--aw-ink); border-color: var(--aw-ink); color: var(--aw-white) !important; }
+/* Filter chip */
+.aw .aw-chip {
+  display: inline-flex; align-items: center; padding: 7px 14px; cursor: pointer;
+  font-size: var(--aw-fs-small) !important; font-weight: var(--aw-w-normal) !important;
+  color: var(--aw-body) !important; background: var(--aw-surface);
+  border: 1px solid var(--aw-rule);
+  transition: background var(--aw-fast), color var(--aw-fast), border-color var(--aw-fast);
+}
+.aw .aw-chip:hover { border-color: var(--aw-ink); color: var(--aw-ink) !important; }
+.aw .aw-chip.is-on { background: var(--aw-ink); border-color: var(--aw-ink); color: var(--aw-on-dark) !important; }
 
-/* Round icon chip (illustrations) */
-.aw .aw-chip { width: 62px; height: 62px; border-radius: 50%; background: var(--aw-white); border: var(--aw-border-w) solid var(--aw-line); box-shadow: var(--aw-shadow-sm); display: flex; align-items: center; justify-content: center; }
-.aw .aw-chip svg { width: 26px; height: 26px; stroke: var(--aw-ink); fill: none; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; }
-.aw .aw-chip--green { background: var(--aw-brand); box-shadow: 4px 4px 0 var(--aw-line); }
-.aw .aw-chip--green svg { stroke: var(--aw-white); }
-.aw .aw-chip--pale { background: var(--aw-brand-bg); }
+/* Square icon tile */
+.aw .aw-tile {
+  width: 40px; height: 40px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--aw-rule); background: var(--aw-surface);
+}
+.aw .aw-tile svg { width: 19px; height: 19px; stroke: var(--aw-ink); fill: none; stroke-width: 1.4; stroke-linecap: square; stroke-linejoin: miter; }
+.aw .aw-tile--brand { border-color: var(--aw-brand); background: var(--aw-brand); }
+.aw .aw-tile--brand svg { stroke: var(--aw-on-dark); }
 
-/* Square icon tile (feature grids) */
-.aw .aw-tile { width: 44px; height: 44px; border-radius: var(--aw-radius); background: var(--aw-brand-bg); border: var(--aw-border-w) solid var(--aw-line); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.aw .aw-tile svg { width: 22px; height: 22px; stroke: var(--aw-brand); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-
-/* Check circle */
-.aw .aw-check { width: 18px; height: 18px; border-radius: 50%; background: var(--aw-brand); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.aw .aw-check svg { width: 10px; height: 10px; stroke: var(--aw-white); fill: none; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
-.aw .aw-check--lg { width: 28px; height: 28px; border: var(--aw-border-w) solid var(--aw-line); }
-.aw .aw-check--lg svg { width: 13px; height: 13px; stroke-width: 3.2; }
+/* Check mark — a plain glyph, no circle */
+.aw .aw-check {
+  width: 15px; height: 15px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.aw .aw-check svg { width: 13px; height: 13px; stroke: var(--aw-brand); fill: none; stroke-width: 1.8; stroke-linecap: square; stroke-linejoin: miter; }
 
 
 /* ───────────────────────────────────────────────────────────────────────
-   6. SURFACES: FRAMES, CARDS, WINDOWS
+   6. SURFACES
+   Flat. Hairline bordered. Separation by tint, never by depth.
    ─────────────────────────────────────────────────────────────────────── */
-.aw .aw-frame { background: var(--aw-white); border: var(--aw-border-w) solid var(--aw-line) !important; border-radius: var(--aw-radius-md); overflow: hidden; }
-.aw .aw-frame--shadow { box-shadow: var(--aw-shadow); }
-.aw .aw-frame--shadow-lg { box-shadow: var(--aw-shadow-lg); }
-.aw .aw-frame--shadow-ink { box-shadow: var(--aw-shadow-ink); }
-.aw .aw-frame--pale { background: var(--aw-brand-pale); }
-.aw .aw-frame--green { background: var(--aw-brand); color: var(--aw-white); box-shadow: var(--aw-shadow-ink); }
-.aw .aw-frame__head { display: flex; align-items: center; gap: 12px; padding: 16px 28px; background: var(--aw-brand-pale); border-bottom: 1px solid var(--aw-line); }
-.aw .aw-frame__body { padding: 24px 28px 28px; }
-.aw .aw-frame__foot { padding: 16px 28px; background: var(--aw-brand-pale); border-top: 1px solid var(--aw-line); }
+.aw .aw-frame { background: var(--aw-surface); border: 1px solid var(--aw-rule); overflow: hidden; }
+.aw .aw-frame--paper { background: var(--aw-paper); }
+.aw .aw-frame--tint  { background: var(--aw-surface-2); }
+.aw .aw-frame--dark  { background: var(--aw-dark); border-color: var(--aw-dark); color: var(--aw-on-dark-2); }
+.aw .aw-frame--ink   { border-color: var(--aw-ink); }
 
-/* Hover lift for clickable cards */
-.aw .aw-lift { transition: transform .2s var(--aw-ease), box-shadow .2s var(--aw-ease); }
-.aw .aw-lift:hover { transform: translate(-3px,-3px); box-shadow: 6px 6px 0 var(--aw-brand); }
+.aw .aw-frame__head {
+  display: flex; align-items: center; gap: 12px; padding: 16px 24px;
+  background: var(--aw-surface-2); border-bottom: 1px solid var(--aw-rule);
+}
+.aw .aw-frame__body { padding: 24px; }
+.aw .aw-frame__foot { padding: 16px 24px; background: var(--aw-surface-2); border-top: 1px solid var(--aw-rule); }
+
+/* Clickable card — border darkens, nothing moves */
+.aw .aw-lift { transition: border-color var(--aw-fast), background var(--aw-fast); }
+.aw .aw-lift:hover { border-color: var(--aw-ink); }
 
 /* Browser window (mock UI) */
-.aw .aw-window { background: var(--aw-white); border: var(--aw-border-w) solid var(--aw-line); border-radius: var(--aw-radius-lg); box-shadow: var(--aw-shadow-ink-lg); overflow: hidden; }
-.aw .aw-window__bar { height: 42px; display: flex; align-items: center; gap: 7px; padding: 0 14px; background: var(--aw-brand-pale); border-bottom: var(--aw-border-w) solid var(--aw-line); }
-.aw .aw-window__bar i { width: 11px; height: 11px; border-radius: 50%; border: 1px solid rgba(0,0,0,.22); }
-.aw .aw-window__bar i:nth-child(1) { background: #FF5F57; }
-.aw .aw-window__bar i:nth-child(2) { background: #FEBC2E; }
-.aw .aw-window__bar i:nth-child(3) { background: #28C840; }
-.aw .aw-window__url { flex: 1; max-width: 300px; margin: 0 auto; background: var(--aw-white); border: 1px solid var(--aw-border); border-radius: var(--aw-radius-sm); padding: 4px 12px; font-size: 12px; color: var(--aw-g600); text-align: center; }
-.aw .aw-window--dark { background: var(--aw-bg-ink); }
-.aw .aw-window--dark .aw-window__bar { background: var(--aw-bg-ink-2); }
+.aw .aw-window { background: var(--aw-surface); border: 1px solid var(--aw-rule); overflow: hidden; }
+.aw .aw-window__bar {
+  height: 40px; display: flex; align-items: center; gap: 7px; padding: 0 14px;
+  background: var(--aw-surface-2); border-bottom: 1px solid var(--aw-rule);
+}
+.aw .aw-window__bar i { width: 9px; height: 9px; border-radius: 50% !important; background: var(--aw-rule); display: block; }
+.aw .aw-window__url {
+  flex: 1; max-width: 300px; margin: 0 auto; padding: 4px 12px; text-align: center;
+  background: var(--aw-surface); border: 1px solid var(--aw-rule);
+  font-size: var(--aw-fs-micro); color: var(--aw-muted);
+}
+.aw .aw-window--dark { background: var(--aw-dark); border-color: var(--aw-dark); }
+.aw .aw-window--dark .aw-window__bar { background: var(--aw-dark-2); border-bottom-color: #333; }
 
 /* Dark panel */
-.aw .aw-panel-dark { background: var(--aw-bg-ink); color: var(--aw-on-dark-2); border: var(--aw-border-w) solid var(--aw-line); border-radius: var(--aw-radius-md); box-shadow: var(--aw-shadow-lg); padding: 48px; }
-.aw .aw-panel-dark .aw-h2, .aw .aw-panel-dark .aw-h3 { color: var(--aw-on-dark) !important; }
+.aw .aw-panel-dark {
+  background: var(--aw-dark); color: var(--aw-on-dark-2);
+  border: 1px solid var(--aw-dark); padding: 56px;
+}
+.aw .aw-panel-dark .aw-h2, .aw .aw-panel-dark .aw-h3, .aw .aw-panel-dark .aw-display { color: var(--aw-on-dark) !important; }
+.aw .aw-panel-dark a { color: var(--aw-on-dark) !important; text-decoration-color: rgba(255,255,255,.4) !important; }
 
-/* Dot grid background */
-.aw .aw-dotgrid { background-color: var(--aw-paper); background-image: radial-gradient(rgba(30,122,77,.14) 1.4px, transparent 1.4px); background-size: 24px 24px; }
+/* Hairline grid background — the quiet replacement for the dot grid */
+.aw .aw-gridlines {
+  background-color: var(--aw-paper);
+  background-image:
+    linear-gradient(to right,  var(--aw-rule-faint) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--aw-rule-faint) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
 
-/* Skeleton line (illustrations) */
-.aw .aw-skel { display: block; height: 9px; border-radius: 5px; background: var(--aw-skel); }
-.aw .aw-skel + .aw-skel { margin-top: 11px; }
+/* Skeleton line */
+.aw .aw-skel { display: block; height: 8px; background: var(--aw-rule-faint); }
+.aw .aw-skel + .aw-skel { margin-top: 10px; }
 
 
 /* ───────────────────────────────────────────────────────────────────────
    7. LISTS
-   Top level: green squares. Nested / inside FAQ answers: small green dots.
+   Hairline-separated rows, or a small square marker. Never a coloured bullet.
    ─────────────────────────────────────────────────────────────────────── */
 .aw .aw-list { list-style: none !important; margin: 0 !important; padding: 0 !important; }
-.aw .aw-list > li { display: flex; gap: 14px; font-size: var(--aw-fs-body) !important; line-height: var(--aw-lh-body) !important; color: var(--aw-ink-2) !important; list-style: none !important; margin: 0 !important; padding: 0 !important; }
+.aw .aw-list > li {
+  display: flex; gap: 14px;
+  font-size: var(--aw-fs-body) !important; font-weight: var(--aw-w-light) !important;
+  line-height: var(--aw-lh-body) !important; color: var(--aw-body) !important;
+  list-style: none !important; margin: 0 !important; padding: 0 !important;
+}
 .aw .aw-list > li::marker { content: none; }
-.aw .aw-list > li + li { margin-top: 20px !important; }
-.aw .aw-list > li::before { content: ''; width: 8px; height: 8px; background: var(--aw-brand); flex-shrink: 0; margin-top: 12px; }
-.aw .aw-list--tight > li { font-size: var(--aw-fs-ui) !important; line-height: var(--aw-lh-ui) !important; gap: 12px; }
-.aw .aw-list--tight > li + li { margin-top: 10px !important; }
-.aw .aw-list--tight > li::before { width: 6px; height: 6px; margin-top: 10px; }
-.aw .aw-list--dots > li::before { width: 6px; height: 6px; border-radius: 50%; margin-top: 13px; }
-.aw .aw-list--dots > li + li { margin-top: 8px !important; }
+.aw .aw-list > li + li { margin-top: 16px !important; }
+.aw .aw-list > li::before { content: ''; width: 5px; height: 5px; background: var(--aw-brand); flex-shrink: 0; margin-top: 13px; }
 
-/* Divided list (inside cards) */
-.aw .aw-list--divided > li { padding: 9px 0 !important; border-bottom: 1px solid var(--aw-border-faint); font-size: var(--aw-fs-label) !important; line-height: 1.55 !important; }
+.aw .aw-list--tight > li { font-size: var(--aw-fs-ui) !important; font-weight: var(--aw-w-normal) !important; line-height: var(--aw-lh-ui) !important; gap: 12px; }
+.aw .aw-list--tight > li + li { margin-top: 9px !important; }
+.aw .aw-list--tight > li::before { margin-top: 10px; }
+
+/* Divided list — the house style inside cards */
+.aw .aw-list--divided > li {
+  padding: 12px 0 !important; border-bottom: 1px solid var(--aw-rule-faint);
+  font-size: var(--aw-fs-small) !important; font-weight: var(--aw-w-normal) !important; line-height: 1.55 !important;
+}
 .aw .aw-list--divided > li:last-child { border-bottom: 0; }
 .aw .aw-list--divided > li + li { margin-top: 0 !important; }
-.aw .aw-list--divided > li::before { width: 6px; height: 6px; margin-top: 8px; border-radius: 1px; }
+.aw .aw-list--divided > li::before { margin-top: 9px; }
 
-/* Title + description list item */
-.aw .aw-list .aw-list__t { display: block; font-size: 19px !important; font-weight: 500 !important; letter-spacing: -0.015em !important; line-height: 1.4 !important; color: var(--aw-ink) !important; margin-bottom: 10px !important; }
+/* Checklist */
+.aw .aw-list--check > li::before { content: none; }
+.aw .aw-list--check > li { gap: 12px; align-items: flex-start; }
 
-
-/* ───────────────────────────────────────────────────────────────────────
-   8. STAT CARDS
-   ─────────────────────────────────────────────────────────────────────── */
-.aw .aw-stats { display: grid; grid-template-columns: repeat(var(--cols, 4), minmax(0,1fr)); border: var(--aw-border-w) solid var(--aw-line); border-radius: var(--aw-radius-md); overflow: hidden; box-shadow: var(--aw-shadow); }
-.aw .aw-stat { padding: 20px 22px; background: var(--aw-brand-pale); }
-.aw .aw-stat + .aw-stat { border-left: 1px solid var(--aw-border); }
-.aw .aw-stat__num { font-size: 34px !important; font-weight: 500 !important; letter-spacing: -0.035em !important; line-height: 1.1 !important; color: var(--aw-brand) !important; margin-bottom: 4px !important; font-variant-numeric: tabular-nums; }
-.aw .aw-stat__lab { font-size: var(--aw-fs-label) !important; line-height: 1.45 !important; color: var(--aw-ink-2) !important; }
-.aw .aw-stat__delta { font-size: 12px !important; font-weight: 500 !important; padding: 3px 8px; border-radius: var(--aw-radius-sm); margin-left: 8px; }
-.aw .aw-stat__delta--up { background: var(--aw-success-bg); color: var(--aw-brand-deep) !important; }
-.aw .aw-stat__delta--down { background: var(--aw-danger-bg); color: #7A1810 !important; }
-.aw .aw-stat__delta--flat { background: var(--aw-skel); color: var(--aw-g600) !important; }
-
-/* Standalone card variant (not in a grid) */
-.aw .aw-card-stat { background: var(--aw-white); border: var(--aw-border-w) solid var(--aw-line); border-radius: var(--aw-radius-md); box-shadow: var(--aw-shadow-sm); padding: 16px 18px; }
+/* Title + description item */
+.aw .aw-list .aw-list__t {
+  display: block; font-size: var(--aw-fs-h4) !important; font-weight: var(--aw-w-medium) !important;
+  letter-spacing: -0.4px !important; line-height: 1.35 !important;
+  color: var(--aw-ink) !important; margin-bottom: 8px !important;
+}
 
 
 /* ───────────────────────────────────────────────────────────────────────
-   9. SCORE BARS (visibility by engine)
+   8. STAT CELLS
+   A hairline grid of numbers. No cards, no shadows, no fills.
    ─────────────────────────────────────────────────────────────────────── */
-.aw .aw-score { display: flex; flex-direction: column; gap: 14px; }
-.aw .aw-score__row { display: flex; align-items: center; gap: 12px; }
-.aw .aw-score__lab { font-size: var(--aw-fs-label) !important; font-weight: 500 !important; color: var(--aw-g600) !important; width: 80px; flex-shrink: 0; }
-.aw .aw-score__track { flex: 1; height: 8px; background: var(--aw-skel); border-radius: 4px; overflow: hidden; }
-.aw .aw-score__fill { height: 100%; background: var(--aw-brand); border-radius: 4px; }
-.aw .aw-score__val { font-size: var(--aw-fs-label) !important; font-weight: 600 !important; color: var(--aw-ink) !important; width: 40px; text-align: right; font-variant-numeric: tabular-nums; }
+.aw .aw-stats {
+  display: grid; grid-template-columns: repeat(var(--cols, 4), minmax(0,1fr));
+  border: 1px solid var(--aw-rule); background: var(--aw-surface);
+}
+.aw .aw-stat { padding: 24px; }
+.aw .aw-stat + .aw-stat { border-left: 1px solid var(--aw-rule); }
+.aw .aw-stat__num {
+  font-size: 40px !important; font-weight: var(--aw-w-medium) !important;
+  letter-spacing: var(--aw-tr-display) !important; line-height: 1.05 !important;
+  color: var(--aw-ink) !important; font-variant-numeric: tabular-nums;
+  margin-bottom: 8px !important;
+}
+.aw .aw-stat__num--brand { color: var(--aw-brand) !important; }
+.aw .aw-stat__lab {
+  font-size: var(--aw-fs-micro) !important; font-weight: var(--aw-w-medium) !important;
+  letter-spacing: var(--aw-tr-caps) !important; text-transform: uppercase;
+  color: var(--aw-muted) !important; line-height: 1.4 !important;
+}
+.aw .aw-stat__delta {
+  display: inline-block; margin-left: 10px;
+  font-size: var(--aw-fs-micro) !important; font-weight: var(--aw-w-normal) !important;
+  letter-spacing: 0; text-transform: none;
+}
+.aw .aw-stat__delta--up   { color: var(--aw-pos) !important; }
+.aw .aw-stat__delta--down { color: var(--aw-neg) !important; }
+.aw .aw-stat__delta--flat { color: var(--aw-muted) !important; }
 
-/* On dark panels */
+
+/* ───────────────────────────────────────────────────────────────────────
+   9. SCORE BARS
+   ─────────────────────────────────────────────────────────────────────── */
+.aw .aw-score { display: flex; flex-direction: column; }
+.aw .aw-score__row {
+  display: flex; align-items: center; gap: 16px;
+  padding: 12px 0; border-bottom: 1px solid var(--aw-rule-faint);
+}
+.aw .aw-score__row:last-child { border-bottom: 0; }
+.aw .aw-score__lab {
+  width: 90px; flex-shrink: 0;
+  font-size: var(--aw-fs-small) !important; font-weight: var(--aw-w-normal) !important;
+  color: var(--aw-body) !important;
+}
+.aw .aw-score__track { flex: 1; height: 4px; background: var(--aw-rule-faint); }
+.aw .aw-score__fill  { height: 100%; background: var(--aw-brand); }
+.aw .aw-score__val {
+  width: 44px; text-align: right; flex-shrink: 0;
+  font-size: var(--aw-fs-small) !important; font-weight: var(--aw-w-normal) !important;
+  color: var(--aw-ink) !important; font-variant-numeric: tabular-nums;
+}
+
+/* On dark */
+.aw .aw-panel-dark .aw-score__row { border-bottom-color: #2E2E2E; }
 .aw .aw-panel-dark .aw-score__lab { color: var(--aw-on-dark-2) !important; }
-.aw .aw-panel-dark .aw-score__track { background: rgba(255,255,255,.1); }
-.aw .aw-panel-dark .aw-score__fill { background: var(--aw-brand-fg); }
-.aw .aw-panel-dark .aw-score__val { color: var(--aw-white) !important; }
+.aw .aw-panel-dark .aw-score__track { background: #2E2E2E; }
+.aw .aw-panel-dark .aw-score__fill  { background: var(--aw-brand-fg); }
+.aw .aw-panel-dark .aw-score__val   { color: var(--aw-on-dark) !important; }
 
 
 /* ───────────────────────────────────────────────────────────────────────
    10. FAQ
    ─────────────────────────────────────────────────────────────────────── */
-.aw .aw-faq { border-top: var(--aw-border-w) solid var(--aw-line); }
-.aw .aw-faq details { border-bottom: 1px solid var(--aw-line); }
-.aw .aw-faq summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 22px 0; font-size: var(--aw-fs-h4) !important; font-weight: 500 !important; letter-spacing: -0.01em !important; color: var(--aw-ink) !important; }
+.aw .aw-faq { border-top: 1px solid var(--aw-rule); }
+.aw .aw-faq details { border-bottom: 1px solid var(--aw-rule); }
+.aw .aw-faq summary {
+  list-style: none; cursor: pointer;
+  display: flex; justify-content: space-between; align-items: center; gap: 24px;
+  padding: 24px 0;
+  font-size: var(--aw-fs-h4) !important; font-weight: var(--aw-w-normal) !important;
+  letter-spacing: -0.4px !important; color: var(--aw-ink) !important;
+  transition: color var(--aw-fast);
+}
+.aw .aw-faq summary:hover { color: var(--aw-brand) !important; }
 .aw .aw-faq summary::-webkit-details-marker { display: none; }
-.aw .aw-faq summary:focus-visible { outline: 2px solid var(--aw-brand); outline-offset: 2px; }
-.aw .aw-plus { width: 26px; height: 26px; flex-shrink: 0; border: 1px solid var(--aw-line); border-radius: var(--aw-radius-sm); display: flex; align-items: center; justify-content: center; transition: transform .2s, background .2s; }
-.aw .aw-plus svg { width: 14px; height: 14px; stroke: var(--aw-ink); stroke-width: 2; fill: none; stroke-linecap: round; }
-.aw details[open] .aw-plus { transform: rotate(45deg); background: var(--aw-brand); border-color: var(--aw-brand); }
-.aw details[open] .aw-plus svg { stroke: #fff; }
-.aw .aw-faq__a { padding: 0 40px 24px 0; font-size: var(--aw-fs-ui) !important; line-height: 1.7 !important; color: var(--aw-ink-2) !important; }
-.aw .aw-faq__a p + p, .aw .aw-faq__a p + ul, .aw .aw-faq__a ul + p { margin-top: 10px !important; }
-.aw .aw-faq__a ul { list-style: none !important; margin: 12px 0 0 !important; padding: 0 !important; }
-.aw .aw-faq__a li { display: flex; gap: 12px; line-height: 1.7 !important; color: var(--aw-ink-2) !important; list-style: none !important; }
-.aw .aw-faq__a li::marker { content: none; }
-.aw .aw-faq__a li + li { margin-top: 8px !important; }
-.aw .aw-faq__a li::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--aw-brand); flex-shrink: 0; margin-top: 11px; }
+.aw .aw-faq summary:focus-visible { outline: 1px solid var(--aw-brand); outline-offset: 2px; }
+/* Plain + glyph, no box */
+.aw .aw-plus { width: 16px; height: 16px; flex-shrink: 0; position: relative; transition: transform .2s var(--aw-ease); }
+.aw .aw-plus::before, .aw .aw-plus::after { content: ''; position: absolute; background: var(--aw-ink); }
+.aw .aw-plus::before { left: 0; right: 0; top: 50%; height: 1px; margin-top: -0.5px; }
+.aw .aw-plus::after  { top: 0; bottom: 0; left: 50%; width: 1px; margin-left: -0.5px; }
+.aw details[open] .aw-plus { transform: rotate(45deg); }
+.aw details[open] .aw-plus::before, .aw details[open] .aw-plus::after { background: var(--aw-brand); }
+
+.aw .aw-faq__a {
+  padding: 0 60px 28px 0;
+  font-size: var(--aw-fs-ui) !important; font-weight: var(--aw-w-light) !important;
+  line-height: var(--aw-lh-body) !important; color: var(--aw-body) !important;
+}
+.aw .aw-faq__a p + p { margin-top: 12px !important; }
 
 
 /* ───────────────────────────────────────────────────────────────────────
    11. TABLES
    ─────────────────────────────────────────────────────────────────────── */
-.aw .aw-table-wrap { background: var(--aw-white); border: var(--aw-border-w) solid var(--aw-line); border-radius: var(--aw-radius-md); box-shadow: var(--aw-shadow); overflow: hidden; }
+.aw .aw-table-wrap { background: var(--aw-surface); border: 1px solid var(--aw-rule); overflow: hidden; }
 .aw .aw-table { width: 100% !important; border-collapse: collapse !important; }
-.aw .aw-table th { background: var(--aw-brand-pale) !important; padding: 14px 20px !important; border-bottom: var(--aw-border-w) solid var(--aw-line) !important; font-size: var(--aw-fs-label) !important; font-weight: 500 !important; color: var(--aw-brand) !important; text-align: left !important; }
-.aw .aw-table th + th, .aw .aw-table td + td { border-left: 1px solid var(--aw-border) !important; }
-.aw .aw-table td { padding: 16px 20px !important; border-bottom: 1px solid var(--aw-border) !important; font-size: 17px !important; line-height: 1.55 !important; color: var(--aw-ink-2) !important; vertical-align: middle; }
+.aw .aw-table th {
+  padding: 14px 20px !important; text-align: left !important;
+  background: var(--aw-surface-2) !important; border-bottom: 1px solid var(--aw-rule) !important;
+  font-size: var(--aw-fs-micro) !important; font-weight: var(--aw-w-medium) !important;
+  letter-spacing: var(--aw-tr-caps) !important; text-transform: uppercase !important;
+  color: var(--aw-muted) !important;
+}
+.aw .aw-table td {
+  padding: 16px 20px !important; vertical-align: middle;
+  border-bottom: 1px solid var(--aw-rule-faint) !important;
+  font-size: var(--aw-fs-ui) !important; font-weight: var(--aw-w-light) !important;
+  line-height: 1.5 !important; color: var(--aw-body) !important;
+}
 .aw .aw-table tr:last-child td { border-bottom: 0 !important; }
-.aw .aw-table tbody tr:hover td { background: var(--aw-brand-pale) !important; }
-.aw .aw-table tr.is-top td { background: var(--aw-brand-pale) !important; }
-.aw .aw-table tr.is-you td { background: var(--aw-success-bg) !important; }
-.aw .aw-table__name { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-weight: 500 !important; color: var(--aw-ink) !important; }
-.aw .aw-table__name a, .aw .aw-table__name a:link, .aw .aw-table__name a:visited { color: var(--aw-ink) !important; }
-.aw .aw-table__name a:hover { color: var(--aw-brand) !important; }
-.aw .aw-table--compact td { padding: 11px 16px !important; font-size: var(--aw-fs-label) !important; }
+.aw .aw-table tbody tr:hover td { background: var(--aw-paper) !important; }
+.aw .aw-table tr.is-top td { background: var(--aw-paper) !important; }
+/* The tracked brand's own row */
+.aw .aw-table tr.is-you td { background: var(--aw-brand-pale) !important; }
+.aw .aw-table tr.is-you td:first-child { box-shadow: inset 2px 0 0 var(--aw-brand); }
+.aw .aw-table__name {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  font-weight: var(--aw-w-normal) !important; color: var(--aw-ink) !important;
+}
+.aw .aw-table--compact td { padding: 11px 16px !important; font-size: var(--aw-fs-small) !important; }
 
 
 /* ───────────────────────────────────────────────────────────────────────
    12. CALLOUT
    ─────────────────────────────────────────────────────────────────────── */
-.aw .aw-callout { padding: 20px 24px; background: var(--aw-brand-pale); border: var(--aw-border-w) solid var(--aw-line); border-radius: var(--aw-radius-md); box-shadow: 5px 5px 0 var(--aw-brand); font-size: var(--aw-fs-body) !important; line-height: 1.6 !important; color: var(--aw-ink-2) !important; }
-.aw .aw-callout--warn { background: var(--aw-warn-bg); box-shadow: 5px 5px 0 var(--aw-amber); }
-.aw .aw-callout--danger { background: var(--aw-danger-bg); box-shadow: 5px 5px 0 var(--aw-danger); }
-.aw .aw-quote { padding: 20px 24px; background: var(--aw-brand-pale); border-left: 4px solid var(--aw-brand); border-radius: 0 var(--aw-radius) var(--aw-radius) 0; font-size: 19px !important; line-height: 1.65 !important; color: var(--aw-ink) !important; }
+.aw .aw-callout {
+  padding: 24px; background: var(--aw-surface);
+  border: 1px solid var(--aw-rule); border-left: 2px solid var(--aw-brand);
+  font-size: var(--aw-fs-ui) !important; font-weight: var(--aw-w-light) !important;
+  line-height: var(--aw-lh-body) !important; color: var(--aw-body) !important;
+}
+.aw .aw-callout--warn   { border-left-color: var(--aw-warn); }
+.aw .aw-callout--danger { border-left-color: var(--aw-neg); }
+.aw .aw-quote {
+  padding: 0 0 0 28px; border-left: 1px solid var(--aw-rule);
+  font-size: var(--aw-fs-h3) !important; font-weight: var(--aw-w-light) !important;
+  letter-spacing: var(--aw-tr-h3) !important; line-height: 1.45 !important;
+  color: var(--aw-ink) !important;
+}
 
 
 /* ───────────────────────────────────────────────────────────────────────
    13. FORMS
    ─────────────────────────────────────────────────────────────────────── */
-.aw .aw-label { display: block; font-size: var(--aw-fs-label) !important; font-weight: 500 !important; color: var(--aw-n700) !important; margin-bottom: 8px !important; }
-.aw .aw-label span { color: var(--aw-brand); margin-left: 2px; }
-.aw .aw-input, .aw .aw-textarea, .aw .aw-select {
-  width: 100%; padding: 12px 14px; font-size: var(--aw-fs-small) !important; font-family: var(--aw-font) !important; color: var(--aw-ink) !important; background: var(--aw-white);
-  border: 1px solid var(--aw-border); border-bottom-color: var(--aw-line); border-radius: var(--aw-radius);
-  transition: box-shadow var(--aw-fast), border-color var(--aw-fast);
+.aw .aw-label {
+  display: block; margin-bottom: 8px !important;
+  font-size: var(--aw-fs-micro) !important; font-weight: var(--aw-w-medium) !important;
+  letter-spacing: var(--aw-tr-caps) !important; text-transform: uppercase;
+  color: var(--aw-muted) !important;
 }
-.aw .aw-input::placeholder, .aw .aw-textarea::placeholder { color: var(--aw-g-dis); }
-.aw .aw-input:focus, .aw .aw-textarea:focus, .aw .aw-select:focus { outline: none; border-color: var(--aw-brand); box-shadow: 0 0 0 3px var(--aw-brand-bg); }
-.aw .aw-input--hero { padding: 14px 16px; font-size: var(--aw-fs-ui) !important; border: var(--aw-border-w) solid var(--aw-line); }
-.aw .aw-error { font-size: var(--aw-fs-label) !important; color: var(--aw-danger) !important; background: var(--aw-danger-bg); border: 1px solid var(--aw-danger); border-radius: var(--aw-radius); padding: 10px 12px; }
-.aw .aw-help { font-size: var(--aw-fs-micro) !important; color: var(--aw-g500) !important; margin-top: 6px !important; }
+.aw .aw-label span { color: var(--aw-brand); margin-left: 3px; }
+.aw .aw-input, .aw .aw-textarea, .aw .aw-select {
+  width: 100%; padding: 13px 15px;
+  font-family: var(--aw-font) !important; font-size: var(--aw-fs-ui) !important;
+  font-weight: var(--aw-w-normal) !important; color: var(--aw-ink) !important;
+  background: var(--aw-surface); border: 1px solid var(--aw-rule);
+  transition: border-color var(--aw-fast), box-shadow var(--aw-fast);
+}
+.aw .aw-input::placeholder, .aw .aw-textarea::placeholder { color: var(--aw-faint); }
+.aw .aw-input:focus, .aw .aw-textarea:focus, .aw .aw-select:focus {
+  outline: none; border-color: var(--aw-brand); box-shadow: inset 0 0 0 1px var(--aw-brand);
+}
+.aw .aw-input--lg { padding: 16px 18px; font-size: 17px !important; }
+.aw .aw-error {
+  padding: 11px 14px; font-size: var(--aw-fs-small) !important;
+  color: var(--aw-neg) !important; background: var(--aw-neg-bg); border: 1px solid #E8CFC8;
+}
+.aw .aw-help { margin-top: 7px !important; font-size: var(--aw-fs-micro) !important; color: var(--aw-muted) !important; }
 
-/* Toggle switch */
-.aw .aw-toggle { width: 58px; height: 32px; border-radius: 16px; background: var(--aw-skel); border: var(--aw-border-w) solid var(--aw-line); position: relative; cursor: pointer; }
-.aw .aw-toggle::after { content: ''; position: absolute; left: 3px; top: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--aw-white); border: var(--aw-border-w) solid var(--aw-line); transition: left var(--aw-fast) var(--aw-ease); }
-.aw .aw-toggle.is-on { background: var(--aw-brand); }
-.aw .aw-toggle.is-on::after { left: 29px; }
+/* Toggle — square, like everything else */
+.aw .aw-toggle {
+  width: 44px; height: 24px; position: relative; cursor: pointer;
+  background: var(--aw-surface-2); border: 1px solid var(--aw-rule);
+  transition: background var(--aw-fast), border-color var(--aw-fast);
+}
+.aw .aw-toggle::after {
+  content: ''; position: absolute; left: 2px; top: 2px; width: 18px; height: 18px;
+  background: var(--aw-surface); border: 1px solid var(--aw-rule);
+  transition: left var(--aw-fast) var(--aw-ease);
+}
+.aw .aw-toggle.is-on { background: var(--aw-brand); border-color: var(--aw-brand); }
+.aw .aw-toggle.is-on::after { left: 22px; border-color: var(--aw-brand); }
 
-/* Progress bar (run in flight) */
-.aw .aw-progress { height: 10px; background: var(--aw-skel); border: 1px solid var(--aw-line); border-radius: var(--aw-radius-pill); overflow: hidden; }
+/* Progress */
+.aw .aw-progress { height: 3px; background: var(--aw-rule-faint); }
 .aw .aw-progress__fill { height: 100%; background: var(--aw-brand); transition: width .3s var(--aw-ease); }
 
 
 /* ───────────────────────────────────────────────────────────────────────
    14. CHARTS
-   Bars: pale green with black outline. Highlight bar: solid green.
-   Lines: brand green, 2.4 to 4px, round caps. Gridlines: dashed, faint.
+   Flat. Hairline axes. Blue carries the series that matters, grey the rest.
    ─────────────────────────────────────────────────────────────────────── */
-.aw .aw-chart-bar { fill: var(--aw-brand-bg); stroke: var(--aw-line); stroke-width: 1.5; }
-.aw .aw-chart-bar--hl { fill: var(--aw-brand); }
-.aw .aw-chart-line { fill: none; stroke: var(--aw-brand); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
-.aw .aw-chart-line--2 { stroke: var(--aw-g500); stroke-dasharray: 5 4; }
-.aw .aw-chart-area { fill: var(--aw-brand-bg); }
-.aw .aw-chart-grid { stroke: var(--aw-border); stroke-width: 1; stroke-dasharray: 3 5; }
-.aw .aw-chart-base { stroke: var(--aw-line); stroke-width: 2; }
-.aw .aw-chart-dot { fill: var(--aw-white); stroke: var(--aw-brand); stroke-width: 2.5; }
-.aw .aw-chart-dot--end { fill: var(--aw-brand); stroke: var(--aw-line); }
-.aw .aw-chart-label { font-size: 11px; fill: var(--aw-g500); }
+.aw .aw-chart-bar      { fill: var(--aw-rule); }
+.aw .aw-chart-bar--hl  { fill: var(--aw-brand); }
+.aw .aw-chart-line     { fill: none; stroke: var(--aw-brand); stroke-width: 1.75; stroke-linejoin: round; stroke-linecap: round; }
+.aw .aw-chart-line--2  { stroke: var(--aw-faint); stroke-width: 1.25; stroke-dasharray: 4 4; }
+.aw .aw-chart-area     { fill: var(--aw-brand); opacity: .07; }
+.aw .aw-chart-grid     { stroke: var(--aw-rule-faint); stroke-width: 1; }
+.aw .aw-chart-base     { stroke: var(--aw-rule); stroke-width: 1; }
+.aw .aw-chart-dot      { fill: var(--aw-surface); stroke: var(--aw-brand); stroke-width: 1.5; }
+.aw .aw-chart-dot--end { fill: var(--aw-brand); stroke: none; }
+.aw .aw-chart-label    { font-size: 11px; fill: var(--aw-muted); letter-spacing: 0.2px; }
+
 /* Tooltip */
-.aw .aw-tip { background: var(--aw-bg-ink); color: var(--aw-white); border-radius: var(--aw-radius); padding: 10px 12px; font-size: 12px !important; line-height: 1.5 !important; box-shadow: 3px 3px 0 var(--aw-brand); }
-.aw .aw-tip b { color: var(--aw-white) !important; }
-.aw .aw-tip span { color: #6FCF97; font-weight: 500; }
+.aw .aw-tip {
+  padding: 10px 13px; background: var(--aw-ink); color: var(--aw-on-dark);
+  border: 0; font-size: var(--aw-fs-micro) !important; line-height: 1.5 !important;
+}
+.aw .aw-tip b { color: var(--aw-on-dark) !important; font-weight: var(--aw-w-medium) !important; }
+.aw .aw-tip span { color: #8AA9E8; }
 
 
 /* ───────────────────────────────────────────────────────────────────────
-   15. LAYOUT HELPERS
+   15. LAYOUT
    ─────────────────────────────────────────────────────────────────────── */
 .aw .aw-wrap { max-width: var(--aw-max); margin: 0 auto; padding: 0 var(--aw-gutter); }
+.aw .aw-section { padding: var(--aw-s28) 0; }
+.aw .aw-section + .aw-section { border-top: 1px solid var(--aw-rule); }
 .aw .aw-stack > * + * { margin-top: var(--aw-s6) !important; }
 .aw .aw-row { display: flex; gap: var(--aw-s3); flex-wrap: wrap; }
 .aw .aw-row--between { justify-content: space-between; align-items: center; }
-.aw .aw-divider { border: 0; border-top: 1px solid var(--aw-border); margin: var(--aw-s12) 0; }
-.aw .aw-section-head { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: end; padding-bottom: 28px; margin-bottom: 44px; border-bottom: var(--aw-border-w) solid var(--aw-line); }
-.aw .aw-section-head p { justify-self: end; max-width: 460px; font-size: 17px !important; line-height: 1.65 !important; color: var(--aw-ink-2) !important; }
-.aw .aw-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: var(--aw-s6); }
+.aw .aw-divider { border: 0; border-top: 1px solid var(--aw-rule); margin: var(--aw-s12) 0; }
+
+/* Section head — eyebrow, heading, lede */
+.aw .aw-section-head {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: end;
+  padding-bottom: 32px; margin-bottom: 48px; border-bottom: 1px solid var(--aw-rule);
+}
+.aw .aw-section-head p {
+  justify-self: end; max-width: 440px;
+  font-size: var(--aw-fs-ui) !important; font-weight: var(--aw-w-light) !important;
+  line-height: var(--aw-lh-body) !important; color: var(--aw-body) !important;
+}
+
+.aw .aw-grid-2 { display: grid; grid-template-columns: repeat(2,1fr); gap: var(--aw-s6); }
 .aw .aw-grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: var(--aw-s6); }
 .aw .aw-grid-4 { display: grid; grid-template-columns: repeat(4,1fr); gap: var(--aw-s6); }
+
+/* Hairline grid — cells share borders instead of gapping */
+.aw .aw-grid-flush { display: grid; border: 1px solid var(--aw-rule); background: var(--aw-surface); }
+.aw .aw-grid-flush > * { padding: 32px; border-right: 1px solid var(--aw-rule); border-bottom: 1px solid var(--aw-rule); }
+.aw .aw-grid-flush--3 { grid-template-columns: repeat(3,1fr); }
+.aw .aw-grid-flush--4 { grid-template-columns: repeat(4,1fr); }
+.aw .aw-grid-flush--3 > *:nth-child(3n), .aw .aw-grid-flush--4 > *:nth-child(4n) { border-right: 0; }
+.aw .aw-grid-flush--3 > *:nth-last-child(-n+3), .aw .aw-grid-flush--4 > *:nth-last-child(-n+4) { border-bottom: 0; }
 
 
 /* ───────────────────────────────────────────────────────────────────────
    16. RESPONSIVE
    ─────────────────────────────────────────────────────────────────────── */
 @media (max-width: 1024px) {
-  .aw { --aw-gutter: 32px; }
-  .aw .aw-section-head { grid-template-columns: 1fr; gap: 14px; }
+  .aw { --aw-gutter: 32px; --aw-fs-hero: 44px; --aw-fs-display: 36px; --aw-fs-h2: 30px; }
+  .aw .aw-section { padding: var(--aw-s20) 0; }
+  .aw .aw-section-head { grid-template-columns: 1fr; gap: 16px; }
   .aw .aw-section-head p { justify-self: start; }
-  .aw .aw-grid-4 { grid-template-columns: 1fr 1fr; }
-  .aw .aw-grid-3 { grid-template-columns: 1fr 1fr; }
-  .aw .aw-stats { grid-template-columns: 1fr 1fr; }
+  .aw .aw-grid-3, .aw .aw-grid-4 { grid-template-columns: repeat(2,1fr); }
+  .aw .aw-grid-flush--3, .aw .aw-grid-flush--4 { grid-template-columns: repeat(2,1fr); }
+  .aw .aw-grid-flush > *:nth-child(2n) { border-right: 0; }
+  .aw .aw-stats { grid-template-columns: repeat(2,1fr); }
+  .aw .aw-stat:nth-child(2n+1) { border-left: 0; }
+  .aw .aw-stat:nth-child(n+3) { border-top: 1px solid var(--aw-rule); }
 }
 @media (max-width: 720px) {
-  .aw { --aw-gutter: 16px; padding: 0 5px 10px 0 !important; }
-  .aw .aw-hero { font-size: 36px !important; line-height: 1.1 !important; }
-  .aw .aw-display { font-size: 32px !important; line-height: 1.15 !important; }
-  .aw .aw-h2 { font-size: 27px !important; margin-bottom: 24px !important; }
-  .aw .aw-h2--section { font-size: 32px !important; }
-  .aw .aw-h3 { font-size: 19px !important; }
-  .aw .aw-faq summary { font-size: 17px !important; }
-  .aw .aw-body, .aw .aw-faq__a, .aw .aw-list > li { font-size: 17px !important; line-height: 1.7 !important; }
-  .aw .aw-list--tight > li { font-size: 15px !important; }
-  .aw .aw-frame--shadow, .aw .aw-table-wrap, .aw .aw-stats { box-shadow: 5px 5px 0 var(--aw-brand); }
+  .aw { --aw-gutter: 16px; --aw-fs-hero: 34px; --aw-fs-display: 28px; --aw-fs-h2: 26px; --aw-fs-h3: 21px; --aw-fs-body: 17px; }
+  .aw { padding: 0 0 10px 0 !important; }
+  .aw .aw-section { padding: var(--aw-s16) 0; }
+  .aw .aw-panel-dark { padding: 32px 22px; }
   .aw .aw-frame__head { padding: 14px 18px; }
-  .aw .aw-frame__body { padding: 20px 18px 22px; }
-  .aw .aw-stats, .aw .aw-grid-2, .aw .aw-grid-3, .aw .aw-grid-4 { grid-template-columns: 1fr; }
-  .aw .aw-stat + .aw-stat { border-left: 0; border-top: 1px solid var(--aw-border); }
-  .aw .aw-stat__num { font-size: 28px !important; }
-  .aw .aw-panel-dark { padding: 32px 22px; box-shadow: 5px 5px 0 var(--aw-brand); }
+  .aw .aw-frame__body { padding: 20px 18px; }
+  .aw .aw-stat { padding: 20px 18px; }
+  .aw .aw-stat__num { font-size: 30px !important; }
+  .aw .aw-faq__a { padding-right: 0; }
+  .aw .aw-grid-2, .aw .aw-grid-3, .aw .aw-grid-4,
+  .aw .aw-grid-flush--3, .aw .aw-grid-flush--4 { grid-template-columns: 1fr; }
+  .aw .aw-grid-flush > * { border-right: 0 !important; padding: 24px 18px; }
+  .aw .aw-grid-flush > *:last-child { border-bottom: 0; }
+  .aw .aw-stats { grid-template-columns: 1fr; }
+  .aw .aw-stat + .aw-stat { border-left: 0; border-top: 1px solid var(--aw-rule); }
   .aw .aw-btn--block-mobile { width: 100%; }
-  .aw .aw-score__lab { width: 68px; }
-  /* Tables stack into cards */
+  .aw .aw-score__lab { width: 74px; }
+  /* Tables stack into rows */
   .aw .aw-table thead { display: none; }
   .aw .aw-table, .aw .aw-table tbody, .aw .aw-table tr, .aw .aw-table td { display: block; width: 100% !important; }
-  .aw .aw-table tr { padding: 16px !important; border-bottom: 1px solid var(--aw-border) !important; }
-  .aw .aw-table td { padding: 0 !important; border: 0 !important; font-size: 15px !important; }
+  .aw .aw-table tr { padding: 16px !important; border-bottom: 1px solid var(--aw-rule) !important; }
+  .aw .aw-table td { padding: 0 !important; border: 0 !important; font-size: var(--aw-fs-small) !important; }
   .aw .aw-table td + td { margin-top: 6px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .aw *, .aw *::before, .aw *::after { transition: none !important; animation: none !important; }
-  .aw .aw-lift:hover, .aw .aw-btn:hover { transform: none; }
 }
