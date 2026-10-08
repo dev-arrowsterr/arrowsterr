@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import {
   answered,
   brandStats,
@@ -10,17 +10,17 @@ import {
   pageKey,
   promptRows,
   rankOf,
-  SOURCE_TYPES,
   typeShares,
   urlGroups,
   urlRows,
   type SourceType,
+  type UrlRow,
 } from "@/lib/metrics";
+import { treemap } from "@/lib/treemap";
 import type { RunAuth } from "@/lib/runner";
 import type { View } from "@/lib/view";
 import { BrandLogo } from "./BrandLogo";
-import { Donut, Legend } from "./Donut";
-import { Card, Empty, favicon, pct, Seg, type Sort, sortRows, SortTh, Tip, TIPS, useSort } from "./ui";
+import { Card, Empty, favicon, pct, Seg, sortRows, SortTh, Tip, TIPS, useSort } from "./ui";
 
 export const TYPE_COLORS: Record<SourceType, string> = {
   You: "#0943B0",
@@ -66,13 +66,23 @@ const pageTitle = (title: string | null, url: string) => {
 };
 const VERDICT: Record<string, string> = { strong: "aw-status--ranked", okay: "aw-status--pending", weak: "aw-status--missed" };
 
-/** Every site (or page) the AI answers cite, with its type and how often it shows up. */
-export function SourcesPage({ view, mode, auth, onMode }: { view: View; mode: "domains" | "urls"; auth: RunAuth | null; onMode: (m: "domains" | "urls") => void }) {
+type Group = "owned" | "third" | "reviews";
+const GROUPS: { id: Group; label: string; color: string; help: string }[] = [
+  { id: "owned", label: "Owned", color: "#0943B0", help: "Your own site." },
+  { id: "third", label: "Third-party", color: "#2B3242", help: "News, blogs, forums, reference sites and competitor sites." },
+  { id: "reviews", label: "Review sites", color: "#F5B70A", help: "Review and rating sites like G2, Capterra and Trustpilot." },
+];
+const groupOf = (t: SourceType): Group => (t === "You" ? "owned" : t === "Reviews" ? "reviews" : "third");
+
+/** Owned, third-party and review sites the AI answers cite: the share of each, a map of the biggest, and every site and link. */
+export function SourcesPage({ view, auth }: { view: View; auth: RunAuth | null }) {
   const { brand, current, filter, days, topics, engines } = view;
-  const [type, setType] = useState<SourceType | "All">("All");
+  const [group, setGroup] = useState<Group>("third");
+  const [list, setList] = useState<"sites" | "links">("sites");
+  const [focus, setFocus] = useState<string | null>(null);
   const [sort, setSort] = useSort("used");
-  const [shut, setShut] = useState<Set<string>>(new Set());
-  const [more, setMore] = useState<Set<string>>(new Set());
+  const [linkSort, setLinkSort] = useSort("used");
+  const [open, setOpen] = useState<Set<string>>(new Set());
   const cacheKey = `arrowsterr.insights.${brand.id}.${days}`;
   const [insights, setInsights] = useState<Insights | null>(() => readCache(cacheKey));
   const [busy, setBusy] = useState(false);
@@ -85,10 +95,16 @@ export function SourcesPage({ view, mode, auth, onMode }: { view: View; mode: "d
   const domains = domainRows(chats, brand.domain, comp);
   const urls = urlRows(chats, brand.domain, comp);
   const shares = typeShares(domains);
-  const rows = mode === "domains" ? domains : urls;
-  const counts = new Map(SOURCE_TYPES.map((t) => [t, rows.filter((r) => r.type === t).length]));
-  const domainSort = { domain: (r: (typeof domains)[number]) => r.domain, type: (r: (typeof domains)[number]) => r.type, used: (r: (typeof domains)[number]) => r.used, chats: (r: (typeof domains)[number]) => r.chats, avg: (r: (typeof domains)[number]) => r.avgCitations };
+  const groupShare = (g: Group) => shares.filter((x) => groupOf(x.type) === g).reduce((n, x) => n + x.share, 0);
+  const inGroup = domains.filter((d) => groupOf(d.type) === group);
+  const sites = urlGroups(urls, domains).filter((g) => groupOf(g.type) === group && (!focus || g.domain === focus));
+  const links = urls.filter((u) => groupOf(u.type) === group && (!focus || u.domain === focus));
+  const boxes = treemap(inGroup.slice(0, 30), (d) => d.chats);
   const notes = new Map((insights?.pages ?? []).map((p) => [pageKey(p.url), p]));
+  const pickGroup = (g: Group) => {
+    setGroup(g);
+    setFocus(null);
+  };
 
   async function analyze() {
     if (!auth) return;
@@ -138,262 +154,277 @@ export function SourcesPage({ view, mode, auth, onMode }: { view: View; mode: "d
   const toggle = (set: Set<string>, key: string) => (set.has(key) ? new Set([...set].filter((x) => x !== key)) : new Set([...set, key]));
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="aw-h2">Sources</h1>
-        <Seg
-          label="Sources view"
-          value={mode}
-          onChange={onMode}
-          options={[
-            { id: "domains", label: "Domains" },
-            { id: "urls", label: "URLs" },
-          ]}
-        />
-      </div>
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="flex min-w-0 flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex flex-wrap gap-2">
-              {(["All", ...SOURCE_TYPES] as const).map((t) =>
-                t === "All" || counts.get(t) ? (
-                  <button
-                    key={t}
-                    type="button"
-                    onClick={() => setType(t)}
-                    aria-pressed={type === t}
-                    className={`flex items-center gap-1.5 border px-3 py-1.5 text-[13px] ${type === t ? "border-ink bg-ink text-white" : "border-rule bg-white text-body hover:border-ink"}`}
-                  >
-                    {t !== "All" ? <i className="inline-block h-2 w-2" style={{ background: TYPE_COLORS[t] }} /> : null}
-                    {t}
-                    <span className={`font-mono text-[11px] ${type === t ? "text-white/70" : "text-muted"}`}>{t === "All" ? rows.length : counts.get(t)}</span>
-                  </button>
-                ) : null,
-              )}
-            </div>
-          </div>
+    <div className="flex flex-col gap-6">
+      <h1 className="aw-h2">Sources</h1>
 
-          {mode === "domains" ? (
-            <div className="aw-table-wrap">
-              <table className="aw-table aw-table--compact">
-                <thead>
-                  <tr>
-                    <th className="w-8">#</th>
-                    <SortTh id="domain" sort={sort} onSort={setSort} text>
-                      Domain
-                    </SortTh>
-                    <SortTh id="type" sort={sort} onSort={setSort} text>
-                      Type
-                    </SortTh>
-                    <SortTh id="used" sort={sort} onSort={setSort}>
-                      Used
-                      <Tip text={TIPS.used} />
-                    </SortTh>
-                    <SortTh id="chats" sort={sort} onSort={setSort}>
-                      Answers
-                      <Tip text={TIPS.answers} />
-                    </SortTh>
-                    <SortTh id="avg" sort={sort} onSort={setSort}>
-                      Avg. citations
-                      <Tip text={TIPS.avgCitations} />
-                    </SortTh>
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortRows(domains.filter((d) => type === "All" || d.type === type), sort, domainSort).map((d, i) => (
-                    <tr key={d.domain} className={d.type === "You" ? "is-you" : ""}>
-                      <td className="aw-num text-muted">{i + 1}</td>
-                      <td>
-                        <a href={`https://${d.domain}`} target="_blank" rel="noopener noreferrer nofollow" className="flex items-center gap-2">
-                          <BrandLogo src={favicon(d.domain)} name={d.domain} size={18} />
-                          {d.domain}
-                        </a>
-                      </td>
-                      <td>
-                        <TypeTag type={d.type} />
-                      </td>
-                      <td className="aw-num">{pct(d.used)}</td>
-                      <td className="aw-num">{d.chats}</td>
-                      <td className="aw-num">{d.avgCitations.toFixed(1)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+      {/* 1. Share bar */}
+      <section className="aw-frame flex flex-col gap-3 p-5">
+        <span className="aw-label">
+          What AI reads when it answers
+          <Tip text="Share of all links in AI answers, by kind of site." />
+        </span>
+        <div className="flex h-10 w-full gap-0.5 overflow-hidden" role="img" aria-label={GROUPS.map((g) => `${g.label} ${pct(groupShare(g.id))}`).join(", ")}>
+          {GROUPS.filter((g) => groupShare(g.id) > 0).map((g) => (
+            <button
+              key={g.id}
+              type="button"
+              onClick={() => pickGroup(g.id)}
+              title={`${g.label}: ${pct(groupShare(g.id))}`}
+              className={`flex h-full min-w-10 items-center justify-center px-2 text-[13px] font-medium text-white ${group === g.id ? "" : "opacity-80 hover:opacity-100"}`}
+              style={{ width: `${groupShare(g.id)}%`, background: g.color, color: g.id === "reviews" ? "#1a1f2b" : "#fff" }}
+            >
+              {groupShare(g.id) >= 6 ? pct(groupShare(g.id)) : ""}
+            </button>
+          ))}
+        </div>
+        <ul className="flex flex-wrap gap-x-6 gap-y-1 text-[13px] text-ink">
+          {GROUPS.map((g) => (
+            <li key={g.id} className="flex items-center gap-2">
+              <i className="inline-block h-3 w-3" style={{ background: g.color }} />
+              {g.label}
+              <b className="aw-num font-medium">{pct(groupShare(g.id))}</b>
+              <Tip text={g.help} />
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* 2. Tabs */}
+      <div className="flex flex-wrap border-b border-rule" role="tablist" aria-label="Kind of site">
+        {GROUPS.map((g) => (
+          <button
+            key={g.id}
+            type="button"
+            role="tab"
+            aria-selected={group === g.id}
+            onClick={() => pickGroup(g.id)}
+            className={`-mb-px flex items-center gap-2 border-b-2 px-5 py-3 text-[15px] ${group === g.id ? "border-ink font-medium text-ink" : "border-transparent text-body hover:text-ink"}`}
+          >
+            <i className="inline-block h-2.5 w-2.5" style={{ background: g.color }} />
+            {g.label}
+            <span className="aw-num text-[12px] text-muted">{domains.filter((d) => groupOf(d.type) === g.id).length}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* 3. Site map */}
+      {boxes.length ? (
+        <section className="aw-frame">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rule-faint px-5 py-3">
+            <span className="aw-label">
+              Site map
+              <Tip text="Each box is a site. Bigger boxes are cited in more AI answers. Click one to see its links." />
+            </span>
+            {focus ? (
+              <button type="button" className="aw-text-link text-[13px]" onClick={() => setFocus(null)}>
+                Show all sites
+              </button>
+            ) : (
+              <span className="aw-small">Top {boxes.length} sites by answers that cite them</span>
+            )}
+          </div>
+          <div className="relative m-3 h-[340px]">
+            {boxes.map(({ item: d, x, y, w, h }) => {
+              const color = TYPE_COLORS[d.type];
+              const on = focus === d.domain;
+              const big = w > 12 && h > 18;
+              return (
+                <button
+                  key={d.domain}
+                  type="button"
+                  onClick={() => {
+                    setFocus(on ? null : d.domain);
+                    setOpen(new Set([d.domain]));
+                  }}
+                  title={`${d.domain}: cited in ${d.chats} answers (${pct(d.used)})`}
+                  className={`absolute flex flex-col items-start justify-between overflow-hidden border-2 border-white p-2 text-left transition-colors ${on ? "outline-2 outline-ink" : ""}`}
+                  style={{ left: `${x}%`, top: `${y}%`, width: `${w}%`, height: `${h}%`, background: `${color}${on ? "40" : "1f"}` }}
+                >
+                  <span className="flex min-w-0 max-w-full items-center gap-1.5">
+                    <BrandLogo src={favicon(d.domain)} name={d.domain} size={big ? 22 : 16} />
+                    {w > 7 ? <span className={`truncate font-medium text-ink ${big ? "text-[14px]" : "text-[12px]"}`}>{d.domain}</span> : null}
+                  </span>
+                  {big ? <span className="aw-num text-[13px] text-ink">{pct(d.used)}</span> : null}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ) : (
+        <Empty>No {GROUPS.find((g) => g.id === group)!.label.toLowerCase()} sites cited in this period.</Empty>
+      )}
+
+      {/* 4. One list */}
+      {boxes.length ? (
+        <section className="aw-frame">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rule-faint px-5 py-3">
+            <span className="aw-label">{focus ? `Links on ${focus}` : list === "sites" ? "Every site" : "Most cited links"}</span>
+            <Seg
+              label="List"
+              value={list}
+              onChange={setList}
+              options={[
+                { id: "sites", label: "By site" },
+                { id: "links", label: "By link" },
+              ]}
+            />
+          </div>
+          {list === "sites" ? (
+            <table className="aw-table">
+              <thead>
+                <tr>
+                  <th className="w-10">#</th>
+                  <SortTh id="domain" sort={sort} onSort={setSort} text>
+                    Site
+                  </SortTh>
+                  <SortTh id="used" sort={sort} onSort={setSort} className="w-32">
+                    Used
+                    <Tip text={TIPS.used} />
+                  </SortTh>
+                  <SortTh id="chats" sort={sort} onSort={setSort} className="w-32">
+                    Answers
+                    <Tip text={TIPS.answers} />
+                  </SortTh>
+                  <SortTh id="pages" sort={sort} onSort={setSort} className="w-28">
+                    Pages
+                    <Tip text={TIPS.pages} />
+                  </SortTh>
+                  <th className="w-10" aria-label="Open" />
+                </tr>
+              </thead>
+              <tbody>
+                {sortRows(sites, sort, { domain: (g) => g.domain, used: (g) => g.used, chats: (g) => g.chats, pages: (g) => g.pages.length }).map((g, i) => {
+                  const isOpen = open.has(g.domain);
+                  return (
+                    <Fragment key={g.domain}>
+                      <tr className={`cursor-pointer ${g.type === "You" ? "is-you" : ""}`} onClick={() => setOpen(toggle(open, g.domain))} aria-expanded={isOpen}>
+                        <td className="aw-num text-muted">{i + 1}</td>
+                        <td>
+                          <span className="flex items-center gap-2.5">
+                            <BrandLogo src={favicon(g.domain)} name={g.domain} size={20} />
+                            <span className="font-medium text-ink">{g.domain}</span>
+                            {g.type === "Competitor" ? <TypeTag type="Competitor" /> : null}
+                          </span>
+                        </td>
+                        <td className="aw-num">{pct(g.used)}</td>
+                        <td className="aw-num">{g.chats}</td>
+                        <td className="aw-num">{g.pages.length}</td>
+                        <td className="text-muted" aria-hidden="true">
+                          {isOpen ? "▴" : "▾"}
+                        </td>
+                      </tr>
+                      {isOpen
+                        ? [...g.pages]
+                            .sort((x, y) => y.chats - x.chats)
+                            .map((u) => <LinkRow key={u.url} u={u} note={notes.get(pageKey(u.url))} indent />)
+                        : null}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
           ) : (
-            <div className="flex flex-col gap-3">
-              <GroupSort sort={sort} onSort={setSort} />
-              {sortRows(urlGroups(urls, domains).filter((g) => type === "All" || g.type === type), sort, {
-                domain: (g) => g.domain,
-                type: (g) => g.type,
-                pages: (g) => g.pages.length,
-                used: (g) => g.used,
-              }).map((g) => {
-                const open = !shut.has(g.domain);
-                const all = more.has(g.domain);
-                return (
-                  <section key={g.domain} className="aw-frame" style={g.type === "You" ? { boxShadow: "inset 2px 0 0 var(--aw-brand)" } : undefined}>
-                    <button
-                      type="button"
-                      onClick={() => setShut(toggle(shut, g.domain))}
-                      aria-expanded={open}
-                      className="flex w-full flex-wrap items-center justify-between gap-3 px-5 py-4 text-left hover:bg-paper"
-                    >
-                      <span className="flex min-w-0 items-center gap-3">
-                        <BrandLogo src={favicon(g.domain)} name={g.domain} size={22} />
-                        <span className="truncate text-[16px] font-medium text-ink">{g.domain}</span>
-                        <TypeTag type={g.type} />
-                      </span>
-                      <span className="flex items-center gap-6">
-                        <span className="flex flex-col items-end gap-0.5">
-                          <span className="aw-label">Pages</span>
-                          <span className="aw-num text-[15px] text-ink">{g.pages.length}</span>
-                        </span>
-                        <span className="flex flex-col items-end gap-0.5">
-                          <span className="aw-label">Used</span>
-                          <span className="aw-num text-[15px] text-ink">{pct(g.used)}</span>
-                        </span>
-                        <span aria-hidden="true" className="text-muted">
-                          {open ? "▴" : "▾"}
-                        </span>
-                      </span>
-                    </button>
-                    {open ? (
-                      <ul className="divide-y divide-rule-faint border-t border-rule">
-                        {(all ? g.pages : g.pages.slice(0, 5)).map((u) => {
-                          const n = notes.get(pageKey(u.url));
-                          return (
-                            <li key={u.url} className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-5 py-3">
-                              <span className="flex min-w-0 flex-1 flex-col gap-1">
-                                <a href={u.url} target="_blank" rel="noopener noreferrer nofollow" className="truncate text-[14px]" title={u.url}>
-                                  {pageTitle(u.title, u.url)}
-                                </a>
-                                {n ? (
-                                  <span className="flex items-start gap-2 text-[13px] text-body">
-                                    <span className={`aw-status ${VERDICT[n.verdict]}`}>{n.verdict}</span>
-                                    <span className="pt-0.5">{n.note}</span>
-                                  </span>
-                                ) : null}
-                              </span>
-                              <span className="flex items-center gap-6">
-                                <span className="aw-num w-12 text-right text-[13px] text-ink" title="Share of answers that cite this page">
-                                  {pct(u.used)}
-                                </span>
-                                <span className="aw-num w-20 text-right text-[12px] text-muted" title={u.prompts.join("\n")}>
-                                  {u.prompts.length} {u.prompts.length === 1 ? "prompt" : "prompts"}
-                                </span>
-                              </span>
-                            </li>
-                          );
-                        })}
-                        {g.pages.length > 5 ? (
-                          <li className="px-5 py-2.5">
-                            <button type="button" className="aw-text-link" onClick={() => setMore(toggle(more, g.domain))}>
-                              {all ? "Show fewer" : `Show all ${g.pages.length} pages`}
-                            </button>
-                          </li>
-                        ) : null}
-                      </ul>
-                    ) : null}
-                  </section>
-                );
-              })}
-            </div>
+            <table className="aw-table">
+              <thead>
+                <tr>
+                  <th className="w-10">#</th>
+                  <SortTh id="title" sort={linkSort} onSort={setLinkSort} text>
+                    Link
+                  </SortTh>
+                  <SortTh id="used" sort={linkSort} onSort={setLinkSort} className="w-32">
+                    Used
+                    <Tip text="Share of AI answers that cite this link." />
+                  </SortTh>
+                  <SortTh id="chats" sort={linkSort} onSort={setLinkSort} className="w-32">
+                    Answers
+                  </SortTh>
+                  <SortTh id="prompts" sort={linkSort} onSort={setLinkSort} className="w-28">
+                    Prompts
+                    <Tip text="How many of your prompts got an answer citing this link." />
+                  </SortTh>
+                  <th className="w-10" />
+                </tr>
+              </thead>
+              <tbody>
+                {sortRows(links.slice(0, 300), linkSort, { title: (u) => pageTitle(u.title, u.url), used: (u) => u.used, chats: (u) => u.chats, prompts: (u) => u.prompts.length }).map((u, i) => (
+                  <LinkRow key={u.url} u={u} n={i + 1} note={notes.get(pageKey(u.url))} />
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
+      ) : null}
+
+      <Card
+        title="Executive summary"
+        action={
+          auth ? (
+            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={analyze} disabled={busy}>
+              {busy ? "Analyzing..." : insights ? "Refresh" : "Analyze"}
+            </button>
+          ) : null
+        }
+      >
+        <div className="flex flex-col gap-4 p-5">
+          {error ? <p className="aw-error">{error}</p> : null}
+          {busy ? (
+            <span className="text-[14px] text-ink">Reading your sources...</span>
+          ) : insights ? (
+            <>
+              <p className="text-[14px] leading-relaxed text-body">{insights.summary}</p>
+              <ol className="grid gap-4 lg:grid-cols-3">
+                {insights.actions.map((a, i) => (
+                  <li key={a.title} className="flex gap-3">
+                    <span className="aw-num flex h-6 w-6 shrink-0 items-center justify-center border border-rule text-[12px] text-ink">{i + 1}</span>
+                    <span className="flex flex-col gap-1">
+                      <span className="text-[14px] font-medium text-ink">{a.title}</span>
+                      <span className="text-[13px] text-muted">{a.why}</span>
+                      <span className="text-[13px] text-body">{a.how}</span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+              <span className="aw-label">Made {new Date(insights.at).toLocaleString()} · notes on your pages show in the Owned tab</span>
+            </>
+          ) : (
+            <p className="text-[14px] text-body">
+              {auth ? "Get a short read of where you stand, what to fix first, and how each of your cited pages is doing. Uses one AI answer." : "Ask an editor to make a summary. It shows here once made in this browser."}
+            </p>
           )}
         </div>
-
-        <div className="flex min-w-0 flex-col gap-5 self-start">
-          <Card title="Domains by type">
-            <div className="flex flex-col items-center gap-5 p-5">
-              <Donut
-                label="Share of citations by site type"
-                slices={shares.map((s) => ({ label: s.type, value: s.share, color: TYPE_COLORS[s.type] }))}
-                center={
-                  <>
-                    <span className="aw-num text-[24px] text-ink">{pct(shares.find((s) => s.type === "You")?.share ?? 0)}</span>
-                    <span className="text-[11px] text-muted">your site</span>
-                  </>
-                }
-              />
-              <Legend slices={shares.filter((s) => s.share > 0).map((s) => ({ label: s.type, value: s.share, color: TYPE_COLORS[s.type] }))} />
-            </div>
-          </Card>
-
-          <Card
-            title="Executive summary"
-            action={
-              auth ? (
-                <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={analyze} disabled={busy}>
-                  {busy ? "Analyzing..." : insights ? "Refresh" : "Analyze"}
-                </button>
-              ) : null
-            }
-          >
-            <div className="flex flex-col gap-4 p-5">
-              {error ? <p className="aw-error">{error}</p> : null}
-              {busy ? (
-                <div className="flex flex-col items-center gap-3 py-6 text-center">
-                  <span className="aw-think__icon" aria-hidden="true">
-                    <svg viewBox="0 0 24 24">
-                      <path d="M12 1.5c.6 4.9 2.9 8.6 10.5 10.5-7.6 1.9-9.9 5.6-10.5 10.5-.6-4.9-2.9-8.6-10.5-10.5C9.1 10.1 11.4 6.4 12 1.5z" />
-                    </svg>
-                  </span>
-                  <span className="text-[14px] text-ink">Reading your sources...</span>
-                </div>
-              ) : insights ? (
-                <>
-                  <p className="text-[14px] leading-relaxed text-body">{insights.summary}</p>
-                  <ol className="flex flex-col gap-4">
-                    {insights.actions.map((a, i) => (
-                      <li key={a.title} className="flex gap-3">
-                        <span className="aw-num flex h-6 w-6 shrink-0 items-center justify-center border border-rule text-[12px] text-ink">{i + 1}</span>
-                        <span className="flex flex-col gap-1">
-                          <span className="text-[14px] font-medium text-ink">{a.title}</span>
-                          <span className="text-[13px] text-muted">{a.why}</span>
-                          <span className="text-[13px] text-body">{a.how}</span>
-                        </span>
-                      </li>
-                    ))}
-                  </ol>
-                  <span className="aw-label">Made {new Date(insights.at).toLocaleString()} · notes on your pages show in URLs</span>
-                </>
-              ) : (
-                <p className="text-[14px] text-body">
-                  {auth
-                    ? "Get a short read of where you stand, what to fix first, and how each of your cited pages is doing. Uses one AI answer."
-                    : "Ask an editor to make a summary. It shows here once made in this browser."}
-                </p>
-              )}
-            </div>
-          </Card>
-        </div>
-      </div>
+      </Card>
     </div>
   );
 }
 
-/** Column names above the URL groups. Click one to sort the groups by it; click again to flip. */
-function GroupSort({ sort, onSort }: { sort: Sort; onSort: (s: Sort) => void }) {
+/** One cited link: title, address, share of answers and prompts. */
+function LinkRow({ u, n, note, indent = false }: { u: UrlRow; n?: number; note?: Insights["pages"][number]; indent?: boolean }) {
   return (
-    <table className="aw-table" aria-label="Sort sites">
-      <thead>
-        <tr>
-          <SortTh id="domain" sort={sort} onSort={onSort} text>
-            Site
-          </SortTh>
-          <SortTh id="type" sort={sort} onSort={onSort} text>
-            Type
-          </SortTh>
-          <SortTh id="pages" sort={sort} onSort={onSort} className="w-28">
-            Pages
-            <Tip text={TIPS.pages} />
-          </SortTh>
-          <SortTh id="used" sort={sort} onSort={onSort} className="w-28">
-            Used
-            <Tip text={TIPS.used} />
-          </SortTh>
-        </tr>
-      </thead>
-    </table>
+    <tr className={indent ? "bg-paper" : ""}>
+      <td className="aw-num text-muted">{n ?? ""}</td>
+      <td>
+        <span className={`flex min-w-0 flex-col gap-0.5 ${indent ? "pl-8" : ""}`}>
+          <a href={u.url} target="_blank" rel="noopener noreferrer nofollow" className="max-w-xl truncate text-[14px]" title={u.url}>
+            {pageTitle(u.title, u.url)} ↗
+          </a>
+          <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-muted">
+            {!indent ? <BrandLogo src={favicon(u.domain)} name={u.domain} size={12} /> : null}
+            <span className="max-w-xl truncate">{u.url.replace(/^https?:\/\/(www\.)?/, "")}</span>
+          </span>
+          {note ? (
+            <span className="flex items-start gap-2 text-[13px] text-body">
+              <span className={`aw-status ${VERDICT[note.verdict]}`}>{note.verdict}</span>
+              <span className="pt-0.5">{note.note}</span>
+            </span>
+          ) : null}
+        </span>
+      </td>
+      <td className="aw-num">{pct(u.used)}</td>
+      <td className="aw-num">{u.chats}</td>
+      <td className="aw-num" title={u.prompts.join("\n")}>
+        {u.prompts.length}
+      </td>
+      <td />
+    </tr>
   );
 }

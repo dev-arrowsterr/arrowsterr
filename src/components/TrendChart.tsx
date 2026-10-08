@@ -31,17 +31,19 @@ function smooth(pts: [number, number][]) {
 }
 
 /** Each brand over time, as lines or grouped bars. Hover shows every value for that day. */
-export function TrendChart({ points, lines, metric, mode }: { points: Point[]; lines: Line[]; metric: ChartMetric; mode: "line" | "bar" }) {
+export function TrendChart({ points, lines, metric, mode, wide = false }: { points: Point[]; lines: Line[]; metric: ChartMetric; mode: "line" | "bar"; wide?: boolean }) {
+  // Wide charts keep the same height but stretch sideways, so they stay short on big screens.
+  const VW = wide ? 1400 : W;
   const [hover, setHover] = useState<number | null>(null);
   const values = points.flatMap((p) => lines.map((l) => p.values[l.name])).filter((v): v is number => v !== null);
   // Visibility runs 0 to 100. Sentiment 0 to 100. Position: #1 at the top.
   const max = metric === "position" ? Math.max(3, Math.ceil(Math.max(...values, 1))) : metric === "count" ? niceMax(Math.max(...values, 1)) : 100;
   const min = metric === "position" ? 1 : 0;
   const n = points.length;
-  const x = (i: number) => PAD.l + (n <= 1 ? (W - PAD.l - PAD.r) / 2 : (i * (W - PAD.l - PAD.r)) / (n - 1));
+  const x = (i: number) => PAD.l + (n <= 1 ? (VW - PAD.l - PAD.r) / 2 : (i * (VW - PAD.l - PAD.r)) / (n - 1));
   const y = (v: number) => (metric === "position" ? PAD.t + ((v - min) / (max - min)) * (H - PAD.t - PAD.b) : H - PAD.b - ((v - min) / (max - min)) * (H - PAD.t - PAD.b));
   const ticks = metric === "position" ? [1, Math.round((1 + max) / 2), max] : metric === "count" ? [0, max / 4, max / 2, (3 * max) / 4, max] : [0, 25, 50, 75, 100];
-  const slot = (W - PAD.l - PAD.r) / Math.max(n, 1);
+  const slot = (VW - PAD.l - PAD.r) / Math.max(n, 1);
   const barW = Math.max(2, Math.min(14, (slot * 0.8) / Math.max(lines.length, 1)));
   const bx = (i: number, j: number) => PAD.l + slot * i + slot / 2 - (barW * lines.length) / 2 + j * barW;
   const p = hover !== null ? points[hover] : null;
@@ -49,10 +51,10 @@ export function TrendChart({ points, lines, metric, mode }: { points: Point[]; l
   if (!n) return <p className="aw-small p-5">No results in this period yet.</p>;
   return (
     <div className="relative">
-      <svg viewBox={`0 0 ${W} ${H}`} className="block h-auto w-full" role="img" aria-label={`${metric} over time`} onMouseLeave={() => setHover(null)}>
+      <svg viewBox={`0 0 ${VW} ${H}`} className="block h-auto w-full" role="img" aria-label={`${metric} over time`} onMouseLeave={() => setHover(null)}>
         {ticks.map((t) => (
           <g key={t}>
-            <line x1={PAD.l} x2={W - PAD.r} y1={y(t)} y2={y(t)} className="aw-chart-grid" />
+            <line x1={PAD.l} x2={VW - PAD.r} y1={y(t)} y2={y(t)} className="aw-chart-grid" />
             <text x={PAD.l - 8} y={y(t) + 4} textAnchor="end" className="aw-chart-label">
               {fmt(metric, t)}
             </text>
@@ -94,9 +96,9 @@ export function TrendChart({ points, lines, metric, mode }: { points: Point[]; l
         {points.map((pt, i) => (
           <rect
             key={`hit-${pt.at}`}
-            x={mode === "bar" ? PAD.l + slot * i : x(i) - (n <= 1 ? W : (W - PAD.l - PAD.r) / (n - 1) / 2)}
+            x={mode === "bar" ? PAD.l + slot * i : x(i) - (n <= 1 ? VW : (VW - PAD.l - PAD.r) / (n - 1) / 2)}
             y={0}
-            width={mode === "bar" ? slot : n <= 1 ? W * 2 : (W - PAD.l - PAD.r) / (n - 1)}
+            width={mode === "bar" ? slot : n <= 1 ? VW * 2 : (VW - PAD.l - PAD.r) / (n - 1)}
             height={H}
             fill="transparent"
             onMouseEnter={() => setHover(i)}
@@ -106,7 +108,7 @@ export function TrendChart({ points, lines, metric, mode }: { points: Point[]; l
       {p ? (
         <div
           className="aw-tip pointer-events-none absolute top-2 min-w-48"
-          style={{ left: `${Math.min(70, Math.max(2, ((mode === "bar" ? PAD.l + slot * hover! + slot / 2 : x(hover!)) / W) * 100 + 2))}%` }}
+          style={{ left: `${Math.min(70, Math.max(2, ((mode === "bar" ? PAD.l + slot * hover! + slot / 2 : x(hover!)) / VW) * 100 + 2))}%` }}
         >
           <div className="mb-1 font-medium">{p.label}</div>
           {[...lines]

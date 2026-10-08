@@ -463,7 +463,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           ) : page === "traffic" ? (
             <TrafficPage key={view.brand.id} view={view} auth={auth} canEdit={canEdit} />
           ) : page === "domains" || page === "urls" ? (
-            <SourcesPage key={`${view.brand.id}-${page}`} view={view} mode={page} auth={canEdit ? auth : null} onMode={(m) => go(m)} />
+            <SourcesPage key={view.brand.id} view={view} auth={canEdit ? auth : null} />
           ) : (
             <PromptsPage
               key={`${view.brand.id}-${focusTopic ?? ""}`}

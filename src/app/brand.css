@@ -821,7 +821,7 @@
 .aw .aw-chart-base     { stroke: var(--aw-rule); stroke-width: 1; }
 .aw .aw-chart-dot      { fill: var(--aw-surface); stroke: var(--aw-brand); stroke-width: 1.5; }
 .aw .aw-chart-dot--end { fill: var(--aw-brand); stroke: none; }
-.aw .aw-chart-label    { font-family: var(--aw-mono); font-size: 10px; fill: var(--aw-muted); letter-spacing: 0.06em; text-transform: uppercase; }
+.aw .aw-chart-label    { font-family: var(--aw-mono); font-size: 10px; fill: var(--aw-ink); letter-spacing: 0.06em; text-transform: uppercase; }
 
 .aw .aw-tip {
   padding: 9px 12px; background: var(--aw-ink); color: var(--aw-on-dark);
