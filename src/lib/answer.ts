@@ -1,28 +1,31 @@
 import "server-only";
+import type { Chat } from "./chats";
+import { NO_AI_OVERVIEW, type DfsAnswer } from "./dataforseo";
 import { askEngine, type Engine } from "./engines";
 import { extractBrands } from "./extract";
-import type { Chat } from "./chats";
 
-/** Ask one engine one prompt, then pull out the brands it named. Never throws. */
-export async function answerChat(engine: Engine, prompt: string, brand: string, domain: string): Promise<Chat> {
-  const chat: Chat = { engine, prompt, text: "", sources: [], brands: [], error: null };
-  try {
-    const answer = await askEngine(engine, prompt);
-    chat.text = answer.text;
-    chat.sources = answer.sources;
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    console.error(`${engine} failed:`, message);
-    return { ...chat, error: `${engine}: ${message.slice(0, 300)}` };
-  }
+/** Pull the brands out of an answer we already have. Never throws. */
+export async function readAnswer(engine: string, prompt: string, answer: DfsAnswer, brand: string, domain: string): Promise<Chat> {
+  const chat: Chat = { engine, prompt, text: answer.text, sources: answer.sources, brands: [], error: null };
   // No AI Overview was shown, so there is nothing to read.
-  if (engine === "AI Overview" && chat.text.startsWith("_Google showed no AI Overview")) return { ...chat, sources: [] };
+  if (answer.text === NO_AI_OVERVIEW) return { ...chat, sources: [] };
   try {
-    chat.brands = await extractBrands(brand, domain, chat.text);
+    chat.brands = await extractBrands(brand, domain, answer.text);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("Brand extraction failed:", message);
     chat.error = `Reading the answer failed: ${message.slice(0, 300)}`;
   }
   return chat;
+}
+
+/** Ask one engine one prompt, then pull out the brands it named. Never throws. */
+export async function answerChat(engine: Engine, prompt: string, brand: string, domain: string): Promise<Chat> {
+  try {
+    return await readAnswer(engine, prompt, await askEngine(engine, prompt), brand, domain);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error(`${engine} failed:`, message);
+    return { engine, prompt, text: "", sources: [], brands: [], error: `${engine}: ${message.slice(0, 300)}` };
+  }
 }

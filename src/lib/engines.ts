@@ -2,6 +2,7 @@ import "server-only";
 import OpenAI from "openai";
 import { GoogleGenAI } from "@google/genai";
 import { askClaude } from "./claude";
+import { askLive, dfsReady, type DfsEngine } from "./dataforseo";
 import { cleanSources, linksInText, type Source } from "./sources";
 
 export const ENGINES = ["ChatGPT", "Claude", "Gemini", "Perplexity", "AI Overview"] as const;
@@ -15,10 +16,20 @@ const KEYS: Record<Engine, string[]> = {
   Perplexity: ["PERPLEXITY_API_KEY"],
   "AI Overview": ["DFS_LOGIN", "DFS_PASSWORD"],
 };
+const DFS_ENGINES: Engine[] = ["ChatGPT", "Gemini", "AI Overview"];
+
+/**
+ * True when DataForSEO answers for this engine. With a DataForSEO login, ChatGPT and Gemini are read
+ * from the real apps, which costs far less than their APIs. Set DFS_SCRAPER=off to use the APIs instead.
+ */
+export function viaDfs(engine: string): engine is DfsEngine {
+  if (!DFS_ENGINES.includes(engine as Engine) || !dfsReady()) return false;
+  return engine === "AI Overview" || process.env.DFS_SCRAPER?.trim().toLowerCase() !== "off";
+}
 
 /** Engines that have their keys set on the server. */
 export function availableEngines(): Engine[] {
-  return ENGINES.filter((e) => KEYS[e].every((k) => process.env[k]));
+  return ENGINES.filter((e) => viaDfs(e) || KEYS[e].every((k) => process.env[k]?.trim()));
 }
 
 type Answer = { text: string; sources: Source[] };
@@ -89,74 +100,26 @@ Format your answer in markdown exactly like this:
 ## Summary
 Two or three sentences with your overall advice.`;
 
-type DfsItem = {
-  type?: string;
-  markdown?: string;
-  text?: string;
-  title?: string;
-  items?: DfsItem[];
-  references?: { url?: string; domain?: string; title?: string }[];
-};
-
-/**
- * Google's AI Overview for the prompt, searched as a normal Google query through DataForSEO.
- * Google decides when to show an AI Overview. When it shows none, the chat counts as answered with no brands.
- */
-async function askAIOverview(prompt: string): Promise<Answer> {
-  const auth = Buffer.from(`${process.env.DFS_LOGIN?.trim()}:${process.env.DFS_PASSWORD?.trim()}`).toString("base64");
-  const res = await fetch("https://api.dataforseo.com/v3/serp/google/organic/live/advanced", {
-    method: "POST",
-    headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/json" },
-    body: JSON.stringify([
-      {
-        keyword: prompt.slice(0, 700),
-        location_code: Number(process.env.DFS_LOCATION_CODE) || 2840, // United States
-        language_code: process.env.DFS_LANGUAGE_CODE || "en",
-        device: "desktop",
-        load_async_ai_overview: true,
-      },
-    ]),
-    signal: AbortSignal.timeout(120_000),
-  });
-  if (!res.ok) throw new Error(`DataForSEO returned ${res.status}`);
-  const data = await res.json();
-  const task = data?.tasks?.[0];
-  if (data?.status_code !== 20000) throw new Error(`DataForSEO: ${data?.status_message ?? "unknown error"}`);
-  if (task?.status_code !== 20000) throw new Error(`DataForSEO: ${task?.status_message ?? "unknown error"}`);
-
-  const items: DfsItem[] = task.result?.[0]?.items ?? [];
-  const aio = items.find((i) => i.type === "ai_overview");
-  if (!aio) return { text: "_Google showed no AI Overview for this search._", sources: [] };
-
-  const text =
-    aio.markdown ||
-    (aio.items ?? [])
-      .map((i) => [i.title ? `## ${i.title}` : "", i.markdown || i.text || ""].filter(Boolean).join("\n"))
-      .join("\n\n");
-  const refs = [...(aio.references ?? []), ...(aio.items ?? []).flatMap((i) => i.references ?? [])];
-  const sources: Source[] = refs.filter((r) => r.url).map((r) => ({ url: r.url!, title: r.title ?? null, domain: r.domain ?? "" }));
-  return { text, sources };
+function askApi(engine: Engine, prompt: string): Promise<Answer> {
+  if (engine === "ChatGPT") return askChatGPT(prompt);
+  if (engine === "Claude") return askClaude(prompt, { searches: 1 });
+  if (engine === "Gemini") return askGemini(prompt);
+  if (engine === "Perplexity") return askPerplexity(prompt);
+  throw new Error(`${engine} needs DFS_LOGIN and DFS_PASSWORD.`);
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Ask one engine one prompt with web search on, in the shared answer layout. Tries twice. */
 export async function askEngine(engine: Engine, userPrompt: string): Promise<Answer> {
-  // AI Overview is a Google search, so it gets the plain prompt. Chat engines get the shared layout.
-  const prompt = engine === "AI Overview" ? userPrompt : userPrompt + ANSWER_FORMAT;
+  // DataForSEO reads the real apps and Google, so they get the plain prompt, the way a person types it.
+  // API engines get the shared layout.
+  const dfs = viaDfs(engine);
+  const prompt = dfs ? userPrompt : userPrompt + ANSWER_FORMAT;
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const a =
-        engine === "ChatGPT"
-          ? await askChatGPT(prompt)
-          : engine === "Claude"
-            ? await askClaude(prompt, { searches: 1 })
-            : engine === "Gemini"
-              ? await askGemini(prompt)
-              : engine === "Perplexity"
-                ? await askPerplexity(prompt)
-                : await askAIOverview(prompt);
+      const a = dfs ? await askLive(engine, prompt) : await askApi(engine, prompt);
       const text = a.text.replace(/\[\d+\]/g, "");
       return { text, sources: cleanSources([...a.sources, ...linksInText(text)]) };
     } catch (e) {

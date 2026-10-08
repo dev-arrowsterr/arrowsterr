@@ -1,5 +1,6 @@
 // Render Cron Job runs this once a day: node scripts/daily-run.mjs
 // It keeps calling the app's /api/cron until every brand's daily run is finished.
+// ChatGPT, Gemini and AI Overview answers wait in DataForSEO's queue, so a run can take up to about an hour.
 // Needs APP_URL (like https://arrowsterr.onrender.com) and CRON_SECRET (the same value as on the web service).
 
 const url = (process.env.APP_URL ?? "").trim().replace(/\/+$/, "");
@@ -10,8 +11,10 @@ if (!url || !secret) {
 }
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const started = Date.now();
+const MAX_MS = 4 * 3600_000; // stop after 4 hours, whatever happens
 let failures = 0;
-for (let step = 1; step <= 3000; step++) {
+for (let step = 1; Date.now() - started < MAX_MS; step++) {
   let data = null;
   let status = 0;
   try {
@@ -36,4 +39,7 @@ for (let step = 1; step <= 3000; step++) {
     continue;
   }
   failures = 0;
+  // Only waiting on DataForSEO's queue (up to about 45 minutes). Check again in a minute.
+  if (data.waiting) await sleep(60_000);
 }
+console.log("Stopped after 4 hours. Unfinished runs continue tomorrow.");

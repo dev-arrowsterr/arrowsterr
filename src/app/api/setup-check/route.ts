@@ -1,4 +1,4 @@
-import { availableEngines, ENGINES } from "@/lib/engines";
+import { availableEngines, ENGINES, viaDfs } from "@/lib/engines";
 import { supabaseUrl } from "@/lib/serverAuth";
 
 // Open /api/setup-check to test the settings on Render. Secrets are never shown, only whether they work.
@@ -31,7 +31,9 @@ export async function GET() {
   report.CRON_SECRET = process.env.CRON_SECRET?.trim() ? "Set" : "MISSING (needed for daily runs)";
 
   const on = availableEngines();
-  report.engines = Object.fromEntries(ENGINES.map((e) => [e, on.includes(e) ? "On" : "Off (key missing)"]));
+  report.engines = Object.fromEntries(
+    ENGINES.map((e) => [e, !on.includes(e) ? "Off (key missing)" : viaDfs(e) ? "On, through DataForSEO" : "On, through its own API"]),
+  );
 
   if (process.env.DFS_LOGIN && process.env.DFS_PASSWORD) {
     try {
