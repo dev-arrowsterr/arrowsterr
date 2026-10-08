@@ -63,3 +63,27 @@ test("Search Console opportunities", async () => {
   assert.ok(kinds.includes("Pages competing|best crm"));
   assert.ok(kinds.includes("Losing clicks|crm for dentists"));
 });
+
+test("visitor journeys: sources, visits and score", async () => {
+  const { sourceOf, summarize } = await import("../src/lib/journey.ts");
+  const { persona } = await import("../src/lib/names.ts");
+  assert.deepEqual(sourceOf("chatgpt.com", "acme.com"), { source: "ChatGPT", kind: "ai" });
+  assert.deepEqual(sourceOf("www.google.com", "acme.com"), { source: "Google", kind: "search" });
+  assert.deepEqual(sourceOf("www.acme.com", "acme.com"), { source: "Direct", kind: "direct" });
+  assert.equal(sourceOf("lnkd.in", "acme.com").source, "LinkedIn");
+  assert.equal(persona("abc").name, persona("abc").name);
+
+  const s = { id: "abc", browser: "chrome", os: "Mac OS", device: "laptop", country: "US", region: null, city: "Austin", firstAt: "", lastAt: "", visits: 1, views: 0 };
+  const steps = [
+    { at: "2026-10-01T10:00:00Z", visitId: "v1", path: "/blog/x", query: null, referrer: "chatgpt.com", title: null, event: null },
+    { at: "2026-10-01T10:02:00Z", visitId: "v1", path: "/pricing", query: null, referrer: null, title: null, event: null },
+    { at: "2026-10-04T09:00:00Z", visitId: "v2", path: "/pricing", query: null, referrer: null, title: null, event: null },
+    { at: "2026-10-04T09:04:00Z", visitId: "v2", path: "/pricing", query: null, referrer: null, title: null, event: "Booking click" },
+  ];
+  const v = summarize(s, steps, "acme.com");
+  assert.equal(v.visits, 2);
+  assert.equal(v.source, "ChatGPT");
+  assert.deepEqual(v.intentPages, ["Pricing"]);
+  assert.deepEqual(v.actions, ["Booking click"]);
+  assert.equal(v.label, "Hot");
+});

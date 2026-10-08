@@ -35,9 +35,10 @@ import { PromptsPage } from "./PromptsPage";
 import { ResearchPage, type Tool } from "./research/ResearchPage";
 import { SourcesPage } from "./SourcesPage";
 import { TrafficPage } from "./TrafficPage";
+import { VisitorsPage } from "./VisitorsPage";
 
 export type { Brand } from "@/lib/db";
-type Page = "overview" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "search" | "keywords" | "agentic" | "calendar" | "members";
+type Page = "overview" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "search" | "keywords" | "agentic" | "calendar" | "members";
 const RESEARCH: Page[] = ["search", "keywords", "agentic", "calendar"];
 
 /** Each page's address. "/" opens the overview. */
@@ -48,6 +49,7 @@ const SLUGS: Record<Page, string> = {
   domains: "/domains",
   urls: "/urls",
   traffic: "/analytics",
+  visitors: "/visitors",
   search: "/search-performance",
   keywords: "/keyword-research",
   agentic: "/agentic-research",
@@ -458,6 +460,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             />
           ) : page === "competitors" ? (
             <CompetitorsPage key={`${view.brand.id}-${focus ?? ""}`} view={view} initial={focus} />
+          ) : page === "visitors" ? (
+            <VisitorsPage key={view.brand.id} view={view} auth={auth} />
           ) : page === "traffic" ? (
             <TrafficPage key={view.brand.id} view={view} auth={auth} canEdit={canEdit} />
           ) : page === "domains" || page === "urls" ? (
@@ -498,7 +502,13 @@ const NAV: { group: string; items: { id: Page; label: string; icon: string }[] }
       { id: "urls", label: "URLs", icon: "⛓" },
     ],
   },
-  { group: "Website", items: [{ id: "traffic", label: "Analytics", icon: "↗" }] },
+  {
+    group: "Website",
+    items: [
+      { id: "traffic", label: "Analytics", icon: "↗" },
+      { id: "visitors", label: "Visitors", icon: "☺" },
+    ],
+  },
   {
     group: "Research",
     items: [

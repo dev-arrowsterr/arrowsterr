@@ -85,4 +85,86 @@ export async function series(id: string, r: Range, filter: Record<string, string
   return { pageviews: out.pageviews ?? [], visitors: out.sessions ?? out.pageviews ?? [] };
 }
 
+// ─────────────── visitors ───────────────
+
+type Raw = Record<string, unknown>;
+const pick = (o: Raw, ...keys: string[]) => {
+  for (const k of keys) if (o[k] !== undefined && o[k] !== null) return o[k];
+  return null;
+};
+const str = (v: unknown) => (v === null || v === undefined ? null : String(v));
+
+export type Session = {
+  id: string;
+  browser: string | null;
+  os: string | null;
+  device: string | null;
+  country: string | null;
+  region: string | null;
+  city: string | null;
+  firstAt: string;
+  lastAt: string;
+  visits: number;
+  views: number;
+};
+export type Activity = { at: string; visitId: string | null; path: string | null; query: string | null; referrer: string | null; title: string | null; event: string | null; sessionId: string | null };
+
+function toSession(o: Raw): Session {
+  return {
+    id: String(pick(o, "id", "sessionId", "session_id")),
+    browser: str(pick(o, "browser")),
+    os: str(pick(o, "os")),
+    device: str(pick(o, "device")),
+    country: str(pick(o, "country")),
+    region: str(pick(o, "region", "subdivision1")),
+    city: str(pick(o, "city")),
+    firstAt: String(pick(o, "firstAt", "first_at", "createdAt", "created_at") ?? ""),
+    lastAt: String(pick(o, "lastAt", "last_at", "createdAt", "created_at") ?? ""),
+    visits: Number(pick(o, "visits") ?? 1),
+    views: Number(pick(o, "views") ?? 0),
+  };
+}
+function toActivity(o: Raw): Activity {
+  const type = Number(pick(o, "eventType", "event_type") ?? 1);
+  return {
+    at: String(pick(o, "createdAt", "created_at") ?? ""),
+    visitId: str(pick(o, "visitId", "visit_id")),
+    path: str(pick(o, "urlPath", "url_path")),
+    query: str(pick(o, "urlQuery", "url_query")),
+    referrer: str(pick(o, "referrerDomain", "referrer_domain")),
+    title: str(pick(o, "pageTitle", "page_title")),
+    event: type === 2 ? str(pick(o, "eventName", "event_name")) : null,
+    sessionId: str(pick(o, "sessionId", "session_id")),
+  };
+}
+const pageOf = (out: unknown): Raw[] => (Array.isArray(out) ? out : Array.isArray((out as Raw)?.data) ? ((out as Raw).data as Raw[]) : []);
+
+/** Visitors in a period, most recent first. Up to `max`. */
+export async function sessions(id: string, r: Range, max = 500): Promise<Session[]> {
+  const out: Session[] = [];
+  for (let page = 1; out.length < max && page <= 10; page++) {
+    const rows = pageOf(await api(`/websites/${id}/sessions`, { query: { ...r, page, pageSize: 100, orderBy: "lastAt" } }));
+    out.push(...rows.map(toSession));
+    if (rows.length < 100) break;
+  }
+  return out.slice(0, max).sort((a, b) => b.lastAt.localeCompare(a.lastAt));
+}
+
+/** Every pageview and action in a period, for all visitors. Throws if this Umami has no event list. */
+export async function events(id: string, r: Range, max = 20_000): Promise<Activity[]> {
+  const out: Activity[] = [];
+  for (let page = 1; out.length < max && page <= 20; page++) {
+    const rows = pageOf(await api(`/websites/${id}/events`, { query: { ...r, page, pageSize: 1000 } }));
+    out.push(...rows.map(toActivity));
+    if (rows.length < 1000) break;
+  }
+  return out;
+}
+
+/** One visitor's pageviews and actions, oldest first. */
+export async function activity(id: string, sessionId: string, r: Range): Promise<Activity[]> {
+  const rows = pageOf(await api(`/websites/${id}/sessions/${sessionId}/activity`, { query: r }));
+  return rows.map(toActivity).sort((a, b) => a.at.localeCompare(b.at));
+}
+
 export { AI_SOURCES, aiSourceOf } from "./aiSources";
