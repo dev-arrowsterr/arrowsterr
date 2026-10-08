@@ -242,7 +242,7 @@ export type NewCalendarItem = Omit<
   CalendarItem,
   "id" | "status" | "due_date" | "owner" | "url" | "notes" | "created_at" | "action" | "current_url" | "current_rank" | "brief_status" | "brief_error" | "brief_at"
 > &
-  Partial<Pick<CalendarItem, "status" | "action" | "current_url" | "current_rank">>;
+  Partial<Pick<CalendarItem, "status" | "action" | "current_url" | "current_rank" | "notes">>;
 const CAL_COLS =
   "id, site_id, keyword, secondary, stage, theme, volume, difficulty, intent, cpc, status, due_date, owner, url, notes, source, created_at, action, current_url, current_rank, brief_status, brief_error, brief_at";
 

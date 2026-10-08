@@ -15,7 +15,7 @@ export async function POST(request: Request) {
 
   const { data: site, error } = await auth.sb
     .from("sites")
-    .select("id, domain, name, profile")
+    .select("id, domain, name, profile, gsc_property")
     .eq("id", body.siteId)
     .eq("workspace_id", body.workspaceId)
     .maybeSingle();
@@ -37,6 +37,6 @@ export async function POST(request: Request) {
     .single();
   if (err || !run) return Response.json({ error: err?.message ?? "Could not start." }, { status: 500 });
 
-  after(() => runAgent(auth.sb, run.id, site as { id: string; domain: string; name: string; profile: Profile }));
+  after(() => runAgent(auth.sb, run.id, site as { id: string; domain: string; name: string; profile: Profile; gsc_property: string | null }));
   return Response.json({ id: run.id });
 }

@@ -111,7 +111,7 @@ export function AgenticResearch({ sb, auth, site, canEdit, onOpenCalendar }: { s
         <h2 className="aw-h3">Plan 120 keywords for {site.domain}</h2>
         <ol className="flex list-decimal flex-col gap-1.5 pl-5 text-[14px] text-body">
           <li>Reads the sitemap of {site.domain}. If there is none, it checks robots.txt, RSS feeds and the links on the site.</li>
-          <li>Checks what {site.domain} already ranks for, so you skip keywords you already win.</li>
+          <li>Checks what {site.domain} already ranks for, so you skip keywords you already win. Uses Search Console when it is connected.</li>
           <li>Finds your closest competitors on Google and the keywords they rank for.</li>
           <li>
             Writes {PER_STAGE} BOFU keywords, then {PER_STAGE} MOFU, then {PER_STAGE} TOFU, fitted to a {site.profile.businessType ?? "general"} business. Each one is 2 to 5
@@ -372,7 +372,7 @@ export function AgenticResearch({ sb, auth, site, canEdit, onOpenCalendar }: { s
             </li>
             <li>
               <span className="aw-label mr-2">Ranking</span>
-              {fmtNum(res.sitemap?.ranking ?? 0)} of your pages show up on Google. {fmtNum(updateCount)} articles rank below the top 10 or not at all.
+              {fmtNum(res.sitemap?.ranking ?? 0)} of your pages show up on Google{res.sitemap?.gsc ? " (from Search Console)" : " (estimated by DataForSEO)"}. {fmtNum(updateCount)} articles rank below the top 10 or not at all.
             </li>
             <li>
               <span className="aw-label mr-2">Competitors</span>

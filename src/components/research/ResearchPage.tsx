@@ -10,10 +10,13 @@ import { favicon, Thinking } from "../ui";
 import { AgenticResearch } from "./AgenticResearch";
 import { ContentCalendar } from "./ContentCalendar";
 import { KeywordResearch } from "./KeywordResearch";
+import { SearchConsole } from "./SearchConsole";
 import { FIELD, post } from "./shared";
 
-export type Tool = "keywords" | "agentic" | "calendar";
-const TITLES: Record<Tool, string> = { keywords: "Keyword research", agentic: "Agentic keyword research", calendar: "Content calendar" };
+export type Tool = "keywords" | "agentic" | "calendar" | "search";
+const TITLES: Record<Tool, string> = { keywords: "Keyword research", agentic: "Agentic keyword research", calendar: "Content calendar", search: "Search performance" };
+/** A website to open first, set when Google sends someone back after connecting Search Console. */
+export const PENDING_SITE = "arrowsterr.site.pending";
 const siteKey = (ws: string) => `arrowsterr.site.${ws}`;
 
 /** The Research section: pick a website, then use one of the tools on it. */
@@ -37,6 +40,12 @@ export function ResearchPage({
   const [sites, setSites] = useState<Site[] | null>(null);
   const [siteId, setSiteId] = useState<string | null>(() => {
     try {
+      const pending = localStorage.getItem(PENDING_SITE);
+      if (pending) {
+        localStorage.removeItem(PENDING_SITE);
+        localStorage.setItem(siteKey(auth.workspaceId), pending);
+        return pending;
+      }
       return localStorage.getItem(siteKey(auth.workspaceId));
     } catch {
       return null;
@@ -200,6 +209,8 @@ export function ResearchPage({
         <div className="aw-callout max-w-xl">Add a website to start your research.</div>
       ) : tool === "keywords" ? (
         <KeywordResearch key={site.id} sb={sb} auth={auth} site={site} canEdit={canEdit} />
+      ) : tool === "search" ? (
+        <SearchConsole key={site.id} sb={sb} auth={auth} site={site} canEdit={canEdit} />
       ) : tool === "agentic" ? (
         <AgenticResearch key={site.id} sb={sb} auth={auth} site={site} canEdit={canEdit} onOpenCalendar={() => onTool("calendar")} />
       ) : (

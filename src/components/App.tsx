@@ -32,15 +32,16 @@ import { MembersPage } from "./MembersPage";
 import { Onboarding, type NewBrand } from "./Onboarding";
 import { OverviewPage } from "./OverviewPage";
 import { PromptsPage } from "./PromptsPage";
-import { ResearchPage, type Tool } from "./research/ResearchPage";
+import { PENDING_SITE, ResearchPage, type Tool } from "./research/ResearchPage";
 import { SourcesPage } from "./SourcesPage";
 import { TrafficPage } from "./TrafficPage";
 
 export type { Brand } from "@/lib/db";
-type Page = "overview" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "keywords" | "agentic" | "calendar" | "members";
-const RESEARCH: Page[] = ["keywords", "agentic", "calendar"];
+type Page = "overview" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "search" | "keywords" | "agentic" | "calendar" | "members";
+const RESEARCH: Page[] = ["search", "keywords", "agentic", "calendar"];
 
 const INVITE_KEY = "arrowsterr.invite";
+const GSC_KEY = "arrowsterr.gsc";
 const LEGACY_BRANDS = "arrowsterr.brands";
 
 function readLocal(key: string) {
@@ -74,6 +75,14 @@ export function App({ config }: { config: SupaConfig }) {
       params.delete("invite");
       window.history.replaceState(null, "", window.location.pathname + (params.size ? `?${params}` : ""));
     }
+    // Google sends people back from connecting Search Console with ?gsc=connected|pick|error.
+    const gsc = params.get("gsc");
+    if (gsc) {
+      writeLocal(GSC_KEY, JSON.stringify({ result: gsc, reason: params.get("reason") ?? "" }));
+      if (params.get("site")) writeLocal(PENDING_SITE, params.get("site"));
+      for (const k of ["gsc", "site", "reason"]) params.delete(k);
+      window.history.replaceState(null, "", window.location.pathname + (params.size ? `?${params}` : ""));
+    }
     sb.auth.getSession().then(({ data }) => setSession(data.session));
     const { data } = sb.auth.onAuthStateChange((event, s) => {
       if (event === "PASSWORD_RECOVERY") setRecovery(true);
@@ -96,17 +105,28 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   const [brands, setBrands] = useState<Brand[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-  const [page, setPage] = useState<Page>("overview");
+  const [gscBack] = useState(() => {
+    const raw = readLocal(GSC_KEY);
+    writeLocal(GSC_KEY, null);
+    try {
+      return raw ? (JSON.parse(raw) as { result: string; reason: string }) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [page, setPage] = useState<Page>(gscBack ? "search" : "overview");
   const [runs, setRuns] = useState<Record<string, SavedRun[]>>({});
   const [running, setRunning] = useState<string | null>(null);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [engines, setEngines] = useState<string[] | null>(null);
-  const [notice, setNotice] = useState("");
+  const [notice, setNotice] = useState(() =>
+    gscBack?.result === "connected" ? "Search Console is connected." : gscBack?.result === "pick" ? "Search Console is connected. Pick the property for this website." : "",
+  );
   const [days, setDays] = useState(30);
   const [model, setModel] = useState("All");
   const [topic, setTopic] = useState("All");
   const [focus, setFocus] = useState<string | null>(null); // competitor to open on the Competitors page
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() => (gscBack?.result === "error" ? `Search Console did not connect: ${gscBack.reason}` : ""));
 
   const token = useCallback(async () => (await sb.auth.getSession()).data.session?.access_token ?? "", [sb]);
 
@@ -453,6 +473,7 @@ const NAV: { group: string; items: { id: Page; label: string; icon: string }[] }
   {
     group: "Research",
     items: [
+      { id: "search", label: "Search performance", icon: "G" },
       { id: "keywords", label: "Keyword research", icon: "⌕" },
       { id: "agentic", label: "Agentic research", icon: "✦" },
       { id: "calendar", label: "Content calendar", icon: "▦" },

@@ -40,3 +40,26 @@ test("cleanUrl keeps real pages and drops junk", async () => {
   assert.equal(cleanUrl("https://other.com/page", "acme.com"), null);
   assert.equal(cleanUrl("https://blog.acme.com/post-one", "acme.com"), "https://blog.acme.com/post-one");
 });
+
+test("Search Console opportunities", async () => {
+  const { opportunities } = await import("../src/lib/opportunities.ts");
+  const ops = opportunities({
+    days: 28,
+    property: "sc-domain:acme.com",
+    totals: { clicks: 0, impressions: 0, ctr: 0, position: 0 },
+    totalsPrev: { clicks: 0, impressions: 0, ctr: 0, position: 0 },
+    series: [],
+    queries: [],
+    pages: [{ page: "https://acme.com/a", clicks: 5, impressions: 900, ctr: 0.005, position: 9, prevClicks: 40, prevPosition: 4 }],
+    pairs: [
+      { page: "https://acme.com/a", query: "crm for dentists", clicks: 5, impressions: 900, ctr: 0.005, position: 9 },
+      { page: "https://acme.com/b", query: "best crm", clicks: 2, impressions: 400, ctr: 0.005, position: 2 },
+      { page: "https://acme.com/c", query: "best crm", clicks: 1, impressions: 200, ctr: 0.005, position: 6 },
+    ],
+  });
+  const kinds = ops.map((o) => `${o.kind}|${o.query}`);
+  assert.ok(kinds.includes("Close to top 3|crm for dentists"));
+  assert.ok(kinds.includes("Low click rate|best crm"));
+  assert.ok(kinds.includes("Pages competing|best crm"));
+  assert.ok(kinds.includes("Losing clicks|crm for dentists"));
+});
