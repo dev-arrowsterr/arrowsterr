@@ -273,7 +273,7 @@ export function OverviewPage({ view, onOpen }: { view: View; onOpen: (page: "com
               slices={shares.map((s) => ({ label: s.type, value: s.share, color: TYPE_COLORS[s.type] }))}
               center={
                 <>
-                  <span className="aw-num text-[24px] font-semibold text-ink">{pct(ownShare)}</span>
+                  <span className="aw-num text-[24px] font-medium text-ink">{pct(ownShare)}</span>
                   <span className="text-[11px] text-muted">your site</span>
                 </>
               }

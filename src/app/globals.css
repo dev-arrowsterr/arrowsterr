@@ -4,21 +4,26 @@
 /* Point the brand font tokens at the fonts loaded by next/font in layout.tsx. */
 .aw {
   --aw-font: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --aw-mono: var(--font-jetbrains-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
-  /* Older token names some components still use. */
+  --aw-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* Token names the app uses that the brand file names differently. */
+  --aw-brand-fg: var(--aw-brand-lift);
+  --aw-brand-mist: #C9D5F0;
+  --aw-subtle: var(--aw-muted);
+  --aw-label: var(--aw-ink);
   --aw-skel: var(--aw-rule-faint);
   --aw-line: var(--aw-rule);
   --aw-border: var(--aw-rule-faint);
-  --aw-g500: var(--aw-subtle);
+  --aw-g500: var(--aw-muted);
 }
 
 /*
  * Brand tokens as Tailwind utilities (bg-brand, text-muted, border-rule ...).
  * Values live in brand.css. Change them there.
+ * Radius and shadow are zero on purpose: the brand is square and flat.
  */
 @theme inline {
   --color-brand: var(--aw-brand);
-  --color-brand-fg: var(--aw-brand-fg);
+  --color-brand-fg: var(--aw-brand-lift);
   --color-brand-deep: var(--aw-brand-deep);
   --color-brand-bg: var(--aw-brand-bg);
   --color-brand-pale: var(--aw-brand-pale);
@@ -28,9 +33,8 @@
   --color-ink-hover: var(--aw-ink-hover);
   --color-body: var(--aw-body);
   --color-muted: var(--aw-muted);
-  --color-subtle: var(--aw-subtle);
-  --color-label: var(--aw-label);
-  --color-gold: var(--aw-gold);
+  --color-subtle: var(--aw-muted);
+  --color-label: var(--aw-ink);
   --color-faint: var(--aw-faint);
   --color-rule: var(--aw-rule);
   --color-rule-faint: var(--aw-rule-faint);
@@ -58,17 +62,17 @@
   --font-sans: var(--aw-font);
   --font-mono: var(--aw-mono);
 
-  --radius-aw-sm: var(--aw-radius-sm);
-  --radius-aw: var(--aw-radius);
-  --radius-aw-lg: var(--aw-radius-lg);
-  --shadow-aw-sm: var(--aw-shadow-sm);
-  --shadow-aw: var(--aw-shadow);
-  --shadow-aw-lg: var(--aw-shadow-lg);
+  --radius-aw-sm: 0px;
+  --radius-aw: 0px;
+  --radius-aw-lg: 0px;
+  --shadow-aw-sm: none;
+  --shadow-aw: none;
+  --shadow-aw-lg: none;
 }
 
 html,
 body {
-  background: #f8f8ff; /* --aw-paper, set here because body sits outside .aw */
+  background: #f5f6f8; /* --aw-paper, set here because body sits outside .aw */
 }
 /* ─────────────── App additions built on the brand tokens ─────────────── */
 
@@ -118,7 +122,7 @@ body {
   margin-top: 10px !important;
 }
 .aw .md-h {
-  font-weight: 600;
+  font-weight: 500;
   color: var(--aw-ink) !important;
 }
 .aw .md-ol {
@@ -129,8 +133,8 @@ body {
   margin-top: 6px;
 }
 .aw .md-ol li::marker {
-  color: var(--aw-brand);
-  font-weight: 600;
+  color: var(--aw-muted);
+  font-weight: 400;
 }
 
 /* Details/summary used for answers */
@@ -173,3 +177,61 @@ body {
   }
 }
 
+
+/* ─────────────── App pieces in the v3 style ─────────────── */
+
+/* Numbers that are data read in mono. */
+.aw .aw-num { font-family: var(--aw-mono) !important; font-variant-numeric: tabular-nums; }
+.aw .aw-micro { font-size: var(--aw-fs-micro) !important; line-height: 1.45 !important; color: var(--aw-muted) !important; }
+
+/* A small mono tag, like "4 OF 25 PROMPTS". */
+.aw .aw-tag {
+  display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px;
+  font-family: var(--aw-mono) !important; font-size: var(--aw-fs-nano) !important;
+  letter-spacing: var(--aw-tr-mono) !important; text-transform: uppercase; line-height: 1.4 !important;
+  color: var(--aw-muted) !important; border: 1px solid var(--aw-rule); background: var(--aw-surface);
+}
+
+/* A brand name chip. */
+.aw .aw-pill {
+  display: inline-flex; align-items: center; padding: 4px 10px;
+  font-size: var(--aw-fs-small) !important; color: var(--aw-body) !important;
+  background: var(--aw-surface); border: 1px solid var(--aw-rule);
+}
+.aw .aw-pill.is-on { color: var(--aw-brand) !important; border-color: var(--aw-brand); background: var(--aw-brand-pale); }
+
+/* A number on a white cell with a hairline border. */
+.aw .aw-card-stat { background: var(--aw-surface); border: 1px solid var(--aw-rule); padding: 16px 18px; }
+
+/* Sign-in and onboarding sit on plain paper. */
+.aw .aw-dotgrid { background: var(--aw-paper); }
+.aw .aw-input--hero { padding: 16px 18px; font-size: 16px !important; }
+.aw .aw-textarea { resize: vertical; line-height: 1.55 !important; }
+
+/* Selects get their own chevron with room to breathe from the border. */
+.aw select, .aw select.aw-select {
+  appearance: none; -webkit-appearance: none;
+  padding-right: 40px !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23767E8C' stroke-width='1.4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat !important;
+  background-position: right 16px center !important;
+  background-size: 10px 6px !important;
+}
+.aw select.aw-select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23767E8C' stroke-width='1.4'/%3E%3C/svg%3E") !important;
+}
+
+/* Thinking state: a pulsing AI spark and a line that sweeps. */
+.aw .aw-think { display: flex; flex-direction: column; align-items: center; gap: 18px; padding: 56px 24px; text-align: center; }
+.aw .aw-think__icon {
+  width: 52px; height: 52px; display: flex; align-items: center; justify-content: center;
+  border: 1px solid var(--aw-brand); background: var(--aw-brand-pale);
+}
+.aw .aw-think__icon svg { width: 26px; height: 26px; fill: var(--aw-brand); animation: aw-spark 1.6s var(--aw-ease) infinite; }
+.aw .aw-think__bar { position: relative; width: 180px; height: 2px; overflow: hidden; background: var(--aw-rule-faint); }
+.aw .aw-think__bar::after {
+  content: ""; position: absolute; top: 0; left: -40%; width: 40%; height: 100%;
+  background: var(--aw-brand); animation: aw-sweep 1.3s var(--aw-ease) infinite;
+}
+@keyframes aw-spark { 0%, 100% { transform: scale(0.82) rotate(0deg); opacity: 0.55 } 50% { transform: scale(1) rotate(45deg); opacity: 1 } }
+@keyframes aw-sweep { from { left: -40% } to { left: 100% } }

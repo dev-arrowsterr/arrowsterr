@@ -129,7 +129,7 @@ export function SourcesPage({ view, mode }: { view: View; mode: "domains" | "url
               slices={shares.map((s) => ({ label: s.type, value: s.share, color: TYPE_COLORS[s.type] }))}
               center={
                 <>
-                  <span className="aw-num text-[24px] font-semibold text-ink">{pct(shares.find((s) => s.type === "You")?.share ?? 0)}</span>
+                  <span className="aw-num text-[24px] font-medium text-ink">{pct(shares.find((s) => s.type === "You")?.share ?? 0)}</span>
                   <span className="text-[11px] text-muted">your site</span>
                 </>
               }

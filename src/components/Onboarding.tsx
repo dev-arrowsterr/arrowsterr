@@ -6,6 +6,7 @@ import { BUSINESS_TYPES, COUNTRIES, MAX_PROMPTS, MAX_TOPICS } from "@/lib/onboar
 import type { RunAuth } from "@/lib/runner";
 import { BrandLogo } from "./BrandLogo";
 import { Logo } from "./Logo";
+import { Thinking } from "./ui";
 
 export type NewBrand = Omit<Brand, "id" | "workspace_id" | "daily">;
 type Step = "site" | "details" | "topics" | "prompts";
@@ -69,7 +70,7 @@ export function Onboarding({
 
   const readSite = (e: React.FormEvent) => {
     e.preventDefault();
-    run("Reading your website (about 20 seconds)...", async () => {
+    run("Learning about your brand...", async () => {
       const d = await call("/api/onboard", auth, { website });
       setName(d.name);
       setDomain(d.domain);
@@ -80,7 +81,7 @@ export function Onboarding({
     });
   };
   const makeTopics = () =>
-    run("Picking your topics...", async () => {
+    run("Finding the best topics for you...", async () => {
       const d = await call("/api/topics", auth, brandBody());
       setTopics((d.topics as string[]).map((text) => ({ text, on: true })));
       setStep("topics");
@@ -99,7 +100,7 @@ export function Onboarding({
       setStep("prompts");
     });
   const finish = () =>
-    run("Saving...", async () => {
+    run("Setting up your brand...", async () => {
       const final: Topic[] = plan.map((t) => ({ name: t.name, prompts: t.prompts.filter((p) => p.on).map((p) => p.text) })).filter((t) => t.prompts.length);
       const site = domain.replace(/^https?:\/\//, "").replace(/\/.*$/, "").toLowerCase();
       await onDone({
@@ -141,12 +142,12 @@ export function Onboarding({
           ) : null}
         </div>
         <div className="flex items-center gap-3">
-          {step === "topics" ? (
+          {step === "topics" && !busy ? (
             <>
               <span className="aw-small">
                 {chosenTopics.length} of {MAX_TOPICS} topics
               </span>
-              <button type="button" className="aw-btn aw-btn--primary" disabled={!chosenTopics.length || Boolean(busy)} onClick={makePrompts}>
+              <button type="button" className="aw-btn aw-btn--accent" disabled={!chosenTopics.length || Boolean(busy)} onClick={makePrompts}>
                 Add prompts
               </button>
             </>
@@ -155,7 +156,7 @@ export function Onboarding({
               <span className="aw-small">
                 {usedPrompts} of {MAX_PROMPTS} prompts used
               </span>
-              <button type="button" className="aw-btn aw-btn--primary" disabled={!usedPrompts || usedPrompts > MAX_PROMPTS || Boolean(busy)} onClick={finish}>
+              <button type="button" className="aw-btn aw-btn--accent" disabled={!usedPrompts || usedPrompts > MAX_PROMPTS || Boolean(busy)} onClick={finish}>
                 Start tracking
               </button>
             </>
@@ -169,10 +170,10 @@ export function Onboarding({
       </header>
 
       <div className="mx-auto flex w-full max-w-3xl flex-col gap-5 px-4 py-8">
-        {busy ? <div className="aw-callout">{busy}</div> : null}
         {error ? <p className="aw-error">{error}</p> : null}
+        {busy ? <Thinking text={busy} /> : null}
 
-        {step === "site" ? (
+        {step === "site" && !busy ? (
           <>
             {importCount ? (
               <div className="aw-callout flex flex-wrap items-center justify-between gap-3">
@@ -192,7 +193,7 @@ export function Onboarding({
                   <input id="website" value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="acme.com" required autoFocus className="aw-input aw-input--hero" />
                 </div>
                 <div className="flex flex-wrap items-center gap-4">
-                  <button type="submit" className="aw-btn aw-btn--primary aw-btn--lg" disabled={Boolean(busy)}>
+                  <button type="submit" className="aw-btn aw-btn--accent aw-btn--lg" disabled={Boolean(busy)}>
                     Continue
                   </button>
                   <button type="button" className="aw-text-link" onClick={() => setStep("details")}>
@@ -204,7 +205,7 @@ export function Onboarding({
           </>
         ) : null}
 
-        {step === "details" ? (
+        {step === "details" && !busy ? (
           <form
             className="aw-frame"
             onSubmit={(e) => {
@@ -272,7 +273,7 @@ export function Onboarding({
                     ))}
                   </select>
                 </div>
-                <button type="submit" className="aw-btn aw-btn--primary aw-btn--lg" disabled={Boolean(busy)}>
+                <button type="submit" className="aw-btn aw-btn--accent aw-btn--lg" disabled={Boolean(busy)}>
                   Next ↗
                 </button>
               </div>
@@ -280,7 +281,7 @@ export function Onboarding({
           </form>
         ) : null}
 
-        {step === "topics" ? (
+        {step === "topics" && !busy ? (
           <section className="flex flex-col gap-3">
             <h1 className="aw-h2">Topics to track</h1>
             <p className="aw-small">
@@ -340,7 +341,7 @@ export function Onboarding({
           </section>
         ) : null}
 
-        {step === "prompts" ? (
+        {step === "prompts" && !busy ? (
           <section className="flex flex-col gap-4">
             <h1 className="aw-h2">Prompts to track</h1>
             <p className="aw-small">

@@ -7,7 +7,7 @@ export function BrandLogo({ src, name, size = 28 }: { src: string; name: string;
   const [failed, setFailed] = useState(false);
   return (
     <span
-      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-[6px] font-semibold text-brand ${failed ? "bg-brand-bg" : ""}`}
+      className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-[6px] font-medium text-brand ${failed ? "bg-brand-bg" : ""}`}
       style={{ width: size, height: size, fontSize: size * 0.45 }}
     >
       {failed ? (

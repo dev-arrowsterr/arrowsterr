@@ -459,7 +459,7 @@ function Sidebar({
           aria-expanded={open}
           className="flex w-full items-center gap-2 rounded-aw border border-rule bg-white px-3 py-2 text-left shadow-aw-sm hover:border-brand-mist"
         >
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] bg-ink text-[12px] font-semibold text-white">{ws.name.slice(0, 1).toUpperCase()}</span>
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center bg-ink text-[12px] font-medium text-white">{ws.name.slice(0, 1).toUpperCase()}</span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[14px] font-medium text-ink">{ws.name}</span>
             <span className="block text-[11px] text-muted">{ROLE_LABEL[ws.role]}</span>
@@ -502,14 +502,14 @@ function Sidebar({
       <nav className="flex flex-row flex-wrap gap-x-5 gap-y-3 md:flex-col">
         {NAV.map((g) => (
           <div key={g.group} className="flex flex-col gap-0.5">
-            <span className="px-3 pb-1 text-[11px] font-medium text-subtle">{g.group}</span>
+            <span className="aw-label px-3 pb-1">{g.group}</span>
             {g.items.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => onPage(item.id)}
                 aria-current={page === item.id ? "page" : undefined}
-                className={`flex items-center gap-2.5 px-3 py-1.5 text-left text-[14px] font-medium ${page === item.id ? "bg-brand-bg text-brand" : "text-body hover:bg-surface-2"}`}
+                className={`flex items-center gap-2.5 px-3 py-1.5 text-left text-[14px] font-medium ${page === item.id ? "bg-surface-2 text-ink shadow-[inset_2px_0_0_var(--aw-brand)]" : "text-body hover:bg-surface-2"}`}
               >
                 <span aria-hidden="true" className="w-4 text-center text-[13px] opacity-70">
                   {item.icon}
@@ -637,7 +637,7 @@ function TopBar(p: {
             {p.canRun}
           </span>
         ) : null}
-        <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={p.onRun} disabled={p.running || Boolean(p.canRun)} title={p.canRun ?? undefined}>
+        <button type="button" className="aw-btn aw-btn--accent aw-btn--sm" onClick={p.onRun} disabled={p.running || Boolean(p.canRun)} title={p.canRun ?? undefined}>
           {p.running ? "Running..." : "Run now"}
         </button>
       </div>
