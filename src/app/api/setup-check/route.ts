@@ -52,5 +52,22 @@ export async function GET() {
   } else {
     report.DataForSEO = "MISSING DFS_LOGIN and DFS_PASSWORD (needed for Google AI Overview)";
   }
+  // Website tracking: which Umami the server will use, and whether it answers.
+  const key = process.env.UMAMI_API_KEY?.trim();
+  const own = process.env.UMAMI_URL?.trim();
+  if (!key && !own) {
+    report.Umami = "MISSING UMAMI_API_KEY (needed for AI traffic)";
+  } else {
+    try {
+      const res = own
+        ? await fetch(`${own.replace(/\/+$/, "")}/api/heartbeat`, { signal: AbortSignal.timeout(10_000) })
+        : await fetch("https://api.umami.is/v1/websites?pageSize=1", { headers: { "x-umami-api-key": key!, Accept: "application/json" }, signal: AbortSignal.timeout(10_000) });
+      report.Umami = res.ok
+        ? `OK, ${own ? "self-hosted at " + own : "Umami Cloud"}`
+        : `Failed (${res.status}): ${(await res.text()).slice(0, 150)}${own ? "" : ". Check the key, and that your Umami Cloud plan includes API access."}`;
+    } catch (e) {
+      report.Umami = `Could not reach Umami: ${e instanceof Error ? e.message : String(e)}`;
+    }
+  }
   return Response.json(report);
 }
