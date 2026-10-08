@@ -49,7 +49,7 @@ test("cited rank finds your site in the sources, counting from 1", () => {
   assert.equal(citedRank(c, "other.com"), null);
 });
 
-test("prompt detail uses the latest answer per model and flags sites that skip you", async () => {
+test("prompt detail uses the latest answer per model and lists each page once", async () => {
   const { promptDetail } = await import("../src/lib/metrics.ts");
   const runs = [
     { at: "2026-10-01T00:00:00Z", engines: ["ChatGPT"], chats: [chat("ChatGPT", "best crm", ["Rival"], ["https://g2.com/a"])] },
@@ -71,7 +71,6 @@ test("prompt detail uses the latest answer per model and flags sites that skip y
   assert.deepEqual(d.brands.map((b) => [b.name, b.engines]), [["Rival", 2], ["Acme", 1]]);
   const listicle = d.sites.find((s) => s.domain === "listicle.com")!;
   assert.equal(listicle.pages.length, 1);
-  assert.equal(listicle.withoutYou, true);
   assert.equal(d.sites.find((s) => s.domain === "acme.com")!.type, "You");
 });
 
@@ -80,4 +79,16 @@ test("quote finds the sentence that names the brand", async () => {
   const text = "Here are options.\n1. **Acme** is great for teams. It has [reviews](https://x.com).\n2. Rival works too.";
   assert.equal(quoteOf(text, "Acme"), "Acme is great for teams.");
   assert.equal(quoteOf(text, "Nope"), null);
+});
+
+test("pages with the same title on one site count once", async () => {
+  const { promptDetail } = await import("../src/lib/metrics.ts");
+  const c = chat("ChatGPT", "q", ["Rival"], []);
+  c.sources = [
+    { url: "https://thrive.com/a?x=1", title: "12 Best Restaurant Tools in 2026", domain: "thrive.com" },
+    { url: "https://thrive.com/b", title: "12 Best Restaurant Tools in 2026", domain: "thrive.com" },
+  ];
+  const d = promptDetail([{ at: "2026-10-02T00:00:00Z", engines: ["ChatGPT"], chats: [c] }], "q", ["ChatGPT"], { name: "Acme", domain: "acme.com" }, () => true);
+  assert.equal(d.sites[0].pages.length, 1);
+  assert.equal(d.engines[0].sources.length, 1);
 });

@@ -521,7 +521,6 @@ function Detail({ view, prompt, topic, onCompetitor }: { view: View; prompt: str
           <section className="aw-frame">
             <div className="flex items-center justify-between gap-3 border-b border-rule-faint px-4 py-3">
               <span className="aw-label">Sites cited for this prompt</span>
-              <span className="aw-small">{d.sites.filter((x) => x.withoutYou).length} name competitors, not you</span>
             </div>
             <ul className="divide-y divide-rule-faint">
               {(allSites ? d.sites : d.sites.slice(0, 6)).map((x) => (
@@ -536,16 +535,15 @@ function Detail({ view, prompt, topic, onCompetitor }: { view: View; prompt: str
                       {x.engines} {x.engines === 1 ? "model" : "models"}
                     </span>
                   </span>
-                  {x.withoutYou ? <span className="aw-status aw-status--warn self-start px-1.5! py-0.5! text-[11px]!">Names competitors, not you</span> : null}
                   <ul className="flex flex-col gap-0.5 pl-6">
-                    {x.pages.slice(0, 2).map((pg) => (
+                    {x.pages.slice(0, 1).map((pg) => (
                       <li key={pg.url} className="min-w-0 text-[13px]">
                         <a href={pg.url} target="_blank" rel="noopener noreferrer nofollow" className="block truncate" title={pg.url}>
                           {pg.title && pg.title.length > 12 ? pg.title : shortUrl(pg.url)} ↗
                         </a>
                       </li>
                     ))}
-                    {x.pages.length > 2 ? <li className="aw-small">+{x.pages.length - 2} more pages</li> : null}
+                    {x.pages.length > 1 ? <li className="aw-small">+{x.pages.length - 1} more</li> : null}
                   </ul>
                 </li>
               ))}

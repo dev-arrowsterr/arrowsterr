@@ -416,8 +416,10 @@ export type PromptSite = {
   type: SourceType;
   engines: number; // how many models cited it
   pages: { url: string; title: string | null }[];
-  withoutYou: boolean; // cited in answers that named competitors and did not name you
 };
+
+/** One key per page: the same title, or the same address, counts once. */
+const pageId = (url: string, title: string | null) => (title && title.length > 12 ? `t:${cleanTitle(title).toLowerCase()}` : `u:${pageKey(url)}`);
 export type PromptDetail = { engines: PromptEngine[]; answered: number; brands: PromptBrand[]; sites: PromptSite[] };
 
 /** The latest answer from each model for one prompt, and the brands and sites across those answers. */
@@ -446,9 +448,11 @@ export function promptDetail(runs: Run[], prompt: string, engines: string[], you
       sources: ok
         ? c!.sources
             .filter((s) => {
-              const k = pageKey(s.url);
-              if (seen.has(k)) return false;
+              const k = pageId(s.url, s.title);
+              const u = `u:${pageKey(s.url)}`;
+              if (seen.has(k) || seen.has(u)) return false;
               seen.add(k);
+              seen.add(u);
               return true;
             })
             .map((s) => {
@@ -474,25 +478,22 @@ export function promptDetail(runs: Run[], prompt: string, engines: string[], you
     .sort((a, b) => b.engines - a.engines || a.rank - b.rank);
 
   const comp = new Set(brandList.filter((b) => !b.isYou && b.domain).map((b) => b.domain!));
-  const sites = new Map<string, { engines: Set<string>; pages: Map<string, { url: string; title: string | null }>; withoutYou: boolean }>();
-  for (const r of answeredRows) {
-    const named = r.rank !== null;
+  const sites = new Map<string, { engines: Set<string>; pages: Map<string, { url: string; title: string | null }>; urls: Set<string> }>();
+  for (const r of answeredRows)
     for (const s of r.sources) {
       const d = s.domain.replace(/^www\./, "");
-      const row = sites.get(d) ?? { engines: new Set<string>(), pages: new Map(), withoutYou: false };
+      const row = sites.get(d) ?? { engines: new Set<string>(), pages: new Map(), urls: new Set<string>() };
       row.engines.add(r.engine);
-      const k = pageKey(s.url);
-      const page = row.pages.get(k);
-      if (!page) row.pages.set(k, { url: s.url, title: s.title });
-      else if (!page.title && s.title) page.title = s.title;
-      if (!named && r.brands.length) row.withoutYou = true;
+      const u = pageKey(s.url);
+      const k = pageId(s.url, s.title);
+      if (!row.urls.has(u) && !row.pages.has(k)) row.pages.set(k, { url: s.url, title: s.title });
+      row.urls.add(u);
       sites.set(d, row);
     }
-  }
   const siteList: PromptSite[] = [...sites.entries()]
     .map(([domain, s]) => {
       const type = sourceType(domain, you.domain.replace(/^www\./, ""), comp);
-      return { domain, type, engines: s.engines.size, pages: [...s.pages.values()], withoutYou: s.withoutYou && type !== "You" && type !== "Competitor" };
+      return { domain, type, engines: s.engines.size, pages: [...s.pages.values()] };
     })
     .sort((a, b) => b.engines - a.engines || b.pages.length - a.pages.length);
 
