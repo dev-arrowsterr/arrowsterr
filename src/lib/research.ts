@@ -145,3 +145,57 @@ export function slots(start: Date, perWeek: number, count: number): string[] {
     }
   return out;
 }
+
+// ─────────────── keyword report (Semrush-style overview) ───────────────
+
+export type KwSummary = {
+  keyword: string;
+  volume: number | null;
+  kd: number | null;
+  cpc: number | null;
+  competition: number | null;
+  intent: string | null;
+  otherIntents: string[];
+  trend: { month: string; volume: number }[];
+  serp: string[];
+  results: number | null;
+  core: string | null;
+};
+export type KwList = { total: number; volume: number; rows: KwSummary[] };
+export type KwCluster = { name: string; volume: number; count: number; keywords: string[] };
+export type SerpRow = { rank: number; url: string; domain: string; title: string; sitelinks: boolean; traffic: number | null; keywords: number | null; aiCited: boolean };
+export type KwSerp = {
+  features: string[];
+  ads: number;
+  results: number | null;
+  aio: { shown: boolean; cites: { domain: string; url: string; title: string }[] };
+  local: { title: string; domain: string; rating: number | null }[];
+  rows: SerpRow[];
+};
+export type KeywordReport = {
+  keyword: string;
+  country: string;
+  device: "desktop" | "mobile";
+  overview: KwSummary | null;
+  byCountry: { country: string; volume: number | null }[];
+  variations: KwList;
+  questions: KwList;
+  clusters: KwCluster[];
+  serp: KwSerp | null;
+  cost: number;
+  cached: boolean;
+};
+
+/** Group keywords into topics by their core keyword, biggest first. Keywords without one stand alone. */
+export function clustersOf(rows: KwSummary[], seed: string, max = 6): KwCluster[] {
+  const groups = new Map<string, KwSummary[]>();
+  for (const r of rows) {
+    const head = (r.core || r.keyword).toLowerCase();
+    if (head === seed.toLowerCase()) continue;
+    groups.set(head, [...(groups.get(head) ?? []), r]);
+  }
+  return [...groups.entries()]
+    .map(([name, ks]) => ({ name, count: ks.length, volume: ks.reduce((n, k) => n + (k.volume ?? 0), 0), keywords: ks.map((k) => k.keyword) }))
+    .sort((a, b) => b.count - a.count || b.volume - a.volume)
+    .slice(0, max);
+}

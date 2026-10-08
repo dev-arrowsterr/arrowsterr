@@ -100,3 +100,13 @@ test("scroll actions are not counted as pages", async () => {
   assert.equal(v.steps.filter((s) => !s.event).length, 1);
   assert.equal(v.steps.filter((s) => s.event).length, 1);
 });
+
+test("keyword clusters group by core keyword", async () => {
+  const { clustersOf } = await import("../src/lib/research.ts");
+  const k = (keyword: string, core: string | null, volume: number) => ({ keyword, core, volume, kd: null, cpc: null, competition: null, intent: null, otherIntents: [], trend: [], serp: [], results: null });
+  const c = clustersOf([k("best seo agency", "seo agency", 100), k("top seo agency", "seo agency", 50), k("seo services", "seo services", 10), k("best seo agencies", "best seo agencies", 5)], "best seo agencies");
+  assert.equal(c[0].name, "seo agency");
+  assert.equal(c[0].count, 2);
+  assert.equal(c[0].volume, 150);
+  assert.ok(!c.some((x) => x.name === "best seo agencies"));
+});

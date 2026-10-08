@@ -1,3 +1,4 @@
+import { cached, DAY } from "@/lib/cache";
 import { dfsReady } from "@/lib/dataforseo";
 import { competitors, research, Spend, type Mode } from "@/lib/keywords";
 import { marketOf } from "@/lib/research";
@@ -26,8 +27,13 @@ export async function POST(request: Request) {
   try {
     const spend = new Spend();
     const market = marketOf((site.profile as { country?: string })?.country);
-    if (mode === "competitors") return Response.json({ competitors: await competitors(query, market, spend), cost: spend.total });
-    const rows = await research(mode, query, market, spend);
+    // Shared across every workspace for 30 days: the second search for the same thing is free.
+    const key = `kr:${mode}:${market.location}:${market.language}:${query.toLowerCase()}`;
+    if (mode === "competitors") {
+      const { data } = await cached(key, 30 * DAY, () => competitors(query, market, spend));
+      return Response.json({ competitors: data, cost: spend.total });
+    }
+    const { data: rows } = await cached(key, 30 * DAY, () => research(mode, query, market, spend));
     return Response.json({ rows, cost: spend.total });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
