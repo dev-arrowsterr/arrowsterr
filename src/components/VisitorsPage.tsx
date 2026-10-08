@@ -6,6 +6,7 @@ import type { RunAuth } from "@/lib/runner";
 import type { View } from "@/lib/view";
 import { Sheet, type Col } from "./Sheet";
 import { useStash } from "@/lib/stash";
+import { SampleChips, SampleRows, ToolIntro } from "./ToolIntro";
 import { Card, Thinking } from "./ui";
 
 const LABEL_CLASS: Record<Label, string> = { Hot: "aw-status--missed", Warm: "aw-status--warn", Cold: "aw-status--pending" };
@@ -89,9 +90,22 @@ export function VisitorsPage({ view, auth }: { view: View; auth: RunAuth }) {
 
   if (needsConnect)
     return (
-      <div className="flex max-w-3xl flex-col gap-5">
+      <div className="flex flex-col gap-5">
         <h1 className="aw-h2">Visitors</h1>
-        <div className="aw-callout">Connect {brand.domain} in Website → Traffic first. Visitors show up here once the tracking code is live.</div>
+        <ToolIntro
+          title="Meet every visitor and follow their path to buying"
+          lead={`Each visitor to ${brand.domain} gets a fun name and a full journey: where they came from, every page they read, and the moment they booked a call or filled a form. A buyer score puts your hottest leads on top.`}
+          action={<p className="aw-small">First connect {brand.domain} in Website → Traffic. Visitors show up here once the code is live.</p>}
+          features={[
+            { title: "A name for every visitor", text: "Like Caffeinated Otter or Suspicious Pancake. The same visitor keeps the same name.", visual: <SampleChips items={[["🦦 Caffeinated Otter", "#E0E7FF"], ["🥞 Suspicious Pancake", "#FEF3C7"]]} /> },
+            { title: "Buyer score", text: "0 to 100, from where they came from, the pages they read, return visits and actions. Hot leads first.", visual: <SampleRows rows={[["Caffeinated Otter", 85, "Hot"], ["Turbo Llama", 45, "Warm"], ["Sleepy Narwhal", 12, "Cold"]]} /> },
+            { title: "Full journeys", text: "Every visit, its source and each page in order, with key actions highlighted." },
+            { title: "Key actions, tracked for you", text: "Form submits, booking links, email and phone clicks, and calls to action. No setup needed." },
+            { title: "Visitors from AI", text: "See who arrived from ChatGPT, Perplexity or Gemini, and what they did next." },
+            { title: "Private by design", text: "No cookies and no IP addresses stored. Visitor codes are scrambled." },
+          ]}
+          steps={["Connect your site in Traffic.", "Visitors appear as they arrive.", "Click a name to see their full journey."]}
+        />
       </div>
     );
   if (!data) return error ? <p className="aw-error">{error}</p> : <Thinking text="Meeting your visitors..." />;

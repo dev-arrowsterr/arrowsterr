@@ -10,6 +10,7 @@ import { Copy, InstallGuide, snippetFor } from "./InstallGuide";
 import { TrendChart, type Line } from "./TrendChart";
 import { aiSourceOf } from "@/lib/aiSources";
 import { useStash } from "@/lib/stash";
+import { SampleBars, SampleRows, SampleStats, ToolIntro } from "./ToolIntro";
 import { Card, Delta, favicon, pct, Seg, sortRows, SortTh, Thinking, useSort } from "./ui";
 
 type Status = { connected: boolean; websiteId?: string; domain?: string; platform?: string; token?: string; installed?: boolean; live?: boolean; pageviews?: number };
@@ -268,27 +269,36 @@ export function TrafficPage({ view, auth, canEdit }: { view: View; auth: RunAuth
   // ── Not connected yet ──
   if (!status.connected) {
     return (
-      <div className="flex max-w-3xl flex-col gap-5">
+      <div className="flex flex-col gap-5">
         <h1 className="aw-h2">Traffic</h1>
         {error ? <p className="aw-error">{error}</p> : null}
-        <section className="aw-frame">
-          <div className="aw-frame__body flex flex-col gap-4">
-            <h2 className="aw-h3">See who visits {brand.domain}</h2>
-            <p className="text-[15px] text-body">
-              Add one line of code to {brand.domain} and Arrowsterr shows your visitors, pages, sources, countries and devices, plus how many people come from
-              each AI assistant. No cookies, about 2 minutes to set up.
-            </p>
-            {canEdit ? (
-              <div>
-                <button type="button" className="aw-btn aw-btn--accent" onClick={connect}>
-                  Connect {brand.domain}
-                </button>
-              </div>
+        <ToolIntro
+          title={`See every visit to ${brand.domain}, including visits from AI`}
+          lead="Add one line of code to your site and see your visitors, top pages, sources, countries and devices. Arrowsterr also shows exactly how many people arrive from ChatGPT, Perplexity, Gemini and other AI assistants."
+          action={
+            canEdit ? (
+              <button type="button" className="aw-btn aw-btn--accent" onClick={connect}>
+                Connect {brand.domain}
+              </button>
             ) : (
               <p className="aw-small">Ask an editor or admin in this workspace to connect the website.</p>
-            )}
-          </div>
-        </section>
+            )
+          }
+          features={[
+            { title: "Visitors and visits", text: "Visitors, visits, pageviews, bounce rate and time on site, with the change from last period.", visual: <SampleStats items={[["Visitors", "4.2K"], ["Visits", "5.8K"], ["Bounce", "41%"]]} /> },
+            { title: "Visits from AI", text: "How many visitors each AI assistant sends you, day by day.", visual: <SampleRows rows={[["ChatGPT", 120], ["Perplexity", 48], ["Gemini", 22]]} /> },
+            { title: "Traffic over time", text: "Daily visitors and pageviews, so you can see what moved the needle.", visual: <SampleBars /> },
+            { title: "Sources and pages", text: "Where visitors come from, the pages they land on, and the pages they leave from." },
+            { title: "Locations and devices", text: "Countries, cities, languages, browsers and devices, all in one place." },
+            { title: "AI citations meet visits", text: "Your pages that AI answers cite, next to the visits those pages get from AI." },
+          ]}
+          steps={["Click Connect.", "Copy the one-line code into your site's head. Guides cover WordPress, Shopify, Webflow, Wix and more.", "Click Verify install. Visits show up within minutes."]}
+          faqs={[
+            { q: "Does it use cookies?", a: "No. Visitors are counted without cookies and no IP addresses are stored." },
+            { q: "Will it slow down my site?", a: "No. The script is tiny and loads after your page." },
+            { q: "Can my web person install it?", a: "Yes. Send them the private install link from the setup page. They don't need an account." },
+          ]}
+        />
       </div>
     );
   }

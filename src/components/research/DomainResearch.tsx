@@ -8,6 +8,7 @@ import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
 import { BrandLogo } from "../BrandLogo";
 import { Sheet } from "../Sheet";
+import { SampleLine, SampleRows, SampleStats, ToolIntro } from "../ToolIntro";
 import { Card, favicon, Seg, Thinking } from "../ui";
 import { flag, KdDot, short } from "./KeywordOverview";
 import { downloadCsv, FIELD, post } from "./shared";
@@ -302,10 +303,26 @@ export function DomainResearch({ sb, auth, site, canEdit }: { sb: SupabaseClient
       ) : null}
 
       {!busy && !report ? (
-        <div className="aw-callout max-w-2xl">
-          Enter any domain to see how many keywords it ranks for, its estimated visits, its best pages and its closest competitors. Start with your own site, then click a
-          competitor to compare. Results are saved and shared for 30 days.
-        </div>
+        <ToolIntro
+          title="See how any website performs on Google"
+          lead="Enter a domain to see how many keywords it ranks for, how much traffic Google sends it, its best pages and its closest competitors. Start with your own site, then size up the competition."
+          examples={[site.domain, "hubspot.com", "notion.so"]}
+          onExample={canEdit ? (x) => analyze(x) : undefined}
+          features={[
+            { title: "Organic overview", text: "Total keywords on Google, estimated monthly visits, and how many rank in the top 3 and top 10.", visual: <SampleStats items={[["Keywords", "1.2K"], ["Visits", "3.8K"], ["Top 10", "160"]]} /> },
+            { title: "Top keywords", text: "Every keyword the site ranks for, with its position, volume and the visits it brings.", visual: <SampleRows rows={[["seo agency", 900, "#2"], ["geo services", 640, "#4"], ["ai seo", 420, "#7"]]} /> },
+            { title: "Best pages", text: "The pages that pull the most traffic, and the keyword that drives each one.", visual: <SampleRows rows={[["/services/seo", 1200, "1.2K"], ["/blog/geo-guide", 700, "700"], ["/pricing", 300, "300"]]} /> },
+            { title: "Competitors", text: "Sites that rank for the same keywords. Click one to analyze it next.", visual: <SampleRows rows={[["rival.com", 120], ["agency.io", 90], ["seofirm.co", 60]]} /> },
+            { title: "Wins and losses", text: "Keywords the site gained and lost this month, so you can spot momentum fast.", visual: <SampleLine /> },
+            { title: "Straight to your plan", text: "Pick keywords and add them to your calendar. Your own pages go in as updates, a competitor's as new pages." },
+          ]}
+          steps={["Type a domain, like competitor.com.", "Pick a country and click Analyze.", "Review keywords, pages and competitors, then click a competitor to compare."]}
+          faqs={[
+            { q: "Where does the data come from?", a: "From Google search results and keyword data, refreshed regularly. Visits are estimates based on rankings and search volume." },
+            { q: "Why do my numbers differ from Search Console?", a: "Search Console shows your real clicks. Domain research estimates any site, so you can compare yourself with competitors on the same scale." },
+            { q: "Can I see more than 100 keywords?", a: "Yes. Click Load up to 500 under the table." },
+          ]}
+        />
       ) : null}
     </div>
   );

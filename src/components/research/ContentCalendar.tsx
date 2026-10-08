@@ -7,6 +7,7 @@ import { slots, STAGES, type Stage } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
 import { Sheet, type Col } from "../Sheet";
+import { SampleRows, SampleStats, ToolIntro } from "../ToolIntro";
 import { Card, Thinking } from "../ui";
 import { BriefPanel } from "./BriefPanel";
 import { Difficulty, downloadCsv, FIELD, STAGE_LABEL, StageTag } from "./shared";
@@ -111,26 +112,36 @@ export function ContentCalendar({ sb, auth, site, canEdit, onFind, onWrite }: { 
 
   if (!items.length) {
     return (
-      <section className="aw-frame">
-        <div className="aw-frame__body flex flex-col gap-4">
-          {error ? <p className="aw-error">{error}</p> : null}
-          <h2 className="aw-h3">Your content calendar is empty</h2>
-          <p className="text-[15px] text-body">Run the Planner to plan 120 keywords, or add keywords from Keywords. Approved pages land here.</p>
-          <div className="flex flex-wrap gap-3">
-            <button type="button" className="aw-btn aw-btn--accent" onClick={onFind}>
-              Plan keywords
-            </button>
-            {canEdit ? (
-              <form onSubmit={add} className="flex gap-2">
-                <input value={newKw} onChange={(e) => setNewKw(e.target.value)} placeholder="Or add a keyword" aria-label="Add a keyword" className={`${FIELD} w-56`} />
-                <button type="submit" className="aw-btn aw-btn--secondary aw-btn--sm" disabled={!newKw.trim()}>
-                  Add
-                </button>
-              </form>
-            ) : null}
-          </div>
-        </div>
-      </section>
+      <div className="flex flex-col gap-4">
+        {error ? <p className="aw-error">{error}</p> : null}
+        <ToolIntro
+          title="Plan, brief and track every page in one sheet"
+          lead="Your calendar holds every page you plan to write or update. Set dates, assign owners, write a content brief from Google's top 10 in one click, and mark pages published to track their results."
+          action={
+            <>
+              <button type="button" className="aw-btn aw-btn--accent" onClick={onFind}>
+                Plan keywords
+              </button>
+              {canEdit ? (
+                <form onSubmit={add} className="flex gap-2">
+                  <input value={newKw} onChange={(e) => setNewKw(e.target.value)} placeholder="Or add a keyword" aria-label="Add a keyword" className={`${FIELD} w-56`} />
+                  <button type="submit" className="aw-btn aw-btn--secondary aw-btn--sm" disabled={!newKw.trim()}>
+                    Add
+                  </button>
+                </form>
+              ) : null}
+            </>
+          }
+          features={[
+            { title: "One sheet for every page", text: "Sort and filter by stage, status, volume, difficulty, owner and due date.", visual: <SampleRows rows={[["crm for dentists", 900, "Writing"], ["best dental crm", 600, "Brief"], ["what is a crm", 2400, "Planned"]]} /> },
+            { title: "Content briefs in one click", text: "Reads Google's top 10, then gives you the format that wins, an outline, questions to answer and gaps to fill." },
+            { title: "Dates on autopilot", text: "Pick posts per week. Plan dates schedules ready-to-buy pages first, biggest volume first.", visual: <SampleStats items={[["Per week", "2"], ["Planned", "24"], ["Weeks", "12"]]} /> },
+            { title: "Write in Writer", text: "Open any brief as a draft with headings in place and a note under each on what to write." },
+            { title: "Track what you publish", text: "Add the live URL and the page shows up in Content performance with its Google, AI and visitor numbers." },
+          ]}
+          steps={["Run the Planner, or add keywords from Keywords, Domains or Search Console.", "Click a keyword to write its content brief.", "Write it, publish it, and paste the live URL."]}
+        />
+      </div>
     );
   }
 

@@ -7,6 +7,7 @@ import { opportunities, type GscPage, type GscPair, type GscQuery, type GscRepor
 import type { RunAuth } from "@/lib/runner";
 import { Sheet, type Col } from "../Sheet";
 import { TrendChart } from "../TrendChart";
+import { SampleLine, SampleRows, SampleStats, ToolIntro } from "../ToolIntro";
 import { Card, Delta, Seg, Thinking } from "../ui";
 import { useStash } from "@/lib/stash";
 import { downloadCsv, post } from "./shared";
@@ -105,26 +106,36 @@ export function SearchConsole({ sb, auth, site, canEdit }: { sb: SupabaseClient;
 
   if (!status.connected)
     return (
-      <section className="aw-frame max-w-3xl">
-        <div className="aw-frame__body flex flex-col gap-4">
-          {error ? <p className="aw-error">{error}</p> : null}
-          <h2 className="aw-h3">Connect Google Search Console</h2>
-          <p className="text-[15px] text-body">
-            See the real searches that bring people to {site.domain}: clicks, impressions, click rate and position for every query and page. Arrowsterr also finds pages
-            close to the top 3, titles that get skipped, pages losing clicks and pages competing with each other. The content Planner uses this data too.
-          </p>
-          <p className="aw-small">Read only. Arrowsterr can never change anything in your Search Console.</p>
-          {canEdit ? (
-            <div>
+      <div className="flex flex-col gap-4">
+        {error ? <p className="aw-error">{error}</p> : null}
+        <ToolIntro
+          title={`See the real Google searches that bring people to ${site.domain}`}
+          lead="Connect Google Search Console to see your actual clicks, impressions, click rate and position for every search and page. Arrowsterr then points out the quick wins hiding in your data."
+          action={
+            canEdit ? (
               <button type="button" className="aw-btn aw-btn--accent" onClick={connect}>
                 Connect with Google
               </button>
-            </div>
-          ) : (
-            <p className="aw-small">Ask an editor to connect Search Console.</p>
-          )}
-        </div>
-      </section>
+            ) : (
+              <p className="aw-small">Ask an editor to connect Search Console.</p>
+            )
+          }
+          features={[
+            { title: "Clicks and impressions", text: "How often you show up on Google and how often people click, day by day.", visual: <SampleLine /> },
+            { title: "Every search and page", text: "The exact searches people use to find you, with clicks, click rate and position.", visual: <SampleRows rows={[["seo agency singapore", 120], ["geo services", 80], ["ai seo tools", 45]]} /> },
+            { title: "Close to the top 3", text: "Searches where you rank 4 to 20. A small update can bring a big jump in clicks.", visual: <SampleStats items={[["Position", "#6.2"], ["Impr.", "2.4K"], ["Gain", "+70"]]} /> },
+            { title: "Titles that get skipped", text: "Pages that rank high but get few clicks. A better title and description fixes it." },
+            { title: "Pages losing clicks", text: "Pages that dropped since last period, so you can refresh them before it gets worse." },
+            { title: "Pages competing", text: "Two of your pages showing for the same search. Merge them or retarget one." },
+          ]}
+          steps={["Click Connect with Google and sign in with the account that owns the site in Search Console.", "Arrowsterr picks the matching property for you.", "Review your opportunities and add the best ones to your calendar."]}
+          faqs={[
+            { q: "Can Arrowsterr change my Search Console?", a: "No. The connection is read only." },
+            { q: "Why is the newest data 2 days old?", a: "Google publishes Search Console data with a short delay." },
+            { q: "Google says the app is unverified. Is that safe?", a: "Yes. Click Advanced, then continue. The warning shows while the app is in testing with Google." },
+          ]}
+        />
+      </div>
     );
 
   if (!status.property)

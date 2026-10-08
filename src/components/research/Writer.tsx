@@ -12,6 +12,7 @@ import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
 import { coverage, mdToHtml, type Section } from "@/lib/writer";
 import type { BrandGuideline, ChatMessage } from "@/lib/writerTypes";
+import { SampleChips, SampleRing, ToolIntro } from "../ToolIntro";
 import { Seg, Thinking } from "../ui";
 import { post } from "./shared";
 
@@ -167,8 +168,27 @@ export function Writer({ sb, auth, site, canEdit }: { sb: SupabaseClient; auth: 
             onSaved={(meta) => setDocs((list) => [{ ...meta }, ...(list ?? []).filter((x) => x.id !== meta.id)])}
           />
         ) : (
-          <div className="aw-callout xl:col-span-2">
-            Pick a draft on the left, or start a new one. Drafts made from a content brief come with every heading in place and a note under each on what to write.
+          <div className="xl:col-span-2">
+            <ToolIntro
+              title="Write on-brand content with the brief and your brand guide by your side"
+              lead="Start a draft from any content brief and every heading is already in place, with a note under each on what to write. An assistant that knows your brand voice helps with ideas, edits, checks and on-brand code."
+              action={
+                canEdit ? (
+                  <button type="button" className="aw-btn aw-btn--accent" onClick={newDoc}>
+                    New draft
+                  </button>
+                ) : null
+              }
+              features={[
+                { title: "Drafts from briefs", text: "Click Write in Writer on a brief. Headings, FAQs, notes and internal links come pre-filled." },
+                { title: "Brand guideline", text: "Built from your homepage: voice, words to use and avoid, colors, fonts and ready-to-paste CSS.", visual: <SampleChips items={[["Confident", "#E0E7FF"], ["Plain-spoken", "#FEF3C7"], ["#0943B0", "#DBEAFE"]]} /> },
+                { title: "Brief score", text: "A live checklist of topics, questions, terms and links, with a score that rises as you write.", visual: <SampleRing value={72} label="covered" /> },
+                { title: "Assistant", text: "Intro ideas, rewrites of your selected text in your brand voice, and draft checks." },
+                { title: "On-brand code", text: "Ask for an HTML section, like a comparison table, and preview it in your brand style." },
+                { title: "Clean exports", text: "Copy or download HTML. Writer notes stay out of the export." },
+              ]}
+              steps={["Open a brief in the Calendar and click Write in Writer, or start a new draft.", "Build your brand guideline in the Brand tab.", "Write, check the Brief score, and copy the HTML into your site."]}
+            />
           </div>
         )}
       </div>

@@ -7,6 +7,7 @@ import { PER_STAGE, STAGES, type Stage } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
 import { Sheet, type Col } from "../Sheet";
+import { SampleRows, SampleStats, ToolIntro } from "../ToolIntro";
 import { Card, Thinking } from "../ui";
 import { Difficulty, downloadCsv, FIELD, fmtCpc, fmtNum, post, STAGE_LABEL, StageTag } from "./shared";
 
@@ -107,34 +108,42 @@ export function AgenticResearch({ sb, auth, site, canEdit, onOpenCalendar }: { s
   if (!runs) return <Thinking text="Loading research..." />;
 
   const intro = (
-    <section className="aw-frame">
-      <div className="aw-frame__body flex flex-col gap-4">
-        <h2 className="aw-h3">Plan 120 keywords for {site.domain}</h2>
-        <ol className="flex list-decimal flex-col gap-1.5 pl-5 text-[14px] text-body">
-          <li>Reads the sitemap of {site.domain}. If there is none, it checks robots.txt, RSS feeds and the links on the site.</li>
-          <li>Checks what {site.domain} already ranks for, so you skip keywords you already win. Uses Search Console when it is connected.</li>
-          <li>Finds your closest competitors on Google and the keywords they rank for.</li>
-          <li>
-            Writes {PER_STAGE} BOFU keywords, then {PER_STAGE} MOFU, then {PER_STAGE} TOFU, fitted to a {site.profile.businessType ?? "general"} business. Each one is 2 to 5
-            words.
-          </li>
-          <li>Checks every keyword on Google and swaps out ones nobody searches for.</li>
-          <li>Finds your articles that rank below the top 10 or not at all, and picks the keyword each should win. These show as updates.</li>
-          <li>Groups keywords that share Google results, so each page targets one group and no two pages compete.</li>
-          <li>You tick the pages you want and approve them into the content calendar.</li>
-        </ol>
-        <p className="aw-small">Takes about 3 to 5 minutes. Costs about $0.50 to $0.90 in DataForSEO plus one AI answer from your daily limit.</p>
-        {canEdit ? (
-          <div>
-            <button type="button" className="aw-btn aw-btn--accent" onClick={start} disabled={starting}>
-              {starting ? "Starting..." : "Start research"}
-            </button>
-          </div>
+    <ToolIntro
+      title={`Get a full content plan for ${site.domain} in 5 minutes`}
+      lead="The Planner studies your site, your rankings and your competitors, then builds a 120-keyword plan from ready-to-buy searches down to learning searches. Each keyword is checked on Google, grouped into pages, and ready to approve into your calendar."
+      action={
+        canEdit ? (
+          <button type="button" className="aw-btn aw-btn--accent" onClick={start} disabled={starting}>
+            {starting ? "Starting..." : "Start planning"}
+          </button>
         ) : (
-          <p className="aw-small">Ask an editor to start research.</p>
-        )}
-      </div>
-    </section>
+          <p className="aw-small">Ask an editor to start the Planner.</p>
+        )
+      }
+      features={[
+        {
+          title: "120 keywords across the funnel",
+          text: `${PER_STAGE} bottom-of-funnel, ${PER_STAGE} middle and ${PER_STAGE} top-of-funnel keywords, fitted to your business type. Short and simple, 2 to 5 words each.`,
+          visual: <SampleRows rows={[["BOFU · ready to buy", 40], ["MOFU · comparing", 40], ["TOFU · learning", 40]]} />,
+        },
+        { title: "Real search data only", text: "Every keyword is checked on Google. Ideas nobody searches for are swapped out.", visual: <SampleStats items={[["Keywords", "120"], ["Pages", "94"], ["Searches", "48K"]]} /> },
+        { title: "Built from your site", text: "Reads your sitemap and what you already rank for, so it skips what you win and fixes what you don't." },
+        { title: "Competitor gaps", text: "Finds your closest competitors on Google and the keywords they rank for that you don't.", visual: <SampleRows rows={[["rival.com", 140], ["agency.io", 95], ["seofirm.co", 60]]} /> },
+        { title: "Pages to update", text: "Flags your articles that sit below the top 10 and names the keyword each should win." },
+        { title: "One page per topic", text: "Keywords that share Google results are grouped into one page, so your own pages never compete." },
+      ]}
+      steps={[
+        "Click Start planning. It runs in the background, so you can leave the page.",
+        "Review the plan: sort and filter by stage, theme, volume and difficulty.",
+        "Tick the pages you want and click Approve to calendar.",
+      ]}
+      faqs={[
+        { q: "How long does it take?", a: "About 3 to 5 minutes. Progress shows step by step." },
+        { q: "What does it cost?", a: "About 50 to 90 cents in data costs, plus one AI answer from your daily limit." },
+        { q: "What are BOFU, MOFU and TOFU?", a: "Bottom, middle and top of the funnel: people ready to buy, people comparing options, and people learning about the topic." },
+        { q: "Does it use Search Console?", a: "Yes, when it is connected. Your real positions make the plan more accurate." },
+      ]}
+    />
   );
 
   const history =
