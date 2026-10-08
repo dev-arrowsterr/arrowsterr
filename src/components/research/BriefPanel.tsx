@@ -3,7 +3,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useState } from "react";
 import type { Brief } from "@/lib/briefTypes";
-import { getBrief, type CalendarItem } from "@/lib/db";
+import { createDoc, getBrief, updateCalendarItem, type CalendarItem } from "@/lib/db";
+import { putStash } from "@/lib/stash";
+import { briefToDoc } from "@/lib/writer";
 import type { RunAuth } from "@/lib/runner";
 import { BrandLogo } from "../BrandLogo";
 import { favicon, Seg } from "../ui";
@@ -61,7 +63,23 @@ ${list(d.aiTips)}
 }
 
 /** A side panel with the content brief for one calendar item, and the Google research behind it. */
-export function BriefPanel({ sb, auth, item, canEdit, onClose, onStatus }: { sb: SupabaseClient; auth: RunAuth; item: CalendarItem; canEdit: boolean; onClose: () => void; onStatus: (s: CalendarItem["brief_status"]) => void }) {
+export function BriefPanel({
+  sb,
+  auth,
+  item,
+  canEdit,
+  onClose,
+  onStatus,
+  onWrite,
+}: {
+  sb: SupabaseClient;
+  auth: RunAuth;
+  item: CalendarItem;
+  canEdit: boolean;
+  onClose: () => void;
+  onStatus: (s: CalendarItem["brief_status"]) => void;
+  onWrite: () => void;
+}) {
   const [data, setData] = useState<State | null>(null);
   const [tab, setTab] = useState<"brief" | "analysis" | "results">("brief");
   const [error, setError] = useState("");
@@ -108,6 +126,22 @@ export function BriefPanel({ sb, auth, item, canEdit, onClose, onStatus }: { sb:
   }
 
   const b = data?.brief ?? null;
+
+  // Open (or make) the draft for this item, with the brief's headings and notes, in the Writer's workspace.
+  async function write() {
+    if (!b) return;
+    setError("");
+    try {
+      const doc = await createDoc(sb, { workspace_id: auth.workspaceId, site_id: item.site_id, calendar_item_id: item.id, title: b.brief.h1 || item.keyword, content: briefToDoc(item.keyword, item.secondary, b) as unknown as Record<string, unknown> });
+      putStash(`writer:${item.site_id}:open`, doc.id);
+      putStash(`writer:${item.site_id}:docs`, null);
+      if (item.status === "planned" || item.status === "brief") await updateCalendarItem(sb, item.id, { status: "writing" });
+      onWrite();
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      setError(/docs/.test(message) ? `${message}. Run supabase/010_writer.sql in Supabase.` : message);
+    }
+  }
   const md = b ? briefMarkdown(item, b) : "";
 
   return (
@@ -210,6 +244,11 @@ export function BriefPanel({ sb, auth, item, canEdit, onClose, onStatus }: { sb:
                   {canEdit ? (
                     <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={generate}>
                       Write again
+                    </button>
+                  ) : null}
+                  {canEdit ? (
+                    <button type="button" className="aw-btn aw-btn--accent aw-btn--sm" onClick={write}>
+                      Write in Writer
                     </button>
                   ) : null}
                 </span>

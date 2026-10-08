@@ -16,20 +16,23 @@ export async function POST(request: Request) {
   if (!domain) return Response.json({ error: "Enter a domain, like acme.com." }, { status: 400 });
   const country = MARKETS[body.country] ? String(body.country) : "United States";
   const m = MARKETS[country];
+  const more = Boolean(body.more);
 
   try {
     const spend = new Spend();
     const key = (part: string) => `dom:${part}:${m.location}:${m.language}:${domain}`;
     const [overview, keywords, rivals] = await Promise.all([
       cached(key("ov"), 30 * DAY, () => domainOverview(domain, m, spend)).then((r) => r.data).catch(() => null),
-      cached(key("kw"), 30 * DAY, () => research("ranked", domain, m, spend, 300)).then((r) => r.data),
-      cached(key("comp"), 30 * DAY, () => competitors(domain, m, spend, 15)).then((r) => r.data).catch(() => []),
+      // 100 keywords up front. "Load more" asks for 500, cached separately.
+      cached(key(more ? "kw500" : "kw"), 30 * DAY, () => research("ranked", domain, m, spend, more ? 500 : 100)).then((r) => r.data),
+      cached(key("comp"), 30 * DAY, () => competitors(domain, m, spend, 10)).then((r) => r.data).catch(() => []),
     ]);
     const report: DomainReport = {
       domain,
       country,
       overview,
       keywords,
+      more,
       pages: pagesOf(keywords).slice(0, 100),
       competitors: rivals,
       cost: Math.round(spend.total * 10000) / 10000,

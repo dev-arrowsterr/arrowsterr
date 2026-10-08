@@ -39,8 +39,8 @@ import { TrafficPage } from "./TrafficPage";
 import { VisitorsPage } from "./VisitorsPage";
 
 export type { Brand } from "@/lib/db";
-type Page = "overview" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "search" | "keywords" | "domain" | "agentic" | "calendar" | "members";
-const RESEARCH: Page[] = ["search", "keywords", "domain", "agentic", "calendar"];
+type Page = "overview" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "search" | "keywords" | "domain" | "agentic" | "calendar" | "writer" | "members";
+const RESEARCH: Page[] = ["search", "keywords", "domain", "agentic", "calendar", "writer"];
 
 /** Each page's address. "/" opens the overview. */
 const SLUGS: Record<Page, string> = {
@@ -56,6 +56,7 @@ const SLUGS: Record<Page, string> = {
   domain: "/domain-research",
   agentic: "/agentic-research",
   calendar: "/content-calendar",
+  writer: "/writer",
   members: "/settings",
 };
 const pageFromPath = (path: string): Page =>
@@ -519,6 +520,7 @@ const NAV: { group: string; items: { id: Page; label: string; icon: string }[] }
       { id: "domain", label: "Domain research", icon: "◎" },
       { id: "agentic", label: "Agentic research", icon: "✦" },
       { id: "calendar", label: "Content calendar", icon: "▦" },
+      { id: "writer", label: "Writer", icon: "✎" },
     ],
   },
   { group: "Settings", items: [{ id: "members", label: "Workspace & members", icon: "⚙" }] },

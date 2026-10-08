@@ -11,13 +11,15 @@ import { ContentCalendar } from "./ContentCalendar";
 import { DomainResearch } from "./DomainResearch";
 import { KeywordOverview } from "./KeywordOverview";
 import { SearchConsole } from "./SearchConsole";
+import { Writer } from "./Writer";
 
-export type Tool = "keywords" | "domain" | "agentic" | "calendar" | "search";
+export type Tool = "keywords" | "domain" | "agentic" | "calendar" | "writer" | "search";
 const TITLES: Record<Tool, string> = {
   keywords: "Keyword research",
   domain: "Domain research",
   agentic: "Agentic keyword research",
   calendar: "Content calendar",
+  writer: "Writer's workspace",
   search: "Search performance",
 };
 
@@ -55,10 +57,12 @@ export function ResearchPage({ sb, auth, brand, canEdit, tool, onTool }: { sb: S
         <DomainResearch sb={sb} auth={auth} site={site} canEdit={canEdit} />
       ) : tool === "search" ? (
         <SearchConsole sb={sb} auth={auth} site={site} canEdit={canEdit} />
+      ) : tool === "writer" ? (
+        <Writer sb={sb} auth={auth} site={site} canEdit={canEdit} />
       ) : tool === "agentic" ? (
         <AgenticResearch sb={sb} auth={auth} site={site} canEdit={canEdit} onOpenCalendar={() => onTool("calendar")} />
       ) : (
-        <ContentCalendar sb={sb} auth={auth} site={site} canEdit={canEdit} onFind={() => onTool("agentic")} />
+        <ContentCalendar sb={sb} auth={auth} site={site} canEdit={canEdit} onFind={() => onTool("agentic")} onWrite={() => onTool("writer")} />
       )}
     </div>
   );

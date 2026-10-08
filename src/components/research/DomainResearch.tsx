@@ -24,6 +24,18 @@ export function DomainResearch({ sb, auth, site, canEdit }: { sb: SupabaseClient
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
+  async function loadMore() {
+    if (!report) return;
+    setBusy("Loading up to 500 keywords...");
+    try {
+      setReport(await post<DomainReport>(auth, "/api/research/domain", { domain: report.domain, country: report.country, more: true }));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy("");
+    }
+  }
+
   async function analyze(d: string) {
     if (!d.trim()) return;
     setDomain(d);
@@ -278,7 +290,14 @@ export function DomainResearch({ sb, auth, site, canEdit }: { sb: SupabaseClient
               />
             )}
           </Card>
-          <p className="aw-small">Shows the top 300 keywords by search volume. Visits are estimates from Google rankings and search volume.</p>
+          <p className="aw-small">
+            Shows the top {report.keywords.length} keywords by search volume. Visits are estimates from Google rankings and search volume.{" "}
+            {!report.more && report.keywords.length >= 100 && canEdit ? (
+              <button type="button" className="aw-text-link" onClick={loadMore}>
+                Load up to 500 (about 4 cents)
+              </button>
+            ) : null}
+          </p>
         </>
       ) : null}
 

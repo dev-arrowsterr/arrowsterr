@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Chat, Run } from "./chats";
 import type { AgentResult } from "./research";
 import type { Brief } from "./briefTypes";
+import type { BrandGuideline } from "./writerTypes";
 
 export type Role = "owner" | "admin" | "editor" | "viewer";
 export const ROLE_RANK: Record<Role, number> = { owner: 4, admin: 3, editor: 2, viewer: 1 };
@@ -316,4 +317,40 @@ export async function listKeywordRuns(sb: SupabaseClient, siteId: string): Promi
 
 export async function saveKeywordRunResult(sb: SupabaseClient, id: string, result: AgentResult) {
   check(await sb.from("keyword_runs").update({ result }).eq("id", id));
+}
+
+// ─────────────── writer ───────────────
+
+export type DocMeta = { id: string; site_id: string; calendar_item_id: string | null; title: string; words: number; updated_at: string };
+export type Doc = DocMeta & { content: Record<string, unknown> };
+const DOC_META = "id, site_id, calendar_item_id, title, words, updated_at";
+
+export async function listDocs(sb: SupabaseClient, siteId: string): Promise<DocMeta[]> {
+  return check(await sb.from("docs").select(DOC_META).eq("site_id", siteId).order("updated_at", { ascending: false })) as DocMeta[];
+}
+
+export async function getDoc(sb: SupabaseClient, id: string): Promise<Doc> {
+  return check(await sb.from("docs").select(`${DOC_META}, content`).eq("id", id).single()) as Doc;
+}
+
+/** A new draft. A calendar item has at most one draft: if it exists already, that one comes back. */
+export async function createDoc(sb: SupabaseClient, d: { workspace_id: string; site_id: string; calendar_item_id?: string | null; title: string; content: Record<string, unknown> }): Promise<Doc> {
+  if (d.calendar_item_id) {
+    const { data } = await sb.from("docs").select(`${DOC_META}, content`).eq("calendar_item_id", d.calendar_item_id).maybeSingle();
+    if (data) return data as Doc;
+  }
+  return check(await sb.from("docs").insert(d).select(`${DOC_META}, content`).single()) as Doc;
+}
+
+export async function saveDoc(sb: SupabaseClient, id: string, d: { title: string; content: Record<string, unknown>; words: number }) {
+  check(await sb.from("docs").update({ ...d, updated_at: new Date().toISOString() }).eq("id", id));
+}
+
+export async function deleteDoc(sb: SupabaseClient, id: string) {
+  check(await sb.from("docs").delete().eq("id", id));
+}
+
+export async function getGuideline(sb: SupabaseClient, siteId: string): Promise<BrandGuideline | null> {
+  const row = check(await sb.from("sites").select("guideline").eq("id", siteId).single()) as { guideline: BrandGuideline | null };
+  return row.guideline;
 }

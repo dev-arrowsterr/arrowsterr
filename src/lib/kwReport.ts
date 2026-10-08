@@ -70,7 +70,7 @@ export async function overviewMany(keywords: string[], m: Market, cost: { total:
   return out;
 }
 
-async function suggestions(keyword: string, m: Market, questions: boolean, cost: { total: number }, limit = 100): Promise<KwList> {
+async function suggestions(keyword: string, m: Market, questions: boolean, cost: { total: number }, limit = 20): Promise<KwList> {
   const { data } = await cached<KwList>(`${questions ? "q" : "sug"}:${limit}:${m.location}:${m.language}:${keyword}`, 30 * DAY, async () => {
     const r = await task(
       "dataforseo_labs/google/keyword_suggestions/live",
@@ -107,7 +107,7 @@ async function serp(keyword: string, m: Market, device: string, cost: { total: n
   const { data } = await cached<KwSerp>(`serp:${m.location}:${m.language}:${device}:${keyword}`, 7 * DAY, async () => {
     const r = await task(
       "serp/google/organic/live/advanced",
-      { keyword, location_code: m.location, language_code: m.language, device, depth: 20, load_async_ai_overview: true },
+      { keyword, location_code: m.location, language_code: m.language, device, depth: 10, load_async_ai_overview: true },
       cost,
     );
     const items: SerpItem[] = r.items ?? [];
@@ -124,7 +124,7 @@ async function serp(keyword: string, m: Market, device: string, cost: { total: n
       local,
       rows: items
         .filter((i) => i.type === "organic" && i.url)
-        .slice(0, 20)
+        .slice(0, 10)
         .map((i) => {
           const domain = (i.domain ?? "").replace(/^www\./, "");
           return { rank: i.rank_group ?? 0, url: i.url!, domain, title: i.title ?? "", sitelinks: Boolean(i.links?.length), traffic: null, keywords: null, aiCited: citedDomains.has(domain) };

@@ -162,6 +162,7 @@ export type KwSummary = {
   results: number | null;
   core: string | null;
 };
+/** volume adds up the rows loaded (20 in a report, up to 1,000 in "See all"). */
 export type KwList = { total: number; volume: number; rows: KwSummary[] };
 export type KwCluster = { name: string; volume: number; count: number; keywords: string[] };
 export type SerpRow = { rank: number; url: string; domain: string; title: string; sitelinks: boolean; traffic: number | null; keywords: number | null; aiCited: boolean };
@@ -208,6 +209,7 @@ export type DomainReport = {
   country: string;
   overview: { keywords: number; traffic: number; top3: number; top10: number; top20: number; top100: number; newKw: number; lostKw: number } | null;
   keywords: Keyword[];
+  more?: boolean;
   pages: { url: string; keywords: number; traffic: number; top: string }[];
   competitors: { domain: string; shared: number; keywords: number; traffic: number }[];
   cost: number;

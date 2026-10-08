@@ -111,7 +111,7 @@ export type Competitor = { domain: string; shared: number; keywords: number; tra
 /** Sites that rank for the most of the same keywords as this one. */
 export async function competitors(domain: string, m: Market, spend: Spend, limit = 20): Promise<Competitor[]> {
   const tasks = await call("dataforseo_labs/google/competitors_domain/live", [
-    { target: domain, location_code: m.location, language_code: m.language, limit: limit + 15, exclude_top_domains: true },
+    { target: domain, location_code: m.location, language_code: m.language, limit: limit + 5, exclude_top_domains: true },
   ]);
   spend.add(tasks);
   const task = tasks[0];

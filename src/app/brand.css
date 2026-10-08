@@ -917,3 +917,40 @@
 @media (prefers-reduced-motion: reduce) {
   .aw *, .aw *::before, .aw *::after { transition: none !important; animation: none !important; }
 }
+
+
+/* ───────────────────────────────────────────────────────────────────────
+   WRITER
+   ─────────────────────────────────────────────────────────────────────── */
+.aw .aw-tool {
+  min-width: 30px; height: 30px; padding: 0 8px; border: 1px solid transparent; background: none;
+  font-family: var(--aw-mono); font-size: 12px; color: var(--aw-body); cursor: pointer;
+}
+.aw .aw-tool:hover { border-color: var(--aw-rule); color: var(--aw-ink); }
+.aw .aw-tool.is-on { background: var(--aw-ink); color: #fff; }
+.aw .aw-editor .ProseMirror { outline: none; max-width: 760px; margin: 0 auto; font-size: 17px; line-height: 1.7; color: var(--aw-ink); }
+.aw .aw-editor .ProseMirror > * + * { margin-top: 0.75em; }
+.aw .aw-editor .ProseMirror h1 { font-size: 34px; line-height: 1.2; font-weight: 600; letter-spacing: -0.02em; margin-top: 0.6em; }
+.aw .aw-editor .ProseMirror h2 { font-size: 26px; line-height: 1.25; font-weight: 600; letter-spacing: -0.01em; margin-top: 1.4em; }
+.aw .aw-editor .ProseMirror h3 { font-size: 20px; line-height: 1.3; font-weight: 600; margin-top: 1.1em; }
+.aw .aw-editor .ProseMirror h4 { font-size: 17px; font-weight: 600; }
+.aw .aw-editor .ProseMirror ul { list-style: disc; padding-left: 1.4em; }
+.aw .aw-editor .ProseMirror ol { list-style: decimal; padding-left: 1.4em; }
+.aw .aw-editor .ProseMirror blockquote { border-left: 2px solid var(--aw-brand); padding-left: 1em; color: var(--aw-body); }
+.aw .aw-editor .ProseMirror a { color: var(--aw-brand); text-decoration: underline; }
+.aw .aw-editor .ProseMirror code { font-family: var(--aw-mono); font-size: 0.88em; background: var(--aw-surface-2); padding: 1px 4px; }
+.aw .aw-editor .ProseMirror pre { background: var(--aw-ink); color: #fff; padding: 12px 14px; font-family: var(--aw-mono); font-size: 13px; overflow: auto; }
+.aw .aw-editor .ProseMirror pre code { background: none; color: inherit; padding: 0; }
+.aw .aw-editor .ProseMirror p.is-editor-empty:first-child::before { content: attr(data-placeholder); color: var(--aw-faint); float: left; height: 0; pointer-events: none; }
+.aw .aw-note {
+  display: block; margin: 0.4em 0; padding: 8px 12px 8px 30px; position: relative;
+  background: #FFF8E1; border-left: 2px solid #F5B70A; color: #6B5200; font-size: 13px; line-height: 1.5;
+}
+.aw .aw-note::before { content: "✎"; position: absolute; left: 10px; top: 8px; }
+.aw .aw-md > * + * { margin-top: 0.5em; }
+.aw .aw-md ul { list-style: disc; padding-left: 1.2em; }
+.aw .aw-md ol { list-style: decimal; padding-left: 1.2em; }
+.aw .aw-md h2, .aw .aw-md h3, .aw .aw-md h4 { font-weight: 600; color: var(--aw-ink); font-size: 14px; }
+.aw .aw-md pre { background: var(--aw-ink); color: #fff; padding: 8px 10px; font-family: var(--aw-mono); font-size: 11px; overflow: auto; max-height: 260px; }
+.aw .aw-md code { font-family: var(--aw-mono); font-size: 0.9em; }
+.aw .aw-md a { color: var(--aw-brand); text-decoration: underline; }

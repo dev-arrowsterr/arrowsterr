@@ -26,7 +26,7 @@ const parse = (s: string) => {
 const BRIEF_LABEL = { running: "Writing...", done: "Ready", failed: "Failed" } as const;
 
 /** Every planned page for one website, as a spreadsheet. Click a keyword to open its content brief. */
-export function ContentCalendar({ sb, auth, site, canEdit, onFind }: { sb: SupabaseClient; auth: RunAuth; site: Site; canEdit: boolean; onFind: () => void }) {
+export function ContentCalendar({ sb, auth, site, canEdit, onFind, onWrite }: { sb: SupabaseClient; auth: RunAuth; site: Site; canEdit: boolean; onFind: () => void; onWrite: () => void }) {
   const [items, setItems] = useStash<CalendarItem[] | null>(`cal:${site.id}:items`, null);
   const [error, setError] = useState("");
   const [planning, setPlanning] = useState(false);
@@ -333,7 +333,7 @@ export function ContentCalendar({ sb, auth, site, canEdit, onFind }: { sb: Supab
         />
       </Card>
 
-      {openItem ? <BriefPanel sb={sb} auth={auth} item={openItem} canEdit={canEdit} onClose={() => setOpen(null)} onStatus={onBriefStatus} /> : null}
+      {openItem ? <BriefPanel sb={sb} auth={auth} item={openItem} canEdit={canEdit} onClose={() => setOpen(null)} onStatus={onBriefStatus} onWrite={onWrite} /> : null}
     </div>
   );
 }

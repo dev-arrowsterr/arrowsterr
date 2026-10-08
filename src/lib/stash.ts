@@ -53,6 +53,9 @@ export function useStash<T>(key: string, init: T | (() => T)) {
   return [v, set] as const;
 }
 
+/** Set a saved value from outside the tool, like opening a draft from the calendar. */
+export const putStash = (key: string, v: unknown) => write(key, v);
+
 /** A saved value outside React, for loaders that want to skip a fetch. */
 export const peek = <T,>(key: string) => read<T>(key);
 
