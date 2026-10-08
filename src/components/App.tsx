@@ -32,13 +32,31 @@ import { MembersPage } from "./MembersPage";
 import { Onboarding, type NewBrand } from "./Onboarding";
 import { OverviewPage } from "./OverviewPage";
 import { PromptsPage } from "./PromptsPage";
-import { PENDING_SITE, ResearchPage, type Tool } from "./research/ResearchPage";
+import { ResearchPage, type Tool } from "./research/ResearchPage";
 import { SourcesPage } from "./SourcesPage";
 import { TrafficPage } from "./TrafficPage";
 
 export type { Brand } from "@/lib/db";
 type Page = "overview" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "search" | "keywords" | "agentic" | "calendar" | "members";
 const RESEARCH: Page[] = ["search", "keywords", "agentic", "calendar"];
+
+/** Each page's address. "/" opens the overview. */
+const SLUGS: Record<Page, string> = {
+  overview: "/overview",
+  prompts: "/prompts",
+  competitors: "/competitors",
+  domains: "/domains",
+  urls: "/urls",
+  traffic: "/analytics",
+  search: "/search-performance",
+  keywords: "/keyword-research",
+  agentic: "/agentic-research",
+  calendar: "/content-calendar",
+  members: "/settings",
+};
+const pageFromPath = (path: string): Page =>
+  (Object.entries(SLUGS).find(([, slug]) => slug === path.replace(/\/+$/, ""))?.[0] as Page | undefined) ?? "overview";
+const PENDING_BRAND = "arrowsterr.brand.pending";
 
 const INVITE_KEY = "arrowsterr.invite";
 const GSC_KEY = "arrowsterr.gsc";
@@ -79,8 +97,8 @@ export function App({ config }: { config: SupaConfig }) {
     const gsc = params.get("gsc");
     if (gsc) {
       writeLocal(GSC_KEY, JSON.stringify({ result: gsc, reason: params.get("reason") ?? "" }));
-      if (params.get("site")) writeLocal(PENDING_SITE, params.get("site"));
-      for (const k of ["gsc", "site", "reason"]) params.delete(k);
+      if (params.get("brand")) writeLocal(PENDING_BRAND, params.get("brand"));
+      for (const k of ["gsc", "site", "brand", "reason"]) params.delete(k);
       window.history.replaceState(null, "", window.location.pathname + (params.size ? `?${params}` : ""));
     }
     sb.auth.getSession().then(({ data }) => setSession(data.session));
@@ -114,7 +132,20 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
       return null;
     }
   });
-  const [page, setPage] = useState<Page>(gscBack ? "search" : "overview");
+  const [page, setPage] = useState<Page>(() => (gscBack ? "search" : pageFromPath(window.location.pathname)));
+  // Keep the address bar in step with the page, and follow the back and forward buttons.
+  const go = useCallback((p: Page) => {
+    setPage(p);
+    if (window.location.pathname !== SLUGS[p]) window.history.pushState(null, "", SLUGS[p] + window.location.search);
+  }, []);
+  useEffect(() => {
+    if (window.location.pathname !== SLUGS[page]) window.history.replaceState(null, "", SLUGS[page] + window.location.search);
+    const back = () => setPage(pageFromPath(window.location.pathname));
+    window.addEventListener("popstate", back);
+    return () => window.removeEventListener("popstate", back);
+    // Only on first load: after that, go() moves the address.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [runs, setRuns] = useState<Record<string, SavedRun[]>>({});
   const [running, setRunning] = useState<string | null>(null);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
@@ -178,7 +209,10 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
       .then((list) => {
         if (!live) return;
         setBrands(list);
-        setActiveId((id) => (list.some((b) => b.id === id) ? id : (list[0]?.id ?? null)));
+        const pending = readLocal(PENDING_BRAND);
+        writeLocal(PENDING_BRAND, null);
+        const saved = readLocal(`arrowsterr.brand.${ws.id}`);
+        setActiveId((id) => [pending, id, saved].find((x) => x && list.some((b) => b.id === x)) ?? list[0]?.id ?? null);
       })
       .catch((e) => live && setError(e instanceof Error ? e.message : String(e)));
     return () => {
@@ -187,6 +221,9 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   }, [sb, ws, userId]);
 
   const active = brands?.find((b) => b.id === activeId);
+  useEffect(() => {
+    if (ws && activeId) writeLocal(`arrowsterr.brand.${ws.id}`, activeId);
+  }, [ws, activeId]);
 
   // Load a brand's run history the first time it is opened.
   useEffect(() => {
@@ -235,7 +272,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
     setBrands((list) => [...(list ?? []), brand]);
     setRuns((r) => ({ ...r, [brand.id]: [] }));
     setActiveId(brand.id);
-    setPage("overview");
+    go("overview");
     setAdding(false);
     // The first check runs right away. After that the daily job keeps it fresh.
     void runBrand(brand);
@@ -345,7 +382,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           setWsId(id);
           setBrands(null);
           setTopic("All");
-          setPage("overview");
+          go("overview");
         }}
         onNewWorkspace={async (name) => {
           const id = await createWorkspace(sb, name);
@@ -356,12 +393,13 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
         page={page}
         onPage={(p) => {
           setFocus(null);
-          setPage(p);
+          go(p);
         }}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        {page !== "members" && !RESEARCH.includes(page) ? (
+        {page !== "members" ? (
           <TopBar
+            websiteOnly={RESEARCH.includes(page)}
             brands={brands}
             active={active}
             canEdit={canEdit}
@@ -402,19 +440,10 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           ) : null}
           {page === "members" ? (
             <MembersPage key={ws.id} sb={sb} ws={ws} userId={userId} onChanged={loadWorkspaces} />
-          ) : RESEARCH.includes(page) ? (
-            <ResearchPage
-              key={ws.id}
-              sb={sb}
-              auth={auth}
-              brands={brands}
-              activeBrandId={active?.id ?? null}
-              canEdit={canEdit}
-              tool={page as Tool}
-              onTool={(t) => setPage(t)}
-            />
           ) : !view ? (
             <div className="aw-callout max-w-xl">This workspace has no brands yet. Ask an editor or admin to add one.</div>
+          ) : RESEARCH.includes(page) ? (
+            <ResearchPage key={view.brand.id} sb={sb} auth={auth} brand={view.brand} canEdit={canEdit} tool={page as Tool} onTool={(t) => go(t)} />
           ) : page === "prompts" ? (
             <PromptsPage
               key={view.brand.id}
@@ -424,7 +453,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
               onRemove={() => remove(view.brand.id)}
               onCompetitor={(name) => {
                 setFocus(name);
-                setPage("competitors");
+                go("competitors");
               }}
             />
           ) : page === "competitors" ? (
@@ -439,7 +468,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
               view={view}
               onOpen={(p, name) => {
                 setFocus(name ?? null);
-                setPage(p);
+                go(p);
               }}
             />
           )}
@@ -595,6 +624,7 @@ const TIMEFRAMES = [7, 30, 60, 90];
 
 /** Brand, period, topic and model pickers, and the Run button. */
 function TopBar(p: {
+  websiteOnly: boolean;
   brands: Brand[];
   active: Brand | undefined;
   canEdit: boolean;
@@ -656,6 +686,8 @@ function TopBar(p: {
           </div>
         ) : null}
       </div>
+      {p.websiteOnly ? null : (
+        <>
       <select aria-label="Time period" value={p.days} onChange={(e) => p.onDays(Number(e.target.value))} className={`${pill} pr-7`}>
         {TIMEFRAMES.map((d) => (
           <option key={d} value={d}>
@@ -679,8 +711,12 @@ function TopBar(p: {
           </option>
         ))}
       </select>
+        </>
+      )}
       <div className="ml-auto flex items-center gap-3">
-        {p.running ? (
+        {p.websiteOnly ? (
+          <span className="text-[13px] text-muted">Research for {p.active?.domain}</span>
+        ) : p.running ? (
           <span className="flex items-center gap-3">
             <span className="aw-label aw-label--brand">First check running</span>
             <span className="aw-progress w-32">

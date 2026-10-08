@@ -200,6 +200,29 @@ export async function listSites(sb: SupabaseClient, workspaceId: string, brands:
   return sites;
 }
 
+/**
+ * The research website for a brand. Every brand has exactly one, made on first use,
+ * and it always follows the brand's business answers.
+ */
+export async function siteForBrand(sb: SupabaseClient, brand: Brand, canEdit: boolean): Promise<Site | null> {
+  const find = async () =>
+    (check(await sb.from("sites").select(SITE_COLS).eq("workspace_id", brand.workspace_id).or(`brand_id.eq.${brand.id},domain.eq."${brand.domain}"`)) as Site[]).sort(
+      (a, b) => Number(b.brand_id === brand.id) - Number(a.brand_id === brand.id),
+    )[0] ?? null;
+  let site = await find();
+  if (!site && canEdit) {
+    check(await sb.from("sites").upsert({ workspace_id: brand.workspace_id, brand_id: brand.id, domain: brand.domain, name: brand.name, profile: brand.profile ?? {} }, { onConflict: "workspace_id,domain", ignoreDuplicates: true }));
+    site = await find();
+  }
+  if (!site) return null;
+  const profile = brand.profile ?? {};
+  if (canEdit && (site.brand_id !== brand.id || JSON.stringify(site.profile) !== JSON.stringify(profile) || site.name !== brand.name)) {
+    check(await sb.from("sites").update({ brand_id: brand.id, profile, name: brand.name }).eq("id", site.id));
+    site = { ...site, brand_id: brand.id, profile, name: brand.name };
+  }
+  return site;
+}
+
 export async function addSite(sb: SupabaseClient, s: Omit<Site, "id" | "brand_id">): Promise<Site> {
   return check(await sb.from("sites").insert(s).select(SITE_COLS).single()) as Site;
 }
