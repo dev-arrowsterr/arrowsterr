@@ -7,7 +7,7 @@ import { EditorContent, mergeAttributes, Node, useEditor, type Editor } from "@t
 import StarterKit from "@tiptap/starter-kit";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Brief } from "@/lib/briefTypes";
-import { createDoc, deleteDoc, getBrief, getDoc, getGuideline, listDocs, saveDoc, type Doc, type DocMeta, type Site } from "@/lib/db";
+import { deleteDoc, getBrief, getDoc, getGuideline, listDocs, saveDoc, type Doc, type DocMeta, type Site } from "@/lib/db";
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
 import { coverage, mdToHtml, type Section } from "@/lib/writer";
@@ -93,16 +93,6 @@ export function Writer({ sb, auth, site, canEdit }: { sb: SupabaseClient; auth: 
     };
   }, [sb, openId, setOpenId]);
 
-  async function newDoc() {
-    try {
-      const d = await createDoc(sb, { workspace_id: auth.workspaceId, site_id: site.id, title: "Untitled", content: { type: "doc", content: [{ type: "paragraph" }] } });
-      setDocs([d, ...(docs ?? [])]);
-      setOpenId(d.id);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  }
-
   async function remove(id: string) {
     if (!confirm("Delete this draft?")) return;
     try {
@@ -126,11 +116,6 @@ export function Writer({ sb, auth, site, canEdit }: { sb: SupabaseClient; auth: 
         <aside className="aw-frame flex flex-col self-start">
           <div className="flex items-center justify-between border-b border-rule px-4 py-3">
             <span className="aw-label">Drafts</span>
-            {canEdit ? (
-              <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={newDoc}>
-                + New
-              </button>
-            ) : null}
           </div>
           <ul className="max-h-[70vh] overflow-auto">
             {docs.map((d) => (
@@ -149,7 +134,7 @@ export function Writer({ sb, auth, site, canEdit }: { sb: SupabaseClient; auth: 
                 ) : null}
               </li>
             ))}
-            {!docs.length ? <li className="aw-small px-4 py-4">No drafts yet. Open a content brief in the calendar and click Write in Writer, or start a new one.</li> : null}
+            {!docs.length ? <li className="aw-small px-4 py-4">No drafts yet. Open a content brief in the Calendar and click Write in Writer.</li> : null}
           </ul>
         </aside>
 
@@ -172,13 +157,6 @@ export function Writer({ sb, auth, site, canEdit }: { sb: SupabaseClient; auth: 
             <ToolIntro
               title="Write on-brand content with the brief and your brand guide by your side"
               lead="Start a draft from any content brief and every heading is already in place, with a note under each on what to write. An assistant that knows your brand voice helps with ideas, edits, checks and on-brand code."
-              action={
-                canEdit ? (
-                  <button type="button" className="aw-btn aw-btn--accent" onClick={newDoc}>
-                    New draft
-                  </button>
-                ) : null
-              }
               features={[
                 { title: "Drafts from briefs", text: "Click Write in Writer on a brief. Headings, FAQs, notes and internal links come pre-filled." },
                 { title: "Brand guideline", text: "Built from your homepage: voice, words to use and avoid, colors, fonts and ready-to-paste CSS.", visual: <SampleChips items={[["Confident", "#E0E7FF"], ["Plain-spoken", "#FEF3C7"], ["#0943B0", "#DBEAFE"]]} /> },
@@ -187,7 +165,7 @@ export function Writer({ sb, auth, site, canEdit }: { sb: SupabaseClient; auth: 
                 { title: "On-brand code", text: "Ask for an HTML section, like a comparison table, and preview it in your brand style." },
                 { title: "Clean exports", text: "Copy or download HTML. Writer notes stay out of the export." },
               ]}
-              steps={["Open a brief in the Calendar and click Write in Writer, or start a new draft.", "Build your brand guideline in the Brand tab.", "Write, check the Brief score, and copy the HTML into your site."]}
+              steps={["Open a brief in the Calendar and click Write in Writer.", "Build your brand guideline in the Brand tab.", "Write, check the Brief score, and copy the HTML into your site."]}
             />
           </div>
         )}

@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { listCalendar, siteForBrand, type CalendarItem } from "@/lib/db";
 import type { Visitor } from "@/lib/journey";
 import { answered, brandStats, pageKey } from "@/lib/metrics";
-import type { GscReport } from "@/lib/opportunities";
 import { contentRows, pathOf, winsAndDrops, type ContentRow, type TrafficData } from "@/lib/reports";
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
@@ -15,13 +14,11 @@ import { Card, Delta, pct, pos, score, Thinking } from "../ui";
 
 type Data = {
   traffic: TrafficData | null;
-  gsc: GscReport | null;
   visitors: Visitor[] | null;
   items: CalendarItem[] | null;
   at: string;
 };
 type Summary = { headline: string; points: string[]; next: string[]; at: string };
-const gscDays = (d: number) => (d <= 7 ? 7 : d <= 30 ? 28 : 90);
 const num = (n: number | null | undefined) => (n === null || n === undefined ? "–" : n.toLocaleString("en-US"));
 
 /** Reports for the website in the top bar: a one-page Summary, and how each published page performs. */
@@ -51,17 +48,12 @@ export function ReportsPage({ sb, auth, view, canEdit, mode, onCalendar }: { sb:
     };
     (async () => {
       const site = await siteForBrand(sb, brand, canEdit).catch(() => null);
-      const [traffic, visitors, items, gsc] = await Promise.all([
+      const [traffic, visitors, items] = await Promise.all([
         call<TrafficData>("/api/traffic", { days }),
         call<{ visitors: Visitor[] }>("/api/visitors", { action: "list", days }).then((v) => v?.visitors ?? null),
         site ? listCalendar(sb, site.id).catch(() => null) : Promise.resolve(null),
-        site
-          ? call<{ connected: boolean; property: string | null }>("/api/gsc", { siteId: site.id, action: "status" }).then((s) =>
-              s?.connected && s.property ? call<GscReport>("/api/gsc", { siteId: site.id, action: "report", days: gscDays(days) }) : null,
-            )
-          : Promise.resolve(null),
       ]);
-      if (live) setSaved((x) => ({ ...x, [days]: { traffic, gsc, visitors, items, at: new Date().toISOString() } }));
+      if (live) setSaved((x) => ({ ...x, [days]: { traffic, visitors, items, at: new Date().toISOString() } }));
     })();
     return () => {
       live = false;
@@ -84,7 +76,6 @@ export function ReportsPage({ sb, auth, view, canEdit, mode, onCalendar }: { sb:
 
   if (!data) return <Thinking text="Pulling your report together..." />;
   const t = data.traffic;
-  const g = data.gsc;
   const v = data.visitors;
   const since = new Date(Date.parse(data.at) - days * 864e5).toISOString().slice(0, 10);
   const items = data.items ?? [];
@@ -94,7 +85,7 @@ export function ReportsPage({ sb, auth, view, canEdit, mode, onCalendar }: { sb:
     briefs: items.filter((i) => i.status === "brief").length,
     planned: items.filter((i) => i.status === "planned").length,
   };
-  const { wins, drops } = winsAndDrops({ engines: engineRows, traffic: t, gsc: g });
+  const { wins, drops } = winsAndDrops({ engines: engineRows, traffic: t });
 
   async function writeSummary() {
     setBusy(true);
@@ -112,7 +103,6 @@ export function ReportsPage({ sb, auth, view, canEdit, mode, onCalendar }: { sb:
             aiVisibility: me ? { visibility: Math.round(me.visibility), before: was ? Math.round(was.visibility) : null, sentiment: me.sentiment, position: me.position, rank, brandsCompared: stats.length } : null,
             byModel: engineRows,
             website: t ? { visits: t.totals.visits, visitsBefore: t.totalsPrev.visits, fromAI: t.ai, fromAIBefore: t.aiPrev } : null,
-            google: g ? { clicks: g.totals.clicks, clicksBefore: g.totalsPrev.clicks, impressions: g.totals.impressions, position: g.totals.position, positionBefore: g.totalsPrev.position } : null,
             visitors: v ? { total: v.length, hot: v.filter((x) => x.label === "Hot").length, keyActions: v.filter((x) => x.actions.length).length } : null,
             content,
             wins,
@@ -144,9 +134,6 @@ export function ReportsPage({ sb, auth, view, canEdit, mode, onCalendar }: { sb:
             {busy ? "Writing..." : summary ? "Rewrite AI summary" : "Write AI summary"}
           </button>
         ) : null}
-        <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={() => window.print()}>
-          Download PDF
-        </button>
       </span>
     </div>
   );
@@ -174,13 +161,12 @@ export function ReportsPage({ sb, auth, view, canEdit, mode, onCalendar }: { sb:
       const host = k.split("/")[0];
       if (host === brand.domain.replace(/^www\./, "") || host.endsWith(`.${brand.domain}`)) citedPaths.set(pathOf(`https://${k}`), chats.length ? (n / chats.length) * 100 : 0);
     }
-    const rows = contentRows({ items, gsc: g, citedPaths: chats.length ? citedPaths : null, traffic: t, visitors: v });
+    const rows = contentRows({ items, citedPaths: chats.length ? citedPaths : null, traffic: t, visitors: v });
     return (
       <div className="flex flex-col gap-5">
         {head("Content performance")}
         {strip([
           { lab: "Published pages", v: rows.length },
-          { lab: "Google clicks", v: g ? num(rows.reduce((n, r) => n + (r.clicks ?? 0), 0)) : "–" },
           { lab: "Cited by AI", v: chats.length ? rows.filter((r) => (r.cited ?? 0) > 0).length : "–" },
           { lab: "Visits from AI", v: t ? num(rows.reduce((n, r) => n + (r.aiVisits ?? 0), 0)) : "–" },
           { lab: "Hot visitors landed", v: v ? num(rows.reduce((n, r) => n + (r.hot ?? 0), 0)) : "–" },
@@ -191,7 +177,7 @@ export function ReportsPage({ sb, auth, view, canEdit, mode, onCalendar }: { sb:
               label="Content performance"
               rows={rows}
               rowKey={(r) => r.id}
-              sort={{ key: "clicks", desc: true }}
+              sort={{ key: "visits", desc: true }}
               cols={[
                 {
                   id: "keyword",
@@ -210,9 +196,6 @@ export function ReportsPage({ sb, auth, view, canEdit, mode, onCalendar }: { sb:
                 },
                 { id: "job", label: "Job", type: "list", value: (r) => (r.action === "update" ? "Updated" : "New"), options: ["New", "Updated"] },
                 { id: "published", label: "Published", type: "date", value: (r) => r.published },
-                { id: "position", label: "Google position", type: "number", value: (r) => r.position, cell: (r) => (r.position ? `#${r.position}` : <span className="text-muted">{g ? "Not in data" : "–"}</span>) },
-                { id: "clicks", label: "Clicks", type: "number", value: (r) => r.clicks },
-                { id: "impressions", label: "Impressions", type: "number", value: (r) => r.impressions },
                 { id: "cited", label: "Cited in AI answers", type: "number", value: (r) => (r.cited === null ? null : Math.round(r.cited)), cell: (r) => (r.cited === null ? "–" : r.cited ? pct(r.cited) : <span className="text-muted">Not yet</span>) },
                 { id: "visits", label: "Visits", type: "number", value: (r) => r.visits },
                 { id: "ai", label: "From AI", type: "number", value: (r) => r.aiVisits },
@@ -223,14 +206,13 @@ export function ReportsPage({ sb, auth, view, canEdit, mode, onCalendar }: { sb:
           </Card>
         ) : (
           <div className="aw-callout flex flex-wrap items-center justify-between gap-3">
-            No published pages yet. In the Calendar, set a page to Published and add its URL. It shows up here with its Google, AI and visitor numbers.
+            No published pages yet. In the Calendar, set a page to Published and add its URL. It shows up here with its AI and visitor numbers.
             <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm print:hidden" onClick={onCalendar}>
               Open calendar
             </button>
           </div>
         )}
         <p className="aw-small">
-          {!g ? "Connect Search Console for Google numbers. " : ""}
           {!t ? "Connect the tracking code in Traffic for visits. " : ""}
           AI citations come from the daily prompt checks in this period.
         </p>
@@ -288,16 +270,6 @@ export function ReportsPage({ sb, auth, view, canEdit, mode, onCalendar }: { sb:
           : off("Website tracking")}
       </section>
 
-      <section className="flex flex-col gap-2">
-        <h2 className="aw-h4">Google</h2>
-        {g
-          ? strip([
-              { lab: "Clicks", v: num(g.totals.clicks), d: <Delta now={g.totals.clicks} before={g.totalsPrev.clicks} digits={0} /> },
-              { lab: "Impressions", v: num(g.totals.impressions), d: <Delta now={g.totals.impressions} before={g.totalsPrev.impressions} digits={0} /> },
-              { lab: "Avg. position", v: g.totals.position.toFixed(1), d: <Delta now={g.totals.position} before={g.totalsPrev.position} lowerIsBetter /> },
-            ])
-          : off("Search Console")}
-      </section>
 
       <section className="flex flex-col gap-2">
         <h2 className="aw-h4">Content</h2>

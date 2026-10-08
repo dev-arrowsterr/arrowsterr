@@ -10,17 +10,15 @@ import { AgenticResearch } from "./AgenticResearch";
 import { ContentCalendar } from "./ContentCalendar";
 import { DomainResearch } from "./DomainResearch";
 import { KeywordOverview } from "./KeywordOverview";
-import { SearchConsole } from "./SearchConsole";
 import { Writer } from "./Writer";
 
-export type Tool = "keywords" | "domain" | "agentic" | "calendar" | "writer" | "search";
+export type Tool = "keywords" | "domain" | "agentic" | "calendar" | "writer";
 const TITLES: Record<Tool, string> = {
   keywords: "Keyword research",
   domain: "Domain research",
   agentic: "Content planner",
   calendar: "Content calendar",
   writer: "Writer",
-  search: "Search Console",
 };
 
 /** The Research tools for the website picked in the top bar. */
@@ -55,8 +53,6 @@ export function ResearchPage({ sb, auth, brand, canEdit, tool, onTool }: { sb: S
         <KeywordOverview sb={sb} auth={auth} site={site} canEdit={canEdit} />
       ) : tool === "domain" ? (
         <DomainResearch sb={sb} auth={auth} site={site} canEdit={canEdit} />
-      ) : tool === "search" ? (
-        <SearchConsole sb={sb} auth={auth} site={site} canEdit={canEdit} />
       ) : tool === "writer" ? (
         <Writer sb={sb} auth={auth} site={site} canEdit={canEdit} />
       ) : tool === "agentic" ? (

@@ -69,11 +69,5 @@ export async function GET() {
       report.Umami = `Could not reach Umami: ${e instanceof Error ? e.message : String(e)}`;
     }
   }
-  // Search Console sign-in with Google.
-  report.SearchConsole =
-    process.env.GOOGLE_CLIENT_ID?.trim() && process.env.GOOGLE_CLIENT_SECRET?.trim()
-      ? `Set. Redirect URI in Google Cloud must be ${process.env.GSC_REDIRECT_URI?.trim() || "https://app.arrowsterr.com/api/gsc/callback"}`
-      : "MISSING GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET (needed for Search Console)";
-
   return Response.json(report);
 }

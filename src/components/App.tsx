@@ -1,7 +1,7 @@
 "use client";
 
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { loadRuns, type Run } from "@/lib/chats";
 import {
   acceptInvite,
@@ -40,8 +40,8 @@ import { ReportsPage } from "./reports/ReportsPage";
 import { VisitorsPage } from "./VisitorsPage";
 
 export type { Brand } from "@/lib/db";
-type Page = "overview" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "search" | "keywords" | "domain" | "agentic" | "calendar" | "writer" | "summary" | "performance" | "members";
-const RESEARCH: Page[] = ["search", "keywords", "domain", "agentic", "calendar", "writer"];
+type Page = "overview" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "agentic" | "calendar" | "writer" | "summary" | "performance" | "members";
+const RESEARCH: Page[] = ["keywords", "domain", "agentic", "calendar", "writer"];
 
 /** Each page's address. "/" opens the overview. */
 const SLUGS: Record<Page, string> = {
@@ -52,7 +52,6 @@ const SLUGS: Record<Page, string> = {
   urls: "/sources/urls",
   traffic: "/traffic",
   visitors: "/visitors",
-  search: "/search-console",
   keywords: "/keywords",
   domain: "/domain-research",
   agentic: "/planner",
@@ -67,7 +66,6 @@ const ALIASES: Record<string, Page> = {
   "/domains": "domains",
   "/urls": "urls",
   "/analytics": "traffic",
-  "/search-performance": "search",
   "/keyword-research": "keywords",
   "/agentic-research": "agentic",
   "/content-calendar": "calendar",
@@ -79,7 +77,6 @@ const pageFromPath = (path: string): Page => {
 const PENDING_BRAND = "arrowsterr.brand.pending";
 
 const INVITE_KEY = "arrowsterr.invite";
-const GSC_KEY = "arrowsterr.gsc";
 const LEGACY_BRANDS = "arrowsterr.brands";
 
 function readLocal(key: string) {
@@ -113,14 +110,6 @@ export function App({ config }: { config: SupaConfig }) {
       params.delete("invite");
       window.history.replaceState(null, "", window.location.pathname + (params.size ? `?${params}` : ""));
     }
-    // Google sends people back from connecting Search Console with ?gsc=connected|pick|error.
-    const gsc = params.get("gsc");
-    if (gsc) {
-      writeLocal(GSC_KEY, JSON.stringify({ result: gsc, reason: params.get("reason") ?? "" }));
-      if (params.get("brand")) writeLocal(PENDING_BRAND, params.get("brand"));
-      for (const k of ["gsc", "site", "brand", "reason"]) params.delete(k);
-      window.history.replaceState(null, "", window.location.pathname + (params.size ? `?${params}` : ""));
-    }
     sb.auth.getSession().then(({ data }) => setSession(data.session));
     const { data } = sb.auth.onAuthStateChange((event, s) => {
       if (event === "PASSWORD_RECOVERY") setRecovery(true);
@@ -143,16 +132,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   const [brands, setBrands] = useState<Brand[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-  const [gscBack] = useState(() => {
-    const raw = readLocal(GSC_KEY);
-    writeLocal(GSC_KEY, null);
-    try {
-      return raw ? (JSON.parse(raw) as { result: string; reason: string }) : null;
-    } catch {
-      return null;
-    }
-  });
-  const [page, setPage] = useState<Page>(() => (gscBack ? "search" : pageFromPath(window.location.pathname)));
+  const [page, setPage] = useState<Page>(() => pageFromPath(window.location.pathname));
   // Keep the address bar in step with the page, and follow the back and forward buttons.
   const go = useCallback((p: Page) => {
     setPage(p);
@@ -170,14 +150,12 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   const [running, setRunning] = useState<string | null>(null);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [engines, setEngines] = useState<string[] | null>(null);
-  const [notice, setNotice] = useState(() =>
-    gscBack?.result === "connected" ? "Search Console is connected." : gscBack?.result === "pick" ? "Search Console is connected. Pick the property for this website." : "",
-  );
+  const [notice, setNotice] = useState("");
   const [days, setDays] = useState(30);
   const [model, setModel] = useState("All");
   const [topic, setTopic] = useState("All");
   const [focus, setFocus] = useState<string | null>(null); // competitor to open on the Competitors page
-  const [error, setError] = useState(() => (gscBack?.result === "error" ? `Search Console did not connect: ${gscBack.reason}` : ""));
+  const [error, setError] = useState("");
 
   const token = useCallback(async () => (await sb.auth.getSession()).data.session?.access_token ?? "", [sb]);
 
@@ -504,6 +482,26 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
 
 // ─────────────────────────────── sidebar ───────────────────────────────
 
+/** A menu that closes on a click outside it or on Escape. */
+function useMenu() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!open) return;
+    const away = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", away);
+    document.addEventListener("keydown", esc);
+    return () => {
+      document.removeEventListener("mousedown", away);
+      document.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+  return { open, setOpen, ref };
+}
+
 const ROLE_LABEL = { owner: "Owner", admin: "Admin", editor: "Editor", viewer: "Viewer" } as const;
 
 const NAV: { group: string; items: { id: Page; label: string; icon: string; also?: Page[] }[] }[] = [
@@ -521,7 +519,6 @@ const NAV: { group: string; items: { id: Page; label: string; icon: string; also
     items: [
       { id: "traffic", label: "Traffic", icon: "↗" },
       { id: "visitors", label: "Visitors", icon: "☺" },
-      { id: "search", label: "Search Console", icon: "G" },
     ],
   },
   {
@@ -569,13 +566,13 @@ function Sidebar({
   page: Page;
   onPage: (p: Page) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, ref } = useMenu();
   return (
     <aside className="flex shrink-0 flex-col gap-5 border-b border-rule bg-white px-3 py-4 print:hidden md:sticky md:top-0 md:h-screen md:w-60 md:border-r md:border-b-0">
       <div className="px-2">
         <Logo size="sm" />
       </div>
-      <div className="relative">
+      <div className="relative" ref={ref}>
         <button
           type="button"
           onClick={() => setOpen(!open)}
@@ -683,11 +680,11 @@ function TopBar(p: {
   progress: { done: number; total: number };
   hasRuns: boolean;
 }) {
-  const [open, setOpen] = useState(false);
+  const { open, setOpen, ref } = useMenu();
   const pill = "flex items-center gap-2 rounded-aw border border-rule bg-white px-3 py-1.5 text-[13px] font-medium text-ink shadow-aw-sm";
   return (
     <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b border-rule bg-white/95 print:hidden px-4 py-2.5 backdrop-blur sm:px-6">
-      <div className="relative">
+      <div className="relative" ref={ref}>
         <button type="button" className={pill} onClick={() => setOpen(!open)} aria-expanded={open}>
           {p.active ? <BrandLogo src={p.active.logo} name={p.active.name} size={18} /> : null}
           <span className="max-w-40 truncate">{p.active?.name ?? "Pick a brand"}</span>
@@ -755,6 +752,9 @@ function TopBar(p: {
         </>
       )}
       <div className="ml-auto flex items-center gap-3">
+        <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => window.print()} title="Download this page as a PDF">
+          Download PDF
+        </button>
         {p.websiteOnly ? (
           <span className="text-[13px] text-muted">Research for {p.active?.domain}</span>
         ) : p.running ? (

@@ -139,7 +139,7 @@ export function ContentCalendar({ sb, auth, site, canEdit, onFind, onWrite }: { 
             { title: "Write in Writer", text: "Open any brief as a draft with headings in place and a note under each on what to write." },
             { title: "Track what you publish", text: "Add the live URL and the page shows up in Content performance with its Google, AI and visitor numbers." },
           ]}
-          steps={["Run the Planner, or add keywords from Keywords, Domains or Search Console.", "Click a keyword to write its content brief.", "Write it, publish it, and paste the live URL."]}
+          steps={["Run the Planner, or add keywords from Keywords or Domains.", "Click a keyword to write its content brief.", "Write it, publish it, and paste the live URL."]}
         />
       </div>
     );

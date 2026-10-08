@@ -46,10 +46,10 @@ export function CompetitorsPage({ view, initial }: { view: View; initial?: strin
   return (
     <div className="flex flex-col gap-5">
       <h1 className="aw-h2">Competitors</h1>
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)]">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
         <Card title={`${others.length} brands named alongside ${brand.name}`} className="self-start">
-          <div className="max-h-[720px] overflow-auto">
-            <table className="aw-table aw-table--compact">
+          <div className="max-h-[720px] overflow-y-auto">
+            <table className="aw-table aw-table--compact aw-table--tight">
               <thead className="sticky top-0 z-10">
                 <tr>
                   <th className="w-8">#</th>

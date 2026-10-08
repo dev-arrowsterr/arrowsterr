@@ -954,3 +954,18 @@
 .aw .aw-md pre { background: var(--aw-ink); color: #fff; padding: 8px 10px; font-family: var(--aw-mono); font-size: 11px; overflow: auto; max-height: 260px; }
 .aw .aw-md code { font-family: var(--aw-mono); font-size: 0.9em; }
 .aw .aw-md a { color: var(--aw-brand); text-decoration: underline; }
+
+/* Tight tables: fit four or five columns in half the page without sideways scrolling. */
+.aw .aw-table--tight th, .aw .aw-table--tight td { padding: 9px 8px !important; }
+.aw .aw-table--tight th:first-child, .aw .aw-table--tight td:first-child { padding-left: 14px !important; }
+.aw .aw-table--tight .aw-sort { gap: 4px; }
+
+/* Download PDF prints the page as you see it, without menus and with full tables. */
+@media print {
+  @page { margin: 12mm; }
+  .aw { background: #fff !important; }
+  .aw .aw-sheet-wrap, .aw [class*="max-h-"] { max-height: none !important; overflow: visible !important; }
+  .aw .aw-sheet thead th { position: static !important; }
+  .aw .aw-drawer-back, .aw .aw-drawer { display: none !important; }
+  .aw .aw-frame, .aw .aw-stats { break-inside: avoid; }
+}

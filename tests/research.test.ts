@@ -41,29 +41,6 @@ test("cleanUrl keeps real pages and drops junk", async () => {
   assert.equal(cleanUrl("https://blog.acme.com/post-one", "acme.com"), "https://blog.acme.com/post-one");
 });
 
-test("Search Console opportunities", async () => {
-  const { opportunities } = await import("../src/lib/opportunities.ts");
-  const ops = opportunities({
-    days: 28,
-    property: "sc-domain:acme.com",
-    totals: { clicks: 0, impressions: 0, ctr: 0, position: 0 },
-    totalsPrev: { clicks: 0, impressions: 0, ctr: 0, position: 0 },
-    series: [],
-    queries: [],
-    pages: [{ page: "https://acme.com/a", clicks: 5, impressions: 900, ctr: 0.005, position: 9, prevClicks: 40, prevPosition: 4 }],
-    pairs: [
-      { page: "https://acme.com/a", query: "crm for dentists", clicks: 5, impressions: 900, ctr: 0.005, position: 9 },
-      { page: "https://acme.com/b", query: "best crm", clicks: 2, impressions: 400, ctr: 0.005, position: 2 },
-      { page: "https://acme.com/c", query: "best crm", clicks: 1, impressions: 200, ctr: 0.005, position: 6 },
-    ],
-  });
-  const kinds = ops.map((o) => `${o.kind}|${o.query}`);
-  assert.ok(kinds.includes("Close to top 3|crm for dentists"));
-  assert.ok(kinds.includes("Low click rate|best crm"));
-  assert.ok(kinds.includes("Pages competing|best crm"));
-  assert.ok(kinds.includes("Losing clicks|crm for dentists"));
-});
-
 test("visitor journeys: sources, visits and score", async () => {
   const { sourceOf, summarize } = await import("../src/lib/journey.ts");
   const { persona } = await import("../src/lib/names.ts");
@@ -130,16 +107,13 @@ test("writer: brief to draft, markdown, coverage", async () => {
 test("reports: wins, drops and content rows", async () => {
   const { winsAndDrops, contentRows } = await import("../src/lib/reports.ts");
   const traffic = { totals: { visitors: 0, visits: 0, pageviews: 0 }, totalsPrev: { visitors: 0, visits: 0, pageviews: 0 }, ai: 10, aiPrev: 2, byEngine: [{ engine: "ChatGPT", visits: 10, prev: 2 }], pages: [{ path: "/blog/a/", visits: 4 }], breakdowns: { pages: [{ x: "/blog/a", y: 120 }] } };
-  const gsc = { days: 28, property: "", totals: { clicks: 0, impressions: 0, ctr: 0, position: 0 }, totalsPrev: { clicks: 0, impressions: 0, ctr: 0, position: 0 }, series: [], queries: [],
-    pages: [{ page: "https://acme.com/blog/a", clicks: 40, impressions: 900, ctr: 0.04, position: 6, prevClicks: 10, prevPosition: 9 }],
-    pairs: [{ page: "https://acme.com/blog/a", query: "crm for dentists", clicks: 30, impressions: 500, ctr: 0.06, position: 4.24 }] };
-  const wd = winsAndDrops({ engines: [{ engine: "Gemini", now: 20, before: 35 }], traffic, gsc });
-  assert.equal(wd.wins.length, 2);
+  const wd = winsAndDrops({ engines: [{ engine: "Gemini", now: 20, before: 35 }], traffic });
+  assert.equal(wd.wins[0].text, "Visits from ChatGPT");
   assert.equal(wd.drops[0].text, "Visibility on Gemini");
   const rows = contentRows({
     items: [{ id: "1", keyword: "crm for dentists", url: "https://acme.com/blog/a/", current_url: null, due_date: "2026-10-01", action: "new", status: "published" }, { id: "2", keyword: "x", url: null, current_url: null, due_date: null, action: "new", status: "planned" }],
-    gsc, citedPaths: new Map([["/blog/a", 25]]), traffic, visitors: [{ entry: "/blog/a", label: "Hot" }, { entry: "/", label: "Cold" }],
+    citedPaths: new Map([["/blog/a", 25]]), traffic, visitors: [{ entry: "/blog/a", label: "Hot" }, { entry: "/", label: "Cold" }],
   });
   assert.equal(rows.length, 1);
-  assert.deepEqual([rows[0].position, rows[0].clicks, rows[0].cited, rows[0].visits, rows[0].aiVisits, rows[0].landed, rows[0].hot], [4.2, 40, 25, 120, 4, 1, 1]);
+  assert.deepEqual([rows[0].cited, rows[0].visits, rows[0].aiVisits, rows[0].landed, rows[0].hot], [25, 120, 4, 1, 1]);
 });

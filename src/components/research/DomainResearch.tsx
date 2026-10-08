@@ -319,7 +319,6 @@ export function DomainResearch({ sb, auth, site, canEdit }: { sb: SupabaseClient
           steps={["Type a domain, like competitor.com.", "Pick a country and click Analyze.", "Review keywords, pages and competitors, then click a competitor to compare."]}
           faqs={[
             { q: "Where does the data come from?", a: "From Google search results and keyword data, refreshed regularly. Visits are estimates based on rankings and search volume." },
-            { q: "Why do my numbers differ from Search Console?", a: "Search Console shows your real clicks. Domain research estimates any site, so you can compare yourself with competitors on the same scale." },
             { q: "Can I see more than 100 keywords?", a: "Yes. Click Load up to 500 under the table." },
           ]}
         />

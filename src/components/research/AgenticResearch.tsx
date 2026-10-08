@@ -141,7 +141,6 @@ export function AgenticResearch({ sb, auth, site, canEdit, onOpenCalendar }: { s
         { q: "How long does it take?", a: "About 3 to 5 minutes. Progress shows step by step." },
         { q: "What does it cost?", a: "About 50 to 90 cents in data costs, plus one AI answer from your daily limit." },
         { q: "What are BOFU, MOFU and TOFU?", a: "Bottom, middle and top of the funnel: people ready to buy, people comparing options, and people learning about the topic." },
-        { q: "Does it use Search Console?", a: "Yes, when it is connected. Your real positions make the plan more accurate." },
       ]}
     />
   );
@@ -382,7 +381,7 @@ export function AgenticResearch({ sb, auth, site, canEdit, onOpenCalendar }: { s
             </li>
             <li>
               <span className="aw-label mr-2">Ranking</span>
-              {fmtNum(res.sitemap?.ranking ?? 0)} of your pages show up on Google{res.sitemap?.gsc ? " (from Search Console)" : " (estimated by DataForSEO)"}. {fmtNum(updateCount)} articles rank below the top 10 or not at all.
+              {fmtNum(res.sitemap?.ranking ?? 0)} of your pages show up on Google. {fmtNum(updateCount)} articles rank below the top 10 or not at all.
             </li>
             <li>
               <span className="aw-label mr-2">Competitors</span>

@@ -4,14 +4,13 @@ import { askClaude, parseJson } from "./claude";
 import { BUSINESS_TYPES } from "./onboarding";
 import type { Profile } from "./db";
 import { competitors, overview, Spend, research, topUrls, type Market } from "./keywords";
-import { query as gscQuery } from "./gsc";
 import { cleanUrl, findPages } from "./sitemap";
 import { groupBySerp, marketOf, PATTERNS, PER_STAGE, pick, STAGES, type AgentKeyword, type AgentResult, type AgentUpdate, type Keyword, type SitePage, type Stage } from "./research";
 
 // Agentic Keyword Research: Claude writes keywords stage by stage, DataForSEO checks each one,
 // and keywords that share Google results are grouped so each page targets one group.
 
-type Site = { id: string; domain: string; name: string; profile: Profile; gsc_property?: string | null };
+type Site = { id: string; domain: string; name: string; profile: Profile };
 type Draft = { keyword: string; theme: string };
 /** What the planner knows before it writes: rival keywords and pages the site already has. */
 type Context = { ranked: Keyword[]; rivals: string[]; articles: string[] };
@@ -165,21 +164,7 @@ export async function runAgent(sb: SupabaseClient, runId: string, site: Site) {
     const articles = map.pages.filter((p) => p.article);
 
     await step("Checking what the site already ranks for");
-    // Search Console has the real positions for every page. Without it, DataForSEO estimates them.
-    let fromGsc = false;
-    let ranked: Keyword[] = [];
-    if (site.gsc_property) {
-      try {
-        const rows = await gscQuery(site.id, site.gsc_property, { days: 90, dimensions: ["page", "query"], limit: 10000 });
-        ranked = rows
-          .sort((a, b) => b.impressions - a.impressions)
-          .map((r) => ({ keyword: r.keys[1], url: r.keys[0], rank: Math.max(1, Math.round(r.position)), volume: null, kd: null, cpc: null, intent: null, trend: [], serp: [] }));
-        fromGsc = true;
-      } catch (e) {
-        console.error("Search Console read failed, using DataForSEO:", e instanceof Error ? e.message : e);
-      }
-    }
-    if (!fromGsc) ranked = await research("ranked", site.domain, m, spend, 1000).catch(() => [] as Keyword[]);
+    const ranked = await research("ranked", site.domain, m, spend, 1000).catch(() => [] as Keyword[]);
     const rankedTop = new Map(ranked.filter((k) => (k.rank ?? 99) <= 5).map((k) => [norm(k.keyword), k.rank!]));
 
     await step("Finding competitors and their keywords");
@@ -258,7 +243,7 @@ export async function runAgent(sb: SupabaseClient, runId: string, site: Site) {
       keywords: fresh,
       groups,
       updates,
-      sitemap: { source: map.source, pages: map.pages.length, articles: articles.length, ranking: new Set(ranked.map((k) => k.url).filter(Boolean)).size, gsc: fromGsc },
+      sitemap: { source: map.source, pages: map.pages.length, articles: articles.length, ranking: new Set(ranked.map((k) => k.url).filter(Boolean)).size },
       competitors: rivals.map((d, i) => ({ domain: d, keywords: rivalLists[i].length })),
       approved: [],
       cost: Math.round(spend.total * 1000) / 1000,

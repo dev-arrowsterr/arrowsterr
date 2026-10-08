@@ -33,7 +33,7 @@ export type AgentResult = {
   keywords?: AgentKeyword[];
   groups?: AgentGroup[];
   updates?: AgentUpdate[];
-  sitemap?: { source: string | null; pages: number; articles: number; ranking: number; gsc?: boolean };
+  sitemap?: { source: string | null; pages: number; articles: number; ranking: number };
   competitors?: { domain: string; keywords: number }[];
   approved?: string[];
   cost?: number;
