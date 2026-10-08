@@ -33,9 +33,10 @@ import { Onboarding, type NewBrand } from "./Onboarding";
 import { OverviewPage } from "./OverviewPage";
 import { PromptsPage } from "./PromptsPage";
 import { SourcesPage } from "./SourcesPage";
+import { TrafficPage } from "./TrafficPage";
 
 export type { Brand } from "@/lib/db";
-type Page = "overview" | "prompts" | "competitors" | "domains" | "urls" | "members";
+type Page = "overview" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "members";
 
 const INVITE_KEY = "arrowsterr.invite";
 const LEGACY_BRANDS = "arrowsterr.brands";
@@ -395,6 +396,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             />
           ) : page === "competitors" ? (
             <CompetitorsPage key={`${view.brand.id}-${focus ?? ""}`} view={view} initial={focus} />
+          ) : page === "traffic" ? (
+            <TrafficPage key={view.brand.id} view={view} auth={auth} canEdit={canEdit} />
           ) : page === "domains" || page === "urls" ? (
             <SourcesPage key={`${view.brand.id}-${page}`} view={view} mode={page} auth={canEdit ? auth : null} />
           ) : (
@@ -433,6 +436,7 @@ const NAV: { group: string; items: { id: Page; label: string; icon: string }[] }
       { id: "urls", label: "URLs", icon: "⛓" },
     ],
   },
+  { group: "Website", items: [{ id: "traffic", label: "AI traffic", icon: "↗" }] },
   { group: "Settings", items: [{ id: "members", label: "Workspace & members", icon: "⚙" }] },
 ];
 
