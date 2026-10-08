@@ -4,34 +4,51 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { listCalendar, siteForBrand, type CalendarItem } from "@/lib/db";
 import type { Visitor } from "@/lib/journey";
-import { answered, brandStats, pageKey } from "@/lib/metrics";
-import { contentRows, pathOf, winsAndDrops, type ContentRow, type TrafficData } from "@/lib/reports";
+import { answered, brandStats } from "@/lib/metrics";
+import { contentRows, winsAndDrops, type TrafficData } from "@/lib/reports";
+import { SECTIONS, type ReportSection, type ReportSnapshot, type ReportStyle } from "@/lib/reportTypes";
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
 import type { View } from "@/lib/view";
-import { Sheet } from "../Sheet";
-import { Card, Delta, pct, pos, score, Thinking } from "../ui";
+import { citedPathsOf } from "../research/ContentResults";
+import { Thinking } from "../ui";
+import { ReportDoc } from "./ReportDoc";
 
-type Data = {
-  traffic: TrafficData | null;
-  visitors: Visitor[] | null;
-  items: CalendarItem[] | null;
-  at: string;
-};
-type Summary = { headline: string; points: string[]; next: string[]; at: string };
-const num = (n: number | null | undefined) => (n === null || n === undefined ? "–" : n.toLocaleString("en-US"));
+type Data = { traffic: TrafficData | null; visitors: Visitor[] | null; items: CalendarItem[] | null; at: string };
+type Summary = { headline: string; points: string[]; next: string[] };
+const STYLE_KEY = (ws: string) => `arrowsterr.reportstyle.${ws}`;
 
-/** Reports for the website in the top bar: a one-page Summary, and how each published page performs. */
-export function ReportsPage({ sb, auth, view, canEdit, mode, onCalendar }: { sb: SupabaseClient; auth: RunAuth; view: View; canEdit: boolean; mode: "summary" | "performance"; onCalendar: () => void }) {
+function readStyle(ws: string): ReportStyle {
+  try {
+    return { agency: "", logo: "", color: "#0943B0", ...JSON.parse(localStorage.getItem(STYLE_KEY(ws)) ?? "{}") };
+  } catch {
+    return { agency: "", logo: "", color: "#0943B0" };
+  }
+}
+
+/** Build a client report: pick sections, add your agency's logo and color, then download a PDF or share a link. */
+export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; auth: RunAuth; view: View; canEdit: boolean }) {
   const { brand, current, previous, filter, days, engines } = view;
   const [saved, setSaved] = useStash<Record<number, Data>>(`report:${brand.id}`, {});
   const [summaries, setSummaries] = useStash<Record<number, Summary>>(`report:${brand.id}:ai`, {});
-  const [busy, setBusy] = useState(false);
+  const [sections, setSections] = useStash<ReportSection[]>(`report:${brand.id}:sections`, ["ai", "competitors", "traffic", "visitors", "content"]);
+  const [style, setStyleState] = useState<ReportStyle>(() => readStyle(auth.workspaceId));
+  const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [link, setLink] = useState("");
   const data = saved[days] ?? null;
   const summary = summaries[days] ?? null;
 
-  // Gather every section's numbers. Each part is optional: a section that is not connected shows as "not connected".
+  const setStyle = (patch: Partial<ReportStyle>) => {
+    const next = { ...style, ...patch };
+    setStyleState(next);
+    try {
+      localStorage.setItem(STYLE_KEY(auth.workspaceId), JSON.stringify(next));
+    } catch {
+      // Storage blocked. The style lasts until the page reloads.
+    }
+  };
+
   useEffect(() => {
     let live = true;
     const call = async <T,>(path: string, body: Record<string, unknown>): Promise<T | null> => {
@@ -60,253 +77,182 @@ export function ReportsPage({ sb, auth, view, canEdit, mode, onCalendar }: { sb:
     };
   }, [sb, auth, brand, canEdit, days, setSaved]);
 
-  // AI visibility, from the daily checks already in the app.
+  if (!data) return <Thinking text="Pulling your report together..." />;
+
+  // Everything the report shows, frozen into one object.
   const you = { name: brand.name, domain: brand.domain };
   const chats = answered(current, filter);
   const before = answered(previous, filter);
   const stats = brandStats(chats, you);
   const me = stats.find((s) => s.isYou);
   const was = before.length ? brandStats(before, you).find((s) => s.isYou) : null;
-  const rank = me ? [...stats].sort((a, b) => b.visibility - a.visibility).findIndex((s) => s.isYou) + 1 : null;
-  const engineRows = engines.map((e) => {
-    const now = brandStats(chats.filter((c) => c.engine === e), you).find((s) => s.isYou)?.visibility ?? null;
-    const then = before.length ? (brandStats(before.filter((c) => c.engine === e), you).find((s) => s.isYou)?.visibility ?? null) : null;
-    return { engine: e, now: chats.some((c) => c.engine === e) ? now : null, before: then };
-  });
-
-  if (!data) return <Thinking text="Pulling your report together..." />;
+  const ranked = [...stats].sort((a, b) => b.visibility - a.visibility);
+  const byModel = engines
+    .map((e) => ({
+      engine: e,
+      now: chats.some((c) => c.engine === e) ? (brandStats(chats.filter((c) => c.engine === e), you).find((s) => s.isYou)?.visibility ?? 0) : null,
+      before: before.some((c) => c.engine === e) ? (brandStats(before.filter((c) => c.engine === e), you).find((s) => s.isYou)?.visibility ?? 0) : null,
+    }))
+    .filter((m) => m.now !== null);
   const t = data.traffic;
   const v = data.visitors;
-  const since = new Date(Date.parse(data.at) - days * 864e5).toISOString().slice(0, 10);
   const items = data.items ?? [];
-  const content = {
-    published: items.filter((i) => i.status === "published" && (!i.due_date || i.due_date >= since)).length,
-    writing: items.filter((i) => i.status === "writing").length,
-    briefs: items.filter((i) => i.status === "brief").length,
-    planned: items.filter((i) => i.status === "planned").length,
+  const since = new Date(Date.parse(data.at) - days * 864e5).toISOString().slice(0, 10);
+  const { wins, drops } = winsAndDrops({ engines: byModel, traffic: t });
+
+  const snapshot: ReportSnapshot = {
+    brand: { name: brand.name, domain: brand.domain, logo: brand.logo },
+    style,
+    days,
+    at: data.at,
+    sections,
+    summary,
+    ai: me
+      ? {
+          visibility: me.visibility,
+          visibilityBefore: was ? was.visibility : null,
+          sentiment: me.sentiment,
+          position: me.position,
+          rank: ranked.findIndex((s) => s.isYou) + 1,
+          brands: stats.length,
+          answers: chats.length,
+          byModel,
+        }
+      : null,
+    competitors: chats.length ? ranked.slice(0, 10).map((s) => ({ name: s.name, domain: s.domain ?? null, visibility: s.visibility, sentiment: s.sentiment, position: s.position, isYou: s.isYou })) : null,
+    traffic: t ? { visits: t.totals.visits, visitsBefore: t.totalsPrev.visits, ai: t.ai, aiBefore: t.aiPrev, byEngine: t.byEngine } : null,
+    visitors: v
+      ? {
+          total: v.length,
+          hot: v.filter((x) => x.label === "Hot").length,
+          actions: v.filter((x) => x.actions.length).length,
+          top: [...v]
+            .sort((a, b) => b.score - a.score)
+            .slice(0, 5)
+            .map((x) => ({ name: x.name, emoji: x.emoji, score: x.score, label: x.label, source: x.source })),
+        }
+      : null,
+    content: data.items
+      ? {
+          published: items.filter((i) => i.status === "published" && (!i.due_date || i.due_date >= since)).length,
+          writing: items.filter((i) => i.status === "writing").length,
+          briefs: items.filter((i) => i.status === "brief").length,
+          planned: items.filter((i) => i.status === "planned").length,
+          pages: contentRows({ items, citedPaths: chats.length ? citedPathsOf(chats, brand.domain) : null, traffic: t, visitors: v }),
+        }
+      : null,
+    wins,
+    drops,
   };
-  const { wins, drops } = winsAndDrops({ engines: engineRows, traffic: t });
+
+  async function post<T>(path: string, body: Record<string, unknown>): Promise<T> {
+    const res = await fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${await auth.token()}` },
+      body: JSON.stringify({ ...body, workspaceId: auth.workspaceId }),
+    });
+    const out = await res.json().catch(() => ({ error: `The server returned ${res.status}.` }));
+    if (!res.ok) throw new Error(out.error || `Error ${res.status}`);
+    return out as T;
+  }
 
   async function writeSummary() {
-    setBusy(true);
+    setBusy("summary");
     setError("");
     try {
-      const res = await fetch("/api/reports/summary", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await auth.token()}` },
-        body: JSON.stringify({
-          workspaceId: auth.workspaceId,
-          brand: brand.name,
-          domain: brand.domain,
-          days,
-          data: {
-            aiVisibility: me ? { visibility: Math.round(me.visibility), before: was ? Math.round(was.visibility) : null, sentiment: me.sentiment, position: me.position, rank, brandsCompared: stats.length } : null,
-            byModel: engineRows,
-            website: t ? { visits: t.totals.visits, visitsBefore: t.totalsPrev.visits, fromAI: t.ai, fromAIBefore: t.aiPrev } : null,
-            visitors: v ? { total: v.length, hot: v.filter((x) => x.label === "Hot").length, keyActions: v.filter((x) => x.actions.length).length } : null,
-            content,
-            wins,
-            drops,
-          },
-        }),
+      const { headline, points, next } = await post<Summary>("/api/reports/summary", {
+        brand: brand.name,
+        domain: brand.domain,
+        days,
+        data: { ...snapshot, style: undefined, brand: undefined, content: snapshot.content ? { ...snapshot.content, pages: snapshot.content.pages.slice(0, 10) } : null },
       });
-      const out = await res.json().catch(() => ({ error: `The server returned ${res.status}.` }));
-      if (!res.ok) throw new Error(out.error || `Error ${res.status}`);
-      setSummaries((x) => ({ ...x, [days]: out }));
+      setSummaries((x) => ({ ...x, [days]: { headline, points, next } }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setBusy(false);
+      setBusy("");
     }
   }
 
-  const head = (title: string) => (
-    <div className="flex flex-wrap items-end justify-between gap-3">
-      <div className="flex flex-col gap-1">
-        <h1 className="aw-h2">{title}</h1>
-        <span className="text-[13px] text-muted">
-          {brand.name} · {brand.domain} · last {days} days, compared with the {days} days before · updated {new Date(data.at).toLocaleString()}
-        </span>
-      </div>
-      <span className="flex gap-2 print:hidden">
-        {mode === "summary" && canEdit ? (
-          <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={writeSummary} disabled={busy}>
-            {busy ? "Writing..." : summary ? "Rewrite AI summary" : "Write AI summary"}
-          </button>
-        ) : null}
-      </span>
-    </div>
-  );
-
-  const strip = (items: { lab: string; v: React.ReactNode; d?: React.ReactNode }[]) => (
-    <div className="aw-stats aw-stats--tight" style={{ ["--cols" as string]: items.length }}>
-      {items.map((x) => (
-        <div key={x.lab} className="aw-stat">
-          <div className="aw-stat__lab">{x.lab}</div>
-          <div className="flex items-baseline gap-2">
-            <span className="aw-stat__num">{x.v}</span>
-            {x.d}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-  const off = (what: string) => <p className="aw-small px-1">{what} is not connected for this website.</p>;
-
-  if (mode === "performance") {
-    const cited = new Map<string, number>();
-    for (const c of chats) for (const p of new Set(c.sources.map((s) => pageKey(s.url)))) cited.set(p, (cited.get(p) ?? 0) + 1);
-    const citedPaths = new Map<string, number>();
-    for (const [k, n] of cited) {
-      const host = k.split("/")[0];
-      if (host === brand.domain.replace(/^www\./, "") || host.endsWith(`.${brand.domain}`)) citedPaths.set(pathOf(`https://${k}`), chats.length ? (n / chats.length) * 100 : 0);
+  async function share() {
+    setBusy("share");
+    setError("");
+    try {
+      const { url } = await post<{ url: string }>("/api/reports/share", { brandId: brand.id, data: snapshot });
+      setLink(url);
+      navigator.clipboard?.writeText(url).catch(() => {});
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy("");
     }
-    const rows = contentRows({ items, citedPaths: chats.length ? citedPaths : null, traffic: t, visitors: v });
-    return (
-      <div className="flex flex-col gap-5">
-        {head("Content performance")}
-        {strip([
-          { lab: "Published pages", v: rows.length },
-          { lab: "Cited by AI", v: chats.length ? rows.filter((r) => (r.cited ?? 0) > 0).length : "–" },
-          { lab: "Visits from AI", v: t ? num(rows.reduce((n, r) => n + (r.aiVisits ?? 0), 0)) : "–" },
-          { lab: "Hot visitors landed", v: v ? num(rows.reduce((n, r) => n + (r.hot ?? 0), 0)) : "–" },
-        ])}
-        {rows.length ? (
-          <Card title="Every published page">
-            <Sheet<ContentRow>
-              label="Content performance"
-              rows={rows}
-              rowKey={(r) => r.id}
-              sort={{ key: "visits", desc: true }}
-              cols={[
-                {
-                  id: "keyword",
-                  label: "Page",
-                  type: "text",
-                  value: (r) => r.keyword,
-                  width: 240,
-                  cell: (r) => (
-                    <span className="flex flex-col">
-                      <span className="text-ink">{r.keyword}</span>
-                      <a href={r.url} target="_blank" rel="noopener noreferrer" className="max-w-72 truncate text-[12px]">
-                        {r.path}
-                      </a>
-                    </span>
-                  ),
-                },
-                { id: "job", label: "Job", type: "list", value: (r) => (r.action === "update" ? "Updated" : "New"), options: ["New", "Updated"] },
-                { id: "published", label: "Published", type: "date", value: (r) => r.published },
-                { id: "cited", label: "Cited in AI answers", type: "number", value: (r) => (r.cited === null ? null : Math.round(r.cited)), cell: (r) => (r.cited === null ? "–" : r.cited ? pct(r.cited) : <span className="text-muted">Not yet</span>) },
-                { id: "visits", label: "Visits", type: "number", value: (r) => r.visits },
-                { id: "ai", label: "From AI", type: "number", value: (r) => r.aiVisits },
-                { id: "landed", label: "Visitors landed", type: "number", value: (r) => r.landed },
-                { id: "hot", label: "Hot", type: "number", value: (r) => r.hot },
-              ]}
-            />
-          </Card>
-        ) : (
-          <div className="aw-callout flex flex-wrap items-center justify-between gap-3">
-            No published pages yet. In the Calendar, set a page to Published and add its URL. It shows up here with its AI and visitor numbers.
-            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm print:hidden" onClick={onCalendar}>
-              Open calendar
-            </button>
-          </div>
-        )}
-        <p className="aw-small">
-          {!t ? "Connect the tracking code in Traffic for visits. " : ""}
-          AI citations come from the daily prompt checks in this period.
-        </p>
-      </div>
-    );
   }
+
+  const toggle = (id: ReportSection) => setSections(sections.includes(id) ? sections.filter((s) => s !== id) : SECTIONS.map((s) => s.id).filter((s) => s === id || sections.includes(s)));
 
   return (
-    <div className="flex flex-col gap-6">
-      {head("Summary")}
-      {error ? <p className="aw-error">{error}</p> : null}
+    <div className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
+      <aside className="flex flex-col gap-5 self-start print:hidden xl:sticky xl:top-20">
+        <div>
+          <h1 className="aw-h2">Client report</h1>
+          <p className="mt-1 text-[13px] text-body">Pick what to include, add your branding, then download a PDF or share a link. The period follows the top bar.</p>
+        </div>
+        {error ? <p className="aw-error">{error}</p> : null}
 
-      {summary ? (
-        <section className="aw-frame" style={{ boxShadow: "inset 2px 0 0 var(--aw-brand)" }}>
-          <div className="flex flex-col gap-3 p-5">
-            <p className="text-[18px] font-medium text-ink">{summary.headline}</p>
-            <ul className="flex list-disc flex-col gap-1 pl-5 text-[14px] text-body">
-              {summary.points.map((p) => (
-                <li key={p}>{p}</li>
-              ))}
-            </ul>
-            <div>
-              <span className="aw-label">Next steps</span>
-              <ol className="mt-1 flex list-decimal flex-col gap-1 pl-5 text-[14px] text-ink">
-                {summary.next.map((p) => (
-                  <li key={p}>{p}</li>
-                ))}
-              </ol>
-            </div>
-          </div>
+        <section className="aw-frame flex flex-col gap-2 p-4">
+          <span className="aw-label">Sections</span>
+          {SECTIONS.map((s) => (
+            <label key={s.id} className="flex items-center gap-2 text-[14px] text-ink">
+              <input type="checkbox" checked={sections.includes(s.id)} onChange={() => toggle(s.id)} className="h-4 w-4 accent-[var(--aw-brand)]" />
+              {s.label}
+            </label>
+          ))}
         </section>
-      ) : null}
 
-      <section className="flex flex-col gap-2">
-        <h2 className="aw-h4">AI visibility</h2>
-        {me
-          ? strip([
-              { lab: "Visibility", v: pct(me.visibility), d: was ? <Delta now={me.visibility} before={was.visibility} /> : null },
-              { lab: "Sentiment", v: score(me.sentiment), d: was ? <Delta now={me.sentiment} before={was.sentiment} digits={0} /> : null },
-              { lab: "Avg. position", v: pos(me.position), d: was ? <Delta now={me.position} before={was.position} lowerIsBetter /> : null },
-              { lab: "Rank among brands", v: rank ? `#${rank} of ${stats.length}` : "–" },
-            ])
-          : off("AI visibility")}
-      </section>
+        <section className="aw-frame flex flex-col gap-3 p-4">
+          <span className="aw-label">Your branding</span>
+          <label className="flex flex-col gap-1 text-[13px] text-body">
+            Agency name
+            <input value={style.agency} onChange={(e) => setStyle({ agency: e.target.value })} placeholder="Perceptric" className="aw-input py-1.5! text-[14px]!" />
+          </label>
+          <label className="flex flex-col gap-1 text-[13px] text-body">
+            Logo URL
+            <input value={style.logo} onChange={(e) => setStyle({ logo: e.target.value.trim() })} placeholder="https://.../logo.png" className="aw-input py-1.5! text-[14px]!" />
+          </label>
+          <label className="flex items-center justify-between gap-2 text-[13px] text-body">
+            Accent color
+            <input type="color" value={/^#[0-9a-f]{6}$/i.test(style.color) ? style.color : "#0943b0"} onChange={(e) => setStyle({ color: e.target.value })} className="h-8 w-14 cursor-pointer border border-rule" />
+          </label>
+        </section>
 
-      <section className="flex flex-col gap-2">
-        <h2 className="aw-h4">Website</h2>
-        {t
-          ? strip([
-              { lab: "Visits", v: num(t.totals.visits), d: <Delta now={t.totals.visits} before={t.totalsPrev.visits} digits={0} /> },
-              { lab: "Visits from AI", v: num(t.ai), d: <Delta now={t.ai} before={t.aiPrev} digits={0} /> },
-              { lab: "Hot visitors", v: v ? num(v.filter((x) => x.label === "Hot").length) : "–" },
-              { lab: "Took a key action", v: v ? num(v.filter((x) => x.actions.length).length) : "–" },
-            ])
-          : off("Website tracking")}
-      </section>
+        <section className="flex flex-col gap-2">
+          {canEdit ? (
+            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={writeSummary} disabled={Boolean(busy)}>
+              {busy === "summary" ? "Writing..." : summary ? "Rewrite AI summary" : "Add AI summary"}
+            </button>
+          ) : null}
+          <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={() => window.print()}>
+            Download PDF
+          </button>
+          {canEdit ? (
+            <button type="button" className="aw-btn aw-btn--accent aw-btn--sm" onClick={share} disabled={Boolean(busy)}>
+              {busy === "share" ? "Creating link..." : "Create share link"}
+            </button>
+          ) : null}
+          {link ? (
+            <p className="break-all text-[12px] text-body">
+              Link copied. Anyone with it can view this report:{" "}
+              <a href={link} target="_blank" rel="noopener noreferrer">
+                {link}
+              </a>
+            </p>
+          ) : null}
+          <p className="aw-small">A shared link is a frozen copy. Make a new one each month.</p>
+        </section>
+      </aside>
 
-
-      <section className="flex flex-col gap-2">
-        <h2 className="aw-h4">Content</h2>
-        {data.items
-          ? strip([
-              { lab: "Published this period", v: content.published },
-              { lab: "Writing", v: content.writing },
-              { lab: "Briefs ready", v: content.briefs },
-              { lab: "Planned", v: content.planned },
-            ])
-          : off("The content calendar")}
-      </section>
-
-      <div className="grid gap-5 lg:grid-cols-2">
-        {[
-          { title: "Top wins", list: wins, empty: "No big gains this period." },
-          { title: "Top drops", list: drops, empty: "No big drops this period." },
-        ].map((box) => (
-          <Card key={box.title} title={box.title}>
-            <ul className="divide-y divide-rule-faint">
-              {box.list.map((c) => (
-                <li key={c.text} className="flex items-center justify-between gap-3 px-5 py-3">
-                  <span className="flex flex-col">
-                    <span className="text-[14px] text-ink">{c.text}</span>
-                    <span className="aw-label">{c.area}</span>
-                  </span>
-                  <span className={`aw-num text-[15px] ${c.change > 0 ? "text-pos" : "text-neg"}`}>
-                    {c.change > 0 ? "↗ +" : "↘ "}
-                    {c.change}
-                    {c.unit}
-                  </span>
-                </li>
-              ))}
-              {!box.list.length ? <li className="aw-small px-5 py-4">{box.empty}</li> : null}
-            </ul>
-          </Card>
-        ))}
+      <div className="min-w-0 border border-rule bg-surface-2 py-6 print:border-0 print:bg-white print:py-0">
+        <ReportDoc r={snapshot} />
       </div>
     </div>
   );

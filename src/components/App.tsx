@@ -40,7 +40,7 @@ import { ReportsPage } from "./reports/ReportsPage";
 import { VisitorsPage } from "./VisitorsPage";
 
 export type { Brand } from "@/lib/db";
-type Page = "overview" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "agentic" | "calendar" | "writer" | "summary" | "performance" | "members";
+type Page = "overview" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "agentic" | "calendar" | "writer" | "summary" | "members";
 const RESEARCH: Page[] = ["keywords", "domain", "agentic", "calendar", "writer"];
 
 /** Each page's address. "/" opens the overview. */
@@ -58,7 +58,6 @@ const SLUGS: Record<Page, string> = {
   calendar: "/calendar",
   writer: "/writer",
   summary: "/reports",
-  performance: "/reports/content",
   members: "/settings",
 };
 /** Older addresses still open the right page. */
@@ -69,6 +68,7 @@ const ALIASES: Record<string, Page> = {
   "/keyword-research": "keywords",
   "/agentic-research": "agentic",
   "/content-calendar": "calendar",
+  "/reports/content": "calendar",
 };
 const pageFromPath = (path: string): Page => {
   const p = path.replace(/\/+$/, "") || "/";
@@ -397,7 +397,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
       <div className="flex min-w-0 flex-1 flex-col">
         {page !== "members" ? (
           <TopBar
-            websiteOnly={RESEARCH.includes(page)}
+            websiteOnly={RESEARCH.includes(page) && page !== "calendar"}
             brands={brands}
             active={active}
             canEdit={canEdit}
@@ -441,7 +441,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           ) : !view ? (
             <div className="aw-callout max-w-xl">This workspace has no brands yet. Ask an editor or admin to add one.</div>
           ) : RESEARCH.includes(page) ? (
-            <ResearchPage key={view.brand.id} sb={sb} auth={auth} brand={view.brand} canEdit={canEdit} tool={page as Tool} onTool={(t) => go(t)} />
+            <ResearchPage key={view.brand.id} sb={sb} auth={auth} view={view} canEdit={canEdit} tool={page as Tool} onTool={(t) => go(t)} />
           ) : page === "prompts" ? (
             <PromptsPage
               key={view.brand.id}
@@ -456,8 +456,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             />
           ) : page === "competitors" ? (
             <CompetitorsPage key={`${view.brand.id}-${focus ?? ""}`} view={view} initial={focus} />
-          ) : page === "summary" || page === "performance" ? (
-            <ReportsPage key={view.brand.id} sb={sb} auth={auth} view={view} canEdit={canEdit} mode={page} onCalendar={() => go("calendar")} />
+          ) : page === "summary" ? (
+            <ReportsPage key={view.brand.id} sb={sb} auth={auth} view={view} canEdit={canEdit} />
           ) : page === "visitors" ? (
             <VisitorsPage key={view.brand.id} view={view} auth={auth} />
           ) : page === "traffic" ? (
@@ -539,8 +539,7 @@ const NAV: { group: string; items: { id: Page; label: string; icon: string; also
   {
     group: "Reports",
     items: [
-      { id: "summary", label: "Summary", icon: "▤" },
-      { id: "performance", label: "Content performance", icon: "▲" },
+      { id: "summary", label: "Client report", icon: "▤" },
     ],
   },
   { group: "Settings", items: [{ id: "members", label: "Workspace & members", icon: "⚙" }] },

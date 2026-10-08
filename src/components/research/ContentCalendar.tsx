@@ -8,7 +8,9 @@ import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
 import { Sheet, type Col } from "../Sheet";
 import { SampleRows, SampleStats, ToolIntro } from "../ToolIntro";
-import { Card, Thinking } from "../ui";
+import type { Chat } from "@/lib/chats";
+import { Card, Seg, Thinking } from "../ui";
+import { ContentResults } from "./ContentResults";
 import { BriefPanel } from "./BriefPanel";
 import { Difficulty, downloadCsv, FIELD, STAGE_LABEL, StageTag } from "./shared";
 
@@ -27,8 +29,25 @@ const parse = (s: string) => {
 const BRIEF_LABEL = { running: "Writing...", done: "Ready", failed: "Failed" } as const;
 
 /** Every planned page for one website, as a spreadsheet. Click a keyword to open its content brief. */
-export function ContentCalendar({ sb, auth, site, canEdit, onFind, onWrite }: { sb: SupabaseClient; auth: RunAuth; site: Site; canEdit: boolean; onFind: () => void; onWrite: () => void }) {
+export function ContentCalendar({
+  sb,
+  auth,
+  site,
+  canEdit,
+  onFind,
+  onWrite,
+  results,
+}: {
+  sb: SupabaseClient;
+  auth: RunAuth;
+  site: Site;
+  canEdit: boolean;
+  onFind: () => void;
+  onWrite: () => void;
+  results: { brandId: string; days: number; chats: Chat[] };
+}) {
   const [items, setItems] = useStash<CalendarItem[] | null>(`cal:${site.id}:items`, null);
+  const [tab, setTab] = useStash<"plan" | "results">(`cal:${site.id}:tab`, "plan");
   const [error, setError] = useState("");
   const [planning, setPlanning] = useState(false);
   const [perWeek, setPerWeek] = useState(2);
@@ -232,9 +251,30 @@ export function ContentCalendar({ sb, auth, site, canEdit, onFind, onWrite }: { 
     { id: "source", label: "Source", type: "list", value: (i) => i.source },
   ];
 
+  const switcher = (
+    <Seg
+      label="Calendar view"
+      value={tab}
+      onChange={setTab}
+      options={[
+        { id: "plan", label: "Plan" },
+        { id: "results", label: `Results ${items.filter((i) => i.status === "published" && (i.url || i.current_url)).length}` },
+      ]}
+    />
+  );
+
+  if (tab === "results")
+    return (
+      <div className="flex flex-col gap-5">
+        <div>{switcher}</div>
+        <ContentResults auth={auth} brandId={results.brandId} domain={site.domain} days={results.days} chats={results.chats} items={items} />
+      </div>
+    );
+
   return (
     <div className="flex flex-col gap-5">
       {error ? <p className="aw-error">{error}</p> : null}
+      <div>{switcher}</div>
 
       <div className="aw-stats" style={{ ["--cols" as string]: 4 }}>
         {STATUSES.map((s) => (

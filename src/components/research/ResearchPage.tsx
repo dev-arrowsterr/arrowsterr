@@ -3,7 +3,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect } from "react";
 import { useStash } from "@/lib/stash";
-import { siteForBrand, type Brand, type Site } from "@/lib/db";
+import { siteForBrand, type Site } from "@/lib/db";
+import { answered } from "@/lib/metrics";
+import type { View } from "@/lib/view";
 import type { RunAuth } from "@/lib/runner";
 import { Thinking } from "../ui";
 import { AgenticResearch } from "./AgenticResearch";
@@ -22,7 +24,8 @@ const TITLES: Record<Tool, string> = {
 };
 
 /** The Research tools for the website picked in the top bar. */
-export function ResearchPage({ sb, auth, brand, canEdit, tool, onTool }: { sb: SupabaseClient; auth: RunAuth; brand: Brand; canEdit: boolean; tool: Tool; onTool: (t: Tool) => void }) {
+export function ResearchPage({ sb, auth, view, canEdit, tool, onTool }: { sb: SupabaseClient; auth: RunAuth; view: View; canEdit: boolean; tool: Tool; onTool: (t: Tool) => void }) {
+  const brand = view.brand;
   const [site, setSite] = useStash<Site | null | undefined>(`site:${brand.id}`, undefined);
   const [error, setError] = useStash(`site-error:${brand.id}`, "");
 
@@ -58,7 +61,7 @@ export function ResearchPage({ sb, auth, brand, canEdit, tool, onTool }: { sb: S
       ) : tool === "agentic" ? (
         <AgenticResearch sb={sb} auth={auth} site={site} canEdit={canEdit} onOpenCalendar={() => onTool("calendar")} />
       ) : (
-        <ContentCalendar sb={sb} auth={auth} site={site} canEdit={canEdit} onFind={() => onTool("agentic")} onWrite={() => onTool("writer")} />
+        <ContentCalendar sb={sb} auth={auth} site={site} canEdit={canEdit} onFind={() => onTool("agentic")} onWrite={() => onTool("writer")} results={{ brandId: brand.id, days: view.days, chats: answered(view.current, view.filter) }} />
       )}
     </div>
   );
