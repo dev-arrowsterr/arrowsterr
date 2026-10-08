@@ -14,7 +14,7 @@ type Info = {
   search_intent_info?: { main_intent?: string | null };
   serp_info?: { serp_item_types?: string[] | null };
 };
-type Item = Info & { keyword_data?: Info; ranked_serp_element?: { serp_item?: { rank_group?: number; url?: string } } };
+type Item = Info & { keyword_data?: Info; ranked_serp_element?: { serp_item?: { rank_group?: number; url?: string; etv?: number } } };
 
 /** Money spent on DataForSEO in one request, added up across calls. */
 export class Spend {
@@ -38,6 +38,7 @@ function toKeyword(item: Item): Keyword | null {
     serp: d.serp_info?.serp_item_types ?? [],
     rank: item.ranked_serp_element?.serp_item?.rank_group ?? null,
     url: item.ranked_serp_element?.serp_item?.url ?? null,
+    etv: item.ranked_serp_element?.serp_item?.etv ?? null,
   };
 }
 
@@ -128,4 +129,28 @@ export async function competitors(domain: string, m: Market, spend: Spend, limit
     }))
     .sort((a, b) => b.shared - a.shared)
     .slice(0, limit);
+}
+
+/** A domain's size on Google: keywords, estimated visits and how many rank in the top 3, 10, 20 and 100. */
+export async function domainOverview(domain: string, m: Market, spend: Spend) {
+  const tasks = await call("dataforseo_labs/google/domain_rank_overview/live", [{ target: domain, location_code: m.location, language_code: m.language }]);
+  spend.add(tasks);
+  const t = tasks[0];
+  if (t?.status_code !== 20000) throw new Error(`DataForSEO: ${t?.status_message ?? "no result"}`);
+  const o = t.result?.[0]?.items?.[0]?.metrics?.organic as Record<string, number> | undefined;
+  if (!o) return null;
+  const n = (k: string) => Number(o[k] ?? 0);
+  const top3 = n("pos_1") + n("pos_2_3");
+  const top10 = top3 + n("pos_4_10");
+  const top20 = top10 + n("pos_11_20");
+  return {
+    keywords: n("count"),
+    traffic: Math.round(n("etv")),
+    top3,
+    top10,
+    top20,
+    top100: top20 + ["pos_21_30", "pos_31_40", "pos_41_50", "pos_51_60", "pos_61_70", "pos_71_80", "pos_81_90", "pos_91_100"].reduce((s, k) => s + n(k), 0),
+    newKw: n("is_new"),
+    lostKw: n("is_lost"),
+  };
 }

@@ -20,6 +20,7 @@ export type Keyword = {
   serp: string[];
   rank?: number | null;
   url?: string | null;
+  etv?: number | null; // estimated monthly visits this ranking brings
 };
 
 /** A keyword from Agentic Keyword Research. group joins keywords one page can rank for. competitor: a rival that ranks for it. */
@@ -198,4 +199,31 @@ export function clustersOf(rows: KwSummary[], seed: string, max = 6): KwCluster[
     .map(([name, ks]) => ({ name, count: ks.length, volume: ks.reduce((n, k) => n + (k.volume ?? 0), 0), keywords: ks.map((k) => k.keyword) }))
     .sort((a, b) => b.count - a.count || b.volume - a.volume)
     .slice(0, max);
+}
+
+// ─────────────── domain research ───────────────
+
+export type DomainReport = {
+  domain: string;
+  country: string;
+  overview: { keywords: number; traffic: number; top3: number; top10: number; top20: number; top100: number; newKw: number; lostKw: number } | null;
+  keywords: Keyword[];
+  pages: { url: string; keywords: number; traffic: number; top: string }[];
+  competitors: { domain: string; shared: number; keywords: number; traffic: number }[];
+  cost: number;
+  cached: boolean;
+};
+
+/** Group a domain's ranking keywords by page, most traffic first. */
+export function pagesOf(rows: Keyword[]) {
+  const by = new Map<string, Keyword[]>();
+  for (const r of rows) if (r.url) by.set(r.url, [...(by.get(r.url) ?? []), r]);
+  return [...by.entries()]
+    .map(([url, ks]) => ({
+      url,
+      keywords: ks.length,
+      traffic: Math.round(ks.reduce((n, k) => n + (k.etv ?? 0), 0)),
+      top: [...ks].sort((a, b) => (b.etv ?? 0) - (a.etv ?? 0))[0].keyword,
+    }))
+    .sort((a, b) => b.traffic - a.traffic || b.keywords - a.keywords);
 }

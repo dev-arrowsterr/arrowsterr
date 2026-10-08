@@ -24,6 +24,7 @@ import { splitPeriods, type Filter } from "@/lib/metrics";
 import type { View } from "@/lib/view";
 import { runAll, type RunAuth } from "@/lib/runner";
 import { getSupabase, type SupaConfig } from "@/lib/supa";
+import { clearStash } from "@/lib/stash";
 import { AuthScreen, NewPassword } from "./AuthScreen";
 import { BrandLogo } from "./BrandLogo";
 import { CompetitorsPage } from "./CompetitorsPage";
@@ -38,8 +39,8 @@ import { TrafficPage } from "./TrafficPage";
 import { VisitorsPage } from "./VisitorsPage";
 
 export type { Brand } from "@/lib/db";
-type Page = "overview" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "search" | "keywords" | "agentic" | "calendar" | "members";
-const RESEARCH: Page[] = ["search", "keywords", "agentic", "calendar"];
+type Page = "overview" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "search" | "keywords" | "domain" | "agentic" | "calendar" | "members";
+const RESEARCH: Page[] = ["search", "keywords", "domain", "agentic", "calendar"];
 
 /** Each page's address. "/" opens the overview. */
 const SLUGS: Record<Page, string> = {
@@ -52,6 +53,7 @@ const SLUGS: Record<Page, string> = {
   visitors: "/visitors",
   search: "/search-performance",
   keywords: "/keyword-research",
+  domain: "/domain-research",
   agentic: "/agentic-research",
   calendar: "/content-calendar",
   members: "/settings",
@@ -514,6 +516,7 @@ const NAV: { group: string; items: { id: Page; label: string; icon: string }[] }
     items: [
       { id: "search", label: "Search performance", icon: "G" },
       { id: "keywords", label: "Keyword research", icon: "⌕" },
+      { id: "domain", label: "Domain research", icon: "◎" },
       { id: "agentic", label: "Agentic research", icon: "✦" },
       { id: "calendar", label: "Content calendar", icon: "▦" },
     ],
@@ -620,7 +623,10 @@ function Sidebar({
         <span className="truncate text-[12px] text-muted" title={email}>
           {email}
         </span>
-        <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm self-start" onClick={() => sb.auth.signOut()}>
+        <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm self-start" onClick={() => {
+            clearStash();
+            sb.auth.signOut();
+          }}>
           Sign out
         </button>
       </div>

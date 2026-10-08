@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { addCalendarItems, listKeywordRuns, saveKeywordRunResult, type KeywordRun, type Site } from "@/lib/db";
 import { PER_STAGE, STAGES, type Stage } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
+import { useStash } from "@/lib/stash";
 import { Sheet, type Col } from "../Sheet";
 import { Card, Thinking } from "../ui";
 import { Difficulty, downloadCsv, FIELD, fmtCpc, fmtNum, post, STAGE_LABEL, StageTag } from "./shared";
@@ -52,7 +53,7 @@ type Row = {
 
 /** Claude plans 120 keywords stage by stage, DataForSEO checks them, and you approve pages into the calendar. */
 export function AgenticResearch({ sb, auth, site, canEdit, onOpenCalendar }: { sb: SupabaseClient; auth: RunAuth; site: Site; canEdit: boolean; onOpenCalendar: () => void }) {
-  const [runs, setRuns] = useState<KeywordRun[] | null>(null);
+  const [runs, setRuns] = useStash<KeywordRun[] | null>(`agentic:${site.id}:runs`, null);
   const [runId, setRunId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -68,7 +69,7 @@ export function AgenticResearch({ sb, auth, site, canEdit, onOpenCalendar }: { s
       setError(e instanceof Error ? e.message : String(e));
       setRuns([]);
     }
-  }, [sb, site.id]);
+  }, [sb, site.id, setRuns]);
 
   useEffect(() => {
     // Loading from Supabase on first render is the point of this effect.

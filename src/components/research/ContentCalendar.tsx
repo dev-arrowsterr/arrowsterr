@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { addCalendarItems, deleteCalendarItems, listCalendar, updateCalendarItem, type CalendarItem, type CalendarStatus, type Site } from "@/lib/db";
 import { slots, STAGES, type Stage } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
+import { useStash } from "@/lib/stash";
 import { Sheet, type Col } from "../Sheet";
 import { Card, Thinking } from "../ui";
 import { BriefPanel } from "./BriefPanel";
@@ -26,7 +27,7 @@ const BRIEF_LABEL = { running: "Writing...", done: "Ready", failed: "Failed" } a
 
 /** Every planned page for one website, as a spreadsheet. Click a keyword to open its content brief. */
 export function ContentCalendar({ sb, auth, site, canEdit, onFind }: { sb: SupabaseClient; auth: RunAuth; site: Site; canEdit: boolean; onFind: () => void }) {
-  const [items, setItems] = useState<CalendarItem[] | null>(null);
+  const [items, setItems] = useStash<CalendarItem[] | null>(`cal:${site.id}:items`, null);
   const [error, setError] = useState("");
   const [planning, setPlanning] = useState(false);
   const [perWeek, setPerWeek] = useState(2);
@@ -43,7 +44,7 @@ export function ContentCalendar({ sb, auth, site, canEdit, onFind }: { sb: Supab
       setError(/action|brief|current_/.test(message) ? `${message}. Run supabase/007_briefs_and_pages.sql in Supabase → SQL Editor.` : message);
       setItems([]);
     }
-  }, [sb, site.id]);
+  }, [sb, site.id, setItems]);
 
   useEffect(() => {
     // Loading from Supabase on first render is the point of this effect.
@@ -55,7 +56,7 @@ export function ContentCalendar({ sb, auth, site, canEdit, onFind }: { sb: Supab
     (s: CalendarItem["brief_status"]) => {
       setItems((list) => list?.map((i) => (i.id === open ? { ...i, brief_status: s, status: s === "done" && i.status === "planned" ? "brief" : i.status } : i)) ?? null);
     },
-    [open],
+    [open, setItems],
   );
 
   if (!items) return <Thinking text="Loading your calendar..." />;

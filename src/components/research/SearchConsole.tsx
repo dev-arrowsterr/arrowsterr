@@ -8,6 +8,7 @@ import type { RunAuth } from "@/lib/runner";
 import { Sheet, type Col } from "../Sheet";
 import { TrendChart } from "../TrendChart";
 import { Card, Delta, Seg, Thinking } from "../ui";
+import { useStash } from "@/lib/stash";
 import { downloadCsv, post } from "./shared";
 
 type Status = { configured: boolean; connected: boolean; property: string | null; email: string | null };
@@ -18,12 +19,13 @@ const short = (u: string) => u.replace(/^https?:\/\/(www\.)?/, "");
 
 /** Google Search Console for one website: real clicks, impressions and positions, and what to fix first. */
 export function SearchConsole({ sb, auth, site, canEdit }: { sb: SupabaseClient; auth: RunAuth; site: Site; canEdit: boolean }) {
-  const [status, setStatus] = useState<Status | null>(null);
-  const [report, setReport] = useState<GscReport | null>(null);
+  const [status, setStatus] = useStash<Status | null>(`gsc:${site.id}:status`, null);
+  const [reports, setReports] = useStash<Record<number, GscReport>>(`gsc:${site.id}:reports`, {});
   const [props, setProps] = useState<{ siteUrl: string; permissionLevel: string }[] | null>(null);
-  const [days, setDays] = useState(28);
-  const [tab, setTab] = useState<Tab>("opportunities");
-  const [metric, setMetric] = useState<"clicks" | "impressions">("clicks");
+  const [days, setDays] = useStash(`gsc:${site.id}:days`, 28);
+  const [tab, setTab] = useStash<Tab>(`gsc:${site.id}:tab`, "opportunities");
+  const [metric, setMetric] = useStash<"clicks" | "impressions">(`gsc:${site.id}:metric`, "clicks");
+  const report = reports[days] ?? null;
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -40,7 +42,7 @@ export function SearchConsole({ sb, auth, site, canEdit }: { sb: SupabaseClient;
       setError(e instanceof Error ? e.message : String(e));
       setStatus({ configured: true, connected: false, property: null, email: null });
     }
-  }, [call, canEdit]);
+  }, [call, canEdit, setStatus]);
 
   useEffect(() => {
     // Loading the connection on first render is the point of this effect.
@@ -53,12 +55,12 @@ export function SearchConsole({ sb, auth, site, canEdit }: { sb: SupabaseClient;
     if (!ready) return;
     let live = true;
     call<GscReport>("report", { days })
-      .then((r) => live && setReport(r))
+      .then((r) => live && setReports((x) => ({ ...x, [days]: r })))
       .catch((e) => live && setError(e instanceof Error ? e.message : String(e)));
     return () => {
       live = false;
     };
-  }, [ready, days, call]);
+  }, [ready, days, call, setReports]);
 
   async function connect() {
     setError("");
@@ -85,7 +87,7 @@ export function SearchConsole({ sb, auth, site, canEdit }: { sb: SupabaseClient;
     if (!confirm("Disconnect Search Console from this website?")) return;
     try {
       await call("disconnect");
-      setReport(null);
+      setReports({});
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -175,7 +177,6 @@ export function SearchConsole({ sb, auth, site, canEdit }: { sb: SupabaseClient;
           label="Period"
           value={String(days)}
           onChange={(v) => {
-            setReport(null);
             setDays(Number(v));
           }}
           options={[7, 28, 90, 180].map((d) => ({ id: String(d), label: `${d}d` }))}

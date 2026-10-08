@@ -144,7 +144,7 @@ async function traffic(urls: string[], m: Market, cost: { total: number }) {
   return data;
 }
 
-export async function keywordReport(keyword: string, country: string, device: "desktop" | "mobile"): Promise<KeywordReport> {
+export async function keywordReport(keyword: string, country: string, device: "desktop" | "mobile", withCountries = false): Promise<KeywordReport> {
   const kw = keyword.trim().toLowerCase().replace(/\s+/g, " ").slice(0, 80);
   const m = MARKETS[country] ?? MARKETS["United States"];
   const cost = { total: 0 };
@@ -152,7 +152,8 @@ export async function keywordReport(keyword: string, country: string, device: "d
 
   const [main, others, variations, questions, google] = await Promise.all([
     overviewMany([kw], m, cost),
-    Promise.all(countries.map(async (c) => ({ country: c, volume: (await overviewMany([kw], MARKETS[c], cost).catch(() => new Map())).get(kw)?.volume ?? null }))),
+    // Volume in other countries costs a call each, so it only runs when asked for.
+    withCountries ? Promise.all(countries.map(async (c) => ({ country: c, volume: (await overviewMany([kw], MARKETS[c], cost).catch(() => new Map())).get(kw)?.volume ?? null }))) : Promise.resolve([]),
     suggestions(kw, m, false, cost).catch(() => ({ total: 0, volume: 0, rows: [] })),
     suggestions(kw, m, true, cost).catch(() => ({ total: 0, volume: 0, rows: [] })),
     serp(kw, m, device, cost).catch((e) => {

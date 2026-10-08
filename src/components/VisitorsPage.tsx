@@ -5,6 +5,7 @@ import { KEY_ACTIONS, visitsOf, type Label, type SourceKind, type Step, type Vis
 import type { RunAuth } from "@/lib/runner";
 import type { View } from "@/lib/view";
 import { Sheet, type Col } from "./Sheet";
+import { useStash } from "@/lib/stash";
 import { Card, Thinking } from "./ui";
 
 const LABEL_CLASS: Record<Label, string> = { Hot: "aw-status--missed", Warm: "aw-status--warn", Cold: "aw-status--pending" };
@@ -51,7 +52,8 @@ export function Avatar({ v, size = 26 }: { v: Pick<Visitor, "emoji" | "color" | 
 /** Every visitor to the brand's website, with a fun name, and the full path each one took. */
 export function VisitorsPage({ view, auth }: { view: View; auth: RunAuth }) {
   const { brand, days } = view;
-  const [data, setData] = useState<{ visitors: Visitor[]; detail: string } | null>(null);
+  const [saved, setSaved] = useStash<Record<number, { visitors: Visitor[]; detail: string }>>(`visitors:${brand.id}`, {});
+  const data = saved[days] ?? null;
   const [error, setError] = useState("");
   const [needsConnect, setNeedsConnect] = useState(false);
   const [open, setOpen] = useState<Visitor | null>(null);
@@ -78,12 +80,12 @@ export function VisitorsPage({ view, auth }: { view: View; auth: RunAuth }) {
     // Loading from the server when the page or period changes is the point of this effect.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     call({ action: "list", days })
-      .then((d) => live && setData(d))
+      .then((d) => live && setSaved((x) => ({ ...x, [days]: d })))
       .catch((e) => live && setError(e instanceof Error ? e.message : String(e)));
     return () => {
       live = false;
     };
-  }, [call, days]);
+  }, [call, days, setSaved]);
 
   if (needsConnect)
     return (

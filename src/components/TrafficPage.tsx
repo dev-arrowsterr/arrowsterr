@@ -9,6 +9,7 @@ import { ENGINE_LOGOS } from "./Engines";
 import { Copy, InstallGuide, snippetFor } from "./InstallGuide";
 import { TrendChart, type Line } from "./TrendChart";
 import { aiSourceOf } from "@/lib/aiSources";
+import { useStash } from "@/lib/stash";
 import { Card, Delta, favicon, pct, Seg, sortRows, SortTh, Thinking, useSort } from "./ui";
 
 type Status = { connected: boolean; websiteId?: string; domain?: string; platform?: string; token?: string; installed?: boolean; live?: boolean; pageviews?: number };
@@ -171,8 +172,9 @@ function VerifyResult({ result, onClose }: { result: Verify; onClose?: () => voi
 /** Website analytics for the brand's site, visits from AI, and setup when it isn't connected yet. */
 export function TrafficPage({ view, auth, canEdit }: { view: View; auth: RunAuth; canEdit: boolean }) {
   const { brand, current, filter, days } = view;
-  const [status, setStatus] = useState<Status | null>(null);
-  const [traffic, setTraffic] = useState<Traffic | null>(null);
+  const [status, setStatus] = useStash<Status | null>(`traffic:${brand.id}:status`, null);
+  const [saved, setSaved] = useStash<Record<number, Traffic>>(`traffic:${brand.id}:data`, {});
+  const traffic = saved[days] ?? null;
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [setup, setSetup] = useState(false);
@@ -195,7 +197,7 @@ export function TrafficPage({ view, auth, canEdit }: { view: View; auth: RunAuth
     [auth, brand.id],
   );
 
-  const check = useCallback(() => call("/api/site", { action: "status" }).then(setStatus), [call]);
+  const check = useCallback(() => call("/api/site", { action: "status" }).then(setStatus), [call, setStatus]);
 
   // Load the status, then keep checking every 10 seconds until the first visit arrives.
   const isLive = Boolean(status?.live);
@@ -217,12 +219,12 @@ export function TrafficPage({ view, auth, canEdit }: { view: View; auth: RunAuth
     if (!isLive) return;
     let live = true;
     call("/api/traffic", { days })
-      .then((d) => live && setTraffic(d))
+      .then((d) => live && setSaved((x) => ({ ...x, [days]: d })))
       .catch((e) => live && setError(e instanceof Error ? e.message : String(e)));
     return () => {
       live = false;
     };
-  }, [isLive, days, call]);
+  }, [isLive, days, call, setSaved]);
 
   async function connect() {
     setBusy("Setting up tracking for your website...");
