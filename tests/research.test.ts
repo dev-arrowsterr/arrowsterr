@@ -31,3 +31,12 @@ test("slots puts 2 posts a week on Monday and Wednesday, never before the start"
   // 2026-10-07 is a Wednesday.
   assert.deepEqual(slots(new Date(2026, 9, 7), 2, 4), ["2026-10-07", "2026-10-12", "2026-10-14", "2026-10-19"]);
 });
+
+test("cleanUrl keeps real pages and drops junk", async () => {
+  const { cleanUrl } = await import("../src/lib/urls.ts");
+  assert.equal(cleanUrl("https://www.acme.com/blog/how-to-pick-a-crm/?utm=x#top", "acme.com"), "https://www.acme.com/blog/how-to-pick-a-crm");
+  assert.equal(cleanUrl("https://acme.com/tag/crm/", "acme.com"), null);
+  assert.equal(cleanUrl("https://acme.com/wp-content/uploads/a.png", "acme.com"), null);
+  assert.equal(cleanUrl("https://other.com/page", "acme.com"), null);
+  assert.equal(cleanUrl("https://blog.acme.com/post-one", "acme.com"), "https://blog.acme.com/post-one");
+});

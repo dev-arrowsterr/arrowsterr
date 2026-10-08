@@ -22,10 +22,24 @@ export type Keyword = {
   url?: string | null;
 };
 
-/** A keyword from Agentic Keyword Research. group joins keywords one page can rank for. */
-export type AgentKeyword = Keyword & { stage: Stage; theme: string; group: number; lowData?: boolean };
+/** A keyword from Agentic Keyword Research. group joins keywords one page can rank for. competitor: a rival that ranks for it. */
+export type AgentKeyword = Keyword & { stage: Stage; theme: string; group: number; lowData?: boolean; competitor?: string | null };
 export type AgentGroup = { id: number; primary: string; stage: Stage; theme: string; keywords: string[]; volume: number };
-export type AgentResult = { themes?: string[]; keywords?: AgentKeyword[]; groups?: AgentGroup[]; approved?: string[]; cost?: number };
+/** An article already on the site that ranks low or not at all, and the keyword to aim it at. */
+export type AgentUpdate = Keyword & { stage: Stage; theme: string; page: string };
+export type AgentResult = {
+  themes?: string[];
+  keywords?: AgentKeyword[];
+  groups?: AgentGroup[];
+  updates?: AgentUpdate[];
+  sitemap?: { source: string | null; pages: number; articles: number; ranking: number };
+  competitors?: { domain: string; keywords: number }[];
+  approved?: string[];
+  cost?: number;
+};
+
+/** A page on the site, from its sitemap. */
+export type SitePage = { url: string; article: boolean };
 
 /** Google location and language for each market we offer. */
 export const MARKETS: Record<string, { location: number; language: string }> = {

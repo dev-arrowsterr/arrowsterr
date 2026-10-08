@@ -5,74 +5,68 @@ import { useState } from "react";
 import { addCalendarItems, type Site } from "@/lib/db";
 import { stageFromIntent, type Keyword, type Stage } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
-import { Card, Seg, sortRows, SortTh, useSort } from "../ui";
-import { Check, Difficulty, downloadCsv, FIELD, fmtCpc, fmtNum, post, SerpTags, Sparkline } from "./shared";
+import { BrandLogo } from "../BrandLogo";
+import { Sheet } from "../Sheet";
+import { Card, favicon, Seg } from "../ui";
+import { Difficulty, downloadCsv, FIELD, fmtCpc, fmtNum, post, SerpTags, Sparkline } from "./shared";
 
-type Mode = "ideas" | "phrase" | "related" | "site" | "ranked";
+type Mode = "ideas" | "phrase" | "related" | "site" | "ranked" | "competitors";
+type Rival = { domain: string; shared: number; keywords: number; traffic: number };
 const MODES: { id: Mode; label: string; hint: string; placeholder: string }[] = [
   { id: "ideas", label: "Ideas", hint: "Keywords on the same subject, worded any way.", placeholder: "crm software" },
   { id: "phrase", label: "Contains phrase", hint: "Keywords that include your words.", placeholder: "crm software" },
   { id: "related", label: "Related", hint: "What Google lists as related searches, two levels deep.", placeholder: "crm software" },
   { id: "site", label: "For a site", hint: "Keywords that fit any website, yours or a competitor's.", placeholder: "competitor.com" },
   { id: "ranked", label: "Ranks for", hint: "Keywords a website ranks for on Google today, with its position.", placeholder: "competitor.com" },
+  { id: "competitors", label: "Competitors", hint: "Sites that rank for the most of the same keywords. Click one to see its keywords.", placeholder: "yoursite.com" },
 ];
-const INTENTS = ["commercial", "transactional", "informational", "navigational"];
+const BY_DOMAIN: Mode[] = ["site", "ranked", "competitors"];
 
 /** Search keywords any time, filter them, and send the good ones to the content calendar. */
 export function KeywordResearch({ sb, auth, site, canEdit }: { sb: SupabaseClient; auth: RunAuth; site: Site; canEdit: boolean }) {
   const [mode, setMode] = useState<Mode>("ideas");
   const [query, setQuery] = useState("");
   const [rows, setRows] = useState<Keyword[] | null>(null);
+  const [rivals, setRivals] = useState<Rival[] | null>(null);
+  const [shownMode, setShownMode] = useState<Mode>("ideas");
   const [cost, setCost] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [minVol, setMinVol] = useState("");
-  const [maxKd, setMaxKd] = useState("");
-  const [intent, setIntent] = useState("all");
-  const [maxWords, setMaxWords] = useState("all");
-  const [aio, setAio] = useState(false);
-  const [has, setHas] = useState("");
-  const [sort, setSort] = useSort("volume");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [stage, setStage] = useState<Stage | "auto">("auto");
   const m = MODES.find((x) => x.id === mode)!;
 
-  async function search(e: React.FormEvent) {
-    e.preventDefault();
+  async function run(m: Mode, q: string) {
     setBusy(true);
     setError("");
     setNotice("");
     try {
-      const out = await post<{ rows: Keyword[]; cost: number }>(auth, "/api/research/keywords", { siteId: site.id, mode, query });
-      setRows(out.rows);
+      const out = await post<{ rows?: Keyword[]; competitors?: Rival[]; cost: number }>(auth, "/api/research/keywords", { siteId: site.id, mode: m, query: q });
       setCost(out.cost);
+      setShownMode(m);
       setPicked(new Set());
-      setSort(mode === "ranked" ? { key: "volume", desc: true } : sort);
+      if (m === "competitors") {
+        setRivals(out.competitors ?? []);
+        setRows(null);
+      } else {
+        setRows(out.rows ?? []);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
   }
-
-  const words = (k: string) => k.split(/\s+/).length;
-  const shown = sortRows(
-    (rows ?? []).filter(
-      (r) =>
-        (!minVol || (r.volume ?? 0) >= Number(minVol)) &&
-        (!maxKd || (r.kd ?? 0) <= Number(maxKd)) &&
-        (intent === "all" || r.intent === intent) &&
-        (maxWords === "all" || words(r.keyword) <= Number(maxWords)) &&
-        (!aio || r.serp.includes("ai_overview")) &&
-        (!has.trim() || r.keyword.toLowerCase().includes(has.trim().toLowerCase())),
-    ),
-    sort,
-    { keyword: (r) => r.keyword, volume: (r) => r.volume, kd: (r) => r.kd, cpc: (r) => r.cpc, intent: (r) => r.intent, rank: (r) => (r.rank ? -r.rank : null) },
-  );
-  const allOn = shown.length > 0 && shown.every((r) => picked.has(r.keyword));
-  const someOn = shown.some((r) => picked.has(r.keyword));
-  const toggle = (k: string, on: boolean) => setPicked((p) => (on ? new Set([...p, k]) : new Set([...p].filter((x) => x !== k))));
+  function search(e: React.FormEvent) {
+    e.preventDefault();
+    run(mode, query.trim() || (BY_DOMAIN.includes(mode) ? site.domain : ""));
+  }
+  function openRival(domain: string) {
+    setMode("ranked");
+    setQuery(domain);
+    run("ranked", domain);
+  }
 
   async function addToCalendar() {
     const list = (rows ?? []).filter((r) => picked.has(r.keyword));
@@ -110,11 +104,11 @@ export function KeywordResearch({ sb, auth, site, canEdit }: { sb: SupabaseClien
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder={mode === "site" || mode === "ranked" ? site.domain : m.placeholder}
+              placeholder={BY_DOMAIN.includes(mode) ? site.domain : m.placeholder}
               aria-label="Keyword or domain"
               className="aw-input min-w-0 flex-1"
             />
-            <button type="submit" className="aw-btn aw-btn--accent" disabled={busy || !canEdit || !query.trim()}>
+            <button type="submit" className="aw-btn aw-btn--accent" disabled={busy || !canEdit || (!query.trim() && !BY_DOMAIN.includes(mode))}>
               {busy ? "Searching..." : "Search"}
             </button>
           </form>
@@ -127,9 +121,48 @@ export function KeywordResearch({ sb, auth, site, canEdit }: { sb: SupabaseClien
       {error ? <p className="aw-error">{error}</p> : null}
       {notice ? <div className="aw-callout">{notice}</div> : null}
 
-      {rows ? (
+      {rivals && shownMode === "competitors" ? (
+        <Card title={`${rivals.length} competitors on Google`} action={cost !== null ? <span className="aw-label">Cost ${cost.toFixed(3)}</span> : null}>
+          <Sheet
+            label="Competitors"
+            rows={rivals}
+            rowKey={(r) => r.domain}
+            sort={{ key: "shared", desc: true }}
+            cols={[
+              {
+                id: "domain",
+                label: "Competitor",
+                type: "text",
+                value: (r) => r.domain,
+                cell: (r) => (
+                  <span className="flex items-center gap-2">
+                    <BrandLogo src={favicon(r.domain)} name={r.domain} size={16} />
+                    {r.domain}
+                  </span>
+                ),
+              },
+              { id: "shared", label: "Shared keywords", type: "number", value: (r) => r.shared },
+              { id: "keywords", label: "All keywords", type: "number", value: (r) => r.keywords },
+              { id: "traffic", label: "Est. visits / mo", type: "number", value: (r) => r.traffic },
+              {
+                id: "go",
+                label: "Keywords",
+                type: "text",
+                value: () => "",
+                cell: (r) => (
+                  <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => openRival(r.domain)} disabled={!canEdit || busy}>
+                    See keywords
+                  </button>
+                ),
+              },
+            ]}
+          />
+        </Card>
+      ) : null}
+
+      {rows && shownMode !== "competitors" ? (
         <Card
-          title={`${fmtNum(shown.length)} of ${fmtNum(rows.length)} keywords`}
+          title={`${fmtNum(rows.length)} keywords`}
           action={
             <span className="flex items-center gap-3">
               {cost !== null ? <span className="aw-label">Cost ${cost.toFixed(3)}</span> : null}
@@ -140,7 +173,7 @@ export function KeywordResearch({ sb, auth, site, canEdit }: { sb: SupabaseClien
                   downloadCsv(
                     `keywords-${query.replace(/\W+/g, "-")}.csv`,
                     ["keyword", "volume", "difficulty", "cpc", "intent", "rank", "url"],
-                    shown.map((r) => [r.keyword, r.volume, r.kd, r.cpc, r.intent, r.rank, r.url]),
+                    rows.map((r) => [r.keyword, r.volume, r.kd, r.cpc, r.intent, r.rank, r.url]),
                   )
                 }
               >
@@ -149,32 +182,6 @@ export function KeywordResearch({ sb, auth, site, canEdit }: { sb: SupabaseClien
             </span>
           }
         >
-          <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint px-5 py-3">
-            <input value={has} onChange={(e) => setHas(e.target.value)} placeholder="Includes words" aria-label="Includes words" className={`${FIELD} w-40`} />
-            <input value={minVol} onChange={(e) => setMinVol(e.target.value.replace(/\D/g, ""))} placeholder="Min volume" aria-label="Minimum volume" className={`${FIELD} w-28`} />
-            <input value={maxKd} onChange={(e) => setMaxKd(e.target.value.replace(/\D/g, ""))} placeholder="Max difficulty" aria-label="Maximum difficulty" className={`${FIELD} w-32`} />
-            <select aria-label="Intent" value={intent} onChange={(e) => setIntent(e.target.value)} className={FIELD}>
-              <option value="all">Any intent</option>
-              {INTENTS.map((i) => (
-                <option key={i} value={i}>
-                  {i[0].toUpperCase() + i.slice(1)}
-                </option>
-              ))}
-            </select>
-            <select aria-label="Words" value={maxWords} onChange={(e) => setMaxWords(e.target.value)} className={FIELD}>
-              <option value="all">Any length</option>
-              {[2, 3, 4, 5].map((n) => (
-                <option key={n} value={n}>
-                  Up to {n} words
-                </option>
-              ))}
-            </select>
-            <label className="flex items-center gap-2 text-[13px] text-body">
-              <Check checked={aio} onChange={setAio} label="Has AI Overview" />
-              Has AI Overview
-            </label>
-          </div>
-
           {picked.size && canEdit ? (
             <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint bg-brand-pale px-5 py-2.5">
               <span className="text-[13px] font-medium text-ink">{picked.size} selected</span>
@@ -192,86 +199,44 @@ export function KeywordResearch({ sb, auth, site, canEdit }: { sb: SupabaseClien
               </button>
             </div>
           ) : null}
-
-          <div className="max-h-[70vh] overflow-auto">
-            <table className="aw-table aw-table--compact">
-              <thead className="sticky top-0 z-10">
-                <tr>
-                  <th className="w-8">
-                    <Check
-                      checked={allOn}
-                      some={someOn}
-                      label="Select all shown"
-                      disabled={!canEdit}
-                      onChange={(on) => setPicked(on ? new Set([...picked, ...shown.map((r) => r.keyword)]) : new Set([...picked].filter((k) => !shown.some((r) => r.keyword === k))))}
-                    />
-                  </th>
-                  <SortTh id="keyword" sort={sort} onSort={setSort} text>
-                    Keyword
-                  </SortTh>
-                  <SortTh id="volume" sort={sort} onSort={setSort}>
-                    Volume
-                  </SortTh>
-                  <th>Trend</th>
-                  <SortTh id="kd" sort={sort} onSort={setSort}>
-                    Difficulty
-                  </SortTh>
-                  <SortTh id="cpc" sort={sort} onSort={setSort}>
-                    CPC
-                  </SortTh>
-                  <SortTh id="intent" sort={sort} onSort={setSort} text>
-                    Intent
-                  </SortTh>
-                  <th>On Google</th>
-                  {mode === "ranked" ? (
-                    <SortTh id="rank" sort={sort} onSort={setSort}>
-                      Position
-                    </SortTh>
-                  ) : null}
-                </tr>
-              </thead>
-              <tbody>
-                {shown.slice(0, 500).map((r) => (
-                  <tr key={r.keyword} className={picked.has(r.keyword) ? "bg-brand-pale" : ""}>
-                    <td>
-                      <Check checked={picked.has(r.keyword)} onChange={(on) => toggle(r.keyword, on)} label={`Select ${r.keyword}`} disabled={!canEdit} />
-                    </td>
-                    <td className="text-ink">{r.keyword}</td>
-                    <td className="aw-num">{fmtNum(r.volume)}</td>
-                    <td>
-                      <Sparkline values={r.trend} />
-                    </td>
-                    <td>
-                      <Difficulty kd={r.kd} />
-                    </td>
-                    <td className="aw-num">{fmtCpc(r.cpc)}</td>
-                    <td className="text-[13px] capitalize">{r.intent ?? "–"}</td>
-                    <td>
-                      <SerpTags serp={r.serp} />
-                    </td>
-                    {mode === "ranked" ? (
-                      <td className="aw-num whitespace-nowrap">
-                        {r.url ? (
+          <Sheet
+            label="Keywords"
+            rows={rows}
+            rowKey={(r) => r.keyword}
+            sort={{ key: "volume", desc: true }}
+            selected={canEdit ? picked : undefined}
+            onSelect={canEdit ? setPicked : undefined}
+            cols={[
+              { id: "keyword", label: "Keyword", type: "text", value: (r) => r.keyword, width: 220 },
+              { id: "volume", label: "Volume", type: "number", value: (r) => r.volume },
+              { id: "trend", label: "Trend", type: "number", value: (r) => (r.trend.length > 1 ? r.trend[r.trend.length - 1] - r.trend[0] : null), cell: (r) => <Sparkline values={r.trend} /> },
+              { id: "kd", label: "Difficulty", type: "number", value: (r) => r.kd, cell: (r) => <Difficulty kd={r.kd} /> },
+              { id: "cpc", label: "CPC", type: "number", value: (r) => r.cpc, cell: (r) => fmtCpc(r.cpc) },
+              { id: "intent", label: "Intent", type: "list", value: (r) => r.intent },
+              { id: "words", label: "Words", type: "number", value: (r) => r.keyword.split(/\s+/).length },
+              { id: "aio", label: "AI Overview", type: "list", value: (r) => (r.serp.includes("ai_overview") ? "Yes" : "No"), options: ["Yes", "No"] },
+              { id: "serp", label: "On Google", type: "text", value: (r) => r.serp.join(" "), cell: (r) => <SerpTags serp={r.serp} /> },
+              ...(shownMode === "ranked"
+                ? [
+                    {
+                      id: "rank",
+                      label: "Position",
+                      type: "number" as const,
+                      value: (r: Keyword) => r.rank,
+                      cell: (r: Keyword) =>
+                        r.url ? (
                           <a href={r.url} target="_blank" rel="noopener noreferrer nofollow" title={r.url}>
                             #{r.rank}
                           </a>
                         ) : (
                           `#${r.rank ?? "–"}`
-                        )}
-                      </td>
-                    ) : null}
-                  </tr>
-                ))}
-                {!shown.length ? (
-                  <tr>
-                    <td colSpan={9} className="aw-small">
-                      No keywords match these filters.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
+                        ),
+                    },
+                    { id: "url", label: "Ranking page", type: "text" as const, value: (r: Keyword) => r.url?.replace(/^https?:\/\/(www\.)?/, "") ?? null },
+                  ]
+                : []),
+            ]}
+          />
         </Card>
       ) : null}
     </div>

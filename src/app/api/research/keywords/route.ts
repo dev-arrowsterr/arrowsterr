@@ -1,10 +1,11 @@
 import { dfsReady } from "@/lib/dataforseo";
-import { research, Spend, type Mode } from "@/lib/keywords";
+import { competitors, research, Spend, type Mode } from "@/lib/keywords";
 import { marketOf } from "@/lib/research";
 import { requireRole } from "@/lib/serverAuth";
 import { normalizeSite } from "@/lib/site";
 
-const MODES: Mode[] = ["ideas", "phrase", "related", "site", "ranked"];
+const MODES: Mode[] = ["ideas", "phrase", "related", "site", "ranked", "competitors"];
+const BY_DOMAIN: Mode[] = ["site", "ranked", "competitors"];
 
 // Keyword Research: one search in DataForSEO Labs for the site's market. Editors only, since each search costs money.
 export async function POST(request: Request) {
@@ -15,8 +16,8 @@ export async function POST(request: Request) {
 
   const mode: Mode = MODES.includes(body.mode) ? body.mode : "ideas";
   let query = typeof body.query === "string" ? body.query.trim().replace(/\s+/g, " ").slice(0, 200) : "";
-  if (mode === "site" || mode === "ranked") query = normalizeSite(query)?.domain ?? "";
-  if (!query) return Response.json({ error: mode === "site" || mode === "ranked" ? "Enter a domain, like acme.com." : "Enter a keyword." }, { status: 400 });
+  if (BY_DOMAIN.includes(mode)) query = normalizeSite(query)?.domain ?? "";
+  if (!query) return Response.json({ error: BY_DOMAIN.includes(mode) ? "Enter a domain, like acme.com." : "Enter a keyword." }, { status: 400 });
 
   const { data: site, error } = await auth.sb.from("sites").select("profile").eq("id", body.siteId).eq("workspace_id", body.workspaceId).maybeSingle();
   if (error) return Response.json({ error: error.message + (/sites/.test(error.message) ? " Run supabase/006_research.sql in Supabase." : "") }, { status: 500 });
@@ -24,7 +25,9 @@ export async function POST(request: Request) {
 
   try {
     const spend = new Spend();
-    const rows = await research(mode, query, marketOf((site.profile as { country?: string })?.country), spend);
+    const market = marketOf((site.profile as { country?: string })?.country);
+    if (mode === "competitors") return Response.json({ competitors: await competitors(query, market, spend), cost: spend.total });
+    const rows = await research(mode, query, market, spend);
     return Response.json({ rows, cost: spend.total });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

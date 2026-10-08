@@ -2,6 +2,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Chat, Run } from "./chats";
 import type { AgentResult } from "./research";
+import type { Brief } from "./briefTypes";
 
 export type Role = "owner" | "admin" | "editor" | "viewer";
 export const ROLE_RANK: Record<Role, number> = { owner: 4, admin: 3, editor: 2, viewer: 1 };
@@ -230,9 +231,20 @@ export type CalendarItem = {
   notes: string | null;
   source: string | null;
   created_at: string;
+  action: "new" | "update";
+  current_url: string | null;
+  current_rank: number | null;
+  brief_status: "running" | "done" | "failed" | null;
+  brief_error: string | null;
+  brief_at: string | null;
 };
-export type NewCalendarItem = Omit<CalendarItem, "id" | "status" | "due_date" | "owner" | "url" | "notes" | "created_at"> & Partial<Pick<CalendarItem, "status">>;
-const CAL_COLS = "id, site_id, keyword, secondary, stage, theme, volume, difficulty, intent, cpc, status, due_date, owner, url, notes, source, created_at";
+export type NewCalendarItem = Omit<
+  CalendarItem,
+  "id" | "status" | "due_date" | "owner" | "url" | "notes" | "created_at" | "action" | "current_url" | "current_rank" | "brief_status" | "brief_error" | "brief_at"
+> &
+  Partial<Pick<CalendarItem, "status" | "action" | "current_url" | "current_rank">>;
+const CAL_COLS =
+  "id, site_id, keyword, secondary, stage, theme, volume, difficulty, intent, cpc, status, due_date, owner, url, notes, source, created_at, action, current_url, current_rank, brief_status, brief_error, brief_at";
 
 export async function listCalendar(sb: SupabaseClient, siteId: string): Promise<CalendarItem[]> {
   return check(await sb.from("calendar_items").select(CAL_COLS).eq("site_id", siteId).order("created_at")) as CalendarItem[];
@@ -251,6 +263,16 @@ export async function addCalendarItems(sb: SupabaseClient, workspaceId: string, 
       .select("id"),
   ) as { id: string }[];
   return rows.length;
+}
+
+/** The brief for one calendar item, with its status. Loaded only when the item is opened. */
+export async function getBrief(sb: SupabaseClient, id: string) {
+  return check(await sb.from("calendar_items").select("brief, brief_status, brief_error, brief_at").eq("id", id).single()) as {
+    brief: Brief | null;
+    brief_status: CalendarItem["brief_status"];
+    brief_error: string | null;
+    brief_at: string | null;
+  };
 }
 
 export async function updateCalendarItem(sb: SupabaseClient, id: string, patch: Partial<CalendarItem>) {

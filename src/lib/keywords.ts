@@ -5,7 +5,7 @@ import type { Keyword } from "./research";
 // Keyword numbers from DataForSEO Labs, and Google's top 10 results for grouping keywords into pages.
 
 export type Market = { location: number; language: string };
-export type Mode = "ideas" | "phrase" | "related" | "site" | "ranked";
+export type Mode = "ideas" | "phrase" | "related" | "site" | "ranked" | "competitors";
 
 type Info = {
   keyword?: string;
@@ -51,7 +51,7 @@ async function labs(path: string, body: Record<string, unknown>, spend: Spend): 
 }
 
 /** Keyword Research: ideas from a word, or what a domain ranks for. */
-export function research(mode: Mode, query: string, m: Market, spend: Spend, limit = 300): Promise<Keyword[]> {
+export function research(mode: Exclude<Mode, "competitors">, query: string, m: Market, spend: Spend, limit = 300, maxRank?: number): Promise<Keyword[]> {
   const base = { location_code: m.location, language_code: m.language, limit };
   const byVolume = ["keyword_info.search_volume,desc"];
   switch (mode) {
@@ -64,7 +64,16 @@ export function research(mode: Mode, query: string, m: Market, spend: Spend, lim
     case "site":
       return labs("keywords_for_site", { ...base, target: query, include_serp_info: true, order_by: byVolume }, spend);
     case "ranked":
-      return labs("ranked_keywords", { ...base, target: query, order_by: ["keyword_data.keyword_info.search_volume,desc"] }, spend);
+      return labs(
+        "ranked_keywords",
+        {
+          ...base,
+          target: query,
+          order_by: ["keyword_data.keyword_info.search_volume,desc"],
+          ...(maxRank ? { filters: ["ranked_serp_element.serp_item.rank_group", "<=", maxRank] } : {}),
+        },
+        spend,
+      );
   }
 }
 
@@ -91,4 +100,32 @@ export async function topUrls(keyword: string, m: Market, spend: Spend): Promise
     .filter((i) => i.type === "organic" && i.url)
     .slice(0, 10)
     .map((i) => i.url!.toLowerCase().replace(/^https?:\/\/(www\.)?/, "").replace(/[?#].*$/, "").replace(/\/+$/, ""));
+}
+
+/** Big sites that share results with almost everyone. They are never a real competitor. */
+const GIANTS = /(^|\.)(wikipedia\.org|youtube\.com|amazon\.[a-z.]+|reddit\.com|quora\.com|facebook\.com|linkedin\.com|instagram\.com|twitter\.com|x\.com|pinterest\.[a-z.]+|medium\.com|forbes\.com|g2\.com|capterra\.com|trustpilot\.com|yelp\.com|tiktok\.com|google\.[a-z.]+|apple\.com|microsoft\.com|github\.com|indeed\.com|glassdoor\.com|nytimes\.com|investopedia\.com|ebay\.[a-z.]+|walmart\.com|etsy\.com)$/i;
+
+export type Competitor = { domain: string; shared: number; keywords: number; traffic: number };
+
+/** Sites that rank for the most of the same keywords as this one. */
+export async function competitors(domain: string, m: Market, spend: Spend, limit = 20): Promise<Competitor[]> {
+  const tasks = await call("dataforseo_labs/google/competitors_domain/live", [
+    { target: domain, location_code: m.location, language_code: m.language, limit: limit + 15, exclude_top_domains: true },
+  ]);
+  spend.add(tasks);
+  const task = tasks[0];
+  if (task?.status_code !== 20000) throw new Error(`DataForSEO: ${task?.status_message ?? "no result"}`);
+  type Row = { domain?: string; intersections?: number; full_domain_metrics?: { organic?: { count?: number; etv?: number } } };
+  const items: Row[] = task.result?.[0]?.items ?? [];
+  const self = domain.replace(/^www\./, "");
+  return items
+    .filter((i) => i.domain && i.domain.replace(/^www\./, "") !== self && !GIANTS.test(i.domain.replace(/^www\./, "")))
+    .map((i) => ({
+      domain: i.domain!.replace(/^www\./, ""),
+      shared: i.intersections ?? 0,
+      keywords: i.full_domain_metrics?.organic?.count ?? 0,
+      traffic: Math.round(i.full_domain_metrics?.organic?.etv ?? 0),
+    }))
+    .sort((a, b) => b.shared - a.shared)
+    .slice(0, limit);
 }

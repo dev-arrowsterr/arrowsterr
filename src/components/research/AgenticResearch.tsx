@@ -3,28 +3,52 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useState } from "react";
 import { addCalendarItems, listKeywordRuns, saveKeywordRunResult, type KeywordRun, type Site } from "@/lib/db";
-import { PER_STAGE, STAGES, type AgentGroup, type AgentKeyword, type Stage } from "@/lib/research";
+import { PER_STAGE, STAGES, type Stage } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
-import { Card, Seg, sortRows, SortTh, Thinking, useSort } from "../ui";
-import { Check, Difficulty, downloadCsv, FIELD, fmtNum, post, SerpTags, StageTag } from "./shared";
+import { Sheet, type Col } from "../Sheet";
+import { Card, Thinking } from "../ui";
+import { Difficulty, downloadCsv, FIELD, fmtCpc, fmtNum, post, STAGE_LABEL, StageTag } from "./shared";
 
 const STEPS = [
+  "Reading the sitemap",
   "Checking what the site already ranks for",
+  "Finding competitors and their keywords",
   "Writing BOFU keywords",
   "Writing MOFU keywords",
   "Writing TOFU keywords",
+  "Checking existing articles",
   "Reading Google results",
   "Grouping keywords into pages",
 ];
 const stepIndex = (step: string) => {
-  if (step.startsWith("Reading Google")) return 4;
-  if (step.startsWith("Grouping")) return 5;
+  const fixed = ["Reading the sitemap", "Checking what the site", "Finding competitors"].findIndex((x) => step.startsWith(x));
+  if (fixed >= 0) return fixed;
+  if (step.startsWith("Checking") && step.includes("existing articles")) return 6;
+  if (step.startsWith("Reading Google")) return 7;
+  if (step.startsWith("Grouping")) return 8;
   const s = STAGES.findIndex((x) => step.includes(x.label));
-  return s >= 0 ? s + 1 : 0;
+  return s >= 0 ? s + 3 : 0;
 };
 const STALE = 20 * 60_000;
 
-type Page = AgentGroup & { main: AgentKeyword; others: AgentKeyword[] };
+/** One row of the plan: a new page to write, or an existing page to improve. */
+type Row = {
+  key: string;
+  action: "new" | "update";
+  keyword: string;
+  others: string[];
+  stage: Stage;
+  theme: string;
+  volume: number | null;
+  kd: number | null;
+  cpc: number | null;
+  intent: string | null;
+  serp: string[];
+  source: string;
+  url: string | null;
+  rank: number | null;
+  lowData: boolean;
+};
 
 /** Claude plans 120 keywords stage by stage, DataForSEO checks them, and you approve pages into the calendar. */
 export function AgenticResearch({ sb, auth, site, canEdit, onOpenCalendar }: { sb: SupabaseClient; auth: RunAuth; site: Site; canEdit: boolean; onOpenCalendar: () => void }) {
@@ -32,10 +56,7 @@ export function AgenticResearch({ sb, auth, site, canEdit, onOpenCalendar }: { s
   const [runId, setRunId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [stage, setStage] = useState<Stage | "all">("all");
-  const [theme, setTheme] = useState("all");
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [sort, setSort] = useSort("volume");
   const [starting, setStarting] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
@@ -89,16 +110,19 @@ export function AgenticResearch({ sb, auth, site, canEdit, onOpenCalendar }: { s
       <div className="aw-frame__body flex flex-col gap-4">
         <h2 className="aw-h3">Plan 120 keywords for {site.domain}</h2>
         <ol className="flex list-decimal flex-col gap-1.5 pl-5 text-[14px] text-body">
+          <li>Reads the sitemap of {site.domain}. If there is none, it checks robots.txt, RSS feeds and the links on the site.</li>
           <li>Checks what {site.domain} already ranks for, so you skip keywords you already win.</li>
+          <li>Finds your closest competitors on Google and the keywords they rank for.</li>
           <li>
             Writes {PER_STAGE} BOFU keywords, then {PER_STAGE} MOFU, then {PER_STAGE} TOFU, fitted to a {site.profile.businessType ?? "general"} business. Each one is 2 to 5
             words.
           </li>
           <li>Checks every keyword on Google and swaps out ones nobody searches for.</li>
+          <li>Finds your articles that rank below the top 10 or not at all, and picks the keyword each should win. These show as updates.</li>
           <li>Groups keywords that share Google results, so each page targets one group and no two pages compete.</li>
           <li>You tick the pages you want and approve them into the content calendar.</li>
         </ol>
-        <p className="aw-small">Takes about 3 to 5 minutes. Costs about $0.30 to $0.60 in DataForSEO plus one AI answer from your daily limit.</p>
+        <p className="aw-small">Takes about 3 to 5 minutes. Costs about $0.50 to $0.90 in DataForSEO plus one AI answer from your daily limit.</p>
         {canEdit ? (
           <div>
             <button type="button" className="aw-btn aw-btn--accent" onClick={start} disabled={starting}>
@@ -173,50 +197,136 @@ export function AgenticResearch({ sb, auth, site, canEdit, onOpenCalendar }: { s
   const keywords = res.keywords ?? [];
   const approved = new Set(res.approved ?? []);
   const themes = res.themes ?? [];
-  const pages: Page[] = (res.groups ?? []).map((g) => {
-    const ks = keywords.filter((k) => k.group === g.id);
-    const main = ks.find((k) => k.keyword === g.primary) ?? ks[0];
-    return { ...g, main, others: ks.filter((k) => k !== main) };
-  });
-  const shown = sortRows(
-    pages.filter((p) => (stage === "all" || p.stage === stage) && (theme === "all" || p.theme === theme)),
-    sort,
-    { keyword: (p) => p.primary, stage: (p) => STAGES.findIndex((s) => s.id === p.stage), theme: (p) => p.theme, volume: (p) => p.volume, kd: (p) => p.main?.kd ?? null },
-  );
-  const open = shown.filter((p) => !approved.has(p.primary));
-  const allOn = open.length > 0 && open.every((p) => picked.has(p.primary));
-  const someOn = open.some((p) => picked.has(p.primary));
-  const toggle = (k: string, on: boolean) => setPicked((s) => (on ? new Set([...s, k]) : new Set([...s].filter((x) => x !== k))));
+  const rows: Row[] = [
+    ...(res.groups ?? []).map((g): Row => {
+      const ks = keywords.filter((k) => k.group === g.id);
+      const main = ks.find((k) => k.keyword === g.primary) ?? ks[0];
+      return {
+        key: g.primary,
+        action: "new",
+        keyword: g.primary,
+        others: ks.filter((k) => k !== main).map((k) => k.keyword),
+        stage: g.stage,
+        theme: g.theme,
+        volume: g.volume,
+        kd: main?.kd ?? null,
+        cpc: main?.cpc ?? null,
+        intent: main?.intent ?? null,
+        serp: main?.serp ?? [],
+        source: ks.find((k) => k.competitor)?.competitor ? `Competitor: ${ks.find((k) => k.competitor)!.competitor}` : "AI idea",
+        url: null,
+        rank: null,
+        lowData: Boolean(main?.lowData),
+      };
+    }),
+    ...(res.updates ?? []).map(
+      (u): Row => ({
+        key: `update:${u.page}`,
+        action: "update",
+        keyword: u.keyword,
+        others: [],
+        stage: u.stage,
+        theme: u.theme,
+        volume: u.volume,
+        kd: u.kd,
+        cpc: u.cpc,
+        intent: u.intent,
+        serp: u.serp,
+        source: "Your sitemap",
+        url: u.page,
+        rank: u.rank ?? null,
+        lowData: false,
+      }),
+    ),
+  ];
+  const pageCount = rows.filter((r) => r.action === "new").length;
+  const updateCount = rows.length - pageCount;
 
   async function approve() {
-    const list = pages.filter((p) => picked.has(p.primary) && !approved.has(p.primary));
+    const list = rows.filter((r) => picked.has(r.key) && !approved.has(r.key));
     setError("");
     try {
       const n = await addCalendarItems(
         sb,
         auth.workspaceId,
-        list.map((p) => ({
+        list.map((r) => ({
           site_id: site.id,
-          keyword: p.primary,
-          secondary: p.others.map((k) => k.keyword),
-          stage: p.stage,
-          theme: p.theme,
-          volume: p.volume,
-          difficulty: p.main?.kd ?? null,
-          intent: p.main?.intent ?? null,
-          cpc: p.main?.cpc ?? null,
-          source: "agentic research",
+          keyword: r.keyword,
+          secondary: r.others,
+          stage: r.stage,
+          theme: r.theme,
+          volume: r.volume,
+          difficulty: r.kd,
+          intent: r.intent,
+          cpc: r.cpc,
+          source: r.source === "AI idea" ? "agentic research" : r.source.toLowerCase(),
+          action: r.action,
+          current_url: r.url,
+          current_rank: r.rank,
         })),
       );
-      const next = { ...res, approved: [...approved, ...list.map((p) => p.primary)] };
+      const next = { ...res, approved: [...approved, ...list.map((r) => r.key)] };
       await saveKeywordRunResult(sb, run!.id, next);
-      setRuns(runs!.map((r) => (r.id === run!.id ? { ...r, result: next } : r)));
+      setRuns(runs!.map((x) => (x.id === run!.id ? { ...x, result: next } : x)));
       setPicked(new Set());
-      setNotice(`${n} ${n === 1 ? "page" : "pages"} added to the content calendar.`);
+      setNotice(`${n} ${n === 1 ? "row" : "rows"} added to the content calendar.${n < list.length ? ` ${list.length - n} were already on it.` : ""}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
   }
+
+  const cols: Col<Row>[] = [
+    {
+      id: "keyword",
+      label: "Keyword",
+      type: "text",
+      value: (r) => r.keyword,
+      width: 220,
+      cell: (r) => (
+        <span className="flex items-center gap-2 text-ink">
+          {r.keyword}
+          {r.lowData ? (
+            <span className="aw-status aw-status--pending" title="Google shows little or no search data for this keyword">
+              Low data
+            </span>
+          ) : null}
+        </span>
+      ),
+    },
+    { id: "action", label: "Job", type: "list", value: (r) => (r.action === "update" ? "Update page" : "New page"), options: ["New page", "Update page"] },
+    { id: "stage", label: "Stage", type: "list", value: (r) => STAGE_LABEL[r.stage], options: ["BOFU", "MOFU", "TOFU"], cell: (r) => <StageTag stage={r.stage} /> },
+    { id: "theme", label: "Theme", type: "list", value: (r) => r.theme, options: themes },
+    { id: "volume", label: "Volume", type: "number", value: (r) => r.volume },
+    { id: "kd", label: "Difficulty", type: "number", value: (r) => r.kd, cell: (r) => <Difficulty kd={r.kd} /> },
+    { id: "cpc", label: "CPC", type: "number", value: (r) => r.cpc, cell: (r) => fmtCpc(r.cpc) },
+    { id: "intent", label: "Intent", type: "list", value: (r) => r.intent },
+    { id: "aio", label: "AI Overview", type: "list", value: (r) => (r.serp.includes("ai_overview") ? "Yes" : "No"), options: ["Yes", "No"] },
+    { id: "source", label: "Source", type: "list", value: (r) => r.source },
+    {
+      id: "url",
+      label: "Existing page",
+      type: "text",
+      value: (r) => r.url,
+      cell: (r) =>
+        r.url ? (
+          <a href={r.url} target="_blank" rel="noopener noreferrer" className="block max-w-64 truncate" title={r.url}>
+            {r.url.replace(/^https?:\/\/(www\.)?/, "")}
+          </a>
+        ) : (
+          <span className="text-muted">–</span>
+        ),
+    },
+    { id: "rank", label: "Now ranks", type: "number", value: (r) => r.rank, cell: (r) => (r.rank ? `#${r.rank}` : r.action === "update" ? "Not in top 100" : <span className="text-muted">–</span>) },
+    { id: "also", label: "Also covers", type: "text", value: (r) => r.others.join(", "), cell: (r) => <span className="block max-w-72 truncate" title={r.others.join("\n")}>{r.others.join(" · ") || "–"}</span> },
+    {
+      id: "cal",
+      label: "Calendar",
+      type: "list",
+      value: (r) => (approved.has(r.key) ? "Added" : "Not yet"),
+      options: ["Added", "Not yet"],
+      cell: (r) => (approved.has(r.key) ? <span className="aw-status aw-status--ranked">Added</span> : <span className="text-muted">Not yet</span>),
+    },
+  ];
 
   return (
     <div className="flex flex-col gap-5">
@@ -232,56 +342,95 @@ export function AgenticResearch({ sb, auth, site, canEdit, onOpenCalendar }: { s
 
       <div className="aw-stats" style={{ ["--cols" as string]: 4 }}>
         {[
-          { lab: "Keywords", v: fmtNum(keywords.length) },
-          { lab: "Pages to write", v: fmtNum(pages.length) },
-          { lab: "Monthly searches", v: fmtNum(keywords.reduce((n, k) => n + (k.volume ?? 0), 0)) },
-          { lab: "Approved", v: `${approved.size} / ${pages.length}` },
-        ].map((s) => (
-          <div key={s.lab} className="aw-stat">
-            <div className="aw-stat__lab">{s.lab}</div>
-            <span className="aw-stat__num">{s.v}</span>
+          { lab: "New keywords", v: fmtNum(keywords.length) },
+          { lab: "New pages to write", v: fmtNum(pageCount) },
+          { lab: "Pages to update", v: fmtNum(updateCount) },
+          { lab: "Added to calendar", v: `${approved.size} / ${rows.length}` },
+        ].map((x) => (
+          <div key={x.lab} className="aw-stat">
+            <div className="aw-stat__lab">{x.lab}</div>
+            <span className="aw-stat__num">{x.v}</span>
           </div>
         ))}
       </div>
 
-      <Card title="Coverage map" action={<span className="aw-label">Pages per theme and stage</span>}>
-        <div className="overflow-x-auto">
-          <table className="aw-table aw-table--compact">
-            <thead>
-              <tr>
-                <th>Theme</th>
-                {STAGES.map((s) => (
-                  <th key={s.id}>{s.label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {themes.map((t) => (
-                <tr key={t}>
-                  <td className="text-ink">
-                    <button type="button" className="aw-text-link text-left" onClick={() => setTheme(theme === t ? "all" : t)}>
-                      {t}
-                    </button>
-                  </td>
-                  {STAGES.map((s) => {
-                    const n = pages.filter((p) => p.theme === t && p.stage === s.id).length;
-                    return (
-                      <td key={s.id} className="aw-num">
-                        {n ? n : <span className="text-neg">0 · gap</span>}
-                      </td>
-                    );
-                  })}
+      <div className="grid gap-5 xl:grid-cols-2">
+        <Card title="What we found">
+          <ul className="flex flex-col gap-2 p-5 text-[14px] text-body">
+            <li>
+              <span className="aw-label mr-2">Sitemap</span>
+              {res.sitemap?.source ? (
+                <>
+                  {fmtNum(res.sitemap.pages)} pages, {fmtNum(res.sitemap.articles)} articles, from{" "}
+                  <a href={res.sitemap.source.startsWith("http") ? res.sitemap.source : `https://${site.domain}`} target="_blank" rel="noopener noreferrer">
+                    {res.sitemap.source.replace(/^https?:\/\//, "")}
+                  </a>
+                </>
+              ) : (
+                "No sitemap, feed or links found. The site may block bots."
+              )}
+            </li>
+            <li>
+              <span className="aw-label mr-2">Ranking</span>
+              {fmtNum(res.sitemap?.ranking ?? 0)} of your pages show up on Google. {fmtNum(updateCount)} articles rank below the top 10 or not at all.
+            </li>
+            <li>
+              <span className="aw-label mr-2">Competitors</span>
+              {res.competitors?.length
+                ? res.competitors.map((c, i) => (
+                    <span key={c.domain}>
+                      {i ? ", " : ""}
+                      <a href={`https://${c.domain}`} target="_blank" rel="noopener noreferrer nofollow">
+                        {c.domain}
+                      </a>{" "}
+                      <span className="text-muted">({fmtNum(c.keywords)} keywords)</span>
+                    </span>
+                  ))
+                : "None found."}
+            </li>
+            <li>
+              <span className="aw-label mr-2">From competitors</span>
+              {fmtNum(keywords.filter((k) => k.competitor).length)} of the new keywords are ones your competitors already rank for.
+            </li>
+          </ul>
+        </Card>
+
+        <Card title="Coverage map" action={<span className="aw-label">Rows per theme and stage</span>}>
+          <div className="overflow-x-auto">
+            <table className="aw-table aw-table--compact">
+              <thead>
+                <tr>
+                  <th>Theme</th>
+                  {STAGES.map((x) => (
+                    <th key={x.id}>{x.label}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </Card>
+              </thead>
+              <tbody>
+                {themes.map((t) => (
+                  <tr key={t}>
+                    <td className="text-ink">{t}</td>
+                    {STAGES.map((x) => {
+                      const n = rows.filter((r) => r.theme === t && r.stage === x.id).length;
+                      return (
+                        <td key={x.id} className="aw-num">
+                          {n ? n : <span className="text-neg">0 · gap</span>}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
 
       <Card
-        title="Review and approve"
+        title="Keyword plan"
         action={
           <span className="flex flex-wrap items-center gap-2">
+            {res.cost ? <span className="aw-label">DataForSEO ${res.cost.toFixed(2)}</span> : null}
             {history}
             <button
               type="button"
@@ -289,8 +438,8 @@ export function AgenticResearch({ sb, auth, site, canEdit, onOpenCalendar }: { s
               onClick={() =>
                 downloadCsv(
                   `keyword-plan-${site.domain}.csv`,
-                  ["page keyword", "also covers", "stage", "theme", "volume", "difficulty", "intent"],
-                  pages.map((p) => [p.primary, p.others.map((k) => k.keyword).join("; "), p.stage, p.theme, p.volume, p.main?.kd, p.main?.intent]),
+                  ["keyword", "job", "stage", "theme", "volume", "difficulty", "cpc", "intent", "source", "existing page", "now ranks", "also covers"],
+                  rows.map((r) => [r.keyword, r.action, r.stage, r.theme, r.volume, r.kd, r.cpc, r.intent, r.source, r.url, r.rank, r.others.join("; ")]),
                 )
               }
             >
@@ -304,21 +453,6 @@ export function AgenticResearch({ sb, auth, site, canEdit, onOpenCalendar }: { s
           </span>
         }
       >
-        <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint px-5 py-3">
-          <Seg
-            label="Stage"
-            value={stage}
-            onChange={setStage}
-            options={[{ id: "all" as const, label: "All" }, ...STAGES.map((s) => ({ id: s.id, label: `${s.label} ${pages.filter((p) => p.stage === s.id).length}` }))]}
-          />
-          <select aria-label="Theme" value={theme} onChange={(e) => setTheme(e.target.value)} className={FIELD}>
-            <option value="all">All themes</option>
-            {themes.map((t) => (
-              <option key={t}>{t}</option>
-            ))}
-          </select>
-          {res.cost ? <span className="aw-label ml-auto">DataForSEO cost ${res.cost.toFixed(2)}</span> : null}
-        </div>
         {picked.size && canEdit ? (
           <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint bg-brand-pale px-5 py-2.5">
             <span className="text-[13px] font-medium text-ink">{picked.size} selected</span>
@@ -330,80 +464,16 @@ export function AgenticResearch({ sb, auth, site, canEdit, onOpenCalendar }: { s
             </button>
           </div>
         ) : null}
-        <div className="overflow-x-auto">
-          <table className="aw-table aw-table--compact">
-            <thead>
-              <tr>
-                <th className="w-8">
-                  <Check
-                    checked={allOn}
-                    some={someOn}
-                    disabled={!canEdit || !open.length}
-                    label="Select all shown"
-                    onChange={(on) => setPicked(on ? new Set([...picked, ...open.map((p) => p.primary)]) : new Set([...picked].filter((k) => !open.some((p) => p.primary === k))))}
-                  />
-                </th>
-                <SortTh id="keyword" sort={sort} onSort={setSort} text>
-                  Page keyword
-                </SortTh>
-                <SortTh id="stage" sort={sort} onSort={setSort} text>
-                  Stage
-                </SortTh>
-                <SortTh id="theme" sort={sort} onSort={setSort} text>
-                  Theme
-                </SortTh>
-                <SortTh id="volume" sort={sort} onSort={setSort}>
-                  Volume
-                </SortTh>
-                <SortTh id="kd" sort={sort} onSort={setSort}>
-                  Difficulty
-                </SortTh>
-                <th>On Google</th>
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((p) => {
-                const done = approved.has(p.primary);
-                return (
-                  <tr key={p.id} className={picked.has(p.primary) ? "bg-brand-pale" : ""}>
-                    <td>
-                      <Check checked={done || picked.has(p.primary)} disabled={done || !canEdit} onChange={(on) => toggle(p.primary, on)} label={`Select ${p.primary}`} />
-                    </td>
-                    <td className="max-w-md">
-                      <span className="flex flex-col gap-1">
-                        <span className="flex flex-wrap items-center gap-2 text-ink">
-                          {p.primary}
-                          {done ? <span className="aw-status aw-status--ranked">In calendar</span> : null}
-                          {p.main?.lowData ? (
-                            <span className="aw-status aw-status--pending" title="Google shows little or no search data for this keyword">
-                              Low data
-                            </span>
-                          ) : null}
-                        </span>
-                        {p.others.length ? (
-                          <span className="text-[12px] text-muted" title="These keywords share Google results with the main one, so one page covers them all">
-                            Also covers: {p.others.map((k) => k.keyword).join(" · ")}
-                          </span>
-                        ) : null}
-                      </span>
-                    </td>
-                    <td>
-                      <StageTag stage={p.stage} />
-                    </td>
-                    <td className="max-w-48 truncate text-[13px]">{p.theme}</td>
-                    <td className="aw-num">{fmtNum(p.volume)}</td>
-                    <td>
-                      <Difficulty kd={p.main?.kd ?? null} />
-                    </td>
-                    <td>
-                      <SerpTags serp={p.main?.serp ?? []} />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+        <Sheet
+          label="Keyword plan"
+          rows={rows}
+          cols={cols}
+          rowKey={(r) => r.key}
+          sort={{ key: "volume", desc: true }}
+          selected={canEdit ? picked : undefined}
+          onSelect={canEdit ? setPicked : undefined}
+          canSelect={(r) => !approved.has(r.key)}
+        />
       </Card>
     </div>
   );
