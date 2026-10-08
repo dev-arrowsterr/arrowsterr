@@ -17,10 +17,10 @@ export type Tool = "keywords" | "domain" | "agentic" | "calendar" | "writer" | "
 const TITLES: Record<Tool, string> = {
   keywords: "Keyword research",
   domain: "Domain research",
-  agentic: "Agentic keyword research",
+  agentic: "Content planner",
   calendar: "Content calendar",
-  writer: "Writer's workspace",
-  search: "Search performance",
+  writer: "Writer",
+  search: "Search Console",
 };
 
 /** The Research tools for the website picked in the top bar. */

@@ -126,3 +126,20 @@ test("writer: brief to draft, markdown, coverage", async () => {
   const c = coverage("Agency pricing models vary. A retainer is common. How much does an SEO agency cost? About...", '<a href="https://acme.com/seo">x</a>', brief);
   assert.equal(c.score, 100);
 });
+
+test("reports: wins, drops and content rows", async () => {
+  const { winsAndDrops, contentRows } = await import("../src/lib/reports.ts");
+  const traffic = { totals: { visitors: 0, visits: 0, pageviews: 0 }, totalsPrev: { visitors: 0, visits: 0, pageviews: 0 }, ai: 10, aiPrev: 2, byEngine: [{ engine: "ChatGPT", visits: 10, prev: 2 }], pages: [{ path: "/blog/a/", visits: 4 }], breakdowns: { pages: [{ x: "/blog/a", y: 120 }] } };
+  const gsc = { days: 28, property: "", totals: { clicks: 0, impressions: 0, ctr: 0, position: 0 }, totalsPrev: { clicks: 0, impressions: 0, ctr: 0, position: 0 }, series: [], queries: [],
+    pages: [{ page: "https://acme.com/blog/a", clicks: 40, impressions: 900, ctr: 0.04, position: 6, prevClicks: 10, prevPosition: 9 }],
+    pairs: [{ page: "https://acme.com/blog/a", query: "crm for dentists", clicks: 30, impressions: 500, ctr: 0.06, position: 4.24 }] };
+  const wd = winsAndDrops({ engines: [{ engine: "Gemini", now: 20, before: 35 }], traffic, gsc });
+  assert.equal(wd.wins.length, 2);
+  assert.equal(wd.drops[0].text, "Visibility on Gemini");
+  const rows = contentRows({
+    items: [{ id: "1", keyword: "crm for dentists", url: "https://acme.com/blog/a/", current_url: null, due_date: "2026-10-01", action: "new", status: "published" }, { id: "2", keyword: "x", url: null, current_url: null, due_date: null, action: "new", status: "planned" }],
+    gsc, citedPaths: new Map([["/blog/a", 25]]), traffic, visitors: [{ entry: "/blog/a", label: "Hot" }, { entry: "/", label: "Cold" }],
+  });
+  assert.equal(rows.length, 1);
+  assert.deepEqual([rows[0].position, rows[0].clicks, rows[0].cited, rows[0].visits, rows[0].aiVisits, rows[0].landed, rows[0].hot], [4.2, 40, 25, 120, 4, 1, 1]);
+});

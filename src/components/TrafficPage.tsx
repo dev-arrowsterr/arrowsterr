@@ -269,7 +269,7 @@ export function TrafficPage({ view, auth, canEdit }: { view: View; auth: RunAuth
   if (!status.connected) {
     return (
       <div className="flex max-w-3xl flex-col gap-5">
-        <h1 className="aw-h2">Analytics</h1>
+        <h1 className="aw-h2">Traffic</h1>
         {error ? <p className="aw-error">{error}</p> : null}
         <section className="aw-frame">
           <div className="aw-frame__body flex flex-col gap-4">
@@ -298,7 +298,7 @@ export function TrafficPage({ view, auth, canEdit }: { view: View; auth: RunAuth
     return (
       <div className="flex max-w-3xl flex-col gap-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="aw-h2">Analytics</h1>
+          <h1 className="aw-h2">Traffic</h1>
           {isLive ? (
             <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => setSetup(false)}>
               Back to analytics
@@ -408,7 +408,7 @@ export function TrafficPage({ view, auth, canEdit }: { view: View; auth: RunAuth
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="aw-h2">Analytics</h1>
+        <h1 className="aw-h2">Traffic</h1>
         <span className="flex flex-wrap items-center gap-3">
           <span className="aw-live">
             {traffic.now === null ? `Live on ${status.domain}` : `${num(traffic.now)} ${traffic.now === 1 ? "visitor" : "visitors"} online now`}

@@ -365,7 +365,7 @@ function BriefView({ b }: { b: Brief }) {
             ))}
           </ul>
         ) : (
-          <p className="aw-small">No matching pages found in the sitemap. Run Agentic research once to load it.</p>
+          <p className="aw-small">No matching pages found in the sitemap. Run the Planner once to load it.</p>
         )}
       </Section>
       <Section title="Sources to cite">

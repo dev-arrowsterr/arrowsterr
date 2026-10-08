@@ -6,7 +6,7 @@ import { adminClient } from "@/lib/serverAuth";
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const origin = `https://${request.headers.get("x-forwarded-host") ?? request.headers.get("host") ?? url.host}`;
-  const back = (q: Record<string, string>) => Response.redirect(`${origin}/search-performance?${new URLSearchParams(q)}`, 302);
+  const back = (q: Record<string, string>) => Response.redirect(`${origin}/search-console?${new URLSearchParams(q)}`, 302);
 
   const state = readState(url.searchParams.get("state") ?? "");
   if (!state) return back({ gsc: "error", reason: "The sign-in link expired. Try again." });

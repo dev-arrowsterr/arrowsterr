@@ -115,7 +115,7 @@ export function ContentCalendar({ sb, auth, site, canEdit, onFind, onWrite }: { 
         <div className="aw-frame__body flex flex-col gap-4">
           {error ? <p className="aw-error">{error}</p> : null}
           <h2 className="aw-h3">Your content calendar is empty</h2>
-          <p className="text-[15px] text-body">Run Agentic research to plan 120 keywords, or add keywords from Keyword research. Approved pages land here.</p>
+          <p className="text-[15px] text-body">Run the Planner to plan 120 keywords, or add keywords from Keywords. Approved pages land here.</p>
           <div className="flex flex-wrap gap-3">
             <button type="button" className="aw-btn aw-btn--accent" onClick={onFind}>
               Plan keywords
@@ -275,7 +275,7 @@ export function ContentCalendar({ sb, auth, site, canEdit, onFind, onWrite }: { 
               </form>
             ) : null}
             {canEdit ? (
-              <button type="button" className="aw-btn aw-btn--sm" onClick={() => setPlanning(!planning)}>
+              <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={() => setPlanning(!planning)}>
                 Plan dates{undated ? ` (${undated})` : ""}
               </button>
             ) : null}

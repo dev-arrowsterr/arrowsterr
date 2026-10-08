@@ -21,7 +21,7 @@ import type { View } from "@/lib/view";
 import { BrandLogo } from "./BrandLogo";
 import { Donut, Legend } from "./Donut";
 import { TYPE_COLORS, TypeTag } from "./OverviewPage";
-import { Card, Empty, favicon, pct, type Sort, sortRows, SortTh, useSort } from "./ui";
+import { Card, Empty, favicon, pct, Seg, type Sort, sortRows, SortTh, useSort } from "./ui";
 
 type Insights = {
   summary: string;
@@ -49,7 +49,7 @@ const pageTitle = (title: string | null, url: string) => {
 const VERDICT: Record<string, string> = { strong: "aw-status--ranked", okay: "aw-status--pending", weak: "aw-status--missed" };
 
 /** Every site (or page) the AI answers cite, with its type and how often it shows up. */
-export function SourcesPage({ view, mode, auth }: { view: View; mode: "domains" | "urls"; auth: RunAuth | null }) {
+export function SourcesPage({ view, mode, auth, onMode }: { view: View; mode: "domains" | "urls"; auth: RunAuth | null; onMode: (m: "domains" | "urls") => void }) {
   const { brand, current, filter, days, topics, engines } = view;
   const [type, setType] = useState<SourceType | "All">("All");
   const [sort, setSort] = useSort("used");
@@ -121,7 +121,18 @@ export function SourcesPage({ view, mode, auth }: { view: View; mode: "domains" 
 
   return (
     <div className="flex flex-col gap-5">
-      <h1 className="aw-h2">{mode === "domains" ? "Domains" : "URLs"}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="aw-h2">Sources</h1>
+        <Seg
+          label="Sources view"
+          value={mode}
+          onChange={onMode}
+          options={[
+            { id: "domains", label: "Domains" },
+            { id: "urls", label: "URLs" },
+          ]}
+        />
+      </div>
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="flex min-w-0 flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-3">

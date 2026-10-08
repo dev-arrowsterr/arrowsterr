@@ -91,7 +91,7 @@ export function VisitorsPage({ view, auth }: { view: View; auth: RunAuth }) {
     return (
       <div className="flex max-w-3xl flex-col gap-5">
         <h1 className="aw-h2">Visitors</h1>
-        <div className="aw-callout">Connect {brand.domain} in Website → Analytics first. Visitors show up here once the tracking code is live.</div>
+        <div className="aw-callout">Connect {brand.domain} in Website → Traffic first. Visitors show up here once the tracking code is live.</div>
       </div>
     );
   if (!data) return error ? <p className="aw-error">{error}</p> : <Thinking text="Meeting your visitors..." />;

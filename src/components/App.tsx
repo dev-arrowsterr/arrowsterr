@@ -36,10 +36,11 @@ import { PromptsPage } from "./PromptsPage";
 import { ResearchPage, type Tool } from "./research/ResearchPage";
 import { SourcesPage } from "./SourcesPage";
 import { TrafficPage } from "./TrafficPage";
+import { ReportsPage } from "./reports/ReportsPage";
 import { VisitorsPage } from "./VisitorsPage";
 
 export type { Brand } from "@/lib/db";
-type Page = "overview" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "search" | "keywords" | "domain" | "agentic" | "calendar" | "writer" | "members";
+type Page = "overview" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "search" | "keywords" | "domain" | "agentic" | "calendar" | "writer" | "summary" | "performance" | "members";
 const RESEARCH: Page[] = ["search", "keywords", "domain", "agentic", "calendar", "writer"];
 
 /** Each page's address. "/" opens the overview. */
@@ -47,20 +48,34 @@ const SLUGS: Record<Page, string> = {
   overview: "/overview",
   prompts: "/prompts",
   competitors: "/competitors",
-  domains: "/domains",
-  urls: "/urls",
-  traffic: "/analytics",
+  domains: "/sources",
+  urls: "/sources/urls",
+  traffic: "/traffic",
   visitors: "/visitors",
-  search: "/search-performance",
-  keywords: "/keyword-research",
+  search: "/search-console",
+  keywords: "/keywords",
   domain: "/domain-research",
-  agentic: "/agentic-research",
-  calendar: "/content-calendar",
+  agentic: "/planner",
+  calendar: "/calendar",
   writer: "/writer",
+  summary: "/reports",
+  performance: "/reports/content",
   members: "/settings",
 };
-const pageFromPath = (path: string): Page =>
-  (Object.entries(SLUGS).find(([, slug]) => slug === path.replace(/\/+$/, ""))?.[0] as Page | undefined) ?? "overview";
+/** Older addresses still open the right page. */
+const ALIASES: Record<string, Page> = {
+  "/domains": "domains",
+  "/urls": "urls",
+  "/analytics": "traffic",
+  "/search-performance": "search",
+  "/keyword-research": "keywords",
+  "/agentic-research": "agentic",
+  "/content-calendar": "calendar",
+};
+const pageFromPath = (path: string): Page => {
+  const p = path.replace(/\/+$/, "") || "/";
+  return (Object.entries(SLUGS).find(([, slug]) => slug === p)?.[0] as Page | undefined) ?? ALIASES[p] ?? "overview";
+};
 const PENDING_BRAND = "arrowsterr.brand.pending";
 
 const INVITE_KEY = "arrowsterr.invite";
@@ -463,12 +478,14 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             />
           ) : page === "competitors" ? (
             <CompetitorsPage key={`${view.brand.id}-${focus ?? ""}`} view={view} initial={focus} />
+          ) : page === "summary" || page === "performance" ? (
+            <ReportsPage key={view.brand.id} sb={sb} auth={auth} view={view} canEdit={canEdit} mode={page} onCalendar={() => go("calendar")} />
           ) : page === "visitors" ? (
             <VisitorsPage key={view.brand.id} view={view} auth={auth} />
           ) : page === "traffic" ? (
             <TrafficPage key={view.brand.id} view={view} auth={auth} canEdit={canEdit} />
           ) : page === "domains" || page === "urls" ? (
-            <SourcesPage key={`${view.brand.id}-${page}`} view={view} mode={page} auth={canEdit ? auth : null} />
+            <SourcesPage key={`${view.brand.id}-${page}`} view={view} mode={page} auth={canEdit ? auth : null} onMode={(m) => go(m)} />
           ) : (
             <OverviewPage
               key={view.brand.id}
@@ -489,38 +506,44 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
 
 const ROLE_LABEL = { owner: "Owner", admin: "Admin", editor: "Editor", viewer: "Viewer" } as const;
 
-const NAV: { group: string; items: { id: Page; label: string; icon: string }[] }[] = [
+const NAV: { group: string; items: { id: Page; label: string; icon: string; also?: Page[] }[] }[] = [
   {
-    group: "General",
+    group: "AI visibility",
     items: [
       { id: "overview", label: "Overview", icon: "◰" },
       { id: "prompts", label: "Prompts", icon: "☰" },
       { id: "competitors", label: "Competitors", icon: "⇅" },
-    ],
-  },
-  {
-    group: "Sources",
-    items: [
-      { id: "domains", label: "Domains", icon: "◍" },
-      { id: "urls", label: "URLs", icon: "⛓" },
+      { id: "domains", label: "Sources", icon: "◍", also: ["urls"] },
     ],
   },
   {
     group: "Website",
     items: [
-      { id: "traffic", label: "Analytics", icon: "↗" },
+      { id: "traffic", label: "Traffic", icon: "↗" },
       { id: "visitors", label: "Visitors", icon: "☺" },
+      { id: "search", label: "Search Console", icon: "G" },
     ],
   },
   {
-    group: "Research",
+    group: "SEO research",
     items: [
-      { id: "search", label: "Search performance", icon: "G" },
-      { id: "keywords", label: "Keyword research", icon: "⌕" },
-      { id: "domain", label: "Domain research", icon: "◎" },
-      { id: "agentic", label: "Agentic research", icon: "✦" },
-      { id: "calendar", label: "Content calendar", icon: "▦" },
+      { id: "keywords", label: "Keywords", icon: "⌕" },
+      { id: "domain", label: "Domains", icon: "◎" },
+    ],
+  },
+  {
+    group: "Content",
+    items: [
+      { id: "agentic", label: "Planner", icon: "✦" },
+      { id: "calendar", label: "Calendar", icon: "▦" },
       { id: "writer", label: "Writer", icon: "✎" },
+    ],
+  },
+  {
+    group: "Reports",
+    items: [
+      { id: "summary", label: "Summary", icon: "▤" },
+      { id: "performance", label: "Content performance", icon: "▲" },
     ],
   },
   { group: "Settings", items: [{ id: "members", label: "Workspace & members", icon: "⚙" }] },
@@ -548,7 +571,7 @@ function Sidebar({
 }) {
   const [open, setOpen] = useState(false);
   return (
-    <aside className="flex shrink-0 flex-col gap-5 border-b border-rule bg-white px-3 py-4 md:sticky md:top-0 md:h-screen md:w-60 md:border-r md:border-b-0">
+    <aside className="flex shrink-0 flex-col gap-5 border-b border-rule bg-white px-3 py-4 print:hidden md:sticky md:top-0 md:h-screen md:w-60 md:border-r md:border-b-0">
       <div className="px-2">
         <Logo size="sm" />
       </div>
@@ -608,8 +631,8 @@ function Sidebar({
                 key={item.id}
                 type="button"
                 onClick={() => onPage(item.id)}
-                aria-current={page === item.id ? "page" : undefined}
-                className={`flex items-center gap-2.5 px-3 py-1.5 text-left text-[14px] font-medium ${page === item.id ? "bg-surface-2 text-ink shadow-[inset_2px_0_0_var(--aw-brand)]" : "text-body hover:bg-surface-2"}`}
+                aria-current={page === item.id || item.also?.includes(page) ? "page" : undefined}
+                className={`flex items-center gap-2.5 px-3 py-1.5 text-left text-[14px] font-medium ${page === item.id || item.also?.includes(page) ? "bg-surface-2 text-ink shadow-[inset_2px_0_0_var(--aw-brand)]" : "text-body hover:bg-surface-2"}`}
               >
                 <span aria-hidden="true" className="w-4 text-center text-[13px] opacity-70">
                   {item.icon}
@@ -663,7 +686,7 @@ function TopBar(p: {
   const [open, setOpen] = useState(false);
   const pill = "flex items-center gap-2 rounded-aw border border-rule bg-white px-3 py-1.5 text-[13px] font-medium text-ink shadow-aw-sm";
   return (
-    <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b border-rule bg-white/95 px-4 py-2.5 backdrop-blur sm:px-6">
+    <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b border-rule bg-white/95 print:hidden px-4 py-2.5 backdrop-blur sm:px-6">
       <div className="relative">
         <button type="button" className={pill} onClick={() => setOpen(!open)} aria-expanded={open}>
           {p.active ? <BrandLogo src={p.active.logo} name={p.active.name} size={18} /> : null}

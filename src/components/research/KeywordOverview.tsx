@@ -108,7 +108,7 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
       {picked.size && canEdit ? (
         <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint bg-brand-pale px-5 py-2.5">
           <span className="text-[13px] font-medium text-ink">{picked.size} selected</span>
-          <button type="button" className="aw-btn aw-btn--sm" onClick={() => addToCalendar(rows.filter((r) => picked.has(r.keyword)))}>
+          <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={() => addToCalendar(rows.filter((r) => picked.has(r.keyword)))}>
             Add to calendar
           </button>
           <button type="button" className="aw-text-link text-[13px]" onClick={() => setPicked(new Set())}>

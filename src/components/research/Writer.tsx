@@ -472,7 +472,7 @@ function Assistant({ auth, site, docId, editor, text, canEdit, hasGuideline }: {
           ) : (
             <span />
           )}
-          <button type="submit" className="aw-btn aw-btn--sm" disabled={!canEdit || busy || !input.trim()}>
+          <button type="submit" className="aw-btn aw-btn--primary aw-btn--sm" disabled={!canEdit || busy || !input.trim()}>
             Send
           </button>
         </div>
