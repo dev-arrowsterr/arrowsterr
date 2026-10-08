@@ -8,7 +8,7 @@ import { cleanSources, linksInText, type Source } from "./sources";
 export type DfsEngine = "ChatGPT" | "Gemini" | "AI Overview" | "AI Mode";
 export type Organic = { rank: number; domain: string; url: string };
 /** shown: Google showed an AI answer for the search. organic: Google's top 20 regular results (AI Overview only). */
-export type DfsAnswer = { text: string; sources: Source[]; shown?: boolean; organic?: Organic[] };
+export type DfsAnswer = { text: string; sources: Source[]; shown?: boolean; organic?: Organic[]; queries?: string[] };
 
 const API = process.env.DFS_API_URL?.trim() || "https://api.dataforseo.com/v3";
 const PATHS: Record<DfsEngine, string> = {
@@ -67,6 +67,13 @@ type Item = {
 };
 
 /** Turn one finished task's result into answer text and cited links. */
+/** Searches the model ran, when DataForSEO returns them. */
+function queriesOf(result: Record<string, unknown> | undefined): string[] | undefined {
+  const list = [result?.fan_out_queries, result?.search_queries].find(Array.isArray) as unknown[] | undefined;
+  const out = (list ?? []).map((q) => (typeof q === "string" ? q : typeof (q as { query?: unknown })?.query === "string" ? (q as { query: string }).query : "")).filter(Boolean);
+  return out.length ? out.slice(0, 20) : undefined;
+}
+
 function read(engine: DfsEngine, result: { markdown?: string; sources?: Raw[]; items?: Item[] } | undefined): DfsAnswer {
   if (GOOGLE.includes(engine)) {
     const all = result?.items ?? [];
@@ -88,7 +95,7 @@ function read(engine: DfsEngine, result: { markdown?: string; sources?: Raw[]; i
   const items = result?.items ?? [];
   const text = (result?.markdown || items.map((i) => i.markdown ?? "").filter(Boolean).join("\n\n")).replace(/\[\d+\]/g, "");
   const sources = [...toSources(result?.sources), ...items.flatMap((i) => toSources(i.sources)), ...linksInText(text)];
-  return { text, sources: cleanSources(sources) };
+  return { text, sources: cleanSources(sources), queries: queriesOf(result as Record<string, unknown> | undefined) };
 }
 
 /** Ask now and wait for the answer. Costs more than a queued task. */

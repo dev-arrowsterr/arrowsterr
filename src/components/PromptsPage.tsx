@@ -3,17 +3,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { Chat } from "@/lib/chats";
-import { addCalendarItems, flatPrompts, siteForBrand, type Brand, type Topic } from "@/lib/db";
-import { answered, brandStats, promptDetail, promptGaps, promptRows, rankOf, topicRows, trend, type EngineCell, type Gap } from "@/lib/metrics";
+import { addCalendarItems, flatPrompts, latestAnswers, siteForBrand, type Answer, type Brand, type Topic } from "@/lib/db";
+import { answered, brandStats, promptDetail, promptGaps, promptRows, rankOf, stability, topicRows, trend, type EngineCell, type Gap } from "@/lib/metrics";
 import type { RunAuth } from "@/lib/runner";
 import { putStash } from "@/lib/stash";
 import { MAX_PROMPTS, MAX_TOPICS, PROMPTS_PER_TOPIC } from "@/lib/onboarding";
 import type { View } from "@/lib/view";
 import { BrandLogo } from "./BrandLogo";
 import { ENGINE_LOGOS, EngineName } from "./Engines";
-import { TypeTag } from "./SourcesPage";
+import { Markdown } from "./Markdown";
 import { TrendChart } from "./TrendChart";
-import { BrandName, Card, Delta, Empty, favicon, OTHER_COLORS, pct, pos, Seg, YOU_COLOR } from "./ui";
+import { BrandName, Card, Delta, Empty, favicon, OTHER_COLORS, pct, Seg, YOU_COLOR } from "./ui";
 
 type Props = {
   sb: SupabaseClient;
@@ -55,7 +55,7 @@ export function PromptsPage(p: Props) {
       {tab === "results" || readOnly ? (
         <>
           <Scores view={view} />
-          <Results view={view} focusTopic={p.focusTopic} onCompetitor={p.onCompetitor} />
+          <Results sb={p.sb} view={view} focusTopic={p.focusTopic} onCompetitor={p.onCompetitor} />
           <Gaps {...p} />
         </>
       ) : (
@@ -249,7 +249,7 @@ function Cell({ c }: { c: EngineCell }) {
   );
 }
 
-function Results({ view, focusTopic, onCompetitor }: { view: View; focusTopic?: string | null; onCompetitor: (name: string) => void }) {
+function Results({ sb, view, focusTopic, onCompetitor }: { sb: SupabaseClient; view: View; focusTopic?: string | null; onCompetitor: (name: string) => void }) {
   const { brand, current, filter, topics, engines } = view;
   const [open, setOpen] = useState<string | null>(null);
   const [closed, setClosed] = useState<Set<string>>(new Set());
@@ -371,7 +371,7 @@ function Results({ view, focusTopic, onCompetitor }: { view: View; focusTopic?: 
                         {isOpen ? (
                           <tr>
                             <td colSpan={cols} className="p-0!">
-                              <Detail view={view} prompt={r.prompt} topic={r.topic} onCompetitor={onCompetitor} />
+                              <Detail sb={sb} view={view} prompt={r.prompt} topic={r.topic} onCompetitor={onCompetitor} />
                             </td>
                           </tr>
                         ) : null}
@@ -389,34 +389,50 @@ function Results({ view, focusTopic, onCompetitor }: { view: View; focusTopic?: 
   );
 }
 
-/** Everything about one prompt: rank by model, each model's answer, the top brands and the sites cited. */
-function Detail({ view, prompt, topic, onCompetitor }: { view: View; prompt: string; topic: string; onCompetitor: (name: string) => void }) {
+const level = (n: number) => (n >= 80 ? "High" : n >= 50 ? "Medium" : "Low");
+
+/** One prompt, one model at a time: rank, how steady the answers are, the brands, the linked sites and the full answer. */
+function Detail({ sb, view, prompt, topic, onCompetitor }: { sb: SupabaseClient; view: View; prompt: string; topic: string; onCompetitor: (name: string) => void }) {
   const { brand, current, engines, filter } = view;
   const d = promptDetail(current, prompt, engines, { name: brand.name, domain: brand.domain }, filter);
-  const firstAnswered = d.engines.find((e) => e.answered)?.engine ?? engines[0];
-  const [tab, setTab] = useState(firstAnswered);
-  const [allBrands, setAllBrands] = useState(false);
+  const [tab, setTab] = useState(d.engines.find((e) => e.answered)?.engine ?? engines[0]);
+  const [scope, setScope] = useState<"latest" | "all">("latest");
   const [allSites, setAllSites] = useState(false);
+  const [texts, setTexts] = useState<Answer[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    latestAnswers(sb, brand.id, prompt).then((a) => live && setTexts(a));
+    return () => {
+      live = false;
+    };
+  }, [sb, brand.id, prompt]);
+
   const cur = d.engines.find((e) => e.engine === tab) ?? d.engines[0];
+  const st = stability(current, prompt, cur.engine, brand.name, filter);
   const last = d.engines.map((e) => e.at).filter(Boolean).sort().pop() ?? null;
+  const brands = scope === "latest" ? st.brands.filter((b) => b.latest !== null).sort((a, b) => a.latest! - b.latest!) : st.brands;
+  const full = texts?.find((t) => t.engine === cur.engine) ?? null;
+  const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
   return (
     <div className="flex flex-col gap-5 border-t border-rule bg-paper p-5">
-      {/* 1. Header */}
       <div className="flex flex-col gap-1">
         <span className="aw-micro">
           {topic} · {last ? `Checked ${new Date(last).toLocaleString()}` : "Not checked yet"}
         </span>
         <span className="text-[17px] font-medium text-ink">{prompt}</span>
       </div>
-      <div className="grid grid-cols-2 gap-px border border-rule bg-rule sm:grid-cols-3 xl:grid-cols-6">
+
+      {/* Rank on each model. Pick one to see its answer. */}
+      <div className="grid grid-cols-2 gap-px border border-rule bg-rule sm:grid-cols-3 xl:grid-cols-6" role="tablist" aria-label="Model">
         {d.engines.map((e) => (
           <button
             key={e.engine}
             type="button"
+            role="tab"
+            aria-selected={tab === e.engine}
             onClick={() => setTab(e.engine)}
-            aria-pressed={tab === e.engine}
-            className={`flex flex-col gap-2 p-3 text-left ${tab === e.engine ? "bg-brand-pale" : "bg-white hover:bg-surface-2"}`}
+            className={`flex flex-col gap-2 p-3 text-left ${tab === e.engine ? "bg-brand-pale shadow-[inset_0_-2px_0_var(--aw-brand)]" : "bg-white hover:bg-surface-2"}`}
           >
             <EngineName engine={e.engine} size={14} />
             <span className="aw-num text-[24px] leading-none text-ink">{e.rank !== null ? `#${e.rank}` : "\u00a0"}</span>
@@ -425,138 +441,175 @@ function Detail({ view, prompt, topic, onCompetitor }: { view: View; prompt: str
         ))}
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
-        {/* 2. One model's answer */}
-        <section className="aw-frame flex flex-col">
-          <div className="flex flex-wrap gap-1 border-b border-rule-faint px-3 py-2" role="tablist" aria-label="Model">
-            {d.engines.map((e) => (
-              <button key={e.engine} type="button" role="tab" aria-selected={tab === e.engine} onClick={() => setTab(e.engine)} className={`aw-chip aw-chip--btn ${tab === e.engine ? "is-on" : ""}`}>
-                {ENGINE_SHORT[e.engine] ?? e.engine}
-              </button>
-            ))}
-          </div>
-          {!cur.answered ? (
-            <p className="aw-small p-5">No answer from {cur.engine} for this prompt in this period.</p>
-          ) : (
-            <div className="flex flex-col gap-5 p-5">
-              <div className="flex flex-col gap-2">
-                <span className="aw-label">{cur.quote ? (cur.quote.brand.toLowerCase() === brand.name.toLowerCase() ? "What it says about you" : `What it says about ${cur.quote.brand}`) : "What it says"}</span>
-                {cur.quote ? (
-                  <blockquote className="border-l-2 border-brand bg-white px-4 py-3 text-[14px] leading-relaxed text-ink">{cur.quote.text}</blockquote>
-                ) : (
-                  <p className="aw-small">The quote shows up from the next daily check.</p>
-                )}
-              </div>
-              <div className="grid gap-5 md:grid-cols-2">
-                <div className="flex flex-col gap-2">
-                  <span className="aw-label">Brands in this answer</span>
-                  <ol className="flex flex-col">
-                    {cur.brands.map((b) => (
-                      <li key={b.name} className={`flex items-center gap-3 px-2 py-1.5 text-[14px] ${b.isYou ? "bg-brand-pale" : ""}`}>
-                        <span className="aw-num w-6 text-muted">#{b.position}</span>
-                        <BrandName name={b.name} domain={b.domain} logo={b.isYou ? brand.logo : undefined} isYou={b.isYou} size={16} />
-                      </li>
-                    ))}
-                    {!cur.brands.length ? <li className="aw-small">No brands named.</li> : null}
-                  </ol>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <span className="aw-label">Sources in this answer</span>
-                  <ol className="flex flex-col gap-1">
-                    {cur.sources.map((s, i) => (
-                      <li key={s.url} className={`flex min-w-0 items-center gap-2 px-2 py-1 text-[13px] ${s.isYou ? "bg-brand-pale" : ""}`}>
-                        <span className="aw-num w-6 shrink-0 text-muted">#{i + 1}</span>
-                        <BrandLogo src={favicon(s.domain)} name={s.domain} size={14} />
-                        <a href={s.url} target="_blank" rel="noopener noreferrer nofollow" className="truncate" title={s.url}>
-                          {s.title && s.title.length > 12 ? s.title : shortUrl(s.url)}
-                        </a>
-                        {s.isYou ? <span className="aw-tag shrink-0">You</span> : null}
-                      </li>
-                    ))}
-                    {!cur.sources.length ? <li className="aw-small">No sources cited.</li> : null}
-                  </ol>
-                </div>
-              </div>
-            </div>
-          )}
-        </section>
-
-        <div className="flex flex-col gap-5">
-          {/* 3. Top brands */}
+      {!cur.answered ? (
+        <p className="aw-small">No answer from {cur.engine} for this prompt in this period.</p>
+      ) : (
+        <>
           <section className="aw-frame">
-            <div className="flex items-center justify-between gap-3 border-b border-rule-faint px-4 py-3">
-              <span className="aw-label">Top brands for this prompt</span>
-              <span className="aw-small">Latest answer from each model</span>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-rule-faint px-4 py-3">
+              <span className="aw-label">Brand mention stability</span>
+              <span className="aw-small">
+                Based on {st.runs.length} {st.runs.length === 1 ? "check" : "checks"} on {cur.engine}
+              </span>
             </div>
-            <table className="aw-table aw-table--compact aw-table--tight">
-              <thead>
-                <tr>
-                  <th>Brand</th>
-                  <th className="w-24">Models</th>
-                  <th className="w-24">Avg. rank</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(allBrands ? d.brands : d.brands.slice(0, 5)).map((b) => (
-                  <tr key={b.name} className={b.isYou ? "is-you" : "cursor-pointer"} onClick={() => !b.isYou && onCompetitor(b.name)} title={b.isYou ? undefined : `Open ${b.name} on the Competitors page`}>
-                    <td className="max-w-48">
-                      <BrandName name={b.name} domain={b.domain} logo={b.isYou ? brand.logo : undefined} isYou={b.isYou} size={16} />
-                    </td>
-                    <td className="aw-num">
-                      {b.engines} of {d.answered}
-                    </td>
-                    <td className="aw-num">{pos(b.rank)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {d.brands.length > 5 ? (
-              <button type="button" className="aw-text-link px-4 py-2.5 text-[13px]" onClick={() => setAllBrands(!allBrands)}>
-                {allBrands ? "Show top 5" : `Show all ${d.brands.length}`}
-              </button>
-            ) : null}
-          </section>
-
-          {/* 4. Sites cited */}
-          <section className="aw-frame">
-            <div className="flex items-center justify-between gap-3 border-b border-rule-faint px-4 py-3">
-              <span className="aw-label">Sites cited for this prompt</span>
-            </div>
-            <ul className="divide-y divide-rule-faint">
-              {(allSites ? d.sites : d.sites.slice(0, 6)).map((x) => (
-                <li key={x.domain} className="flex flex-col gap-1.5 px-4 py-3">
-                  <span className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="flex min-w-0 items-center gap-2 text-[14px] text-ink">
-                      <BrandLogo src={favicon(x.domain)} name={x.domain} size={16} />
-                      <span className="truncate">{x.domain}</span>
-                      <TypeTag type={x.type} />
-                    </span>
-                    <span className="aw-small whitespace-nowrap">
-                      {x.engines} {x.engines === 1 ? "model" : "models"}
-                    </span>
+            <div className="grid gap-px bg-rule-faint sm:grid-cols-2 xl:grid-cols-4">
+              {[
+                { lab: "Mention rate", v: pct(st.mentionRate), sub: `${st.runs.filter((r) => r.named).length} of ${st.runs.length} checks`, help: "How often you show up at all." },
+                { lab: "Your stability", v: `${Math.round(st.yourStability)}`, tag: level(st.yourStability), sub: `Changed ${st.flips} ${st.flips === 1 ? "time" : "times"}`, help: "100 means you were always in or always out." },
+                { lab: "All brands stability", v: `${Math.round(st.allStability)}`, tag: level(st.allStability), sub: "Across all brands", help: "100 means the same brands showed up every check." },
+                { lab: "New brand rate", v: st.newBrandRate.toFixed(st.newBrandRate % 1 ? 1 : 0), sub: "New brands per check", help: `${st.brandsSeen} brands seen, about ${Math.round(st.perAnswer)} per answer.` },
+              ].map((m) => (
+                <div key={m.lab} className="flex flex-col gap-1.5 bg-white p-4">
+                  <span className="aw-label">{m.lab}</span>
+                  <span className="flex items-baseline gap-2">
+                    <span className="aw-num text-[28px] leading-none text-ink">{m.v}</span>
+                    {m.tag ? <span className="aw-tag">{m.tag}</span> : null}
                   </span>
-                  <ul className="flex flex-col gap-0.5 pl-6">
-                    {x.pages.slice(0, 1).map((pg) => (
-                      <li key={pg.url} className="min-w-0 text-[13px]">
-                        <a href={pg.url} target="_blank" rel="noopener noreferrer nofollow" className="block truncate" title={pg.url}>
-                          {pg.title && pg.title.length > 12 ? pg.title : shortUrl(pg.url)} ↗
-                        </a>
-                      </li>
-                    ))}
-                    {x.pages.length > 1 ? <li className="aw-small">+{x.pages.length - 1} more</li> : null}
-                  </ul>
-                </li>
+                  <span className="text-[13px] text-ink">{m.sub}</span>
+                  <span className="aw-small">{m.help}</span>
+                </div>
               ))}
-              {!d.sites.length ? <li className="aw-small px-4 py-4">No sites cited yet.</li> : null}
-            </ul>
-            {d.sites.length > 6 ? (
-              <button type="button" className="aw-text-link px-4 py-2.5 text-[13px]" onClick={() => setAllSites(!allSites)}>
-                {allSites ? "Show top 6" : `Show all ${d.sites.length}`}
-              </button>
-            ) : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-rule-faint px-4 py-3">
+              <span className="aw-label">Your checks</span>
+              <span className="flex flex-wrap gap-1">
+                {st.runs.map((r) => (
+                  <span
+                    key={r.at}
+                    title={`${day(r.at)}: ${r.named ? `named at #${r.rank}` : "not named"}`}
+                    className={`inline-block h-4 w-4 border ${r.named ? "border-brand bg-brand" : "border-rule bg-white"}`}
+                  />
+                ))}
+              </span>
+              {st.runs.length ? (
+                <span className="aw-small">
+                  {day(st.runs[0].at)} to {day(st.runs[st.runs.length - 1].at)}
+                </span>
+              ) : null}
+              <span className="flex items-center gap-3 text-[12px] text-body">
+                <span className="flex items-center gap-1.5">
+                  <i className="inline-block h-3 w-3 border border-brand bg-brand" /> Named
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <i className="inline-block h-3 w-3 border border-rule bg-white" /> Not named
+                </span>
+              </span>
+            </div>
           </section>
-        </div>
-      </div>
+
+          <div className="grid gap-5 xl:grid-cols-2">
+            <section className="aw-frame self-start">
+              <div className="flex items-center justify-between gap-3 border-b border-rule-faint px-4 py-2.5">
+                <span className="aw-label">Brand mentions</span>
+                <Seg
+                  label="Checks"
+                  value={scope}
+                  onChange={setScope}
+                  options={[
+                    { id: "latest", label: "Latest check" },
+                    { id: "all", label: "All checks" },
+                  ]}
+                />
+              </div>
+              <table className="aw-table aw-table--compact aw-table--tight">
+                <thead>
+                  <tr>
+                    {scope === "latest" ? <th className="w-10">#</th> : null}
+                    <th>Brand</th>
+                    <th className="w-32">Track record</th>
+                    <th className="w-20">Stability</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {brands.map((b) => (
+                    <tr key={b.name} className={b.isYou ? "is-you" : "cursor-pointer"} onClick={() => !b.isYou && onCompetitor(b.name)}>
+                      {scope === "latest" ? <td className="aw-num text-muted">{b.latest}</td> : null}
+                      <td className="max-w-48">
+                        <BrandName name={b.name} domain={b.isYou ? brand.domain : b.domain} logo={b.isYou ? brand.logo : undefined} isYou={b.isYou} size={16} />
+                      </td>
+                      <td className="aw-num whitespace-nowrap">
+                        {pct(b.rate)} · {b.seen}/{st.runs.length}
+                      </td>
+                      <td className="aw-num">{Math.round(b.stability)}</td>
+                    </tr>
+                  ))}
+                  {!brands.length ? (
+                    <tr>
+                      <td colSpan={4} className="aw-small">
+                        No brands named.
+                      </td>
+                    </tr>
+                  ) : null}
+                </tbody>
+              </table>
+            </section>
+
+            <section className="aw-frame self-start">
+              <div className="flex items-center justify-between gap-3 border-b border-rule-faint px-4 py-3">
+                <span className="aw-label">Linked sites</span>
+                <span className="aw-small">Latest check</span>
+              </div>
+              <ol className="divide-y divide-rule-faint">
+                {(allSites ? cur.sources : cur.sources.slice(0, 10)).map((x, i) => (
+                  <li key={x.url} className={`flex gap-3 px-4 py-2.5 ${x.isYou ? "bg-brand-pale" : ""}`}>
+                    <span className="aw-num w-7 shrink-0 text-[13px] text-muted">#{i + 1}</span>
+                    <span className="flex min-w-0 flex-col">
+                      <a href={x.url} target="_blank" rel="noopener noreferrer nofollow" className="truncate text-[14px]" title={x.title ?? x.url}>
+                        {x.title || shortUrl(x.url)}
+                      </a>
+                      <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-muted">
+                        <BrandLogo src={favicon(x.domain)} name={x.domain} size={12} />
+                        <span className="truncate">{shortUrl(x.url)}</span>
+                        {x.isYou ? <span className="aw-tag shrink-0">You</span> : null}
+                      </span>
+                    </span>
+                  </li>
+                ))}
+                {!cur.sources.length ? <li className="aw-small px-4 py-4">No sites linked.</li> : null}
+              </ol>
+              {cur.sources.length > 10 ? (
+                <button type="button" className="aw-text-link px-4 py-2.5 text-[13px]" onClick={() => setAllSites(!allSites)}>
+                  {allSites ? "Show top 10" : `Show all ${cur.sources.length} linked sites`}
+                </button>
+              ) : null}
+            </section>
+          </div>
+
+          {cur.queries.length ? (
+            <section className="aw-frame">
+              <div className="border-b border-rule-faint px-4 py-3">
+                <span className="aw-label">Search queries</span>
+              </div>
+              <ul className="flex flex-col gap-1.5 px-4 py-3 text-[14px] text-ink">
+                {cur.queries.map((q) => (
+                  <li key={q} className="flex gap-2">
+                    <span aria-hidden="true" className="text-muted">
+                      ⌕
+                    </span>
+                    {q}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ) : null}
+
+          <section className="aw-frame">
+            <div className="flex items-center justify-between gap-3 border-b border-rule-faint px-4 py-3">
+              <span className="aw-label">Full answer</span>
+              {full ? <span className="aw-small">{new Date(full.at).toLocaleString()}</span> : null}
+            </div>
+            <div className="max-h-[640px] overflow-y-auto px-5 py-4">
+              {texts === null ? (
+                <span className="aw-small">Loading...</span>
+              ) : full ? (
+                <Markdown text={full.text} />
+              ) : (
+                <span className="aw-small">Full answers are saved from the next daily check. Run supabase/012_answers.sql in Supabase first if you have not.</span>
+              )}
+            </div>
+          </section>
+        </>
+      )}
     </div>
   );
 }

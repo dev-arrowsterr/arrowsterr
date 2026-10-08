@@ -92,3 +92,23 @@ test("pages with the same title on one site count once", async () => {
   assert.equal(d.sites[0].pages.length, 1);
   assert.equal(d.engines[0].sources.length, 1);
 });
+
+test("stability counts flips, overlap and new brands across checks", async () => {
+  const { stability } = await import("../src/lib/metrics.ts");
+  const runs = [
+    { at: "2026-10-01T00:00:00Z", engines: ["ChatGPT"], chats: [chat("ChatGPT", "q", ["Acme", "Rival"])] },
+    { at: "2026-10-02T00:00:00Z", engines: ["ChatGPT"], chats: [chat("ChatGPT", "q", ["Rival", "New"])] },
+    { at: "2026-10-03T00:00:00Z", engines: ["ChatGPT"], chats: [chat("ChatGPT", "q", ["Rival", "New"])] },
+  ];
+  const s = stability(runs, "q", "ChatGPT", "Acme", () => true);
+  assert.equal(Math.round(s.mentionRate), 33);
+  assert.equal(s.flips, 1);
+  assert.equal(s.yourStability, 50);
+  assert.equal(Math.round(s.allStability), Math.round((100 / 3 + 100) / 2));
+  assert.equal(s.newBrandRate, 0.5);
+  assert.equal(s.brands[0].name, "Rival");
+  assert.equal(s.brands[0].stability, 100);
+  const one = stability(runs.slice(0, 1), "q", "ChatGPT", "Acme", () => true);
+  assert.equal(one.yourStability, 100);
+  assert.equal(one.newBrandRate, 0);
+});

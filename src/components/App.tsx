@@ -14,6 +14,8 @@ import {
   listWorkspaces,
   saveBrand,
   saveRunChats,
+  saveAnswers,
+  answerRows,
   startRun as startSavedRun,
   topicsOf,
   type Brand,
@@ -254,6 +256,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
     if (runId) {
       try {
         await saveRunChats(sb, runId, finished.chats);
+        await saveAnswers(sb, answerRows(finished.chats, { workspace_id: ws.id, brand_id: brand.id, run_id: runId, at: finished.at }));
       } catch (e) {
         setError(`Could not save this run: ${e instanceof Error ? e.message : String(e)}`);
       }

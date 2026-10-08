@@ -409,6 +409,7 @@ export type PromptEngine = {
   brands: { name: string; domain: string | null; position: number; isYou: boolean }[];
   sources: { url: string; title: string | null; domain: string; isYou: boolean }[];
   quote: { brand: string; text: string } | null;
+  queries: string[];
 };
 export type PromptBrand = { name: string; domain: string | null; isYou: boolean; engines: number; rank: number };
 export type PromptSite = {
@@ -461,6 +462,7 @@ export function promptDetail(runs: Run[], prompt: string, engines: string[], you
             })
         : [],
       quote: ok ? (c!.quote ?? null) : null,
+      queries: ok ? (c!.queries ?? []) : [],
     };
   });
   const answeredRows = rows.filter((r) => r.answered);
@@ -498,4 +500,78 @@ export function promptDetail(runs: Run[], prompt: string, engines: string[], you
     .sort((a, b) => b.engines - a.engines || b.pages.length - a.pages.length);
 
   return { engines: rows, answered: answeredRows.length, brands: brandList, sites: siteList };
+}
+
+// ─────────────── stability: one prompt on one model, across checks ───────────────
+
+export type StabilityBrand = { name: string; domain: string | null; isYou: boolean; seen: number; rate: number; stability: number; latest: number | null };
+export type Stability = {
+  runs: { at: string; named: boolean; rank: number | null }[]; // oldest first
+  mentionRate: number; // % of checks that named you
+  yourStability: number; // 100 means your presence never flipped
+  flips: number;
+  allStability: number; // 100 means the same brands showed up every check
+  newBrandRate: number; // new brands per check, after the first
+  brandsSeen: number;
+  perAnswer: number;
+  brands: StabilityBrand[];
+};
+
+const steady = (xs: boolean[]) => {
+  const flips = xs.slice(1).filter((x, i) => x !== xs[i]).length;
+  return { flips, score: xs.length > 1 ? 100 - (flips / (xs.length - 1)) * 100 : 100 };
+};
+
+/** How steady the answers to one prompt on one model are across every check in the period. */
+export function stability(runs: Run[], prompt: string, engine: string, you: string, filter: Filter): Stability {
+  const list = [...runs]
+    .sort((a, b) => a.at.localeCompare(b.at))
+    .flatMap((r) => r.chats.filter((c) => c.prompt === prompt && c.engine === engine && filter(c) && isAnswered(c)).map((c) => ({ at: r.at, c })));
+  const sets = list.map((x) => new Set(x.c.brands.map((b) => b.name.toLowerCase())));
+  const mine = list.map((x) => x.c.brands.find((b) => same(b.name, you)));
+  const presence = mine.map(Boolean);
+  const { flips, score } = steady(presence);
+
+  const overlap = sets.slice(1).map((s, i) => {
+    const prev = sets[i];
+    const union = new Set([...s, ...prev]);
+    return union.size ? ([...s].filter((x) => prev.has(x)).length / union.size) * 100 : 100;
+  });
+  const seenSoFar = new Set<string>();
+  const fresh: number[] = [];
+  sets.forEach((s, i) => {
+    if (i) fresh.push([...s].filter((x) => !seenSoFar.has(x)).length);
+    s.forEach((x) => seenSoFar.add(x));
+  });
+
+  const names = new Map<string, { name: string; domain: string | null }>();
+  for (const x of list) for (const b of x.c.brands) if (!names.has(b.name.toLowerCase())) names.set(b.name.toLowerCase(), { name: b.name, domain: b.domain ?? null });
+  const last = list[list.length - 1]?.c;
+  const brands: StabilityBrand[] = [...names.entries()]
+    .map(([k, b]) => {
+      const here = sets.map((s) => s.has(k));
+      const seen = here.filter(Boolean).length;
+      return {
+        name: b.name,
+        domain: b.domain,
+        isYou: same(b.name, you),
+        seen,
+        rate: list.length ? (seen / list.length) * 100 : 0,
+        stability: steady(here).score,
+        latest: last?.brands.find((x) => x.name.toLowerCase() === k)?.position ?? null,
+      };
+    })
+    .sort((a, b) => b.rate - a.rate || (a.latest ?? 99) - (b.latest ?? 99));
+
+  return {
+    runs: list.map((x, i) => ({ at: x.at, named: presence[i], rank: mine[i]?.position ?? null })),
+    mentionRate: list.length ? (presence.filter(Boolean).length / list.length) * 100 : 0,
+    yourStability: score,
+    flips,
+    allStability: overlap.length ? overlap.reduce((a, b) => a + b, 0) / overlap.length : 100,
+    newBrandRate: fresh.length ? fresh.reduce((a, b) => a + b, 0) / fresh.length : 0,
+    brandsSeen: names.size,
+    perAnswer: list.length ? sets.reduce((n, s) => n + s.size, 0) / list.length : 0,
+    brands,
+  };
 }

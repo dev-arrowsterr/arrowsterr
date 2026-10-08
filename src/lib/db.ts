@@ -122,6 +122,27 @@ export async function saveRunChats(sb: SupabaseClient, runId: string, chats: Cha
   check(await sb.from("runs").update({ chats: slim(chats) }).eq("id", runId));
 }
 
+export type Answer = { engine: string; prompt: string; text: string; at: string };
+
+/** Rows for the answers table: every chat that has text. */
+export const answerRows = (chats: Chat[], ctx: { workspace_id: string; brand_id: string; run_id: string | null; at: string }) =>
+  chats.filter((c) => c.text && !c.error).map((c) => ({ ...ctx, engine: c.engine, prompt: c.prompt, text: c.text }));
+
+/** Save full answers. Skipped when the answers table is missing, so a run never fails over it. */
+export async function saveAnswers(sb: SupabaseClient, rows: ReturnType<typeof answerRows>) {
+  if (!rows.length) return;
+  const { error } = await sb.from("answers").insert(rows);
+  if (error) console.warn("Answers not saved:", error.message);
+}
+
+/** The latest full answer from each model for one prompt. Empty when none are saved. */
+export async function latestAnswers(sb: SupabaseClient, brandId: string, prompt: string): Promise<Answer[]> {
+  const { data, error } = await sb.from("answers").select("engine, prompt, text, at").eq("brand_id", brandId).eq("prompt", prompt).order("at", { ascending: false }).limit(40);
+  if (error) return [];
+  const seen = new Set<string>();
+  return (data as Answer[]).filter((a) => !seen.has(a.engine) && seen.add(a.engine));
+}
+
 export async function listMembers(sb: SupabaseClient, workspaceId: string): Promise<Member[]> {
   return check(await sb.from("workspace_members").select("user_id, email, role").eq("workspace_id", workspaceId).order("created_at")) as Member[];
 }

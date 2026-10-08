@@ -10,6 +10,7 @@ export async function readAnswer(engine: string, prompt: string, answer: DfsAnsw
   const chat: Chat = { engine, prompt, text: answer.text, sources: answer.sources, brands: [], error: null };
   if (answer.shown !== undefined) chat.shown = answer.shown;
   if (answer.organic) chat.organic = answer.organic;
+  if (answer.queries) chat.queries = answer.queries;
   // Google showed no AI answer, so there is nothing to read.
   if (answer.text === NO_AI_OVERVIEW) return { ...chat, sources: [] };
   try {

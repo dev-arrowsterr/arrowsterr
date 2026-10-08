@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { answerChat, readAnswer } from "@/lib/answer";
 import type { Chat } from "@/lib/chats";
 import { getTask, postTasks, type DfsEngine } from "@/lib/dataforseo";
+import { answerRows, saveAnswers } from "@/lib/db";
 import { availableEngines, viaDfs, type Engine } from "@/lib/engines";
 import { adminClient } from "@/lib/serverAuth";
 
@@ -160,6 +161,7 @@ export async function POST(request: Request) {
     const queued = [...stillQueued, ...run.queued.slice(CHECKS)];
     answeredNow = results.length;
 
+    await saveAnswers(sb, answerRows(results, { workspace_id: run.workspace_id, brand_id: run.brand_id, run_id: run.id, at: new Date().toISOString() }));
     const chats = [...run.chats, ...results.map(slim)];
     const left = todo({ ...run, chats, queued }, engines).length;
     const status = left || queued.length ? "running" : chats.some((c) => c.error === LIMIT) ? "limited" : "done";
