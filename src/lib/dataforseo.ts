@@ -22,7 +22,7 @@ const GOOGLE: DfsEngine[] = ["AI Overview", "AI Mode"];
 
 export const dfsReady = () => Boolean(process.env.DFS_LOGIN?.trim() && process.env.DFS_PASSWORD?.trim());
 
-async function call(path: string, body?: unknown) {
+export async function call(path: string, body?: unknown) {
   const auth = Buffer.from(`${process.env.DFS_LOGIN?.trim()}:${process.env.DFS_PASSWORD?.trim()}`).toString("base64");
   const res = await fetch(`${API}/${path}`, {
     method: body ? "POST" : "GET",

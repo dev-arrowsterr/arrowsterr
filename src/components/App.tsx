@@ -32,11 +32,13 @@ import { MembersPage } from "./MembersPage";
 import { Onboarding, type NewBrand } from "./Onboarding";
 import { OverviewPage } from "./OverviewPage";
 import { PromptsPage } from "./PromptsPage";
+import { ResearchPage, type Tool } from "./research/ResearchPage";
 import { SourcesPage } from "./SourcesPage";
 import { TrafficPage } from "./TrafficPage";
 
 export type { Brand } from "@/lib/db";
-type Page = "overview" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "members";
+type Page = "overview" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "keywords" | "agentic" | "calendar" | "members";
+const RESEARCH: Page[] = ["keywords", "agentic", "calendar"];
 
 const INVITE_KEY = "arrowsterr.invite";
 const LEGACY_BRANDS = "arrowsterr.brands";
@@ -338,7 +340,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
         }}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        {page !== "members" ? (
+        {page !== "members" && !RESEARCH.includes(page) ? (
           <TopBar
             brands={brands}
             active={active}
@@ -380,6 +382,17 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           ) : null}
           {page === "members" ? (
             <MembersPage key={ws.id} sb={sb} ws={ws} userId={userId} onChanged={loadWorkspaces} />
+          ) : RESEARCH.includes(page) ? (
+            <ResearchPage
+              key={ws.id}
+              sb={sb}
+              auth={auth}
+              brands={brands}
+              activeBrandId={active?.id ?? null}
+              canEdit={canEdit}
+              tool={page as Tool}
+              onTool={(t) => setPage(t)}
+            />
           ) : !view ? (
             <div className="aw-callout max-w-xl">This workspace has no brands yet. Ask an editor or admin to add one.</div>
           ) : page === "prompts" ? (
@@ -437,6 +450,14 @@ const NAV: { group: string; items: { id: Page; label: string; icon: string }[] }
     ],
   },
   { group: "Website", items: [{ id: "traffic", label: "Analytics", icon: "↗" }] },
+  {
+    group: "Research",
+    items: [
+      { id: "keywords", label: "Keyword research", icon: "⌕" },
+      { id: "agentic", label: "Agentic research", icon: "✦" },
+      { id: "calendar", label: "Content calendar", icon: "▦" },
+    ],
+  },
   { group: "Settings", items: [{ id: "members", label: "Workspace & members", icon: "⚙" }] },
 ];
 

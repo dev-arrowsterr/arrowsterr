@@ -1,6 +1,7 @@
 // Every read and write the app makes. Row level security in Supabase decides what each person may do.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Chat, Run } from "./chats";
+import type { AgentResult } from "./research";
 
 export type Role = "owner" | "admin" | "editor" | "viewer";
 export const ROLE_RANK: Record<Role, number> = { owner: 4, admin: 3, editor: 2, viewer: 1 };
@@ -179,4 +180,95 @@ export async function getUsage(sb: SupabaseClient, workspaceId: string): Promise
     answersToday: u?.answers ?? 0,
     answerLimit: w.daily_answer_limit,
   };
+}
+
+// ─────────────── research ───────────────
+
+export type Site = { id: string; workspace_id: string; brand_id: string | null; domain: string; name: string; profile: Profile };
+const SITE_COLS = "id, workspace_id, brand_id, domain, name, profile";
+
+/** The workspace's websites. Brands without one get one, made from the brand, when an editor opens Research. */
+export async function listSites(sb: SupabaseClient, workspaceId: string, brands: Brand[], canEdit: boolean): Promise<Site[]> {
+  let sites = check(await sb.from("sites").select(SITE_COLS).eq("workspace_id", workspaceId).order("created_at")) as Site[];
+  const missing = brands.filter((b) => !sites.some((s) => s.brand_id === b.id || s.domain === b.domain));
+  if (canEdit && missing.length) {
+    const rows = missing.map((b) => ({ workspace_id: workspaceId, brand_id: b.id, domain: b.domain, name: b.name, profile: b.profile ?? {} }));
+    check(await sb.from("sites").upsert(rows, { onConflict: "workspace_id,domain", ignoreDuplicates: true }));
+    sites = check(await sb.from("sites").select(SITE_COLS).eq("workspace_id", workspaceId).order("created_at")) as Site[];
+  }
+  return sites;
+}
+
+export async function addSite(sb: SupabaseClient, s: Omit<Site, "id" | "brand_id">): Promise<Site> {
+  return check(await sb.from("sites").insert(s).select(SITE_COLS).single()) as Site;
+}
+
+export async function saveSite(sb: SupabaseClient, s: Site) {
+  check(await sb.from("sites").update({ name: s.name, profile: s.profile }).eq("id", s.id));
+}
+
+export async function deleteSite(sb: SupabaseClient, id: string) {
+  check(await sb.from("sites").delete().eq("id", id));
+}
+
+export type CalendarStatus = "planned" | "brief" | "writing" | "published";
+export type CalendarItem = {
+  id: string;
+  site_id: string;
+  keyword: string;
+  secondary: string[];
+  stage: "bofu" | "mofu" | "tofu" | null;
+  theme: string | null;
+  volume: number | null;
+  difficulty: number | null;
+  intent: string | null;
+  cpc: number | null;
+  status: CalendarStatus;
+  due_date: string | null;
+  owner: string | null;
+  url: string | null;
+  notes: string | null;
+  source: string | null;
+  created_at: string;
+};
+export type NewCalendarItem = Omit<CalendarItem, "id" | "status" | "due_date" | "owner" | "url" | "notes" | "created_at"> & Partial<Pick<CalendarItem, "status">>;
+const CAL_COLS = "id, site_id, keyword, secondary, stage, theme, volume, difficulty, intent, cpc, status, due_date, owner, url, notes, source, created_at";
+
+export async function listCalendar(sb: SupabaseClient, siteId: string): Promise<CalendarItem[]> {
+  return check(await sb.from("calendar_items").select(CAL_COLS).eq("site_id", siteId).order("created_at")) as CalendarItem[];
+}
+
+/** Add pages to the calendar. A keyword already on it is skipped. Returns how many were new. */
+export async function addCalendarItems(sb: SupabaseClient, workspaceId: string, items: NewCalendarItem[]): Promise<number> {
+  if (!items.length) return 0;
+  const rows = check(
+    await sb
+      .from("calendar_items")
+      .upsert(
+        items.map((i) => ({ ...i, workspace_id: workspaceId })),
+        { onConflict: "site_id,keyword", ignoreDuplicates: true },
+      )
+      .select("id"),
+  ) as { id: string }[];
+  return rows.length;
+}
+
+export async function updateCalendarItem(sb: SupabaseClient, id: string, patch: Partial<CalendarItem>) {
+  check(await sb.from("calendar_items").update(patch).eq("id", id));
+}
+
+export async function deleteCalendarItems(sb: SupabaseClient, ids: string[]) {
+  check(await sb.from("calendar_items").delete().in("id", ids));
+}
+
+export type KeywordRun = { id: string; status: "running" | "done" | "failed"; step: string; error: string | null; result: AgentResult; created_at: string; finished_at: string | null };
+
+export async function listKeywordRuns(sb: SupabaseClient, siteId: string): Promise<KeywordRun[]> {
+  return check(
+    await sb.from("keyword_runs").select("id, status, step, error, result, created_at, finished_at").eq("site_id", siteId).order("created_at", { ascending: false }).limit(10),
+  ) as KeywordRun[];
+}
+
+export async function saveKeywordRunResult(sb: SupabaseClient, id: string, result: AgentResult) {
+  check(await sb.from("keyword_runs").update({ result }).eq("id", id));
 }
