@@ -15,24 +15,27 @@ import {
   saveBrand,
   saveRunChats,
   startRun as startSavedRun,
+  topicsOf,
   type Brand,
   type SavedRun,
   type Workspace,
 } from "@/lib/db";
+import { splitPeriods, type Filter } from "@/lib/metrics";
+import type { View } from "@/lib/view";
 import { runAll, type RunAuth } from "@/lib/runner";
 import { getSupabase, type SupaConfig } from "@/lib/supa";
 import { AuthScreen, NewPassword } from "./AuthScreen";
 import { BrandLogo } from "./BrandLogo";
 import { CompetitorsPage } from "./CompetitorsPage";
-import { DashboardPage } from "./DashboardPage";
-import { GooglePage } from "./GooglePage";
 import { Logo } from "./Logo";
 import { MembersPage } from "./MembersPage";
+import { Onboarding, type NewBrand } from "./Onboarding";
+import { OverviewPage } from "./OverviewPage";
 import { PromptsPage } from "./PromptsPage";
+import { SourcesPage } from "./SourcesPage";
 
 export type { Brand } from "@/lib/db";
-type Suggestion = Omit<Brand, "id" | "workspace_id" | "daily">;
-type Page = "dashboard" | "competitors" | "google" | "prompts" | "members";
+type Page = "overview" | "prompts" | "competitors" | "domains" | "urls" | "members";
 
 const INVITE_KEY = "arrowsterr.invite";
 const LEGACY_BRANDS = "arrowsterr.brands";
@@ -90,12 +93,15 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   const [brands, setBrands] = useState<Brand[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-  const [page, setPage] = useState<Page>("dashboard");
+  const [page, setPage] = useState<Page>("overview");
   const [runs, setRuns] = useState<Record<string, SavedRun[]>>({});
   const [running, setRunning] = useState<string | null>(null);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [engines, setEngines] = useState<string[] | null>(null);
   const [notice, setNotice] = useState("");
+  const [days, setDays] = useState(30);
+  const [model, setModel] = useState("All");
+  const [topic, setTopic] = useState("All");
   const [error, setError] = useState("");
 
   const token = useCallback(async () => (await sb.auth.getSession()).data.session?.access_token ?? "", [sb]);
@@ -199,13 +205,13 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
     setRunning(null);
   }
 
-  async function onboard(s: Suggestion) {
+  async function onboard(s: NewBrand) {
     if (!ws) return;
     const brand = await addBrand(sb, { ...s, workspace_id: ws.id });
     setBrands((list) => [...(list ?? []), brand]);
     setRuns((r) => ({ ...r, [brand.id]: [] }));
     setActiveId(brand.id);
-    setPage("dashboard");
+    setPage("overview");
     setAdding(false);
   }
 
@@ -236,7 +242,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   async function importLocal() {
     if (!ws) return;
     try {
-      const old = JSON.parse(readLocal(LEGACY_BRANDS) || "[]") as (Suggestion & { id: string })[];
+      const old = JSON.parse(readLocal(LEGACY_BRANDS) || "[]") as { id: string; url: string; domain: string; name: string; logo: string; category?: string; prompts?: string[] }[];
       for (const b of old) {
         const saved = await addBrand(sb, {
           workspace_id: ws.id,
@@ -289,6 +295,31 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
     );
   }
 
+  // Filters from the top bar, applied to every results page.
+  const brandRuns = active ? (runs[active.id] ?? []) : [];
+  const allTopics = active ? topicsOf(active) : [];
+  const topicList = topic === "All" ? allTopics : allTopics.filter((t) => t.name === topic);
+  const topicPrompts = new Set(topicList.flatMap((t) => t.prompts));
+  const runEngines = [...new Set(brandRuns.flatMap((r) => r.chats.map((c) => c.engine)))];
+  const modelList = [...new Set([...(engines ?? []), ...runEngines])];
+  const filter: Filter = (c) => (model === "All" || c.engine === model) && (topic === "All" || topicPrompts.has(c.prompt));
+  const { current, previous } = splitPeriods(brandRuns, days);
+  const view: View | null = active
+    ? { brand: active, current, previous, filter, topics: topicList, engines: model === "All" ? modelList : [model], days }
+    : null;
+
+  const canRun = !canEdit
+    ? "Viewers can see results. Ask an admin for editor access to run checks."
+    : engines === null
+      ? "Loading models..."
+      : !engines.length
+        ? "No model keys are set on Render."
+        : !active?.prompts.length
+          ? "Add prompts on the Prompts page first."
+          : running && running !== active.id
+            ? "Another brand is running. Wait for it to finish."
+            : null;
+
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       <Sidebar
@@ -299,7 +330,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
         onWorkspace={(id) => {
           setWsId(id);
           setBrands(null);
-          setPage("dashboard");
+          setTopic("All");
+          setPage("overview");
         }}
         onNewWorkspace={async (name) => {
           const id = await createWorkspace(sb, name);
@@ -307,67 +339,66 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           setWsId(id);
           setBrands(null);
         }}
-        brands={brands}
-        active={active}
-        canEdit={canEdit}
         page={page}
         onPage={setPage}
-        onSwitch={setActiveId}
-        onAdd={() => setAdding(true)}
       />
-      <main className="min-w-0 flex-1 px-4 py-8 sm:px-8">
-        {notice ? (
-          <div className="aw-callout mb-6 flex items-center justify-between gap-4 text-[15px]!">
-            {notice}
-            <button type="button" className="aw-text-link" onClick={() => setNotice("")}>
-              Close
-            </button>
-          </div>
-        ) : null}
-        {error ? (
-          <div className="aw-error mb-6 flex items-center justify-between gap-4">
-            {error}
-            <button type="button" className="aw-text-link" onClick={() => setError("")}>
-              Close
-            </button>
-          </div>
-        ) : null}
-        {page === "members" ? (
-          <MembersPage key={ws.id} sb={sb} ws={ws} userId={userId} onChanged={loadWorkspaces} />
-        ) : !active ? (
-          <div className="aw-callout max-w-xl text-[16px]!">
-            This workspace has no brands yet. Ask an editor or admin to add one.
-          </div>
-        ) : page === "competitors" ? (
-          <CompetitorsPage key={active.id} brand={active} runs={runs[active.id] ?? []} />
-        ) : page === "google" ? (
-          <GooglePage key={active.id} brand={active} runs={runs[active.id] ?? []} />
-        ) : page === "prompts" ? (
-          <PromptsPage key={active.id} brand={active} readOnly={!canEdit} onChange={update} onRemove={() => remove(active.id)} />
-        ) : (
-          <DashboardPage
-            key={active.id}
-            brand={active}
-            runs={runs[active.id] ?? []}
-            running={running === active.id}
+      <div className="flex min-w-0 flex-1 flex-col">
+        {page !== "members" ? (
+          <TopBar
+            brands={brands}
+            active={active}
+            canEdit={canEdit}
+            onSwitch={(id) => {
+              setActiveId(id);
+              setTopic("All");
+            }}
+            onAdd={() => setAdding(true)}
+            days={days}
+            onDays={setDays}
+            topics={allTopics.map((t) => t.name)}
+            topic={topic}
+            onTopic={setTopic}
+            models={modelList}
+            model={model}
+            onModel={setModel}
+            running={running === active?.id}
             progress={progress}
-            canRun={
-              !canEdit
-                ? "Viewers can see results. Ask an admin for editor access to run checks."
-                : engines === null
-                  ? "Loading engines..."
-                  : !engines.length
-                    ? "No engine keys are set on Render. Add OPENAI_API_KEY, ANTHROPIC_API_KEY, GEMINI_API_KEY or PERPLEXITY_API_KEY."
-                    : !active.prompts.length
-                      ? "Add prompts on the Prompts page first."
-                      : running && running !== active.id
-                        ? "Another brand is running. Wait for it to finish."
-                        : null
-            }
-            onRun={() => runBrand(active)}
+            canRun={canRun}
+            onRun={() => active && runBrand(active)}
           />
-        )}
-      </main>
+        ) : null}
+        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">
+          {notice ? (
+            <div className="aw-callout mb-5 flex items-center justify-between gap-4">
+              {notice}
+              <button type="button" className="aw-text-link" onClick={() => setNotice("")}>
+                Close
+              </button>
+            </div>
+          ) : null}
+          {error ? (
+            <div className="aw-error mb-5 flex items-center justify-between gap-4">
+              {error}
+              <button type="button" className="aw-text-link" onClick={() => setError("")}>
+                Close
+              </button>
+            </div>
+          ) : null}
+          {page === "members" ? (
+            <MembersPage key={ws.id} sb={sb} ws={ws} userId={userId} onChanged={loadWorkspaces} />
+          ) : !view ? (
+            <div className="aw-callout max-w-xl">This workspace has no brands yet. Ask an editor or admin to add one.</div>
+          ) : page === "prompts" ? (
+            <PromptsPage key={view.brand.id} view={view} readOnly={!canEdit} onChange={update} onRemove={() => remove(view.brand.id)} />
+          ) : page === "competitors" ? (
+            <CompetitorsPage key={view.brand.id} view={view} />
+          ) : page === "domains" || page === "urls" ? (
+            <SourcesPage key={`${view.brand.id}-${page}`} view={view} mode={page} />
+          ) : (
+            <OverviewPage key={view.brand.id} view={view} onOpen={setPage} />
+          )}
+        </main>
+      </div>
     </div>
   );
 }
@@ -376,6 +407,26 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
 
 const ROLE_LABEL = { owner: "Owner", admin: "Admin", editor: "Editor", viewer: "Viewer" } as const;
 
+const NAV: { group: string; items: { id: Page; label: string; icon: string }[] }[] = [
+  {
+    group: "General",
+    items: [
+      { id: "overview", label: "Overview", icon: "◰" },
+      { id: "prompts", label: "Prompts", icon: "☰" },
+      { id: "competitors", label: "Competitors", icon: "⇅" },
+    ],
+  },
+  {
+    group: "Sources",
+    items: [
+      { id: "domains", label: "Domains", icon: "◍" },
+      { id: "urls", label: "URLs", icon: "⛓" },
+    ],
+  },
+  { group: "Settings", items: [{ id: "members", label: "Workspace & members", icon: "⚙" }] },
+];
+
+/** The workspace switcher and the page menu. */
 function Sidebar({
   sb,
   email,
@@ -383,13 +434,8 @@ function Sidebar({
   ws,
   onWorkspace,
   onNewWorkspace,
-  brands,
-  active,
-  canEdit,
   page,
   onPage,
-  onSwitch,
-  onAdd,
 }: {
   sb: SupabaseClient;
   email: string;
@@ -397,46 +443,42 @@ function Sidebar({
   ws: Workspace;
   onWorkspace: (id: string) => void;
   onNewWorkspace: (name: string) => Promise<void>;
-  brands: Brand[];
-  active: Brand | undefined;
-  canEdit: boolean;
   page: Page;
   onPage: (p: Page) => void;
-  onSwitch: (id: string) => void;
-  onAdd: () => void;
 }) {
-  const [wsOpen, setWsOpen] = useState(false);
-  const [brandOpen, setBrandOpen] = useState(false);
-  const nav: { group: string; items: { id: Page; label: string }[] }[] = [
-    { group: "General", items: [{ id: "dashboard", label: "Dashboard" }, { id: "competitors", label: "Competitors" }, { id: "google", label: "Google" }, { id: "prompts", label: "Prompts" }] },
-    { group: "Settings", items: [{ id: "members", label: "Workspace & members" }] },
-  ];
+  const [open, setOpen] = useState(false);
   return (
-    <aside className="flex shrink-0 flex-col gap-5 border-b border-rule bg-white px-4 py-5 md:min-h-screen md:w-64 md:border-r md:border-b-0">
-      <Logo size="md" />
-
+    <aside className="flex shrink-0 flex-col gap-5 border-b border-rule bg-white px-3 py-4 md:sticky md:top-0 md:h-screen md:w-60 md:border-r md:border-b-0">
+      <div className="px-2">
+        <Logo size="sm" />
+      </div>
       <div className="relative">
-        <span className="text-[12px] text-muted">Workspace</span>
         <button
           type="button"
-          onClick={() => setWsOpen(!wsOpen)}
-          className="mt-1 flex w-full items-center gap-2 rounded-aw border border-rule bg-white px-3 py-2 text-left shadow-aw-sm hover:border-brand-mist"
+          onClick={() => setOpen(!open)}
+          aria-expanded={open}
+          className="flex w-full items-center gap-2 rounded-aw border border-rule bg-white px-3 py-2 text-left shadow-aw-sm hover:border-brand-mist"
         >
-          <span className="min-w-0 flex-1 truncate text-[14px] font-medium text-ink">{ws.name}</span>
-          <span className="aw-tag">{ROLE_LABEL[ws.role]}</span>
-          <span aria-hidden="true">▾</span>
+          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] bg-ink text-[12px] font-semibold text-white">{ws.name.slice(0, 1).toUpperCase()}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[14px] font-medium text-ink">{ws.name}</span>
+            <span className="block text-[11px] text-muted">{ROLE_LABEL[ws.role]}</span>
+          </span>
+          <span aria-hidden="true" className="text-muted">
+            ▾
+          </span>
         </button>
-        {wsOpen ? (
-          <div className="absolute z-20 mt-2 w-full overflow-hidden rounded-aw border border-rule bg-white shadow-aw-lg">
+        {open ? (
+          <div className="absolute z-30 mt-2 w-full overflow-hidden rounded-aw border border-rule bg-white shadow-aw-lg">
             {workspaces.map((w) => (
               <button
                 key={w.id}
                 type="button"
                 onClick={() => {
                   onWorkspace(w.id);
-                  setWsOpen(false);
+                  setOpen(false);
                 }}
-                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[14px] hover:bg-surface-2"
+                className={`flex w-full items-center justify-between gap-2 rounded-none px-3 py-2 text-left text-[14px] hover:bg-surface-2 ${w.id === ws.id ? "text-brand" : "text-ink"}`}
               >
                 <span className="truncate">{w.name}</span>
                 <span className="text-[12px] text-muted">{ROLE_LABEL[w.role]}</span>
@@ -447,9 +489,9 @@ function Sidebar({
               onClick={async () => {
                 const name = prompt("Name your new workspace");
                 if (name?.trim()) await onNewWorkspace(name.trim());
-                setWsOpen(false);
+                setOpen(false);
               }}
-              className="w-full border-t border-rule px-3 py-2 text-left text-[14px] text-ink hover:bg-surface-2"
+              className="w-full rounded-none border-t border-rule-faint px-3 py-2 text-left text-[14px] font-medium text-brand hover:bg-surface-2"
             >
               + New workspace
             </button>
@@ -457,64 +499,21 @@ function Sidebar({
         ) : null}
       </div>
 
-      {active ? (
-        <div className="relative">
-          <span className="text-[12px] text-muted">Brand</span>
-          <button
-            type="button"
-            onClick={() => setBrandOpen(!brandOpen)}
-            className="mt-1 flex w-full items-center gap-3 rounded-aw border border-rule bg-white px-3 py-2 text-left shadow-aw-sm"
-          >
-            <BrandLogo src={active.logo} name={active.name} />
-            <span className="min-w-0 flex-1 truncate font-medium text-ink">{active.name}</span>
-            <span aria-hidden="true">▾</span>
-          </button>
-          {brandOpen ? (
-            <div className="absolute z-10 mt-2 w-full overflow-hidden rounded-aw border border-rule bg-white shadow-aw-lg">
-              {brands.map((b) => (
-                <button
-                  key={b.id}
-                  type="button"
-                  onClick={() => {
-                    onSwitch(b.id);
-                    setBrandOpen(false);
-                  }}
-                  className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-surface-2"
-                >
-                  <BrandLogo src={b.logo} name={b.name} size={22} />
-                  <span className="truncate text-[15px]">{b.name}</span>
-                </button>
-              ))}
-              {canEdit ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setBrandOpen(false);
-                    onAdd();
-                  }}
-                  className="w-full border-t border-rule px-3 py-2 text-left text-[15px] text-ink hover:bg-surface-2"
-                >
-                  + Add a brand
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      <nav className="flex flex-row flex-wrap gap-x-6 gap-y-4 md:flex-col">
-        {nav.map((g) => (
-          <div key={g.group} className="flex flex-col gap-1">
-            <span className="text-[12px] text-muted">{g.group}</span>
+      <nav className="flex flex-row flex-wrap gap-x-5 gap-y-3 md:flex-col">
+        {NAV.map((g) => (
+          <div key={g.group} className="flex flex-col gap-0.5">
+            <span className="px-3 pb-1 text-[11px] font-medium text-subtle">{g.group}</span>
             {g.items.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => onPage(item.id)}
-                className={` px-3 py-2 text-left text-[15px] font-medium ${
-                  page === item.id ? "bg-brand-bg text-brand" : "text-body hover:bg-surface-2"
-                }`}
+                aria-current={page === item.id ? "page" : undefined}
+                className={`flex items-center gap-2.5 px-3 py-1.5 text-left text-[14px] font-medium ${page === item.id ? "bg-brand-bg text-brand" : "text-body hover:bg-surface-2"}`}
               >
+                <span aria-hidden="true" className="w-4 text-center text-[13px] opacity-70">
+                  {item.icon}
+                </span>
                 {item.label}
               </button>
             ))}
@@ -522,8 +521,8 @@ function Sidebar({
         ))}
       </nav>
 
-      <div className="mt-auto flex flex-col gap-2 border-t border-rule pt-4">
-        <span className="truncate text-[13px] text-muted" title={email}>
+      <div className="mt-auto flex flex-col gap-2 border-t border-rule-faint px-2 pt-4">
+        <span className="truncate text-[12px] text-muted" title={email}>
           {email}
         </span>
         <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm self-start" onClick={() => sb.auth.signOut()}>
@@ -534,176 +533,114 @@ function Sidebar({
   );
 }
 
-// ─────────────────────────────── onboarding ───────────────────────────────
+// ─────────────────────────────── top bar ───────────────────────────────
 
-function Onboarding({
-  onDone,
-  onCancel,
-  auth,
-  importCount,
-  onImport,
-}: {
-  onDone: (b: Suggestion) => Promise<void>;
-  onCancel?: () => void;
-  auth: RunAuth;
-  importCount: number;
-  onImport: () => Promise<void>;
+const TIMEFRAMES = [7, 30, 60, 90];
+
+/** Brand, period, topic and model pickers, and the Run button. */
+function TopBar(p: {
+  brands: Brand[];
+  active: Brand | undefined;
+  canEdit: boolean;
+  onSwitch: (id: string) => void;
+  onAdd: () => void;
+  days: number;
+  onDays: (d: number) => void;
+  topics: string[];
+  topic: string;
+  onTopic: (t: string) => void;
+  models: string[];
+  model: string;
+  onModel: (m: string) => void;
+  running: boolean;
+  progress: { done: number; total: number };
+  canRun: string | null;
+  onRun: () => void;
 }) {
-  const [website, setWebsite] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [found, setFound] = useState<Suggestion | null>(null);
-  const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [custom, setCustom] = useState("");
-
-  async function lookUp(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-    try {
-      const res = await fetch("/api/onboard", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await auth.token()}` },
-        body: JSON.stringify({ website, workspaceId: auth.workspaceId }),
-      });
-      const data = await res.json().catch(() => ({ error: `The server returned ${res.status}.` }));
-      if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
-      setFound(data);
-      setPicked(new Set(data.prompts));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  function toggle(p: string) {
-    const next = new Set(picked);
-    if (next.has(p)) next.delete(p);
-    else next.add(p);
-    setPicked(next);
-  }
-
-  function addCustom() {
-    const p = custom.trim();
-    if (!p || !found) return;
-    if (!found.prompts.includes(p)) setFound({ ...found, prompts: [...found.prompts, p] });
-    setPicked(new Set([...picked, p]));
-    setCustom("");
-  }
-
+  const [open, setOpen] = useState(false);
+  const pill = "flex items-center gap-2 rounded-aw border border-rule bg-white px-3 py-1.5 text-[13px] font-medium text-ink shadow-aw-sm";
   return (
-    <main className="aw-dotgrid flex min-h-screen justify-center px-4 py-10">
-      <div className="flex w-full max-w-3xl flex-col gap-6">
-        <div className="flex items-center justify-between">
-          <Logo size="md" />
-          {onCancel ? (
-            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={onCancel}>
-              Cancel
-            </button>
-          ) : null}
-        </div>
-
-        {importCount ? (
-          <div className="aw-callout flex flex-wrap items-center justify-between gap-3 text-[15px]!">
-            This browser has {importCount} brands from before accounts existed.
-            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={onImport}>
-              Import them
-            </button>
+    <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b border-rule bg-white/95 px-4 py-2.5 backdrop-blur sm:px-6">
+      <div className="relative">
+        <button type="button" className={pill} onClick={() => setOpen(!open)} aria-expanded={open}>
+          {p.active ? <BrandLogo src={p.active.logo} name={p.active.name} size={18} /> : null}
+          <span className="max-w-40 truncate">{p.active?.name ?? "Pick a brand"}</span>
+          <span aria-hidden="true" className="text-muted">
+            ▾
+          </span>
+        </button>
+        {open ? (
+          <div className="absolute z-30 mt-2 w-64 overflow-hidden rounded-aw border border-rule bg-white shadow-aw-lg">
+            {p.brands.map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                onClick={() => {
+                  p.onSwitch(b.id);
+                  setOpen(false);
+                }}
+                className={`flex w-full items-center gap-2.5 rounded-none px-3 py-2 text-left text-[14px] hover:bg-surface-2 ${b.id === p.active?.id ? "text-brand" : "text-ink"}`}
+              >
+                <BrandLogo src={b.logo} name={b.name} size={18} />
+                <span className="truncate">{b.name}</span>
+                <span className="ml-auto text-[12px] text-muted">{b.domain}</span>
+              </button>
+            ))}
+            {p.canEdit ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setOpen(false);
+                  p.onAdd();
+                }}
+                className="w-full rounded-none border-t border-rule-faint px-3 py-2 text-left text-[14px] font-medium text-brand hover:bg-surface-2"
+              >
+                + Add a brand
+              </button>
+            ) : null}
           </div>
         ) : null}
-        {!found ? (
-          <form onSubmit={lookUp} className="aw-frame">
-            <div className="aw-frame__body flex flex-col gap-6">
-              <h1 className="aw-h2 mb-0!">Track your brand in AI search</h1>
-              <div>
-                <label className="aw-label" htmlFor="website">
-                  Your website
-                </label>
-                <input
-                  id="website"
-                  value={website}
-                  onChange={(e) => setWebsite(e.target.value)}
-                  placeholder="acme.com"
-                  required
-                  autoFocus
-                  className="aw-input aw-input--hero"
-                />
-              </div>
-              {error ? <p className="aw-error">{error}</p> : null}
-              <div>
-                <button type="submit" className="aw-btn aw-btn--primary aw-btn--lg" disabled={busy}>
-                  {busy ? "Reading your site (about 30 seconds)..." : "Continue"}
-                </button>
-              </div>
-            </div>
-          </form>
-        ) : (
-          <div className="aw-frame">
-            <div className="aw-frame__head">
-              <BrandLogo src={found.logo} name={found.name} size={36} />
-              <div className="min-w-0">
-                <div className="aw-h4">{found.name}</div>
-                <div className="aw-small">{found.domain}</div>
-              </div>
-            </div>
-            <div className="aw-frame__body flex flex-col gap-6">
-              <h1 className="aw-h3">Suggested prompts</h1>
-              {found.category ? <p className="aw-small">{found.category}</p> : null}
-              <ul className="flex flex-col divide-y divide-rule-faint overflow-hidden rounded-aw border border-rule">
-                {found.prompts.map((p) => (
-                  <li key={p}>
-                    <label className="flex cursor-pointer items-start gap-3 px-4 py-3 hover:bg-surface-2">
-                      <input
-                        type="checkbox"
-                        checked={picked.has(p)}
-                        onChange={() => toggle(p)}
-                        className="mt-1 h-4 w-4 accent-[#0943B0]"
-                      />
-                      <span className="text-[15px] text-body">{p}</span>
-                    </label>
-                  </li>
-                ))}
-              </ul>
-              <div className="flex gap-3">
-                <input
-                  value={custom}
-                  onChange={(e) => setCustom(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      addCustom();
-                    }
-                  }}
-                  placeholder="Add your own prompt"
-                  className="aw-input"
-                />
-                <button type="button" className="aw-btn aw-btn--secondary" onClick={addCustom}>
-                  Add
-                </button>
-              </div>
-              {error ? <p className="aw-error">{error}</p> : null}
-              <div className="flex flex-wrap items-center gap-4">
-                <button
-                  type="button"
-                  className="aw-btn aw-btn--primary aw-btn--lg"
-                  disabled={!picked.size}
-                  onClick={() =>
-                    onDone({ ...found, prompts: found.prompts.filter((p) => picked.has(p)) }).catch((err) =>
-                      setError(err instanceof Error ? err.message : String(err)),
-                    )
-                  }
-                >
-                  Start tracking {picked.size} prompts
-                </button>
-                <button type="button" className="aw-text-link" onClick={() => setFound(null)}>
-                  Use a different website
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
-    </main>
+      <select aria-label="Time period" value={p.days} onChange={(e) => p.onDays(Number(e.target.value))} className={`${pill} pr-7`}>
+        {TIMEFRAMES.map((d) => (
+          <option key={d} value={d}>
+            Last {d} days
+          </option>
+        ))}
+      </select>
+      <select aria-label="Topic" value={p.topic} onChange={(e) => p.onTopic(e.target.value)} className={`${pill} max-w-56 pr-7`}>
+        <option value="All">All topics</option>
+        {p.topics.map((t) => (
+          <option key={t} value={t}>
+            {t}
+          </option>
+        ))}
+      </select>
+      <select aria-label="Model" value={p.model} onChange={(e) => p.onModel(e.target.value)} className={`${pill} pr-7`}>
+        <option value="All">All models</option>
+        {p.models.map((m) => (
+          <option key={m} value={m}>
+            {m}
+          </option>
+        ))}
+      </select>
+      <div className="ml-auto flex items-center gap-3">
+        {p.running ? (
+          <span className="flex items-center gap-2 text-[13px] text-muted">
+            <span className="aw-progress w-28">
+              <span className="aw-progress__fill block" style={{ width: `${(p.progress.done / Math.max(p.progress.total, 1)) * 100}%` }} />
+            </span>
+            {p.progress.done}/{p.progress.total}
+          </span>
+        ) : p.canRun ? (
+          <span className="hidden max-w-72 truncate text-[12px] text-muted lg:inline" title={p.canRun}>
+            {p.canRun}
+          </span>
+        ) : null}
+        <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={p.onRun} disabled={p.running || Boolean(p.canRun)} title={p.canRun ?? undefined}>
+          {p.running ? "Running..." : "Run now"}
+        </button>
+      </div>
+    </div>
   );
 }

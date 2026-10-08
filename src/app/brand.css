@@ -89,10 +89,13 @@
 }
 
 .aw, .aw *, .aw *::before, .aw *::after { box-sizing: border-box; }
-.aw h1, .aw h2, .aw h3, .aw h4, .aw p, .aw ul, .aw ol, .aw li, .aw figure, .aw table { margin: 0; padding: 0; }
-.aw img { max-width: 100%; height: auto; display: block; }
-.aw button, .aw select, .aw input, .aw textarea { font-family: inherit; }
-.aw button { border-radius: var(--aw-radius-sm); }
+/* Resets live in the base layer, so Tailwind utilities like p-5 or rounded-none still win. */
+@layer base {
+  .aw h1, .aw h2, .aw h3, .aw h4, .aw p, .aw ul, .aw ol, .aw li, .aw figure, .aw table { margin: 0; padding: 0; }
+  .aw img { max-width: 100%; height: auto; display: block; }
+  .aw button, .aw select, .aw input, .aw textarea { font-family: inherit; }
+  .aw button { border-radius: var(--aw-radius-sm); }
+}
 
 /* ─────────────── 2. TYPE ─────────────── */
 .aw .aw-display { font-size: 40px; font-weight: 600; line-height: 1.15; letter-spacing: -0.025em; color: var(--aw-ink); }

@@ -17,7 +17,31 @@ export type Brand = {
   category: string;
   prompts: string[];
   daily: boolean; // run every day on the server
+  profile: Profile;
+  topics: Topic[];
 };
+
+export type BusinessType = "saas" | "ecommerce" | "service" | "marketplace" | "local" | "other";
+/** What the business sells and to whom, from the onboarding questions. */
+export type Profile = {
+  products?: string;
+  customers?: string;
+  features?: string;
+  businessType?: BusinessType;
+  country?: string;
+};
+/** A buying category the brand wants to win, and the prompts that track it. */
+export type Topic = { name: string; prompts: string[] };
+
+/** A brand's topics. Prompts saved before topics existed show under "Other prompts". */
+export function topicsOf(b: Pick<Brand, "topics" | "prompts">): Topic[] {
+  const topics = (b.topics ?? []).filter((t) => t?.name);
+  const inTopic = new Set(topics.flatMap((t) => t.prompts));
+  const loose = b.prompts.filter((p) => !inTopic.has(p));
+  return loose.length ? [...topics, { name: "Other prompts", prompts: loose }] : topics;
+}
+/** Every prompt in a set of topics, once each. */
+export const flatPrompts = (topics: Topic[]) => [...new Set(topics.flatMap((t) => t.prompts.map((p) => p.trim()).filter(Boolean)))];
 export type SavedRun = Run & { id: string };
 export type Member = { user_id: string; email: string | null; role: Role };
 export type Invite = { id: string; email: string; role: Role; token: string; created_at: string };
@@ -49,7 +73,7 @@ export async function acceptInvite(sb: SupabaseClient, token: string): Promise<s
   return check(await sb.rpc("accept_invite", { p_token: token })) as string;
 }
 
-const BRAND_COLS = "id, workspace_id, url, domain, name, logo, category, prompts, daily";
+const BRAND_COLS = "id, workspace_id, url, domain, name, logo, category, prompts, daily, profile, topics";
 
 export async function listBrands(sb: SupabaseClient, workspaceId: string): Promise<Brand[]> {
   return check(
@@ -57,12 +81,12 @@ export async function listBrands(sb: SupabaseClient, workspaceId: string): Promi
   ) as Brand[];
 }
 
-export async function addBrand(sb: SupabaseClient, b: Omit<Brand, "id" | "daily">): Promise<Brand> {
+export async function addBrand(sb: SupabaseClient, b: Omit<Brand, "id" | "daily" | "profile" | "topics"> & Partial<Pick<Brand, "profile" | "topics">>): Promise<Brand> {
   return check(await sb.from("brands").insert(b).select(BRAND_COLS).single()) as Brand;
 }
 
 export async function saveBrand(sb: SupabaseClient, b: Brand) {
-  check(await sb.from("brands").update({ name: b.name, prompts: b.prompts, category: b.category, logo: b.logo, daily: b.daily }).eq("id", b.id));
+  check(await sb.from("brands").update({ name: b.name, prompts: b.prompts, category: b.category, logo: b.logo, daily: b.daily, profile: b.profile, topics: b.topics }).eq("id", b.id));
 }
 
 export async function deleteBrand(sb: SupabaseClient, id: string) {
