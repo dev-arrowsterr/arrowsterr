@@ -152,19 +152,71 @@ export function domainRows(chats: Chat[], you: string, comp: Set<string>): Domai
     .sort((a, b) => b.chats - a.chats || b.citations - a.citations);
 }
 
+/** One address per page: no #fragment (like text highlights), no trailing slash, no www. */
+export function pageKey(url: string): string {
+  try {
+    const u = new URL(url);
+    u.hash = "";
+    return `${u.hostname.replace(/^www\./, "")}${u.pathname.replace(/\/+$/, "")}${u.search}`.toLowerCase();
+  } catch {
+    return url.toLowerCase();
+  }
+}
+
+/** A page title without the site name tacked on the end, like " - Momos" or " | Acme". */
+export const cleanTitle = (t: string) => t.replace(/\s+[-|–—]\s+[^-|–—]{1,40}$/, "").trim();
+
+/** Cited pages. The same page cited with different #fragments or a trailing slash counts once. */
 export function urlRows(chats: Chat[], you: string, comp: Set<string>): UrlRow[] {
-  const map = new Map<string, { title: string | null; domain: string; chats: number; prompts: Set<string> }>();
-  for (const c of chats) {
-    for (const s of new Map(c.sources.map((x) => [x.url, x])).values()) {
-      const row = map.get(s.url) ?? { title: s.title, domain: s.domain || domainOf(s.url), chats: 0, prompts: new Set<string>() };
-      row.chats++;
+  const map = new Map<string, { url: string; title: string | null; domain: string; chats: Set<number>; prompts: Set<string> }>();
+  chats.forEach((c, ci) => {
+    for (const s of c.sources) {
+      const key = pageKey(s.url);
+      const row = map.get(key) ?? { url: s.url.split("#")[0], title: s.title, domain: s.domain || domainOf(s.url), chats: new Set<number>(), prompts: new Set<string>() };
+      row.chats.add(ci);
       row.prompts.add(c.prompt);
       if (!row.title && s.title) row.title = s.title;
-      map.set(s.url, row);
+      map.set(key, row);
     }
-  }
-  return [...map.entries()]
-    .map(([url, r]) => ({ url, title: r.title, domain: r.domain, type: sourceType(r.domain, you, comp), chats: r.chats, used: chats.length ? (r.chats / chats.length) * 100 : 0, prompts: [...r.prompts] }))
+  });
+  let rows = [...map.values()].map((r) => ({
+    url: r.url,
+    title: r.title,
+    domain: r.domain,
+    type: sourceType(r.domain, you, comp),
+    chats: r.chats.size,
+    used: chats.length ? (r.chats.size / chats.length) * 100 : 0,
+    prompts: [...r.prompts],
+  }));
+  // Your own pages: merge pages that share a title, so one article shows once.
+  const own = new Map<string, UrlRow>();
+  rows = rows.filter((r) => {
+    if (r.type !== "You" || !r.title) return true;
+    const k = cleanTitle(r.title).toLowerCase();
+    const first = own.get(k);
+    if (!first) {
+      own.set(k, r);
+      return true;
+    }
+    first.chats += r.chats;
+    first.used += r.used;
+    first.prompts = [...new Set([...first.prompts, ...r.prompts])];
+    return false;
+  });
+  return rows.sort((a, b) => b.chats - a.chats);
+}
+
+export type DomainGroup = { domain: string; type: SourceType; used: number; chats: number; pages: UrlRow[] };
+
+/** Cited pages grouped by site. used = % of answers that cite any page on the site. */
+export function urlGroups(urls: UrlRow[], domains: DomainRow[]): DomainGroup[] {
+  const byDomain = new Map<string, UrlRow[]>();
+  for (const u of urls) byDomain.set(u.domain, [...(byDomain.get(u.domain) ?? []), u]);
+  return [...byDomain.entries()]
+    .map(([domain, pages]) => {
+      const d = domains.find((x) => x.domain === domain);
+      return { domain, type: pages[0].type, used: d?.used ?? 0, chats: d?.chats ?? 0, pages };
+    })
     .sort((a, b) => b.chats - a.chats);
 }
 

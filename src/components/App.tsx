@@ -396,7 +396,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           ) : page === "competitors" ? (
             <CompetitorsPage key={`${view.brand.id}-${focus ?? ""}`} view={view} initial={focus} />
           ) : page === "domains" || page === "urls" ? (
-            <SourcesPage key={`${view.brand.id}-${page}`} view={view} mode={page} />
+            <SourcesPage key={`${view.brand.id}-${page}`} view={view} mode={page} auth={canEdit ? auth : null} />
           ) : (
             <OverviewPage
               key={view.brand.id}

@@ -6,26 +6,19 @@ import type { View } from "@/lib/view";
 import { BrandLogo } from "./BrandLogo";
 import { EngineName } from "./Engines";
 import { TrendChart } from "./TrendChart";
-import { BrandName, Card, Delta, Empty, favicon, pct, pos, score, YOU_COLOR } from "./ui";
+import { BrandName, Card, Delta, Empty, favicon, pct, pos, score, Seg, YOU_COLOR } from "./ui";
 
 const THEM_COLOR = "#F5B70A";
 
-/** Two bars: them and you, with the numbers written out. */
-function Pair({ them, you, name, youName }: { them: number | null; you: number | null; name: string; youName: string }) {
+/** A value with a thin bar under it. */
+function Bar({ v, color }: { v: number | null; color: string }) {
   return (
-    <div className="flex flex-col gap-1">
-      {[
-        { label: name, v: them, color: THEM_COLOR },
-        { label: youName, v: you, color: YOU_COLOR },
-      ].map((b) => (
-        <div key={b.label} className="flex items-center gap-2">
-          <div className="h-2 flex-1 overflow-hidden rounded-full bg-rule-faint">
-            <div className="h-full rounded-full" style={{ width: `${b.v ?? 0}%`, background: b.color }} />
-          </div>
-          <span className="aw-num w-10 text-right text-[12px] text-ink">{pct(b.v)}</span>
-        </div>
-      ))}
-    </div>
+    <span className="flex items-center gap-2.5">
+      <span className="aw-num w-10 text-right text-[13px] text-ink">{pct(v)}</span>
+      <span className="h-1.5 flex-1 bg-rule-faint">
+        <span className="block h-full" style={{ width: `${v ?? 0}%`, background: color }} />
+      </span>
+    </span>
   );
 }
 
@@ -39,6 +32,7 @@ export function CompetitorsPage({ view, initial }: { view: View; initial?: strin
   const hadBefore = answered(previous, filter).length > 0;
   const others = stats.filter((s) => !s.isYou);
   const [picked, setPicked] = useState<string | null>(initial ?? null);
+  const [split, setSplit] = useState<"model" | "topic">("model");
   const sel = others.find((s) => s.name.toLowerCase() === picked?.toLowerCase()) ?? others[0];
 
   if (!chats.length) return <Empty>No results in the last {days} days yet. They show up after the first check finishes, then update every day.</Empty>;
@@ -130,33 +124,57 @@ export function CompetitorsPage({ view, initial }: { view: View; initial?: strin
               </div>
             </Card>
 
-            <div className="grid gap-5 lg:grid-cols-2">
-              <Card title="By model">
-                <ul className="flex flex-col gap-3 p-5">
-                  {detail.byEngine.map((e) => (
-                    <li key={e.engine} className="flex flex-col gap-1.5">
-                      <span className="text-[13px] text-body">
-                        <EngineName engine={e.engine} size={14} />
-                      </span>
-                      <Pair them={e.them} you={e.you} name={sel.name} youName={brand.name} />
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-              <Card title="By topic">
-                <ul className="flex flex-col gap-3 p-5">
-                  {detail.byTopic.map((t) => (
-                    <li key={t.topic} className="flex flex-col gap-1.5">
-                      <span className="truncate text-[13px] text-body">{t.topic}</span>
-                      <Pair them={t.them} you={t.you} name={sel.name} youName={brand.name} />
-                    </li>
-                  ))}
-                </ul>
-                <p className="aw-micro px-5 pb-4">
-                  Gold is {sel.name}. Blue is {brand.name}.
-                </p>
-              </Card>
-            </div>
+            <Card title="Head to head" action={<Seg label="Compare by" value={split} onChange={setSplit} options={[{ id: "model", label: "By model" }, { id: "topic", label: "By topic" }]} />}>
+              <div className="overflow-x-auto">
+                <table className="aw-table aw-table--compact">
+                  <thead>
+                    <tr>
+                      <th>{split === "model" ? "Model" : "Topic"}</th>
+                      <th>
+                        <span className="flex items-center gap-1.5">
+                          <i className="inline-block h-2 w-2" style={{ background: THEM_COLOR }} />
+                          {sel.name}
+                        </span>
+                      </th>
+                      <th>
+                        <span className="flex items-center gap-1.5">
+                          <i className="inline-block h-2 w-2" style={{ background: YOU_COLOR }} />
+                          {brand.name}
+                        </span>
+                      </th>
+                      <th>Gap</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(split === "model" ? detail.byEngine.map((e) => ({ key: e.engine, them: e.them, you: e.you })) : detail.byTopic.map((t) => ({ key: t.topic, them: t.them, you: t.you }))).map((r) => {
+                      const gap = r.them === null || r.you === null ? null : Math.round(r.you - r.them);
+                      return (
+                        <tr key={r.key}>
+                          <td className="max-w-52 truncate text-ink">{split === "model" ? <EngineName engine={r.key} size={14} /> : r.key}</td>
+                          <td className="w-40">
+                            <Bar v={r.them} color={THEM_COLOR} />
+                          </td>
+                          <td className="w-40">
+                            <Bar v={r.you} color={YOU_COLOR} />
+                          </td>
+                          <td className="aw-num whitespace-nowrap">
+                            {gap === null ? (
+                              <span className="text-muted">–</span>
+                            ) : gap === 0 ? (
+                              <span className="text-muted">Even</span>
+                            ) : (
+                              <span className={gap > 0 ? "text-pos" : "text-neg"}>
+                                {gap > 0 ? `You +${gap}` : `You ${gap}`}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
 
             <div className="grid gap-5 lg:grid-cols-2">
               <Card title={`Prompts where ${sel.name} beats you`}>
