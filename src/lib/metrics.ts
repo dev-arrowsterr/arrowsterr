@@ -575,3 +575,18 @@ export function stability(runs: Run[], prompt: string, engine: string, you: stri
     brands,
   };
 }
+
+// ─────────────── tracked competitors ───────────────
+
+export type CompetitorRow = BrandStat & { tracked: boolean };
+
+/** Every brand with a tracked flag. A tracked competitor matches by name or domain, and shows at 0% when no answer named it. */
+export function withTracked(stats: BrandStat[], tracked: { name: string; domain: string }[]): CompetitorRow[] {
+  const bare = (d: string | null | undefined) => (d ?? "").toLowerCase().replace(/^www\./, "");
+  const isTracked = (s: BrandStat) => tracked.some((t) => same(t.name, s.name) || (t.domain && bare(t.domain) === bare(s.domain)));
+  const rows: CompetitorRow[] = stats.map((s) => ({ ...s, tracked: !s.isYou && isTracked(s) }));
+  for (const t of tracked)
+    if (!rows.some((r) => r.tracked && (same(r.name, t.name) || (t.domain && bare(t.domain) === bare(r.domain)))))
+      rows.push({ name: t.name, domain: t.domain || null, isYou: false, visibility: 0, sentiment: null, position: null, mentions: 0, tracked: true });
+  return rows;
+}

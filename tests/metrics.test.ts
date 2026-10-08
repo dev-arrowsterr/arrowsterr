@@ -112,3 +112,13 @@ test("stability counts flips, overlap and new brands across checks", async () =>
   assert.equal(one.yourStability, 100);
   assert.equal(one.newBrandRate, 0);
 });
+
+test("tracked competitors match by name or domain and show at 0% when never named", async () => {
+  const { withTracked } = await import("../src/lib/metrics.ts");
+  const stats = [
+    { name: "Acme", domain: "acme.com", isYou: true, visibility: 50, sentiment: 70, position: 2, mentions: 1 },
+    { name: "Birdeye Inc", domain: "birdeye.com", isYou: false, visibility: 100, sentiment: 80, position: 1, mentions: 2 },
+  ];
+  const rows = withTracked(stats, [{ name: "Birdeye", domain: "www.birdeye.com" }, { name: "Podium", domain: "podium.com" }]);
+  assert.deepEqual(rows.map((r) => [r.name, r.tracked, r.visibility]), [["Acme", false, 50], ["Birdeye Inc", true, 100], ["Podium", true, 0]]);
+});

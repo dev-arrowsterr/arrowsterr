@@ -36,3 +36,19 @@ export type ReportSnapshot = {
   wins: { text: string; change: number; unit: string; area: string }[];
   drops: { text: string; change: number; unit: string; area: string }[];
 };
+
+/** A frozen copy of the Prompts page, for a share link. */
+export type PromptsSnapshot = {
+  kind: "prompts";
+  brand: { name: string; domain: string; logo?: string };
+  days: number;
+  at: string;
+  engines: string[];
+  scores: { visibility: number; sentiment: number | null; position: number | null; rank: number | null; of: number | null } | null;
+  topics: {
+    name: string;
+    visibility: number | null;
+    byEngine: Record<string, number | null>;
+    prompts: { prompt: string; visibility: number | null; ranks: Record<string, number | null>; at: string | null }[];
+  }[];
+};

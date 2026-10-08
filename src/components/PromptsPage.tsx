@@ -3,17 +3,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { Chat } from "@/lib/chats";
-import { addCalendarItems, flatPrompts, latestAnswers, siteForBrand, type Answer, type Brand, type Topic } from "@/lib/db";
-import { answered, brandStats, promptDetail, promptGaps, promptRows, rankOf, stability, topicRows, trend, type EngineCell, type Gap } from "@/lib/metrics";
+import { flatPrompts, latestAnswers, topicsOf, type Answer, type Brand, type Topic } from "@/lib/db";
+import { answered, brandStats, promptDetail, promptRows, rankOf, stability, topicRows, trend, type EngineCell } from "@/lib/metrics";
+import type { PromptsSnapshot } from "@/lib/reportTypes";
 import type { RunAuth } from "@/lib/runner";
-import { putStash } from "@/lib/stash";
-import { MAX_PROMPTS, MAX_TOPICS, PROMPTS_PER_TOPIC } from "@/lib/onboarding";
+import { MAX_PROMPTS, MAX_TOPICS } from "@/lib/onboarding";
 import type { View } from "@/lib/view";
 import { BrandLogo } from "./BrandLogo";
 import { ENGINE_LOGOS, EngineName } from "./Engines";
 import { Markdown } from "./Markdown";
 import { TrendChart } from "./TrendChart";
-import { BrandName, Card, Delta, Empty, favicon, OTHER_COLORS, pct, Seg, YOU_COLOR } from "./ui";
+import { BrandName, Delta, Empty, favicon, OTHER_COLORS, pct, Seg, YOU_COLOR } from "./ui";
 
 type Props = {
   sb: SupabaseClient;
@@ -24,44 +24,252 @@ type Props = {
   onChange: (b: Brand) => void;
   onRemove: () => void;
   onCompetitor: (name: string) => void;
-  onOpen: (page: "keywords" | "calendar") => void;
 };
 
-/** The home page for AI visibility: your scores, every topic and prompt, and the biggest gaps with a way to act on each. */
+const HIDDEN_KEY = "arrowsterr.prompts.hidden";
+const readHidden = (): string[] => {
+  try {
+    return JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? "[]");
+  } catch {
+    return [];
+  }
+};
+
+/** The home page for AI visibility: your scores and every topic and prompt. Editors change topics and prompts in place. */
 export function PromptsPage(p: Props) {
   const { view, readOnly } = p;
-  const [tab, setTab] = useState<"results" | "edit">("results");
+  const brand = view.brand;
+  const all = topicsOf(brand);
+  const [hidden, setHiddenState] = useState<string[]>(readHidden);
+  const [menu, setMenu] = useState(false);
+  const [newTopic, setNewTopic] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const [link, setLink] = useState("");
+  const [error, setError] = useState("");
+  const shown = view.engines.filter((e) => !hidden.includes(e));
+  const total = flatPrompts(all).length;
+
+  const setHidden = (next: string[]) => {
+    setHiddenState(next);
+    try {
+      localStorage.setItem(HIDDEN_KEY, JSON.stringify(next));
+    } catch {
+      // Storage blocked. The choice lasts until the page reloads.
+    }
+  };
+  const save = (next: Topic[]) => p.onChange({ ...brand, topics: next, prompts: flatPrompts(next) });
+  const edit: Editing | null = readOnly
+    ? null
+    : {
+        full: total >= MAX_PROMPTS,
+        renameTopic: (from, to) => save(all.map((t) => (t.name === from ? { ...t, name: to } : t))),
+        removeTopic: (name) => confirm(`Remove the topic "${name}" and its prompts?`) && save(all.filter((t) => t.name !== name)),
+        addPrompt: (topic, text) => total < MAX_PROMPTS && save(all.map((t) => (t.name === topic && !t.prompts.includes(text) ? { ...t, prompts: [...t.prompts, text] } : t))),
+        editPrompt: (topic, from, to) => save(all.map((t) => (t.name === topic ? { ...t, prompts: t.prompts.map((x) => (x === from ? to : x)) } : t))),
+        removePrompt: (topic, text) => confirm(`Remove this prompt?\n\n${text}`) && save(all.map((t) => (t.name === topic ? { ...t, prompts: t.prompts.filter((x) => x !== text) } : t))),
+      };
+
+  async function share() {
+    setSharing(true);
+    setError("");
+    try {
+      const res = await fetch("/api/reports/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await p.auth.token()}` },
+        body: JSON.stringify({ workspaceId: p.auth.workspaceId, brandId: brand.id, data: promptsSnapshot(view, shown) }),
+      });
+      const out = await res.json().catch(() => ({ error: `The server returned ${res.status}.` }));
+      if (!res.ok) throw new Error(out.error || `Error ${res.status}`);
+      setLink(out.url);
+      navigator.clipboard?.writeText(out.url).catch(() => {});
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSharing(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="aw-h2">Prompts</h1>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 print:hidden">
           <span className="aw-tag">
-            {view.brand.prompts.length} of {MAX_PROMPTS} prompts
+            {total} of {MAX_PROMPTS} prompts
           </span>
           {!readOnly ? (
-            <Seg
-              label="Prompts view"
-              value={tab}
-              onChange={setTab}
-              options={[
-                { id: "results", label: "Results" },
-                { id: "edit", label: "Edit topics and prompts" },
-              ]}
-            />
+            <button type="button" className={`aw-chip aw-chip--btn ${brand.daily ? "is-on" : ""}`} aria-pressed={brand.daily} onClick={() => p.onChange({ ...brand, daily: !brand.daily })} title="The server checks every prompt on every model once a day">
+              Daily checks {brand.daily ? "on" : "off"}
+            </button>
+          ) : null}
+          <div className="relative">
+            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => setMenu(!menu)} aria-expanded={menu}>
+              Columns{hidden.filter((h) => view.engines.includes(h)).length ? ` · ${hidden.filter((h) => view.engines.includes(h)).length} hidden` : ""}
+            </button>
+            {menu ? (
+              <div className="absolute right-0 z-30 mt-1 flex w-52 flex-col border border-rule bg-white py-1 shadow-aw-sm" onMouseLeave={() => setMenu(false)}>
+                {view.engines.map((e) => (
+                  <label key={e} className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-[13px] text-ink hover:bg-surface-2">
+                    <input type="checkbox" checked={!hidden.includes(e)} onChange={() => setHidden(hidden.includes(e) ? hidden.filter((x) => x !== e) : [...hidden, e])} className="h-3.5 w-3.5 accent-[var(--aw-brand)]" />
+                    <EngineName engine={e} size={14} />
+                  </label>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          {!readOnly ? (
+            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={share} disabled={sharing}>
+              {sharing ? "Creating link..." : "Share"}
+            </button>
+          ) : null}
+          {!readOnly ? (
+            <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={() => setNewTopic("")} disabled={all.length >= MAX_TOPICS}>
+              + Add topic
+            </button>
           ) : null}
         </div>
       </div>
-      {tab === "results" || readOnly ? (
-        <>
-          <Scores view={view} />
-          <Results sb={p.sb} view={view} focusTopic={p.focusTopic} onCompetitor={p.onCompetitor} />
-          <Gaps {...p} />
-        </>
-      ) : (
-        <Editor brand={view.brand} onChange={p.onChange} onRemove={p.onRemove} />
-      )}
+      {error ? <p className="aw-error">{error}</p> : null}
+      {link ? (
+        <div className="aw-callout flex flex-wrap items-center justify-between gap-3">
+          <span className="break-all">
+            Link copied. Anyone with it can view this report and save it as a PDF:{" "}
+            <a href={link} target="_blank" rel="noopener noreferrer">
+              {link}
+            </a>
+          </span>
+          <button type="button" className="aw-text-link" onClick={() => setLink("")}>
+            Close
+          </button>
+        </div>
+      ) : null}
+      {newTopic !== null ? (
+        <form
+          className="aw-frame flex flex-wrap items-center gap-2 p-3"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const v = newTopic.trim();
+            if (!v || all.some((t) => t.name === v) || total >= MAX_PROMPTS) return;
+            save([...all, { name: v, prompts: [v] }]);
+            setNewTopic(null);
+          }}
+        >
+          <input autoFocus value={newTopic} onChange={(e) => setNewTopic(e.target.value)} placeholder="Topic name, like: review management software" aria-label="Topic name" className="aw-input min-w-64 flex-1 py-2! text-[14px]!" />
+          <button type="submit" className="aw-btn aw-btn--primary aw-btn--sm" disabled={!newTopic.trim()}>
+            Add topic
+          </button>
+          <button type="button" className="aw-text-link text-[13px]" onClick={() => setNewTopic(null)}>
+            Cancel
+          </button>
+          <span className="aw-small w-full">A new topic starts with its own name as the first prompt. Add more under it. Up to {MAX_TOPICS} topics and {MAX_PROMPTS} prompts.</span>
+        </form>
+      ) : null}
+      <Scores view={view} />
+      <Results sb={p.sb} view={view} engines={shown} edit={edit} focusTopic={p.focusTopic} onCompetitor={p.onCompetitor} />
+      {!readOnly ? (
+        <button
+          type="button"
+          className="aw-text-link self-start text-[13px] text-neg! print:hidden"
+          onClick={() => {
+            if (confirm(`Stop tracking ${brand.name}? Its results will be deleted.`)) p.onRemove();
+          }}
+        >
+          Remove this brand
+        </button>
+      ) : null}
     </div>
+  );
+}
+
+/** A frozen copy of this page for a share link. */
+function promptsSnapshot(view: View, engines: string[]): PromptsSnapshot {
+  const { brand, current, filter, topics } = view;
+  const chats = answered(current, filter);
+  const stats = brandStats(chats, { name: brand.name, domain: brand.domain });
+  const me = stats.find((s) => s.isYou);
+  const rank = rankOf(stats, "visibility");
+  const rows = promptRows(current, topics, engines, brand.name, filter, brand.domain);
+  return {
+    kind: "prompts",
+    brand: { name: brand.name, domain: brand.domain, logo: brand.logo },
+    days: view.days,
+    at: new Date().toISOString(),
+    engines,
+    scores: chats.length && me ? { visibility: me.visibility, sentiment: me.sentiment, position: me.position, rank: rank?.rank ?? null, of: rank?.of ?? null } : null,
+    topics: topicRows(chats, topics, engines, brand.name).map((t) => ({
+      name: t.topic,
+      visibility: t.visibility,
+      byEngine: t.byEngine,
+      prompts: rows
+        .filter((r) => r.topic === t.topic)
+        .map((r) => ({ prompt: r.prompt, visibility: r.visibility, at: r.latestAt, ranks: Object.fromEntries(r.latest.map((c) => [c.engine, c.status === "named" ? c.position : null])) })),
+    })),
+  };
+}
+
+type Editing = {
+  full: boolean;
+  renameTopic: (from: string, to: string) => void;
+  removeTopic: (name: string) => void;
+  addPrompt: (topic: string, text: string) => void;
+  editPrompt: (topic: string, from: string, to: string) => void;
+  removePrompt: (topic: string, text: string) => void;
+};
+
+/** A pen and a bin that show when the row is hovered. */
+function RowTools({ label, onEdit, onRemove }: { label: string; onEdit: () => void; onRemove: () => void }) {
+  return (
+    <span className="ml-1 inline-flex shrink-0 gap-0.5 opacity-0 group-hover:opacity-100 focus-within:opacity-100 print:hidden">
+      <button
+        type="button"
+        aria-label={`Edit ${label}`}
+        title="Edit"
+        onClick={(e) => {
+          e.stopPropagation();
+          onEdit();
+        }}
+        className="px-1.5 text-[14px] text-brand hover:text-ink"
+      >
+        ✎
+      </button>
+      <button
+        type="button"
+        aria-label={`Delete ${label}`}
+        title="Delete"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove();
+        }}
+        className="px-1.5 text-[14px] text-neg hover:text-ink"
+      >
+        🗑
+      </button>
+    </span>
+  );
+}
+
+/** Edit text in place. Enter or leaving saves. Escape cancels. */
+function InlineInput({ start, label, onSave, onCancel }: { start: string; label: string; onSave: (v: string) => void; onCancel: () => void }) {
+  const [v, setV] = useState(start);
+  const done = () => {
+    const t = v.trim().replace(/\s+/g, " ");
+    if (t && t !== start) onSave(t);
+    else onCancel();
+  };
+  return (
+    <input
+      autoFocus
+      value={v}
+      aria-label={label}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={done}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") done();
+        if (e.key === "Escape") onCancel();
+      }}
+      className="aw-input min-w-0 flex-1 py-1! text-[14px]!"
+    />
   );
 }
 
@@ -125,100 +333,6 @@ function Scores({ view }: { view: View }) {
   );
 }
 
-/** Prompts where another brand beats you, each with a way into the SEO tools. */
-function Gaps({ sb, auth, view, readOnly, onOpen }: Props) {
-  const { brand, current, filter, topics } = view;
-  const [busy, setBusy] = useState("");
-  const [added, setAdded] = useState<Set<string>>(new Set());
-  const [error, setError] = useState("");
-  const gaps = promptGaps(answered(current, filter), topics, brand.name).slice(0, 8);
-  if (!answered(current, filter).length) return null;
-
-  async function site() {
-    const s = await siteForBrand(sb, brand, !readOnly);
-    if (!s) throw new Error(`Ask an editor to open Keywords once for ${brand.domain} to set it up.`);
-    return s;
-  }
-  async function keywords(term: string) {
-    setError("");
-    try {
-      const s = await site();
-      putStash(`kw:${s.id}:seed`, term);
-      onOpen("keywords");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  }
-  async function plan(g: Gap) {
-    setBusy(g.prompt);
-    setError("");
-    try {
-      const s = await site();
-      await addCalendarItems(sb, auth.workspaceId, [
-        {
-          site_id: s.id,
-          keyword: g.prompt,
-          secondary: [],
-          stage: null,
-          theme: g.topic,
-          volume: null,
-          difficulty: null,
-          intent: null,
-          cpc: null,
-          source: "AI gap",
-          notes: `AI answers name ${g.leader} in ${pct(g.them)} and ${brand.name} in ${pct(g.you)}. Write a page that answers this prompt.`,
-        },
-      ]);
-      putStash(`cal:${s.id}:items`, null);
-      setAdded((x) => new Set([...x, g.prompt]));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy("");
-    }
-  }
-
-  return (
-    <Card title="Biggest gaps" action={<span className="aw-small">Prompts where another brand shows up more than you</span>}>
-      {error ? <p className="aw-error m-4">{error}</p> : null}
-      <ul className="divide-y divide-rule-faint">
-        {gaps.map((g) => (
-          <li key={g.prompt} className="flex flex-wrap items-center justify-between gap-3 px-5 py-3">
-            <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-              <span className="text-[14px] text-ink">{g.prompt}</span>
-              <span className="aw-micro">
-                {g.topic} · {g.leader} {pct(g.them)} · you {pct(g.you)}
-              </span>
-            </span>
-            {!readOnly ? (
-              <span className="flex shrink-0 gap-2">
-                <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => keywords(g.topic)} title={`Research keywords for ${g.topic}`}>
-                  Find keywords
-                </button>
-                {added.has(g.prompt) ? (
-                  <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => onOpen("calendar")}>
-                    Added. Open Calendar
-                  </button>
-                ) : (
-                  <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={() => plan(g)} disabled={Boolean(busy)}>
-                    {busy === g.prompt ? "Adding..." : "Add to Calendar"}
-                  </button>
-                )}
-              </span>
-            ) : null}
-          </li>
-        ))}
-        {!gaps.length ? <li className="aw-small px-5 py-4">No gaps. You show up at least as often as any other brand on every prompt.</li> : null}
-      </ul>
-      {!readOnly && gaps.length ? (
-        <p className="aw-small border-t border-rule-faint px-5 py-3">
-          Find keywords opens Keyword research for the topic. Add to Calendar plans a page for the prompt. From the Calendar, build a brief and write it in the Writer. Its AI citations show up in Calendar Results.
-        </p>
-      ) : null}
-    </Card>
-  );
-}
-
 const ENGINE_SHORT: Record<string, string> = { ChatGPT: "ChatGPT", Claude: "Claude", Gemini: "Gemini", Perplexity: "Perplexity", "AI Overview": "AIO", "AI Mode": "AI Mode" };
 const shortUrl = (u: string) => u.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
 const ago = (iso: string | null) => {
@@ -249,8 +363,24 @@ function Cell({ c }: { c: EngineCell }) {
   );
 }
 
-function Results({ sb, view, focusTopic, onCompetitor }: { sb: SupabaseClient; view: View; focusTopic?: string | null; onCompetitor: (name: string) => void }) {
-  const { brand, current, filter, topics, engines } = view;
+function Results({
+  sb,
+  view,
+  engines,
+  edit,
+  focusTopic,
+  onCompetitor,
+}: {
+  sb: SupabaseClient;
+  view: View;
+  engines: string[];
+  edit: Editing | null;
+  focusTopic?: string | null;
+  onCompetitor: (name: string) => void;
+}) {
+  const { brand, current, filter, topics } = view;
+  const [editing, setEditing] = useState<string | null>(null); // "t:topic" or "p:topic\nprompt"
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [open, setOpen] = useState<string | null>(null);
   const [closed, setClosed] = useState<Set<string>>(new Set());
   const [charts, setCharts] = useState<Set<string>>(new Set());
@@ -262,7 +392,7 @@ function Results({ sb, view, focusTopic, onCompetitor }: { sb: SupabaseClient; v
   const chats = answered(current, filter);
   const rows = promptRows(current, topics, engines, brand.name, filter, brand.domain);
   const tops = topicRows(chats, topics, engines, brand.name);
-  if (!topics.length) return <div className="aw-callout">No prompts yet. Open Edit topics and prompts to add some.</div>;
+  if (!topics.length) return <div className="aw-callout">No prompts yet. Click Add topic to start.</div>;
   const flip = (set: Set<string>, k: string) => (set.has(k) ? new Set([...set].filter((x) => x !== k)) : new Set([...set, k]));
   const cols = engines.length + 3;
 
@@ -300,21 +430,34 @@ function Results({ sb, view, focusTopic, onCompetitor }: { sb: SupabaseClient; v
           const lines = [brand.name, ...leaders].map((n, i) => ({ name: n, isYou: i === 0, color: i === 0 ? YOU_COLOR : OTHER_COLORS[i - 1] }));
           return (
             <tbody key={t.name}>
-              <tr ref={focusTopic === t.name ? focusRef : undefined} className={`bg-surface-2 ${focusTopic === t.name ? "is-you" : ""}`}>
+              <tr ref={focusTopic === t.name ? focusRef : undefined} className={`group bg-surface-2 ${focusTopic === t.name ? "is-you" : ""}`}>
                 <td>
                   <span className="flex flex-wrap items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setClosed((s) => flip(s, t.name))}
-                      aria-expanded={!isClosed}
-                      className="flex items-center gap-2 text-left text-[15px] font-medium text-ink"
-                    >
-                      <span aria-hidden="true" className="text-muted">
-                        {isClosed ? "▸" : "▾"}
-                      </span>
-                      {t.name}
-                      <span className="font-normal text-muted">· {t.prompts.length} prompts</span>
-                    </button>
+                    {edit && editing === `t:${t.name}` ? (
+                      <InlineInput
+                        start={t.name}
+                        label="Topic name"
+                        onSave={(v) => {
+                          edit.renameTopic(t.name, v);
+                          setEditing(null);
+                        }}
+                        onCancel={() => setEditing(null)}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setClosed((s) => flip(s, t.name))}
+                        aria-expanded={!isClosed}
+                        className="flex items-center gap-2 text-left text-[15px] font-medium text-ink"
+                      >
+                        <span aria-hidden="true" className="text-muted">
+                          {isClosed ? "▸" : "▾"}
+                        </span>
+                        {t.name}
+                        <span className="font-normal text-muted">· {t.prompts.length} prompts</span>
+                      </button>
+                    )}
+                    {edit && editing !== `t:${t.name}` ? <RowTools label={`topic ${t.name}`} onEdit={() => setEditing(`t:${t.name}`)} onRemove={() => edit.removeTopic(t.name)} /> : null}
                     <button type="button" className={`aw-chip aw-chip--btn ${showChart ? "is-on" : ""}`} onClick={() => setCharts((s) => flip(s, t.name))} aria-pressed={showChart}>
                       {showChart ? "Hide trend" : "Show trend"}
                     </button>
@@ -349,19 +492,33 @@ function Results({ sb, view, focusTopic, onCompetitor }: { sb: SupabaseClient; v
                 ? null
                 : list.map((r) => {
                     const isOpen = open === r.prompt;
+                    const key = `p:${t.name}\n${r.prompt}`;
                     return (
                       <Fragment key={r.prompt}>
-                        <tr onClick={() => setOpen(isOpen ? null : r.prompt)} aria-expanded={isOpen} className={`cursor-pointer ${isOpen ? "bg-paper" : ""}`}>
+                        <tr onClick={() => editing !== key && setOpen(isOpen ? null : r.prompt)} aria-expanded={isOpen} className={`group cursor-pointer ${isOpen ? "bg-paper" : ""}`}>
                           <td>
                             <span className="flex items-start gap-2 pl-5">
                               <span aria-hidden="true" className="text-muted">
                                 {isOpen ? "▾" : "▸"}
                               </span>
-                              <span className="text-[14px] leading-snug text-ink">{r.prompt}</span>
+                              {edit && editing === key ? (
+                                <InlineInput
+                                  start={r.prompt}
+                                  label="Prompt"
+                                  onSave={(v) => {
+                                    edit.editPrompt(t.name, r.prompt, v);
+                                    setEditing(null);
+                                  }}
+                                  onCancel={() => setEditing(null)}
+                                />
+                              ) : (
+                                <span className="text-[14px] leading-snug text-ink">{r.prompt}</span>
+                              )}
+                              {edit && editing !== key ? <RowTools label="prompt" onEdit={() => setEditing(key)} onRemove={() => edit.removePrompt(t.name, r.prompt)} /> : null}
                             </span>
                           </td>
                           <td className="aw-num">{pct(r.visibility)}</td>
-                          {r.latest.map((c) => (
+                          {r.latest.filter((c) => engines.includes(c.engine)).map((c) => (
                             <td key={c.engine}>
                               <Cell c={c} />
                             </td>
@@ -378,6 +535,28 @@ function Results({ sb, view, focusTopic, onCompetitor }: { sb: SupabaseClient; v
                       </Fragment>
                     );
                   })}
+              {edit && !isClosed ? (
+                <tr className="print:hidden">
+                  <td colSpan={cols} className="py-1.5!">
+                    <input
+                      value={drafts[t.name] ?? ""}
+                      onChange={(e) => setDrafts({ ...drafts, [t.name]: e.target.value })}
+                      onKeyDown={(e) => {
+                        if (e.key !== "Enter") return;
+                        e.preventDefault();
+                        const v = (drafts[t.name] ?? "").trim().replace(/\s+/g, " ");
+                        if (!v) return;
+                        edit.addPrompt(t.name, v);
+                        setDrafts({ ...drafts, [t.name]: "" });
+                      }}
+                      disabled={edit.full}
+                      placeholder={edit.full ? `You have used all ${MAX_PROMPTS} prompts` : "+ Add prompt and press Enter"}
+                      aria-label={`Add a prompt to ${t.name}`}
+                      className="ml-5 w-[calc(100%-1.25rem)] max-w-xl border border-transparent bg-transparent px-2 py-1 text-[14px] text-ink placeholder:text-muted hover:border-rule focus:border-brand focus:bg-white focus:outline-none"
+                    />
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           );
         })}
@@ -610,134 +789,6 @@ function Detail({ sb, view, prompt, topic, onCompetitor }: { sb: SupabaseClient;
           </section>
         </>
       )}
-    </div>
-  );
-}
-
-/** Rename, add and remove topics and prompts. Saves on every change. */
-function Editor({ brand, onChange, onRemove }: { brand: Brand; onChange: (b: Brand) => void; onRemove: () => void }) {
-  const topics: Topic[] = brand.topics.length ? brand.topics : brand.prompts.length ? [{ name: "Other prompts", prompts: brand.prompts }] : [];
-  const [newTopic, setNewTopic] = useState("");
-  const [drafts, setDrafts] = useState<Record<string, string>>({});
-  const total = flatPrompts(topics).length;
-  const save = (next: Topic[]) => onChange({ ...brand, topics: next, prompts: flatPrompts(next) });
-
-  return (
-    <div className="flex max-w-4xl flex-col gap-4">
-      <label className="flex cursor-pointer items-start gap-3 rounded-aw border border-rule bg-white px-4 py-3 shadow-aw-sm">
-        <input type="checkbox" checked={brand.daily} onChange={(e) => onChange({ ...brand, daily: e.target.checked })} className="mt-1 h-4 w-4 accent-[#0943B0]" />
-        <span className="flex flex-col">
-          <span className="text-[14px] font-medium text-ink">Check every day</span>
-          <span className="aw-small">{brand.daily ? "On. The server checks every prompt on every model once a day." : "Off. This brand is paused and is not checked."}</span>
-        </span>
-      </label>
-
-      {topics.map((t, ti) => (
-        <section key={`${ti}-${t.name}`} className="aw-frame">
-          <div className="flex items-center gap-2 border-b border-rule-faint px-4 py-3">
-            <input
-              aria-label="Topic name"
-              defaultValue={t.name}
-              onBlur={(e) => {
-                const v = e.target.value.trim();
-                if (v && v !== t.name) save(topics.map((x, i) => (i === ti ? { ...x, name: v } : x)));
-              }}
-              className="aw-input flex-1 py-2! font-medium"
-            />
-            <span className="aw-small whitespace-nowrap">{t.prompts.length} prompts</span>
-            <button
-              type="button"
-              className="aw-btn aw-btn--secondary aw-btn--sm"
-              onClick={() => {
-                if (confirm(`Remove the topic "${t.name}" and its prompts?`)) save(topics.filter((_, i) => i !== ti));
-              }}
-            >
-              Remove
-            </button>
-          </div>
-          <ul className="flex flex-col gap-1.5 p-3">
-            {t.prompts.map((p, pi) => (
-              <li key={`${pi}-${p}`} className="flex items-center gap-2 rounded-aw bg-surface-2 px-2 py-1.5">
-                <input
-                  aria-label="Prompt"
-                  defaultValue={p}
-                  onBlur={(e) => {
-                    const v = e.target.value.trim();
-                    if (v && v !== p) save(topics.map((x, i) => (i === ti ? { ...x, prompts: x.prompts.map((y, j) => (j === pi ? v : y)) } : x)));
-                  }}
-                  className="min-w-0 flex-1 bg-transparent px-2 py-1 text-[14px] text-ink outline-none focus:bg-white"
-                />
-                <button
-                  type="button"
-                  aria-label={`Remove prompt: ${p}`}
-                  className="px-2 text-[16px] text-muted hover:text-neg"
-                  onClick={() => save(topics.map((x, i) => (i === ti ? { ...x, prompts: x.prompts.filter((_, j) => j !== pi) } : x)))}
-                >
-                  ×
-                </button>
-              </li>
-            ))}
-            <li className="flex gap-2 pt-1">
-              <input
-                value={drafts[ti] ?? ""}
-                onChange={(e) => setDrafts({ ...drafts, [ti]: e.target.value })}
-                onKeyDown={(e) => {
-                  if (e.key !== "Enter") return;
-                  e.preventDefault();
-                  const v = (drafts[ti] ?? "").trim();
-                  if (!v || total >= MAX_PROMPTS) return;
-                  save(topics.map((x, i) => (i === ti ? { ...x, prompts: [...x.prompts, v] } : x)));
-                  setDrafts({ ...drafts, [ti]: "" });
-                }}
-                placeholder={total >= MAX_PROMPTS ? `You have used all ${MAX_PROMPTS} prompts` : "+ Add prompt and press Enter"}
-                disabled={total >= MAX_PROMPTS}
-                className="aw-input py-2!"
-              />
-            </li>
-          </ul>
-        </section>
-      ))}
-
-      <div className="flex gap-2">
-        <input
-          value={newTopic}
-          onChange={(e) => setNewTopic(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key !== "Enter") return;
-            e.preventDefault();
-            const v = newTopic.trim();
-            if (!v || topics.length >= MAX_TOPICS) return;
-            save([...topics, { name: v, prompts: [v] }]);
-            setNewTopic("");
-          }}
-          placeholder={topics.length >= MAX_TOPICS ? `You can track up to ${MAX_TOPICS} topics` : "Add a topic, like: review management software"}
-          disabled={topics.length >= MAX_TOPICS}
-          className="aw-input"
-        />
-        <button
-          type="button"
-          className="aw-btn aw-btn--secondary"
-          disabled={!newTopic.trim() || topics.length >= MAX_TOPICS || total >= MAX_PROMPTS}
-          onClick={() => {
-            save([...topics, { name: newTopic.trim(), prompts: [newTopic.trim()] }]);
-            setNewTopic("");
-          }}
-        >
-          Add topic
-        </button>
-      </div>
-      <p className="aw-small">
-        Up to {MAX_TOPICS} topics and {MAX_PROMPTS} prompts. A new topic starts with its own name as the first prompt. Aim for about {PROMPTS_PER_TOPIC} prompts per topic.
-      </p>
-      <button
-        type="button"
-        className="aw-text-link self-start text-neg!"
-        onClick={() => {
-          if (confirm(`Stop tracking ${brand.name}? Its results will be deleted.`)) onRemove();
-        }}
-      >
-        Remove this brand
-      </button>
     </div>
   );
 }

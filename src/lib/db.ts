@@ -33,7 +33,10 @@ export type Profile = {
   businessType?: BusinessType;
   country?: string;
   columns?: SheetColumn[]; // custom columns in the Content calendar
+  competitors?: TrackedCompetitor[]; // competitors the brand chose to track, up to MAX_COMPETITORS
 };
+export type TrackedCompetitor = { name: string; domain: string };
+export const MAX_COMPETITORS = 50;
 export type SheetColumn = { id: string; name: string; type: "text" | "number" | "date" };
 /** A buying category the brand wants to win, and the prompts that track it. */
 export type Topic = { name: string; prompts: string[] };

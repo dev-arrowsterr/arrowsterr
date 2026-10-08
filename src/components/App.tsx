@@ -451,6 +451,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
               key={`${view.brand.id}-${focus ?? ""}`}
               view={view}
               initial={focus}
+              canEdit={canEdit}
+              onBrand={update}
               onTopic={(t) => {
                 setFocusTopic(t);
                 go("prompts");
@@ -478,7 +480,6 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
                 setFocus(name);
                 go("competitors");
               }}
-              onOpen={(p) => go(p)}
             />
           )}
         </main>

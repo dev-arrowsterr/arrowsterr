@@ -26,6 +26,8 @@ export async function POST(request: Request) {
     brands: chat.brands,
     shown: chat.shown,
     organic: chat.organic,
+    quote: chat.quote,
+    queries: chat.queries,
     error: chat.error ?? undefined,
   });
 }

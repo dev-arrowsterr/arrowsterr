@@ -28,6 +28,8 @@ async function askOne(engine: string, prompt: string, brand: string, domain: str
     const chat: Chat = { engine, prompt, text: data.text ?? "", sources: data.sources ?? [], brands: data.brands ?? [], error: data.error ?? null };
     if (typeof data.shown === "boolean") chat.shown = data.shown;
     if (Array.isArray(data.organic)) chat.organic = data.organic;
+    if (data.quote) chat.quote = data.quote;
+    if (Array.isArray(data.queries)) chat.queries = data.queries;
     return chat;
   } catch (e) {
     return fail(e instanceof Error ? e.message : String(e));

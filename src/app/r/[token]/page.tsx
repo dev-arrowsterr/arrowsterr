@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
+import { PrintButton } from "@/components/reports/PrintButton";
+import { PromptsDoc } from "@/components/reports/PromptsDoc";
 import { ReportDoc } from "@/components/reports/ReportDoc";
-import type { ReportSnapshot } from "@/lib/reportTypes";
+import type { PromptsSnapshot, ReportSnapshot } from "@/lib/reportTypes";
 import { adminClient } from "@/lib/serverAuth";
 
-export const metadata: Metadata = { title: "Performance report", robots: { index: false, follow: false } };
+export const metadata: Metadata = { title: "Shared report", robots: { index: false, follow: false } };
 
 // A shared client report. Anyone with the link can read it; nothing else in the workspace is exposed.
 export default async function SharedReport({ params }: { params: Promise<{ token: string }> }) {
@@ -21,7 +23,10 @@ export default async function SharedReport({ params }: { params: Promise<{ token
   }
   return (
     <main className="min-h-screen bg-surface-2 py-8 print:bg-white print:py-0">
-      <ReportDoc r={row.data as ReportSnapshot} />
+      <div className="mx-auto mb-4 flex max-w-6xl justify-end px-4 print:hidden">
+        <PrintButton />
+      </div>
+      {(row.data as { kind?: string }).kind === "prompts" ? <PromptsDoc r={row.data as PromptsSnapshot} /> : <ReportDoc r={row.data as ReportSnapshot} />}
     </main>
   );
 }
