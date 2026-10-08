@@ -125,6 +125,8 @@ function toSession(o: Raw): Session {
   };
 }
 function toActivity(o: Raw): Activity {
+  // A custom action has a name. Umami versions disagree on the type number, so the name decides.
+  const name = str(pick(o, "eventName", "event_name"));
   const type = Number(pick(o, "eventType", "event_type") ?? 1);
   return {
     at: String(pick(o, "createdAt", "created_at") ?? ""),
@@ -133,7 +135,7 @@ function toActivity(o: Raw): Activity {
     query: str(pick(o, "urlQuery", "url_query")),
     referrer: str(pick(o, "referrerDomain", "referrer_domain")),
     title: str(pick(o, "pageTitle", "page_title")),
-    event: type === 2 ? str(pick(o, "eventName", "event_name")) : null,
+    event: name && name.trim() ? name : type === 2 ? "Action" : null,
     sessionId: str(pick(o, "sessionId", "session_id")),
   };
 }

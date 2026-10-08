@@ -71,9 +71,21 @@ export function sourceOf(referrer: string | null, ownDomain: string): { source: 
   return { source: d, kind: "referral" };
 }
 
+/** Oldest first, with repeat pageviews of the same page within a minute counted once (reloads and double counts). */
+export function clean(steps: Step[]): Step[] {
+  const sorted = [...steps].sort((a, b) => a.at.localeCompare(b.at));
+  const out: Step[] = [];
+  for (const s of sorted) {
+    const prev = [...out].reverse().find((x) => !x.event);
+    if (!s.event && prev && prev.path === s.path && Date.parse(s.at) - Date.parse(prev.at) < 60_000) continue;
+    out.push(s);
+  }
+  return out;
+}
+
 /** Split a visitor's steps into visits: by Umami's visit id, or a 30 minute gap when there is none. */
 export function visitsOf(steps: Step[], ownDomain: string): Visit[] {
-  const sorted = [...steps].sort((a, b) => a.at.localeCompare(b.at));
+  const sorted = clean(steps);
   const out: Visit[] = [];
   let cur: Step[] = [];
   const flush = () => {
@@ -124,7 +136,7 @@ export function scoreOf(v: { sourceKind: SourceKind; source: string; intentPages
 export function summarize(s: SessionInfo, steps: Step[], ownDomain: string): Visitor {
   const visits = visitsOf(steps, ownDomain);
   const firstSource = visits.find((v) => v.sourceKind !== "direct") ?? visits[0];
-  const paths = steps.filter((x) => !x.event && x.path).map((x) => x.path!);
+  const paths = clean(steps).filter((x) => !x.event && x.path).map((x) => x.path!);
   const intentPages = [...new Set(paths.flatMap((p) => INTENT.filter(([re]) => re.test(p)).map(([, n]) => n)))];
   const actions = [...new Set(steps.map((x) => x.event).filter((e): e is string => Boolean(e) && KEY_ACTIONS.includes(e!)))];
   const seconds = visits.reduce((n, v) => n + v.seconds, 0);

@@ -87,3 +87,16 @@ test("visitor journeys: sources, visits and score", async () => {
   assert.deepEqual(v.actions, ["Booking click"]);
   assert.equal(v.label, "Hot");
 });
+
+test("scroll actions are not counted as pages", async () => {
+  const { visitsOf } = await import("../src/lib/journey.ts");
+  const at = (s: number) => new Date(Date.UTC(2026, 9, 8, 10, 0, s)).toISOString();
+  const steps = [
+    { at: at(0), visitId: "v", path: "/a", query: null, referrer: null, title: null, event: null },
+    { at: at(1), visitId: "v", path: "/a", query: null, referrer: null, title: null, event: null },
+    { at: at(20), visitId: "v", path: "/a", query: null, referrer: null, title: null, event: "Scrolled 50%" },
+  ];
+  const [v] = visitsOf(steps, "acme.com");
+  assert.equal(v.steps.filter((s) => !s.event).length, 1);
+  assert.equal(v.steps.filter((s) => s.event).length, 1);
+});
