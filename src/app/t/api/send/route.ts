@@ -32,8 +32,12 @@ export async function POST(request: Request) {
   }
   try {
     const res = await fetch(`${trackerOrigin()}/api/send`, { method: "POST", headers: forward, body: await request.text(), signal: AbortSignal.timeout(10_000) });
-    return new Response(await res.text(), { status: res.status, headers: { ...CORS, "Content-Type": res.headers.get("content-type") ?? "text/plain" } });
-  } catch {
+    const text = await res.text();
+    // Shows up in Render logs, so a broken setup is easy to spot.
+    if (!res.ok) console.error(`Tracking event rejected by Umami (${res.status}): ${text.slice(0, 200)}`);
+    return new Response(text, { status: res.status, headers: { ...CORS, "Content-Type": res.headers.get("content-type") ?? "text/plain" } });
+  } catch (e) {
+    console.error("Tracking event could not reach Umami:", e instanceof Error ? e.message : e);
     return new Response(null, { status: 202, headers: CORS });
   }
 }
