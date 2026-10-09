@@ -9,7 +9,7 @@ import { answerRows, saveAnswers, type Profile } from "../db";
 import { askEngine, availableEngines, viaDfs, type Engine } from "../engines";
 import { entitlement } from "../entitlements";
 import { enqueue, enqueueMany, finish, rateOk, retry, type Job } from "../jobs";
-import { promptAllowance } from "../plans";
+import { checkDue, promptAllowance } from "../plans";
 import type { PlanBrief } from "../research";
 
 // What each kind of job does. A handler either finishes its job, or puts it back with retry().
@@ -54,10 +54,9 @@ export async function schedule(db: SupabaseClient, job: Job) {
     if (!allowance.has(b.workspace_id)) allowance.set(b.workspace_id, promptAllowance((brands ?? []).filter((x) => x.workspace_id === b.workspace_id), e.limits));
     const prompts: string[] = (b.prompts as string[]).slice(0, allowance.get(b.workspace_id)!.get(b.id) ?? 0);
     if (!prompts.length) continue;
-    // Each plan sets how often Claude is checked. Brands take turns, so the load stays even.
-    const every = e.limits.claudeEvery;
-    const day = Math.floor(Date.now() / 864e5);
-    const list = engines.filter((x) => x !== "Claude" || every <= 1 || (day + seed(b.id)) % every === 0);
+    // Weekly plans check each brand on its own day of the week, so the load stays even.
+    if (!checkDue(seed(b.id), e.limits.checkEvery)) continue;
+    const list = engines;
     const { data: run, error: err } = await db
       .from("runs")
       .insert({ workspace_id: b.workspace_id, brand_id: b.id, source: "daily", status: "running", engines: list, prompts, chats: [], expected: list.length * prompts.length })

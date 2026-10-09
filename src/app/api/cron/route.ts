@@ -7,7 +7,7 @@ import { availableEngines, viaDfs, type Engine } from "@/lib/engines";
 import { allowed } from "@/lib/cronAuth";
 import { entitlement } from "@/lib/entitlements";
 import { queueReady } from "@/lib/jobs";
-import { promptAllowance } from "@/lib/plans";
+import { checkDue, promptAllowance } from "@/lib/plans";
 import { metered } from "@/lib/meter";
 import { adminClient } from "@/lib/serverAuth";
 
@@ -87,23 +87,15 @@ export async function POST(request: Request) {
   const recent = await sb.from("runs").select("brand_id").gte("at", stale);
   if (recent.error) return fail(recent.error);
   const ran = new Set((recent.data ?? []).map((r) => r.brand_id));
-  // Each plan sets how often Claude is checked. Brands are spread over the days, so the load stays even.
-  const due = (b: { id: string; workspace_id: string }, every: number) => {
-    if (every <= 1) return true;
-    const day = Math.floor(Date.now() / 864e5);
-    const seed = [...b.id].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 9973, 0);
-    return (day + seed) % every === 0;
-  };
   const plans = new Map<string, Awaited<ReturnType<typeof entitlement>>>();
   for (const w of new Set((brands.data ?? []).map((b) => b.workspace_id))) plans.set(w, await entitlement(w));
   const room = (b: { id: string; workspace_id: string }) =>
     promptAllowance((brands.data ?? []).filter((x) => x.workspace_id === b.workspace_id), plans.get(b.workspace_id)!.limits).get(b.id) ?? 0;
   const fresh = (brands.data ?? [])
     .filter((b) => b.daily && !ran.has(b.id) && b.prompts?.length && !plans.get(b.workspace_id)?.readOnly && room(b) > 0)
-    .map((b) => {
-      const every = plans.get(b.workspace_id)?.limits.claudeEvery ?? 1;
-      return { workspace_id: b.workspace_id, brand_id: b.id, source: "daily", status: "running", engines: engines.filter((e) => e !== "Claude" || due(b, every)), prompts: b.prompts.slice(0, room(b)), chats: [] };
-    });
+    // Weekly plans check each brand on its own day of the week.
+    .filter((b) => checkDue([...b.id].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 100003, 7), plans.get(b.workspace_id)?.limits.checkEvery ?? 1))
+    .map((b) => ({ workspace_id: b.workspace_id, brand_id: b.id, source: "daily", status: "running", engines, prompts: b.prompts.slice(0, room(b)), chats: [] }));
   if (fresh.length) {
     res = await sb.from("runs").insert(fresh);
     if (res.error) return fail(res.error);

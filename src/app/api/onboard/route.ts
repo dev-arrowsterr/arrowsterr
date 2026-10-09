@@ -1,6 +1,7 @@
 import { askClaude, parseJson } from "@/lib/claude";
 import { cleanProfile, SITE_PROMPT } from "@/lib/onboarding";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
+import { take } from "@/lib/entitlements";
 import { fetchSite, logoFor, normalizeSite } from "@/lib/site";
 import { meteredRoute } from "@/lib/meter";
 
@@ -12,6 +13,8 @@ async function handle(request: Request) {
   // Only editors and up may spend AI credits. Reading a site counts as one answer.
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
+  const took = await take(body.workspaceId, "ai");
+  if (!took.ok) return took.response;
   const limited = await takeAnswer(auth.sb, body.workspaceId);
   if (limited) return limited;
   if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });

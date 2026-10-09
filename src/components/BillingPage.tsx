@@ -77,7 +77,7 @@ export function BillingPage({ sb, ws, auth, onPlan }: { sb: SupabaseClient; ws: 
   const button = (id: PlanId) => {
     if (id === "enterprise")
       return (
-        <a href={SALES} className="aw-btn aw-btn--secondary aw-btn--block">
+        <a href={SALES} className="aw-btn aw-btn--block bg-white! text-ink!">
           Talk to us
         </a>
       );

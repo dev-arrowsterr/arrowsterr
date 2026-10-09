@@ -139,7 +139,7 @@ export function MembersPage({ sb, ws, userId, onChanged }: { sb: SupabaseClient;
         <section className="flex flex-col gap-3">
           <h2 className="aw-h4">Usage</h2>
           <div className="grid gap-3 sm:grid-cols-3">
-            <Meter label="Brands" used={usage.brands} limit={usage.brandLimit} />
+            {usage.brandLimit < 1000 ? <Meter label="Brands" used={usage.brands} limit={usage.brandLimit} /> : null}
             <Meter label="Prompts" used={usage.prompts} limit={usage.promptLimit} />
             <Meter label="AI answers today" used={usage.answersToday} limit={usage.answerLimit} />
           </div>

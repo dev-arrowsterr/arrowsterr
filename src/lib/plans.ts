@@ -8,45 +8,48 @@ export type Reports = "basic" | "templates" | "share" | "whitelabel";
 export type Plan = {
   id: PlanId;
   name: string;
+  tagline: string;
   price: number; // US dollars a month, billed monthly
   annual: number; // US dollars a month, billed yearly
-  prompts: number;
+  prompts: number; // shared by every brand in the workspace
   brands: number;
   seats: number;
   competitors: number; // per brand
   historyDays: number;
-  claudeEvery: number; // Claude is checked every N days. The other AIs are checked daily.
+  checkEvery: number; // every AI is checked every N days: 7 is weekly, 1 is daily
   checkNowPerDay: number; // prompts a day that can be re-checked on demand
   briefsPerMonth: number;
   plansPerMonth: number;
   planMaxKeywords: 30 | 60 | 120;
   researchPerDay: number; // keyword and domain lookups
-  aiPerMonth: number; // fair use ceiling for writer messages, ideas, AI summaries and the report agent
-  writer: "briefs" | "full";
+  aiPerMonth: number; // fair use ceiling for writer messages, ideas, AI summaries, new brands and the report agent
+  pageviewsPerMonth: number; // visits recorded by the tracking script, across all brands
+  writer: "none" | "full";
   reports: Reports;
   alerts: boolean; // Slack, Zapier and the API
   sso: boolean;
 };
 
+export const UNLIMITED = 1000;
 const base = { sso: false } as const;
 
 export const PLANS: Record<PlanId, Plan> = {
-  foundation: { ...base, id: "foundation", name: "Foundation", price: 29, annual: 25, prompts: 12, brands: 1, seats: 1, competitors: 10, historyDays: 90, claudeEvery: 7, checkNowPerDay: 1, briefsPerMonth: 3, plansPerMonth: 1, planMaxKeywords: 30, researchPerDay: 5, aiPerMonth: 300, writer: "briefs", reports: "basic", alerts: false },
-  scale: { ...base, id: "scale", name: "Scale", price: 49, annual: 42, prompts: 20, brands: 1, seats: 3, competitors: 25, historyDays: 180, claudeEvery: 7, checkNowPerDay: 5, briefsPerMonth: 15, plansPerMonth: 2, planMaxKeywords: 60, researchPerDay: 20, aiPerMonth: 1000, writer: "full", reports: "templates", alerts: false },
-  thrive: { ...base, id: "thrive", name: "Thrive", price: 149, annual: 127, prompts: 40, brands: 3, seats: 5, competitors: 50, historyDays: 365, claudeEvery: 1, checkNowPerDay: 25, briefsPerMonth: 50, plansPerMonth: 8, planMaxKeywords: 120, researchPerDay: 50, aiPerMonth: 3000, writer: "full", reports: "share", alerts: true },
-  agency: { ...base, id: "agency", name: "Agency", price: 399, annual: 339, prompts: 100, brands: 15, seats: 15, competitors: 50, historyDays: 730, claudeEvery: 1, checkNowPerDay: 100, briefsPerMonth: 150, plansPerMonth: 20, planMaxKeywords: 120, researchPerDay: 200, aiPerMonth: 10000, writer: "full", reports: "whitelabel", alerts: true },
-  enterprise: { id: "enterprise", name: "Enterprise", price: 1500, annual: 1500, prompts: 500, brands: 1000, seats: 1000, competitors: 200, historyDays: 1095, claudeEvery: 1, checkNowPerDay: 500, briefsPerMonth: 500, plansPerMonth: 60, planMaxKeywords: 120, researchPerDay: 1000, aiPerMonth: 30000, writer: "full", reports: "whitelabel", alerts: true, sso: true },
-  // 14 days of Scale, no card. Then read-only until a plan is picked.
-  trial: { ...base, id: "trial", name: "Trial", price: 0, annual: 0, prompts: 20, brands: 1, seats: 3, competitors: 25, historyDays: 180, claudeEvery: 7, checkNowPerDay: 5, briefsPerMonth: 5, plansPerMonth: 1, planMaxKeywords: 60, researchPerDay: 20, aiPerMonth: 300, writer: "full", reports: "templates", alerts: false },
+  foundation: { ...base, id: "foundation", name: "Foundation", tagline: "See how AI talks about your brand", price: 29, annual: 25, prompts: 50, brands: UNLIMITED, seats: 1, competitors: 25, historyDays: 90, checkEvery: 7, checkNowPerDay: 2, briefsPerMonth: 0, plansPerMonth: 0, planMaxKeywords: 30, researchPerDay: 0, aiPerMonth: 150, pageviewsPerMonth: 25_000, writer: "none", reports: "basic", alerts: false },
+  scale: { ...base, id: "scale", name: "Scale", tagline: "Turn AI gaps into content that ranks", price: 49, annual: 42, prompts: 100, brands: UNLIMITED, seats: 3, competitors: 50, historyDays: 180, checkEvery: 7, checkNowPerDay: 5, briefsPerMonth: 10, plansPerMonth: 1, planMaxKeywords: 60, researchPerDay: 20, aiPerMonth: 1000, pageviewsPerMonth: 100_000, writer: "full", reports: "templates", alerts: false },
+  thrive: { ...base, id: "thrive", name: "Thrive", tagline: "Daily tracking for growing teams", price: 149, annual: 127, prompts: 100, brands: UNLIMITED, seats: 5, competitors: 50, historyDays: 365, checkEvery: 1, checkNowPerDay: 25, briefsPerMonth: 40, plansPerMonth: 6, planMaxKeywords: 120, researchPerDay: 50, aiPerMonth: 3000, pageviewsPerMonth: 500_000, writer: "full", reports: "share", alerts: true },
+  agency: { ...base, id: "agency", name: "Agency", tagline: "Every client, your brand on the report", price: 399, annual: 339, prompts: 250, brands: UNLIMITED, seats: 15, competitors: 100, historyDays: 730, checkEvery: 1, checkNowPerDay: 100, briefsPerMonth: 120, plansPerMonth: 20, planMaxKeywords: 120, researchPerDay: 200, aiPerMonth: 10000, pageviewsPerMonth: 2_000_000, writer: "full", reports: "whitelabel", alerts: true },
+  enterprise: { id: "enterprise", name: "Enterprise", tagline: "Custom volume, security and support", price: 1500, annual: 1500, prompts: 1000, brands: UNLIMITED, seats: UNLIMITED, competitors: 200, historyDays: 1095, checkEvery: 1, checkNowPerDay: 500, briefsPerMonth: 500, plansPerMonth: 60, planMaxKeywords: 120, researchPerDay: 1000, aiPerMonth: 30000, pageviewsPerMonth: 10_000_000, writer: "full", reports: "whitelabel", alerts: true, sso: true },
+  // 14 days of Scale with fewer prompts, checked every 3 days. No card. Then read-only until a plan is picked.
+  trial: { ...base, id: "trial", name: "Trial", tagline: "", price: 0, annual: 0, prompts: 50, brands: UNLIMITED, seats: 3, competitors: 50, historyDays: 180, checkEvery: 3, checkNowPerDay: 5, briefsPerMonth: 5, plansPerMonth: 1, planMaxKeywords: 60, researchPerDay: 20, aiPerMonth: 300, pageviewsPerMonth: 25_000, writer: "full", reports: "templates", alerts: false },
   // Workspaces made before billing existed keep what they had until they pick a plan.
-  legacy: { ...base, id: "legacy", name: "Early access", price: 0, annual: 0, prompts: 50, brands: 3, seats: 15, competitors: 50, historyDays: 365, claudeEvery: 1, checkNowPerDay: 50, briefsPerMonth: 100, plansPerMonth: 10, planMaxKeywords: 120, researchPerDay: 200, aiPerMonth: 5000, writer: "full", reports: "whitelabel", alerts: true },
+  legacy: { ...base, id: "legacy", name: "Early access", tagline: "", price: 0, annual: 0, prompts: 50, brands: UNLIMITED, seats: 15, competitors: 50, historyDays: 365, checkEvery: 1, checkNowPerDay: 50, briefsPerMonth: 100, plansPerMonth: 10, planMaxKeywords: 120, researchPerDay: 200, aiPerMonth: 5000, pageviewsPerMonth: 500_000, writer: "full", reports: "whitelabel", alerts: true },
 };
 
 /** The plans sold on the pricing page, in order. */
 export const LADDER: PlanId[] = ["foundation", "scale", "thrive", "agency", "enterprise"];
 
 /** Paid extras on top of a plan. Stored on the workspace as counts. */
-export type Extras = { prompts?: number; brands?: number; seats?: number; dailyClaude?: boolean };
+export type Extras = { prompts?: number; brands?: number; seats?: number; daily?: boolean };
 
 /** What a workspace can use: its plan plus any extras. */
 export function limitsFor(plan: PlanId, extras: Extras = {}): Plan {
@@ -56,7 +59,7 @@ export function limitsFor(plan: PlanId, extras: Extras = {}): Plan {
     prompts: p.prompts + (extras.prompts ?? 0),
     brands: p.brands + (extras.brands ?? 0),
     seats: p.seats + (extras.seats ?? 0),
-    claudeEvery: extras.dailyClaude ? 1 : p.claudeEvery,
+    checkEvery: extras.daily ? 1 : p.checkEvery,
   };
 }
 
@@ -78,6 +81,14 @@ export function promptAllowance(brands: { id: string; prompts: string[] | null }
   return out;
 }
 
+/** True when a brand's daily check is due today. Weekly plans spread their brands over the week. */
+export function checkDue(brandSeed: number, every: number, day = Math.floor(Date.now() / 864e5)) {
+  return every <= 1 || (day + brandSeed) % every === 0;
+}
+
+/** The first plan that includes a counted allowance, for "starts on Scale". */
+export const firstWith = (m: Metric) => LADDER.find((id) => METRICS[m].limit(PLANS[id]) > 0) ?? null;
+
 /** The next plan up, for the Boost button. */
 export function nextPlan(plan: PlanId): PlanId | null {
   const i = LADDER.indexOf(plan === "trial" ? "scale" : plan === "legacy" ? "thrive" : plan);
@@ -85,13 +96,14 @@ export function nextPlan(plan: PlanId): PlanId | null {
 }
 
 /** The counted allowances, by name. */
-export type Metric = "briefs" | "plans" | "research" | "checknow" | "ai";
+export type Metric = "briefs" | "plans" | "research" | "checknow" | "ai" | "pageviews";
 export const METRICS: Record<Metric, { label: string; period: "month" | "day"; limit: (l: Plan) => number }> = {
   briefs: { label: "content briefs", period: "month", limit: (l) => l.briefsPerMonth },
   plans: { label: "content plans", period: "month", limit: (l) => l.plansPerMonth },
   research: { label: "research lookups", period: "day", limit: (l) => l.researchPerDay },
   checknow: { label: "on-demand checks", period: "day", limit: (l) => l.checkNowPerDay },
   ai: { label: "AI requests", period: "month", limit: (l) => l.aiPerMonth },
+  pageviews: { label: "tracked visits", period: "month", limit: (l) => l.pageviewsPerMonth },
 };
 
 /**

@@ -561,6 +561,27 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             <BillingPage key={ws.id} sb={sb} ws={ws} auth={auth} onPlan={loadPlan} />
           ) : !view ? (
             <div className="aw-callout max-w-xl">This workspace has no brands yet. Ask an editor or admin to add one.</div>
+          ) : RESEARCH.includes(page) && plan && (page === "keywords" || page === "domain" ? plan.limits.researchPerDay : plan.limits.briefsPerMonth) === 0 ? (
+            <Locked
+              title={page === "keywords" || page === "domain" ? "SEO research starts on Scale" : "Content starts on Scale"}
+              admin={atLeast(ws.role, "admin")}
+              busy={boosting}
+              onBoost={async () => {
+                setBoosting(true);
+                try {
+                  const done = await choosePlan(auth, "scale", plan.interval ?? "month");
+                  if (done) {
+                    setNotice(done);
+                    loadPlan();
+                  }
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : String(e));
+                } finally {
+                  setBoosting(false);
+                }
+              }}
+              onPlans={() => go("billing")}
+            />
           ) : RESEARCH.includes(page) ? (
             <ResearchPage key={view.brand.id} sb={sb} auth={auth} view={view} canEdit={canEdit} tool={page as Tool} onTool={(t) => go(t)} seoStart={seoStart} onSeoStarted={() => setSeoStart(null)} />
           ) : page === "competitors" ? (
@@ -609,6 +630,35 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             />
           )}
         </main>
+      </div>
+    </div>
+  );
+}
+
+/** A page the plan does not include, with the way up. */
+function Locked({ title, admin, busy, onBoost, onPlans }: { title: string; admin: boolean; busy: boolean; onBoost: () => void; onPlans: () => void }) {
+  const p = PLANS.scale;
+  return (
+    <div className="mx-auto mt-10 flex max-w-xl flex-col items-center gap-5 rounded-[20px] border border-rule bg-white px-6 py-12 text-center shadow-aw-sm">
+      <span aria-hidden="true" className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-pale text-[22px] text-brand">
+        ✦
+      </span>
+      <h1 className="aw-h3 mb-0!">{title}</h1>
+      <ul className="flex flex-col gap-2 text-left text-[15px] text-body">
+        <li>✓ {p.researchPerDay} keyword & domain lookups a day</li>
+        <li>✓ {p.briefsPerMonth} content briefs and {p.plansPerMonth} content plan a month</li>
+        <li>✓ Agentic Writer, Editorial Calendar and Topic Bank</li>
+        <li>✓ {p.prompts} prompts and {p.seats} seats</li>
+      </ul>
+      <div className="flex flex-wrap justify-center gap-3">
+        {admin ? (
+          <button type="button" className="aw-btn aw-btn--primary" disabled={busy} onClick={onBoost}>
+            {busy ? "Opening..." : `Boost to Scale · $${p.price}/mo`}
+          </button>
+        ) : null}
+        <button type="button" className="aw-btn aw-btn--secondary" onClick={onPlans}>
+          See plans
+        </button>
       </div>
     </div>
   );

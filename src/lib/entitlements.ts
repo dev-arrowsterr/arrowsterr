@@ -1,5 +1,5 @@
 import "server-only";
-import { cycleEnd, limitsFor, METRICS, nextPlan, PLANS, periodOf, type Extras, type Metric, type Plan, type PlanId } from "./plans";
+import { cycleEnd, firstWith, limitsFor, METRICS, nextPlan, PLANS, periodOf, type Extras, type Metric, type Plan, type PlanId } from "./plans";
 import { onRefund } from "./meter";
 import { adminClient } from "./serverAuth";
 
@@ -45,8 +45,14 @@ const resetText = (m: Metric, anchor: string | null) => {
 
 /** A friendly "limit reached" answer, with the plan to boost to. */
 function limitReached(e: Entitlement, m: Metric, limit: number) {
-  const up = nextPlan(e.plan);
   const label = METRICS[m].label;
+  // Not on this plan at all: name the plan it starts on.
+  if (limit <= 0) {
+    const on = firstWith(m);
+    const error = `${label[0].toUpperCase()}${label.slice(1)} start on ${on ? PLANS[on].name : "a bigger plan"}.`;
+    return Response.json({ error, limit: true, metric: m, boost: on }, { status: 429 });
+  }
+  const up = nextPlan(e.plan);
   const error = `You've used ${METRICS[m].period === "day" ? "today's" : "this month's"} ${limit} ${label} on ${e.limits.name}. ${resetText(m, e.anchor)}${up ? `, or boost to ${PLANS[up].name} now` : ""}.`;
   return Response.json({ error, limit: true, metric: m, boost: up }, { status: 429 });
 }

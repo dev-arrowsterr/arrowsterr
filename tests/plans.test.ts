@@ -2,31 +2,47 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { dailyAnswers, LADDER, limitsFor, METRICS, nextPlan, PLANS, periodOf } from "../src/lib/plans.ts";
 
-test("every sold plan costs more and gives more prompts than the one before", () => {
+test("every sold plan costs more and gives more prompts or more often checks than the one before", () => {
   for (let i = 1; i < LADDER.length; i++) {
     const a = PLANS[LADDER[i - 1]];
     const b = PLANS[LADDER[i]];
     assert.ok(b.price > a.price, `${b.name} should cost more than ${a.name}`);
-    assert.ok(b.prompts > a.prompts, `${b.name} should track more prompts than ${a.name}`);
+    assert.ok(b.prompts >= a.prompts && b.seats >= a.seats, `${b.name} should never give less than ${a.name}`);
+    assert.ok(b.prompts > a.prompts || b.checkEvery < a.checkEvery, `${b.name} should give more than ${a.name}`);
   }
+});
+
+test("Foundation is AI visibility only, and SEO and content start on Scale", async () => {
+  const { firstWith } = await import("../src/lib/plans.ts");
+  assert.equal(PLANS.foundation.researchPerDay + PLANS.foundation.briefsPerMonth + PLANS.foundation.plansPerMonth, 0);
+  assert.equal(PLANS.foundation.seats, 1);
+  assert.equal(PLANS.scale.seats, 3);
+  assert.equal(firstWith("research"), "scale");
+  assert.equal(firstWith("briefs"), "scale");
+});
+
+test("weekly plans check each brand once every 7 days", async () => {
+  const { checkDue } = await import("../src/lib/plans.ts");
+  const days = Array.from({ length: 14 }, (_, d) => checkDue(3, 7, 20000 + d)).filter(Boolean).length;
+  assert.equal(days, 2);
+  assert.ok(checkDue(3, 1, 20000));
 });
 
 test("white label is only on Agency and Enterprise", () => {
   for (const id of LADDER) assert.equal(PLANS[id].reports === "whitelabel", id === "agency" || id === "enterprise", id);
 });
 
-test("extras add to the plan, and daily Claude overrides the schedule", () => {
-  const l = limitsFor("scale", { prompts: 10, brands: 2, seats: 1, dailyClaude: true });
-  assert.equal(l.prompts, 30);
-  assert.equal(l.brands, 3);
+test("extras add to the plan, and the daily extra overrides the schedule", () => {
+  const l = limitsFor("scale", { prompts: 10, seats: 1, daily: true });
+  assert.equal(l.prompts, 110);
   assert.equal(l.seats, 4);
-  assert.equal(l.claudeEvery, 1);
-  assert.equal(limitsFor("scale").claudeEvery, 7);
+  assert.equal(l.checkEvery, 1);
+  assert.equal(limitsFor("scale").checkEvery, 7);
 });
 
 test("daily AI answers cover every prompt on every AI plus on-demand checks", () => {
-  assert.equal(dailyAnswers(PLANS.foundation), (12 + 1) * 6);
-  assert.equal(dailyAnswers(PLANS.trial), 150); // matches the database default for new workspaces
+  assert.equal(dailyAnswers(PLANS.foundation), (50 + 2) * 6);
+  assert.equal(dailyAnswers(PLANS.trial), 330); // matches the database default for new workspaces (019_plans_v2.sql)
 });
 
 test("boost goes one step up and never to Enterprise", () => {
@@ -40,7 +56,7 @@ test("monthly allowances count by month, daily ones by day", () => {
   const at = new Date("2026-10-09T12:00:00Z");
   assert.equal(periodOf("briefs", at), "2026-10");
   assert.equal(periodOf("research", at), "2026-10-09");
-  for (const m of Object.keys(METRICS) as (keyof typeof METRICS)[]) assert.ok(METRICS[m].limit(PLANS.foundation) >= 1, m);
+  for (const m of Object.keys(METRICS) as (keyof typeof METRICS)[]) assert.ok(METRICS[m].limit(PLANS.scale) >= 1, m);
 });
 
 test("billing months start on the plan's day, and short months use their last day", async () => {

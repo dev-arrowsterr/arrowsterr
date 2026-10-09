@@ -1,6 +1,7 @@
 import { askClaude, parseJson } from "@/lib/claude";
 import { cleanList, cleanProfile, MAX_TOPICS, PROMPTS_PER_TOPIC, PROMPTS_PROMPT } from "@/lib/onboarding";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
+import { take } from "@/lib/entitlements";
 import { meteredRoute } from "@/lib/meter";
 
 // Onboarding step 3: write the prompts to track for each topic.
@@ -12,6 +13,8 @@ async function handle(request: Request) {
   if (!name || !domain || !topics.length) return Response.json({ error: "Pick at least one topic first." }, { status: 400 });
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
+  const took = await take(body.workspaceId, "ai");
+  if (!took.ok) return took.response;
   const limited = await takeAnswer(auth.sb, body.workspaceId);
   if (limited) return limited;
 
