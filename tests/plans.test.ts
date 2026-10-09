@@ -42,3 +42,15 @@ test("monthly allowances count by month, daily ones by day", () => {
   assert.equal(periodOf("research", at), "2026-10-09");
   for (const m of Object.keys(METRICS) as (keyof typeof METRICS)[]) assert.ok(METRICS[m].limit(PLANS.foundation) >= 1, m);
 });
+
+test("billing months start on the plan's day, and short months use their last day", async () => {
+  const { cycleStart, cycleEnd, periodOf, planOfLookup, lookupKey } = await import("../src/lib/plans.ts");
+  const anchor = new Date("2026-01-31T10:00:00Z");
+  assert.equal(cycleStart(anchor, new Date("2026-03-05T00:00:00Z")).toISOString().slice(0, 10), "2026-02-28");
+  assert.equal(cycleEnd(anchor, new Date("2026-03-05T00:00:00Z")).toISOString().slice(0, 10), "2026-03-31");
+  assert.equal(cycleStart(new Date("2026-10-14T00:00:00Z"), new Date("2026-10-13T23:00:00Z")).toISOString().slice(0, 10), "2026-09-14");
+  assert.equal(periodOf("briefs", new Date("2026-10-20T00:00:00Z"), "2026-10-14T08:00:00Z"), "2026-10-14");
+  assert.equal(periodOf("briefs", new Date("2026-10-20T00:00:00Z")), "2026-10");
+  assert.deepEqual(planOfLookup(lookupKey("thrive", "year")), { plan: "thrive", interval: "year" });
+  assert.equal(planOfLookup("arrowsterr_enterprise_month"), null);
+});

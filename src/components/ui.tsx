@@ -205,3 +205,28 @@ export function SidePanel({ title, kicker, onClose, children }: { title: React.R
     </div>
   );
 }
+
+/** Used out of a limit, as a bar. */
+export function Meter({ label, used, limit }: { label: string; used: number; limit: number }) {
+  const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 100;
+  const full = used >= limit;
+  return (
+    <div className="aw-card-stat flex flex-col gap-2">
+      <span className="aw-small">{label}</span>
+      <span className="aw-num text-[22px] font-medium text-ink">
+        {used} <span className="text-[15px] font-normal text-muted">of {limit}</span>
+      </span>
+      <div
+        className="h-2 overflow-hidden rounded-full bg-rule-faint"
+        role="meter"
+        aria-label={label}
+        aria-valuenow={used}
+        aria-valuemin={0}
+        aria-valuemax={limit}
+      >
+        <div className={`h-full ${full ? "bg-neg" : "bg-brand"}`} style={{ width: `${pct}%` }} />
+      </div>
+      {full ? <span className="text-[13px] font-medium text-neg">Limit reached</span> : null}
+    </div>
+  );
+}

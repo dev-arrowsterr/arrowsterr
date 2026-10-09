@@ -7,7 +7,6 @@ import { requireRole, takeAnswer } from "@/lib/serverAuth";
 import { metered, meteredRoute } from "@/lib/meter";
 import { entitlement, take } from "@/lib/entitlements";
 import { enqueue, queueReady } from "@/lib/jobs";
-import { periodOf } from "@/lib/plans";
 
 // Agentic Keyword Research: start a run, answer right away, and keep working on the job queue
 // (or in the background before supabase/016_queue.sql).
@@ -50,7 +49,7 @@ async function handle(request: Request) {
   const asked = cleanBrief(body.brief);
   const brief = asked ? { ...asked, size: Math.min(asked.size ?? max, max) as 30 | 60 | 120 } : { size: max };
   if (await queueReady()) {
-    await enqueue("plan", { runId: run.id, site: { ...site, brief }, period: periodOf("plans") }, { workspaceId: body.workspaceId, key: `plan:${run.id}`, maxAttempts: 2 });
+    await enqueue("plan", { runId: run.id, site: { ...site, brief }, period: took.period }, { workspaceId: body.workspaceId, key: `plan:${run.id}`, maxAttempts: 2 });
     return Response.json({ id: run.id });
   }
   after(async () => {

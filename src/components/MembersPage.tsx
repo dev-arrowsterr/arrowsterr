@@ -2,6 +2,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useState } from "react";
+import { Meter } from "./ui";
 import {
   atLeast,
   createInvite,
@@ -46,30 +47,6 @@ function CopyButton({ text }: { text: string }) {
     >
       {copied ? "Copied" : "Copy link"}
     </button>
-  );
-}
-
-function Meter({ label, used, limit }: { label: string; used: number; limit: number }) {
-  const pct = limit > 0 ? Math.min(100, Math.round((used / limit) * 100)) : 100;
-  const full = used >= limit;
-  return (
-    <div className="aw-card-stat flex flex-col gap-2">
-      <span className="aw-small">{label}</span>
-      <span className="aw-num text-[22px] font-medium text-ink">
-        {used} <span className="text-[15px] font-normal text-muted">of {limit}</span>
-      </span>
-      <div
-        className="h-2 overflow-hidden rounded-full bg-rule-faint"
-        role="meter"
-        aria-label={label}
-        aria-valuenow={used}
-        aria-valuemin={0}
-        aria-valuemax={limit}
-      >
-        <div className={`h-full ${full ? "bg-neg" : "bg-brand"}`} style={{ width: `${pct}%` }} />
-      </div>
-      {full ? <span className="text-[13px] font-medium text-neg">Limit reached</span> : null}
-    </div>
   );
 }
 
@@ -158,23 +135,6 @@ export function MembersPage({ sb, ws, userId, onChanged }: { sb: SupabaseClient;
         )}
       </section>
 
-      {plan ? (
-        <section className="flex flex-col gap-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="aw-h4">
-              Plan: {plan.name}
-              {plan.trialLeft !== null ? <span className="aw-num ml-2 text-[14px] font-normal text-muted">{plan.trialLeft} days of trial left</span> : null}
-            </h2>
-            {plan.status === "read_only" ? <span className="aw-status aw-status--missed">Read-only</span> : null}
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {plan.allowances.map((a) => (
-              <Meter key={a.metric} label={`${a.label[0].toUpperCase()}${a.label.slice(1)} ${a.period === "day" ? "today" : "this month"}`} used={a.used} limit={a.limit} />
-            ))}
-          </div>
-        </section>
-      ) : null}
-
       {usage ? (
         <section className="flex flex-col gap-3">
           <h2 className="aw-h4">Usage</h2>
@@ -188,7 +148,14 @@ export function MembersPage({ sb, ws, userId, onChanged }: { sb: SupabaseClient;
       ) : null}
 
       <section className="flex flex-col gap-3">
-        <h2 className="aw-h4">Members</h2>
+        <h2 className="aw-h4">
+          Members
+          {plan && members ? (
+            <span className="aw-num ml-2 text-[14px] font-normal text-muted">
+              {members.length + invites.length} of {plan.limits.seats} seats
+            </span>
+          ) : null}
+        </h2>
         <div className="aw-table-wrap">
           <table className="aw-table aw-table--compact">
             <thead>

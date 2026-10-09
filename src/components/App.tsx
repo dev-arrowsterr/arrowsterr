@@ -7,6 +7,7 @@ import {
   acceptInvite,
   addBrand,
   getUsage,
+  getPlanUsage,
   atLeast,
   createWorkspace,
   deleteBrand,
@@ -20,9 +21,11 @@ import {
   startRun as startSavedRun,
   topicsOf,
   type Brand,
+  type PlanUsage,
   type SavedRun,
   type Workspace,
 } from "@/lib/db";
+import { PLANS, type PlanId } from "@/lib/plans";
 import { splitPeriods, type Filter } from "@/lib/metrics";
 import type { View } from "@/lib/view";
 import { runAll, type RunAuth } from "@/lib/runner";
@@ -33,6 +36,7 @@ import { BrandLogo } from "./BrandLogo";
 import { CompetitorsPage } from "./CompetitorsPage";
 import { Logo } from "./Logo";
 import { MembersPage } from "./MembersPage";
+import { BillingPage, choosePlan } from "./BillingPage";
 import { Onboarding, type NewBrand } from "./Onboarding";
 import { PromptsPage } from "./PromptsPage";
 import { ResearchPage, type Tool } from "./research/ResearchPage";
@@ -43,7 +47,7 @@ import { ReportsPage } from "./reports/ReportsPage";
 import { VisitorsPage } from "./VisitorsPage";
 
 export type { Brand } from "@/lib/db";
-type Page = "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "calendar" | "topics" | "writer" | "summary" | "members";
+type Page = "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "calendar" | "topics" | "writer" | "summary" | "members" | "billing";
 const RESEARCH: Page[] = ["keywords", "domain", "calendar", "topics", "writer"];
 const VISIBILITY: Page[] = ["prompts", "competitors", "domains", "urls"]; // the only pages with period, topic and model filters
 
@@ -62,6 +66,7 @@ const SLUGS: Record<Page, string> = {
   writer: "/agentic-writer",
   summary: "/reports",
   members: "/settings",
+  billing: "/billing",
 };
 /** Older addresses still open the right page. */
 const ALIASES: Record<string, Page> = {
@@ -76,6 +81,7 @@ const ALIASES: Record<string, Page> = {
   "/inkwell": "writer",
   "/content-calendar": "calendar",
   "/reports/content": "calendar",
+  "/plan": "billing",
 };
 const pageFromPath = (path: string): Page => {
   const p = path.replace(/\/+$/, "") || "/";
@@ -166,6 +172,31 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   const [focusTopic, setFocusTopic] = useState<string | null>(null); // topic to scroll to on the Prompts page
   const [seoStart, setSeoStart] = useState<SeoStart | null>(null); // a site or link from Sources to open in Domain Research
   const [error, setError] = useState("");
+  const [plan, setPlan] = useState<PlanUsage | null>(null);
+  const [limitHit, setLimitHit] = useState<{ error: string; boost: PlanId | null } | null>(null);
+  const [boosting, setBoosting] = useState(false);
+
+  // Any API answer that hits a plan limit shows the Boost bar, wherever it came from.
+  useEffect(() => {
+    const original = window.fetch;
+    window.fetch = async (...args: Parameters<typeof fetch>) => {
+      const res = await original(...args);
+      const url = typeof args[0] === "string" ? args[0] : args[0] instanceof Request ? args[0].url : String(args[0]);
+      if ((res.status === 429 || res.status === 402) && url.includes("/api/")) {
+        res
+          .clone()
+          .json()
+          .then((d) => {
+            if (d?.limit || d?.readOnly) setLimitHit({ error: String(d.error ?? ""), boost: (d.boost as PlanId | null) ?? null });
+          })
+          .catch(() => {});
+      }
+      return res;
+    };
+    return () => {
+      window.fetch = original;
+    };
+  }, []);
 
   const token = useCallback(async () => (await sb.auth.getSession()).data.session?.access_token ?? "", [sb]);
 
@@ -218,6 +249,12 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
     };
   }, [sb, ws, needsRoom]);
   const canEdit = atLeast(ws?.role, "editor");
+  const loadPlan = useCallback(() => {
+    if (ws) getPlanUsage(sb, ws.id).then(setPlan).catch(() => setPlan(null));
+  }, [sb, ws]);
+  useEffect(() => {
+    loadPlan();
+  }, [loadPlan]);
 
   // Load brands whenever the workspace changes.
   useEffect(() => {
@@ -417,6 +454,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           setBrands(null);
         }}
         page={page}
+        plan={plan}
         onPage={(p) => {
           setFocus(null);
           setFocusTopic(null);
@@ -424,7 +462,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
         }}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        {page !== "members" ? (
+        {page !== "members" && page !== "billing" ? (
           <TopBar
             visibility={VISIBILITY.includes(page)}
             brands={brands}
@@ -449,6 +487,53 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           />
         ) : null}
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">
+          {limitHit || (plan && (plan.status === "read_only" || plan.status === "canceled") && page !== "billing") ? (
+            <div className="aw-callout aw-callout--warn mb-5 flex flex-wrap items-center justify-between gap-3">
+              <span>{limitHit?.error || (plan?.plan === "trial" ? "Your free trial has ended. Your data is safe." : "This workspace is read-only. Your data is safe.")}</span>
+              <span className="flex items-center gap-3">
+                {limitHit?.boost && atLeast(ws.role, "admin") ? (
+                  <button
+                    type="button"
+                    className="aw-btn aw-btn--primary aw-btn--sm"
+                    disabled={boosting}
+                    onClick={async () => {
+                      setBoosting(true);
+                      try {
+                        const done = await choosePlan(auth, limitHit.boost!, plan?.interval ?? "month");
+                        if (done) {
+                          setNotice(done);
+                          setLimitHit(null);
+                          loadPlan();
+                        }
+                      } catch (e) {
+                        setError(e instanceof Error ? e.message : String(e));
+                      } finally {
+                        setBoosting(false);
+                      }
+                    }}
+                  >
+                    {boosting ? "Opening..." : `Boost to ${PLANS[limitHit.boost].name}`}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="aw-btn aw-btn--primary aw-btn--sm"
+                    onClick={() => {
+                      setLimitHit(null);
+                      go("billing");
+                    }}
+                  >
+                    See plans
+                  </button>
+                )}
+                {limitHit ? (
+                  <button type="button" className="aw-text-link" onClick={() => setLimitHit(null)}>
+                    Close
+                  </button>
+                ) : null}
+              </span>
+            </div>
+          ) : null}
           {notice ? (
             <div className="aw-callout mb-5 flex items-center justify-between gap-4">
               {notice}
@@ -467,6 +552,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           ) : null}
           {page === "members" ? (
             <MembersPage key={ws.id} sb={sb} ws={ws} userId={userId} onChanged={loadWorkspaces} />
+          ) : page === "billing" ? (
+            <BillingPage key={ws.id} sb={sb} ws={ws} auth={auth} onPlan={loadPlan} />
           ) : !view ? (
             <div className="aw-callout max-w-xl">This workspace has no brands yet. Ask an editor or admin to add one.</div>
           ) : RESEARCH.includes(page) ? (
@@ -581,7 +668,13 @@ const NAV: { group: string; items: { id: Page; label: string; icon: string; also
       { id: "summary", label: "Client report", icon: "▤" },
     ],
   },
-  { group: "Settings", items: [{ id: "members", label: "Workspace & members", icon: "⚙" }] },
+  {
+    group: "Settings",
+    items: [
+      { id: "members", label: "Workspace & members", icon: "⚙" },
+      { id: "billing", label: "Plan & billing", icon: "◈" },
+    ],
+  },
 ];
 
 /** The workspace switcher and the page menu. */
@@ -593,6 +686,7 @@ function Sidebar({
   onWorkspace,
   onNewWorkspace,
   page,
+  plan,
   onPage,
 }: {
   sb: SupabaseClient;
@@ -602,6 +696,7 @@ function Sidebar({
   onWorkspace: (id: string) => void;
   onNewWorkspace: (name: string) => Promise<void>;
   page: Page;
+  plan: PlanUsage | null;
   onPage: (p: Page) => void;
 }) {
   const { open, setOpen, ref } = useMenu();
@@ -680,6 +775,12 @@ function Sidebar({
       </nav>
 
       <div className="mt-auto flex flex-col gap-2 border-t border-rule-faint px-2 pt-4">
+        {plan && (plan.plan === "trial" || plan.status !== "active") ? (
+          <button type="button" onClick={() => onPage("billing")} className="flex items-center justify-between gap-2 rounded-aw border border-brand-mist bg-brand-pale px-3 py-2 text-left text-[13px] font-medium text-brand">
+            <span>{plan.status === "past_due" ? "Payment failed" : plan.trialLeft ? `${plan.trialLeft} days of trial left` : plan.plan === "trial" || plan.status !== "active" ? "Pick a plan" : plan.name}</span>
+            <span aria-hidden="true">→</span>
+          </button>
+        ) : null}
         <span className="truncate text-[12px] text-muted" title={email}>
           {email}
         </span>

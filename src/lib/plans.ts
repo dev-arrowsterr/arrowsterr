@@ -79,5 +79,41 @@ export const METRICS: Record<Metric, { label: string; period: "month" | "day"; l
   ai: { label: "AI requests", period: "month", limit: (l) => l.aiPerMonth },
 };
 
-/** The counting window for a metric, in UTC: "2026-10" for a month, "2026-10-09" for a day. */
-export const periodOf = (m: Metric, at = new Date()) => (METRICS[m].period === "month" ? at.toISOString().slice(0, 7) : at.toISOString().slice(0, 10));
+/**
+ * The start of the billing month that holds `at`, for a plan that started on `anchor`.
+ * A plan bought on the 31st resets on the last day of shorter months.
+ */
+export function cycleStart(anchor: Date, at = new Date()) {
+  const day = anchor.getUTCDate();
+  const on = (y: number, m: number) => new Date(Date.UTC(y, m, Math.min(day, new Date(Date.UTC(y, m + 1, 0)).getUTCDate())));
+  let start = on(at.getUTCFullYear(), at.getUTCMonth());
+  if (start > at) start = on(at.getUTCFullYear(), at.getUTCMonth() - 1);
+  return start;
+}
+
+/** The next reset of a billing month. */
+export function cycleEnd(anchor: Date, at = new Date()) {
+  const s = cycleStart(anchor, at);
+  const day = anchor.getUTCDate();
+  const y = s.getUTCFullYear();
+  const m = s.getUTCMonth() + 1;
+  return new Date(Date.UTC(y, m, Math.min(day, new Date(Date.UTC(y, m + 1, 0)).getUTCDate())));
+}
+
+/**
+ * The counting window for a metric, in UTC. Daily ones: "2026-10-09".
+ * Monthly ones follow the billing date when there is one ("2026-10-14"), else the calendar month ("2026-10").
+ */
+export function periodOf(m: Metric, at = new Date(), anchor?: string | null) {
+  if (METRICS[m].period === "day") return at.toISOString().slice(0, 10);
+  return anchor ? cycleStart(new Date(anchor), at).toISOString().slice(0, 10) : at.toISOString().slice(0, 7);
+}
+
+/** Plans sold by card, and the Stripe price lookup key for each. */
+export const SELF_SERVE: PlanId[] = ["foundation", "scale", "thrive", "agency"];
+export type Interval = "month" | "year";
+export const lookupKey = (plan: PlanId, interval: Interval) => `arrowsterr_${plan}_${interval}`;
+export function planOfLookup(key: string | null | undefined): { plan: PlanId; interval: Interval } | null {
+  const m = /^arrowsterr_([a-z]+)_(month|year)$/.exec(key ?? "");
+  return m && SELF_SERVE.includes(m[1] as PlanId) ? { plan: m[1] as PlanId, interval: m[2] as Interval } : null;
+}

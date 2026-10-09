@@ -5,7 +5,6 @@ import { requireRole, takeAnswer } from "@/lib/serverAuth";
 import { metered, meteredRoute } from "@/lib/meter";
 import { take } from "@/lib/entitlements";
 import { enqueue, queueReady } from "@/lib/jobs";
-import { periodOf } from "@/lib/plans";
 
 // Content brief for one calendar item: start it, answer right away, and finish on the job queue
 // (or in the background before supabase/016_queue.sql).
@@ -29,7 +28,7 @@ async function handle(request: Request) {
   const { error: e2 } = await auth.sb.from("calendar_items").update({ brief_status: "running", brief_error: null }).eq("id", item.id);
   if (e2) return Response.json({ error: e2.message }, { status: 500 });
   if (await queueReady()) {
-    await enqueue("brief", { itemId: item.id, period: periodOf("briefs") }, { workspaceId: body.workspaceId, key: `brief:${item.id}:${Date.now()}`, maxAttempts: 2 });
+    await enqueue("brief", { itemId: item.id, period: took.period }, { workspaceId: body.workspaceId, key: `brief:${item.id}:${Date.now()}`, maxAttempts: 2 });
     return Response.json({ ok: true });
   }
   after(async () => {

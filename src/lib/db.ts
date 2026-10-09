@@ -2,7 +2,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Chat, Run } from "./chats";
 import type { AgentResult, PlanBrief } from "./research";
-import { limitsFor, METRICS, nextPlan, periodOf, type Extras, type Metric, type PlanId } from "./plans";
+import { limitsFor, METRICS, nextPlan, periodOf as periodFor, type Extras, type Metric, type PlanId } from "./plans";
 import type { Brief } from "./briefTypes";
 import type { BrandGuideline } from "./writerTypes";
 
@@ -224,9 +224,21 @@ export async function getUsage(sb: SupabaseClient, workspaceId: string): Promise
 
 /** The workspace's plan and how much of each allowance it used. Null before 015_billing.sql. */
 export async function getPlanUsage(sb: SupabaseClient, workspaceId: string) {
-  const { data, error } = await sb.from("workspaces").select("plan, plan_status, trial_ends_at, period_end, extras").eq("id", workspaceId).maybeSingle();
-  if (error || !data) return null;
-  const w = data as { plan: PlanId; plan_status: string; trial_ends_at: string | null; period_end: string | null; extras: Extras };
+  const { data, error } = await sb.from("workspaces").select("*").eq("id", workspaceId).maybeSingle();
+  if (error || !data?.plan) return null;
+  const w = data as {
+    plan: PlanId;
+    plan_status: string;
+    trial_ends_at: string | null;
+    period_end: string | null;
+    extras: Extras;
+    billing_anchor?: string | null;
+    billing_interval?: "month" | "year" | null;
+    cancel_at?: string | null;
+    stripe_customer_id?: string | null;
+  };
+  const anchor = w.billing_anchor ?? null;
+  const periodOf = (m: Metric) => periodFor(m, new Date(), anchor);
   const limits = limitsFor(w.plan, w.extras ?? {});
   const metrics = Object.keys(METRICS) as Metric[];
   const { data: rows } = await sb.from("usage_counters").select("metric, period, used").eq("workspace_id", workspaceId).in("period", [...new Set(metrics.map((m) => periodOf(m)))]);
@@ -238,6 +250,9 @@ export async function getPlanUsage(sb: SupabaseClient, workspaceId: string) {
     status: trialLeft === 0 ? "read_only" : w.plan_status,
     trialLeft,
     periodEnd: w.period_end,
+    interval: w.billing_interval ?? null,
+    cancelAt: w.cancel_at ?? null,
+    customer: Boolean(w.stripe_customer_id),
     limits,
     boost: nextPlan(w.plan),
     allowances: metrics.map((m) => ({ metric: m, label: METRICS[m].label, period: METRICS[m].period, used: used(m), limit: METRICS[m].limit(limits) })),
