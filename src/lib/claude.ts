@@ -1,30 +1,36 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
+import { charge, claudeCost } from "./meter";
 import type { Source } from "./sources";
 
 export function claudeModel() {
   return process.env.CLAUDE_MODEL || "claude-sonnet-5-5";
 }
 
+// The newer web search filters results before Claude reads them, so answers cost fewer input tokens.
+const SEARCH_TOOL = "web_search_20260209" as const;
+
 /** Ask Claude one question. With `searches` above 0, Claude can search the web that many times. */
 export async function askClaude(
   prompt: string,
-  opts: { searches?: number; maxTokens?: number; model?: string } = {},
+  opts: { searches?: number; maxTokens?: number; model?: string; effort?: "low" | "medium" | "high" } = {},
 ): Promise<{ text: string; sources: Source[] }> {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   const messages: Anthropic.MessageParam[] = [{ role: "user", content: prompt }];
   let text = "";
   const sources: Source[] = [];
+  const model = opts.model ?? claudeModel();
   // A long web search turn can pause. Send it back so Claude can finish (a few times at most).
   for (let turn = 0; turn < 4; turn++) {
     const msg = await client.messages.create({
-      model: opts.model ?? claudeModel(),
+      model,
       max_tokens: opts.maxTokens ?? 16000,
       messages,
-      ...(opts.searches
-        ? { tools: [{ type: "web_search_20250305" as const, name: "web_search" as const, max_uses: opts.searches }] }
-        : {}),
+      ...(opts.effort ? { output_config: { effort: opts.effort } } : {}),
+      ...(opts.searches ? { tools: [{ type: SEARCH_TOOL, name: "web_search" as const, max_uses: opts.searches }] } : {}),
     });
+    const u = msg.usage;
+    charge("claude", claudeCost(model, (u.input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) * 0.1 + (u.cache_creation_input_tokens ?? 0) * 1.25, u.output_tokens ?? 0, u.server_tool_use?.web_search_requests ?? 0));
     for (const block of msg.content) {
       if (block.type !== "text") continue;
       text += block.text;

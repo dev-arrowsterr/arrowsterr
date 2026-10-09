@@ -2,15 +2,19 @@ import { dfsReady } from "@/lib/dataforseo";
 import { allSuggestions, bulkReport, keywordReport } from "@/lib/kwReport";
 import { MARKETS } from "@/lib/research";
 import { requireRole } from "@/lib/serverAuth";
+import { meteredRoute } from "@/lib/meter";
+import { take } from "@/lib/entitlements";
 
 // Keyword overview, bulk analysis and the "View all" lists. Editors only, since a first search costs money.
 //   report: { keyword, country, device }
 //   bulk: { keywords: string[], country }
 //   all: { keyword, country, questions: boolean }
-export async function POST(request: Request) {
+async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
+  const took = await take(body.workspaceId, "research");
+  if (!took.ok) return took.response;
   if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });
   const country = MARKETS[body.country] ? String(body.country) : "United States";
 
@@ -34,3 +38,5 @@ export async function POST(request: Request) {
     return Response.json({ error: message }, { status: 500 });
   }
 }
+
+export const POST = meteredRoute("keyword report", handle);

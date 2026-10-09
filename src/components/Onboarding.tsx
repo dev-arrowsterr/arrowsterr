@@ -32,7 +32,9 @@ export function Onboarding({
   onCancel,
   importCount,
   onImport,
+  promptRoom = MAX_PROMPTS,
 }: {
+  promptRoom?: number; // prompts the workspace's plan still has room for
   auth: RunAuth;
   onDone: (b: NewBrand) => Promise<void>;
   onCancel?: () => void;
@@ -51,6 +53,7 @@ export function Onboarding({
   const [topics, setTopics] = useState<Pick[]>([]);
   const [newTopic, setNewTopic] = useState("");
   const [plan, setPlan] = useState<{ name: string; prompts: Pick[] }[]>([]);
+  const cap = Math.max(1, Math.min(MAX_PROMPTS, promptRoom));
   const [drafts, setDrafts] = useState<Record<number, string>>({});
 
   const run = async (label: string, fn: () => Promise<void>) => {
@@ -89,14 +92,18 @@ export function Onboarding({
   const makePrompts = () =>
     run("Writing prompts for each topic...", async () => {
       const d = await call("/api/prompts", auth, { ...brandBody(), topics: chosenTopics });
-      // Keep within the prompt limit: switch off the extras from the last topics.
-      let left = MAX_PROMPTS;
-      setPlan(
-        (d.topics as Topic[]).map((t) => ({
-          name: t.name,
-          prompts: t.prompts.map((text) => ({ text, on: left-- > 0 })),
-        })),
-      );
+      // Keep within the plan's prompt limit, taking prompts from every topic in turn so each topic is covered.
+      const list = d.topics as Topic[];
+      const on = list.map((t) => t.prompts.map(() => false));
+      let left = cap;
+      for (let round = 0; left > 0 && list.some((t) => t.prompts.length > round); round++)
+        list.forEach((t, ti) => {
+          if (left > 0 && round < t.prompts.length) {
+            on[ti][round] = true;
+            left--;
+          }
+        });
+      setPlan(list.map((t, ti) => ({ name: t.name, prompts: t.prompts.map((text, pi) => ({ text, on: on[ti][pi] })) })));
       setStep("prompts");
     });
   const finish = () =>
@@ -154,9 +161,9 @@ export function Onboarding({
           ) : step === "prompts" ? (
             <>
               <span className="aw-small">
-                {usedPrompts} of {MAX_PROMPTS} prompts used
+                {usedPrompts} of {cap} prompts used
               </span>
-              <button type="button" className="aw-btn aw-btn--accent" disabled={!usedPrompts || usedPrompts > MAX_PROMPTS || Boolean(busy)} onClick={finish}>
+              <button type="button" className="aw-btn aw-btn--accent" disabled={!usedPrompts || usedPrompts > cap || Boolean(busy)} onClick={finish}>
                 Start tracking
               </button>
             </>
@@ -347,7 +354,7 @@ export function Onboarding({
             <p className="aw-small">
               These are the questions we send to each AI model every day. Keep the ones that fit your brand. You can change them later.
             </p>
-            {usedPrompts > MAX_PROMPTS ? <p className="aw-error">You picked {usedPrompts} prompts. The limit is {MAX_PROMPTS}. Untick some to continue.</p> : null}
+            {usedPrompts > cap ? <p className="aw-error">You picked {usedPrompts} prompts. The limit is {cap}. Untick some to continue.</p> : null}
             {plan.map((t, ti) => (
               <details key={t.name} open className="aw-frame">
                 <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-rule-faint px-5 py-3.5">
@@ -391,7 +398,7 @@ export function Onboarding({
                         e.preventDefault();
                         const v = (drafts[ti] ?? "").trim();
                         if (!v) return;
-                        setPlan(plan.map((x, i) => (i === ti ? { ...x, prompts: [...x.prompts, { text: v, on: usedPrompts < MAX_PROMPTS }] } : x)));
+                        setPlan(plan.map((x, i) => (i === ti ? { ...x, prompts: [...x.prompts, { text: v, on: usedPrompts < cap }] } : x)));
                         setDrafts({ ...drafts, [ti]: "" });
                       }}
                     >

@@ -1,6 +1,8 @@
 import { askClaude, parseJson } from "@/lib/claude";
 import { cleanTheme, FONTS, TEMPLATES } from "@/lib/reportTheme";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
+import { meteredRoute } from "@/lib/meter";
+import { take } from "@/lib/entitlements";
 
 /** Colors used most on a homepage, from its HTML and inline CSS. Used when there is no brand guideline. */
 async function siteColors(domain: string) {
@@ -18,10 +20,12 @@ async function siteColors(domain: string) {
 }
 
 // The report agent: designs a report theme in the brand's style, from its brand guideline or its website, and any ask.
-export async function POST(request: Request) {
+async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
+  const took = await take(body.workspaceId, "ai");
+  if (!took.ok) return took.response;
   if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
   const brand = String(body.brand ?? "").slice(0, 100);
   const domain = String(body.domain ?? "").replace(/^https?:\/\//, "").replace(/\/.*$/, "").slice(0, 120);
@@ -63,3 +67,5 @@ Return JSON only, with every field: {"name","accent","accent2","ink","text","mut
     return Response.json({ error: message }, { status: 500 });
   }
 }
+
+export const POST = meteredRoute("report agent", handle);

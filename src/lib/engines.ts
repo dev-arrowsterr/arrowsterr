@@ -2,6 +2,7 @@ import "server-only";
 import OpenAI from "openai";
 import { GoogleGenAI } from "@google/genai";
 import { askClaude } from "./claude";
+import { charge } from "./meter";
 import { askLive, dfsReady, type DfsAnswer, type DfsEngine } from "./dataforseo";
 import { cleanSources, linksInText, type Source } from "./sources";
 
@@ -35,6 +36,13 @@ export function availableEngines(): Engine[] {
 
 type Answer = DfsAnswer;
 
+// Estimated API prices: [input $/M tokens, output $/M tokens, $ per request or search]. Override with env when they change.
+const est = (name: string, fallback: [number, number, number]): [number, number, number] => {
+  const v = process.env[name]?.split(",").map(Number);
+  return v?.length === 3 && v.every(Number.isFinite) ? (v as [number, number, number]) : fallback;
+};
+const tokens = (p: [number, number, number], input = 0, output = 0) => (input * p[0] + output * p[1]) / 1e6 + p[2];
+
 async function askChatGPT(prompt: string): Promise<Answer> {
   const client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const resp = await client.responses.create({
@@ -52,6 +60,7 @@ async function askChatGPT(prompt: string): Promise<Answer> {
       }
     }
   }
+  charge("openai", tokens(est("PRICE_OPENAI", [1.25, 10, 0.01]), resp.usage?.input_tokens, resp.usage?.output_tokens));
   return { text: resp.output_text ?? "", sources };
 }
 
@@ -71,6 +80,7 @@ async function askGemini(prompt: string): Promise<Answer> {
     const domain = title && /^[a-z0-9.-]+\.[a-z]{2,}$/i.test(title) ? title.toLowerCase().replace(/^www\./, "") : "";
     sources.push({ url: uri, title, domain });
   }
+  charge("gemini", tokens(est("PRICE_GEMINI", [0.3, 2.5, 0.014]), resp.usageMetadata?.promptTokenCount, (resp.usageMetadata?.candidatesTokenCount ?? 0) + (resp.usageMetadata?.thoughtsTokenCount ?? 0)));
   return { text: resp.text ?? "", sources };
 }
 
@@ -85,6 +95,7 @@ async function askPerplexity(prompt: string): Promise<Answer> {
   const sources: Source[] = extra.search_results?.length
     ? extra.search_results.filter((s) => s.url).map((s) => ({ url: s.url!, title: s.title ?? null, domain: "" }))
     : (extra.citations ?? []).map((url) => ({ url, title: null, domain: "" }));
+  charge("perplexity", tokens(est("PRICE_PERPLEXITY", [1, 1, 0.005]), resp.usage?.prompt_tokens, resp.usage?.completion_tokens));
   return { text: resp.choices[0]?.message?.content ?? "", sources };
 }
 
@@ -103,7 +114,8 @@ Two or three sentences with your overall advice.`;
 
 function askApi(engine: Engine, prompt: string): Promise<Answer> {
   if (engine === "ChatGPT") return askChatGPT(prompt);
-  if (engine === "Claude") return askClaude(prompt, { searches: 1 });
+  // Low effort: the answer reads the same, with far fewer thinking tokens to pay for.
+  if (engine === "Claude") return askClaude(prompt, { searches: 1, effort: "low", maxTokens: 4000 });
   if (engine === "Gemini") return askGemini(prompt);
   if (engine === "Perplexity") return askPerplexity(prompt);
   throw new Error(`${engine} needs DFS_LOGIN and DFS_PASSWORD.`);

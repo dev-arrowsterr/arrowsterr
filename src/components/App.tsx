@@ -6,6 +6,7 @@ import { loadRuns, type Run } from "@/lib/chats";
 import {
   acceptInvite,
   addBrand,
+  getUsage,
   atLeast,
   createWorkspace,
   deleteBrand,
@@ -138,6 +139,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   const [brands, setBrands] = useState<Brand[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [promptRoom, setPromptRoom] = useState<number | undefined>(undefined); // prompts the plan still has room for, while adding a brand
   const [page, setPage] = useState<Page>(() => pageFromPath(window.location.pathname));
   // Keep the address bar in step with the page, and follow the back and forward buttons.
   const go = useCallback((p: Page) => {
@@ -204,6 +206,17 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   }, [loadWorkspaces]);
 
   const ws = workspaces?.find((w) => w.id === wsId) ?? workspaces?.[0];
+  const needsRoom = Boolean(ws && (adding || brands?.length === 0));
+  useEffect(() => {
+    if (!ws || !needsRoom) return;
+    let live = true;
+    getUsage(sb, ws.id)
+      .then((u) => live && setPromptRoom(Math.max(0, u.promptLimit - u.prompts)))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [sb, ws, needsRoom]);
   const canEdit = atLeast(ws?.role, "editor");
 
   // Load brands whenever the workspace changes.
@@ -361,6 +374,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
         onCancel={brands.length ? () => setAdding(false) : undefined}
         importCount={!brands.length ? legacyCount : 0}
         onImport={importLocal}
+        promptRoom={promptRoom}
       />
     );
   }

@@ -1,9 +1,10 @@
 import { askClaude, parseJson } from "@/lib/claude";
 import { cleanList, cleanProfile, MAX_TOPICS, TOPICS_PROMPT } from "@/lib/onboarding";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
+import { meteredRoute } from "@/lib/meter";
 
 // Onboarding step 2: suggest bottom-of-funnel topics from the business answers.
-export async function POST(request: Request) {
+async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const name = typeof body.name === "string" ? body.name.trim().slice(0, 100) : "";
   const domain = typeof body.domain === "string" ? body.domain.trim().slice(0, 200) : "";
@@ -24,3 +25,5 @@ export async function POST(request: Request) {
     return Response.json({ error: message }, { status: 500 });
   }
 }
+
+export const POST = meteredRoute("onboarding", handle);

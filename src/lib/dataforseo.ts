@@ -1,4 +1,5 @@
 import "server-only";
+import { charge } from "./meter";
 import { cleanSources, linksInText, type Source } from "./sources";
 
 // DataForSEO reads the real ChatGPT and Gemini apps, and Google's AI Overview and AI Mode, for us.
@@ -33,6 +34,7 @@ export async function call(path: string, body?: unknown) {
   if (!res.ok) throw new Error(`DataForSEO returned ${res.status}`);
   const data = await res.json();
   if (data?.status_code !== 20000) throw new Error(`DataForSEO: ${data?.status_message ?? "unknown error"}`);
+  charge("dataforseo", Number(data.cost ?? 0));
   return data.tasks ?? [];
 }
 

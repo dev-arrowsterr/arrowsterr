@@ -2,9 +2,10 @@ import { askClaude, parseJson } from "@/lib/claude";
 import { cleanProfile, SITE_PROMPT } from "@/lib/onboarding";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
 import { fetchSite, logoFor, normalizeSite } from "@/lib/site";
+import { meteredRoute } from "@/lib/meter";
 
 // Onboarding step 1: read the website and fill in the business questions for the user to check.
-export async function POST(request: Request) {
+async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const site = normalizeSite(String(body.website ?? ""));
   if (!site) return Response.json({ error: "Enter a website, like acme.com." }, { status: 400 });
@@ -36,3 +37,5 @@ export async function POST(request: Request) {
     return Response.json({ error: message }, { status: 500 });
   }
 }
+
+export const POST = meteredRoute("onboarding", handle);

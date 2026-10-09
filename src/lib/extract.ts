@@ -32,7 +32,8 @@ Return JSON only: {"brands": [{"name": "Brand", "sentiment": 75, "domain": "bran
 - domain: the brand's main website domain. Use "" if you are not sure.
 - If no brands are named, return {"brands": []}.`;
 
-const haiku = () => process.env.EXTRACT_MODEL || "claude-haiku-4-5";
+// Haiku 5.5 at low effort: about 10x cheaper than Haiku 4.5 for this simple read.
+const haiku = () => process.env.EXTRACT_MODEL || "claude-haiku-5-5";
 
 function cleanDomain(d: unknown) {
   const v = typeof d === "string" ? d.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").split("/")[0] : "";
@@ -56,7 +57,7 @@ export async function extractBrands(brand: string, domain: string, answer: strin
   let names = parseRanking(text);
 
   if (!names.length) {
-    const { text: reply } = await askClaude(FULL(brand, text), { model: haiku(), maxTokens: 4000 });
+    const { text: reply } = await askClaude(FULL(brand, text), { model: haiku(), maxTokens: 4000, effort: "low" });
     const list = parseJson(reply).brands;
     names = Array.isArray(list) ? list.map((b) => String(b?.name ?? "").trim()).filter(Boolean) : [];
     const info = Object.fromEntries((Array.isArray(list) ? list : []).map((b) => [String(b?.name ?? "").trim(), b]));
@@ -70,7 +71,7 @@ export async function extractBrands(brand: string, domain: string, answer: strin
   names = dedupe(names.map((n) => (isTracked(n, terms) ? brand : n)));
   let scores: Record<string, unknown> = {};
   try {
-    const { text: reply } = await askClaude(SENTIMENT(names, text), { model: haiku(), maxTokens: 3000 });
+    const { text: reply } = await askClaude(SENTIMENT(names, text), { model: haiku(), maxTokens: 3000, effort: "low" });
     scores = parseJson(reply);
   } catch (e) {
     console.error("Sentiment failed, using 50:", e instanceof Error ? e.message : e);

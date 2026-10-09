@@ -4,15 +4,19 @@ import { competitors, research, Spend, type Mode } from "@/lib/keywords";
 import { marketOf } from "@/lib/research";
 import { requireRole } from "@/lib/serverAuth";
 import { normalizeSite } from "@/lib/site";
+import { meteredRoute } from "@/lib/meter";
+import { take } from "@/lib/entitlements";
 
 const MODES: Mode[] = ["ideas", "phrase", "related", "site", "ranked", "competitors"];
 const BY_DOMAIN: Mode[] = ["site", "ranked", "competitors"];
 
 // Keyword Research: one search in DataForSEO Labs for the site's market. Editors only, since each search costs money.
-export async function POST(request: Request) {
+async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
+  const took = await take(body.workspaceId, "research");
+  if (!took.ok) return took.response;
   if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });
 
   const mode: Mode = MODES.includes(body.mode) ? body.mode : "ideas";
@@ -41,3 +45,5 @@ export async function POST(request: Request) {
     return Response.json({ error: message }, { status: 500 });
   }
 }
+
+export const POST = meteredRoute("keyword research", handle);

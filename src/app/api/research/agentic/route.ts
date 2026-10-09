@@ -4,13 +4,17 @@ import { dfsReady } from "@/lib/dataforseo";
 import type { Profile } from "@/lib/db";
 import type { PlanBrief } from "@/lib/research";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
+import { metered, meteredRoute } from "@/lib/meter";
+import { entitlement, take } from "@/lib/entitlements";
 
 // Agentic Keyword Research: start a run, answer right away, and keep working in the background.
 // The page reads progress from keyword_runs.
-export async function POST(request: Request) {
+async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
+  const took = await take(body.workspaceId, "plans", 1, { refundIfFree: false });
+  if (!took.ok) return took.response;
   if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });
   if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
 
@@ -38,8 +42,16 @@ export async function POST(request: Request) {
     .single();
   if (err || !run) return Response.json({ error: err?.message ?? "Could not start." }, { status: 500 });
 
-  const brief = cleanBrief(body.brief);
-  after(() => runAgent(auth.sb, run.id, { ...(site as { id: string; domain: string; name: string; profile: Profile }), brief }));
+  // A plan can be no bigger than the workspace's plan allows.
+  const max = (await entitlement(body.workspaceId)).limits.planMaxKeywords;
+  const asked = cleanBrief(body.brief);
+  const brief = asked ? { ...asked, size: Math.min(asked.size ?? max, max) as 30 | 60 | 120 } : { size: max };
+  after(async () => {
+    await metered(body.workspaceId, "content plan", () => runAgent(auth.sb, run.id, { ...(site as { id: string; domain: string; name: string; profile: Profile }), brief }));
+    // A plan that failed does not count against the month's plans.
+    const { data: done } = await auth.sb.from("keyword_runs").select("status").eq("id", run.id).maybeSingle();
+    if (done?.status === "failed") await took.giveBack();
+  });
   return Response.json({ id: run.id });
 }
 
@@ -65,3 +77,5 @@ function cleanBrief(b: unknown): PlanBrief | undefined {
     start: typeof x.start === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x.start) ? x.start : undefined,
   };
 }
+
+export const POST = meteredRoute("content plan", handle);

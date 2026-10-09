@@ -5,6 +5,8 @@ import type { Profile } from "@/lib/db";
 import { overview, rankedFor, Spend, type Target } from "@/lib/keywords";
 import { marketOf, pagesOf, type Keyword, type SitePage } from "@/lib/research";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
+import { meteredRoute } from "@/lib/meter";
+import { take } from "@/lib/entitlements";
 
 type Idea = { keyword: string; action: "new" | "update"; url: string | null; stage: "bofu" | "mofu" | "tofu" | null; why: string; prompt: string };
 
@@ -35,13 +37,15 @@ Return JSON only:
 
 // Content ideas for the editorial calendar: AI visibility gaps, read against the site's own pages and Google rankings.
 // Every idea is checked for search volume before it is shown.
-export async function POST(request: Request) {
+async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const brand = typeof body.brand === "string" ? body.brand.slice(0, 100) : "";
   const gaps = body.data ?? {};
   if (!brand || JSON.stringify(gaps).length > 30000) return Response.json({ error: "Bad request" }, { status: 400 });
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
+  const took = await take(body.workspaceId, "ai");
+  if (!took.ok) return took.response;
   if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });
 
   const { data: site, error } = await auth.sb.from("sites").select("id, domain, profile, pages").eq("id", body.siteId).eq("workspace_id", body.workspaceId).maybeSingle();
@@ -98,3 +102,5 @@ export async function POST(request: Request) {
     return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
 }
+
+export const POST = meteredRoute("content ideas", handle);

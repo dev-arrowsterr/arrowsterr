@@ -1,13 +1,17 @@
 import { askClaude, parseJson } from "@/lib/claude";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
 import { cleanOps, type SheetKind } from "@/lib/sheetAi";
+import { meteredRoute } from "@/lib/meter";
+import { take } from "@/lib/entitlements";
 
 // Turn a plain request, like "schedule the BOFU pages 2 a week", into changes to the Planner or the Calendar.
 // Nothing changes here. The page shows the changes and applies them when the user clicks Apply. One AI answer.
-export async function POST(request: Request) {
+async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
+  const took = await take(body.workspaceId, "ai");
+  if (!took.ok) return took.response;
   if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
   const kind: SheetKind = body.kind === "plan" ? "plan" : "calendar";
   const instruction = String(body.instruction ?? "").trim().slice(0, 1000);
@@ -57,3 +61,5 @@ Return JSON only: {"reply": "...", "ops": [...]}`,
     return Response.json({ error: message }, { status: 500 });
   }
 }
+
+export const POST = meteredRoute("sheet AI", handle);

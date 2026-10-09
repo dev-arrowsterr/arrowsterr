@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   atLeast,
   createInvite,
+  getPlanUsage,
   getUsage,
   listInvites,
   listMembers,
@@ -15,6 +16,7 @@ import {
   type Invite,
   type Member,
   type Role,
+  type PlanUsage,
   type Usage,
   type Workspace,
 } from "@/lib/db";
@@ -77,6 +79,7 @@ export function MembersPage({ sb, ws, userId, onChanged }: { sb: SupabaseClient;
   const [members, setMembers] = useState<Member[] | null>(null);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [usage, setUsage] = useState<Usage | null>(null);
+  const [plan, setPlan] = useState<PlanUsage | null>(null);
   const [name, setName] = useState(ws.name);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("editor");
@@ -88,6 +91,7 @@ export function MembersPage({ sb, ws, userId, onChanged }: { sb: SupabaseClient;
     try {
       setMembers(await listMembers(sb, ws.id));
       setUsage(await getUsage(sb, ws.id));
+      setPlan(await getPlanUsage(sb, ws.id).catch(() => null));
       if (isAdmin) setInvites(await listInvites(sb, ws.id));
     } catch (e) {
       setError(message(e));
@@ -153,6 +157,23 @@ export function MembersPage({ sb, ws, userId, onChanged }: { sb: SupabaseClient;
           </p>
         )}
       </section>
+
+      {plan ? (
+        <section className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="aw-h4">
+              Plan: {plan.name}
+              {plan.trialLeft !== null ? <span className="aw-num ml-2 text-[14px] font-normal text-muted">{plan.trialLeft} days of trial left</span> : null}
+            </h2>
+            {plan.status === "read_only" ? <span className="aw-status aw-status--missed">Read-only</span> : null}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
+            {plan.allowances.map((a) => (
+              <Meter key={a.metric} label={`${a.label[0].toUpperCase()}${a.label.slice(1)} ${a.period === "day" ? "today" : "this month"}`} used={a.used} limit={a.limit} />
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {usage ? (
         <section className="flex flex-col gap-3">

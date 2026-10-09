@@ -1,5 +1,7 @@
 import { askClaude, parseJson } from "@/lib/claude";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
+import { meteredRoute } from "@/lib/meter";
+import { take } from "@/lib/entitlements";
 
 const PROMPT = (brand: string, domain: string, data: string) => `You are an AI search visibility analyst. You help ${brand} (${domain}) show up more often in answers from ChatGPT, Claude, Gemini, Perplexity and Google AI Overviews.
 
@@ -29,7 +31,7 @@ Return JSON only, in exactly this shape:
 Give 4 to 6 actions, most valuable first. Give one entry in pages for each of the ownPages (up to 10).`;
 
 // A short AI read of the sources data: a summary, actions, and a note on each of your cited pages.
-export async function POST(request: Request) {
+async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const brand = typeof body.brand === "string" ? body.brand.slice(0, 100) : "";
   const domain = typeof body.domain === "string" ? body.domain.slice(0, 200) : "";
@@ -37,6 +39,8 @@ export async function POST(request: Request) {
   if (!brand || !domain || data.length > 30000) return Response.json({ error: "Bad request" }, { status: 400 });
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
+  const took = await take(body.workspaceId, "ai");
+  if (!took.ok) return took.response;
   const limited = await takeAnswer(auth.sb, body.workspaceId);
   if (limited) return limited;
 
@@ -63,3 +67,5 @@ export async function POST(request: Request) {
     return Response.json({ error: message }, { status: 500 });
   }
 }
+
+export const POST = meteredRoute("sources summary", handle);

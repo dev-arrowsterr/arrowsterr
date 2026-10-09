@@ -2,13 +2,17 @@ import { after } from "next/server";
 import { runBrief } from "@/lib/brief";
 import { dfsReady } from "@/lib/dataforseo";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
+import { metered, meteredRoute } from "@/lib/meter";
+import { take } from "@/lib/entitlements";
 
 // Content brief for one calendar item: start it, answer right away, and finish in the background.
 // The page reads progress from calendar_items.brief_status.
-export async function POST(request: Request) {
+async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
+  const took = await take(body.workspaceId, "briefs", 1, { refundIfFree: false });
+  if (!took.ok) return took.response;
   if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });
   if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
 
@@ -21,6 +25,13 @@ export async function POST(request: Request) {
 
   const { error: e2 } = await auth.sb.from("calendar_items").update({ brief_status: "running", brief_error: null }).eq("id", item.id);
   if (e2) return Response.json({ error: e2.message }, { status: 500 });
-  after(() => runBrief(auth.sb, item.id));
+  after(async () => {
+    await metered(body.workspaceId, "content brief", () => runBrief(auth.sb, item.id));
+    // A brief that failed does not count against the month's briefs.
+    const { data: done } = await auth.sb.from("calendar_items").select("brief_status").eq("id", item.id).maybeSingle();
+    if (done?.brief_status === "failed") await took.giveBack();
+  });
   return Response.json({ ok: true });
 }
+
+export const POST = meteredRoute("content brief", handle);

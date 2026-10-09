@@ -1,9 +1,11 @@
 import { answerChat } from "@/lib/answer";
 import { availableEngines, type Engine } from "@/lib/engines";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
+import { meteredRoute } from "@/lib/meter";
+import { requireActive } from "@/lib/entitlements";
 
 // One chat: ask one engine one prompt, then pull out the brands it named.
-export async function POST(request: Request) {
+async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const engine = body.engine as Engine;
   const prompt = typeof body.prompt === "string" ? body.prompt.trim().slice(0, 500) : "";
@@ -15,6 +17,8 @@ export async function POST(request: Request) {
   // Only editors and up may spend AI credits, and only within the daily limit.
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
+  const stopped = await requireActive(body.workspaceId);
+  if (stopped) return stopped;
   const limited = await takeAnswer(auth.sb, body.workspaceId);
   if (limited) return limited;
 
@@ -31,3 +35,5 @@ export async function POST(request: Request) {
     error: chat.error ?? undefined,
   });
 }
+
+export const POST = meteredRoute("AI check", handle);

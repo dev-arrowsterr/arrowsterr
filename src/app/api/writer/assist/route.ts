@@ -3,13 +3,17 @@ import { askClaude } from "@/lib/claude";
 import { guidelineText } from "@/lib/guideline";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
 import type { BrandGuideline, ChatMessage } from "@/lib/writerTypes";
+import { meteredRoute } from "@/lib/meter";
+import { take } from "@/lib/entitlements";
 
 // The writing assistant. It knows the brand guideline, the content brief and the draft, and helps the
 // writer: ideas, edits in the brand's voice, checks, and on-brand HTML and CSS. One AI answer per message.
-export async function POST(request: Request) {
+async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
+  const took = await take(body.workspaceId, "ai");
+  if (!took.ok) return took.response;
   if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
   const message = String(body.message ?? "").trim().slice(0, 4000);
   if (!message) return Response.json({ error: "Type a message." }, { status: 400 });
@@ -70,3 +74,5 @@ How to answer:
     return Response.json({ error: msg }, { status: 500 });
   }
 }
+
+export const POST = meteredRoute("writer", handle);

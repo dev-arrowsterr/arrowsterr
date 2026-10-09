@@ -3,13 +3,17 @@ import { dfsReady } from "@/lib/dataforseo";
 import { competitors, domainOverview, parseTarget, rankedFor, Spend, targetLabel, type Scope } from "@/lib/keywords";
 import { MARKETS, pagesOf, type DomainReport } from "@/lib/research";
 import { requireRole } from "@/lib/serverAuth";
+import { meteredRoute } from "@/lib/meter";
+import { take } from "@/lib/entitlements";
 
 // Domain research: how big a domain, subdomain, folder or page is on Google, its top keywords and pages, and its competitors.
 // Shared and cached for 30 days, so the same domain again is free.
-export async function POST(request: Request) {
+async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
+  const took = await take(body.workspaceId, "research");
+  if (!took.ok) return took.response;
   if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });
   const scope: Scope = ["domain", "subdomain", "subfolder", "url"].includes(body.scope) ? body.scope : "domain";
   const target = parseTarget(String(body.domain ?? ""), scope);
@@ -53,3 +57,5 @@ export async function POST(request: Request) {
     return Response.json({ error: message }, { status: 500 });
   }
 }
+
+export const POST = meteredRoute("domain research", handle);

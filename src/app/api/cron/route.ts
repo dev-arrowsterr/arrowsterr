@@ -5,6 +5,8 @@ import type { Chat } from "@/lib/chats";
 import { getTask, postTasks, type DfsEngine } from "@/lib/dataforseo";
 import { answerRows, saveAnswers } from "@/lib/db";
 import { availableEngines, viaDfs, type Engine } from "@/lib/engines";
+import { entitlement } from "@/lib/entitlements";
+import { metered } from "@/lib/meter";
 import { adminClient } from "@/lib/serverAuth";
 
 // The daily job. scripts/daily-run.mjs calls this over and over until it answers done: true.
@@ -87,9 +89,21 @@ export async function POST(request: Request) {
   const recent = await sb.from("runs").select("brand_id").gte("at", stale);
   if (recent.error) return fail(recent.error);
   const ran = new Set((recent.data ?? []).map((r) => r.brand_id));
+  // Each plan sets how often Claude is checked. Brands are spread over the days, so the load stays even.
+  const due = (b: { id: string; workspace_id: string }, every: number) => {
+    if (every <= 1) return true;
+    const day = Math.floor(Date.now() / 864e5);
+    const seed = [...b.id].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 9973, 0);
+    return (day + seed) % every === 0;
+  };
+  const plans = new Map<string, Awaited<ReturnType<typeof entitlement>>>();
+  for (const w of new Set((brands.data ?? []).map((b) => b.workspace_id))) plans.set(w, await entitlement(w));
   const fresh = (brands.data ?? [])
-    .filter((b) => !ran.has(b.id) && b.prompts?.length)
-    .map((b) => ({ workspace_id: b.workspace_id, brand_id: b.id, source: "daily", status: "running", engines, prompts: b.prompts, chats: [] }));
+    .filter((b) => !ran.has(b.id) && b.prompts?.length && !plans.get(b.workspace_id)?.readOnly)
+    .map((b) => {
+      const every = plans.get(b.workspace_id)?.limits.claudeEvery ?? 1;
+      return { workspace_id: b.workspace_id, brand_id: b.id, source: "daily", status: "running", engines: engines.filter((e) => e !== "Claude" || due(b, every)), prompts: b.prompts, chats: [] };
+    });
   if (fresh.length) {
     res = await sb.from("runs").insert(fresh);
     if (res.error) return fail(res.error);
@@ -123,10 +137,12 @@ export async function POST(request: Request) {
       const byEngine = new Map<DfsEngine, string[]>();
       for (const j of allowedJobs) byEngine.set(j.engine as DfsEngine, [...(byEngine.get(j.engine as DfsEngine) ?? []), j.prompt]);
       const at = new Date().toISOString();
-      for (const [engine, prompts] of byEngine) {
-        const ids = await postTasks(engine, prompts);
-        prompts.forEach((prompt, i) => run.queued.push({ id: ids[i], engine, prompt, at }));
-      }
+      await metered(run.workspace_id, "daily check", async () => {
+        for (const [engine, prompts] of byEngine) {
+          const ids = await postTasks(engine, prompts);
+          prompts.forEach((prompt, i) => run.queued.push({ id: ids[i], engine, prompt, at }));
+        }
+      });
       queuedNow += allowedJobs.length;
       res = await sb.from("runs").update({ queued: run.queued, chats: run.chats }).eq("id", run.id);
       if (res.error) return fail(res.error);
@@ -143,20 +159,22 @@ export async function POST(request: Request) {
 
     const results: Chat[] = [];
     const direct = todo(run, engines).filter((j) => !viaDfs(j.engine)).slice(0, BATCH);
-    await pool(direct, async (j) => {
-      if (await take(sb, run.workspace_id)) results.push(await answerChat(j.engine, j.prompt, brand.name, brand.domain));
-      else results.push(failed(j.engine, j.prompt, LIMIT));
-    });
-
     const stillQueued: Queued[] = [];
     const toCheck = run.queued.slice(0, CHECKS);
-    await pool(toCheck, async (q) => {
-      if (!q.id) return void results.push(failed(q.engine, q.prompt, `${q.engine}: DataForSEO did not accept this task.`));
-      const t = await getTask(q.engine, q.id).catch((e) => ({ state: "failed" as const, error: e instanceof Error ? e.message : String(e) }));
-      if (t.state === "done") results.push(await readAnswer(q.engine, q.prompt, t.answer, brand.name, brand.domain));
-      else if (t.state === "failed") results.push(failed(q.engine, q.prompt, t.error));
-      else if (Date.now() - new Date(q.at).getTime() > GIVE_UP_MS) results.push(failed(q.engine, q.prompt, `${q.engine}: DataForSEO took too long.`));
-      else stillQueued.push(q);
+    await metered(run.workspace_id, "daily check", async () => {
+      await pool(direct, async (j) => {
+        if (await take(sb, run.workspace_id)) results.push(await answerChat(j.engine, j.prompt, brand.name, brand.domain));
+        else results.push(failed(j.engine, j.prompt, LIMIT));
+      });
+
+      await pool(toCheck, async (q) => {
+        if (!q.id) return void results.push(failed(q.engine, q.prompt, `${q.engine}: DataForSEO did not accept this task.`));
+        const t = await getTask(q.engine, q.id).catch((e) => ({ state: "failed" as const, error: e instanceof Error ? e.message : String(e) }));
+        if (t.state === "done") results.push(await readAnswer(q.engine, q.prompt, t.answer, brand.name, brand.domain));
+        else if (t.state === "failed") results.push(failed(q.engine, q.prompt, t.error));
+        else if (Date.now() - new Date(q.at).getTime() > GIVE_UP_MS) results.push(failed(q.engine, q.prompt, `${q.engine}: DataForSEO took too long.`));
+        else stillQueued.push(q);
+      });
     });
     const queued = [...stillQueued, ...run.queued.slice(CHECKS)];
     answeredNow = results.length;

@@ -1,11 +1,15 @@
 import { buildGuideline } from "@/lib/guideline";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
+import { meteredRoute } from "@/lib/meter";
+import { take } from "@/lib/entitlements";
 
 // Build the brand guideline for a website from its homepage, and save it. Uses one AI answer.
-export async function POST(request: Request) {
+async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
+  const took = await take(body.workspaceId, "ai");
+  if (!took.ok) return took.response;
   if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
   const { data: site, error } = await auth.sb.from("sites").select("id, domain, name").eq("id", body.siteId).eq("workspace_id", body.workspaceId).maybeSingle();
   if (error) return Response.json({ error: error.message }, { status: 500 });
@@ -23,3 +27,5 @@ export async function POST(request: Request) {
     return Response.json({ error: message }, { status: 500 });
   }
 }
+
+export const POST = meteredRoute("brand guideline", handle);

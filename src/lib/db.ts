@@ -2,6 +2,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Chat, Run } from "./chats";
 import type { AgentResult, PlanBrief } from "./research";
+import { limitsFor, METRICS, nextPlan, periodOf, type Extras, type Metric, type PlanId } from "./plans";
 import type { Brief } from "./briefTypes";
 import type { BrandGuideline } from "./writerTypes";
 
@@ -220,6 +221,29 @@ export async function getUsage(sb: SupabaseClient, workspaceId: string): Promise
     answerLimit: w.daily_answer_limit,
   };
 }
+
+/** The workspace's plan and how much of each allowance it used. Null before 015_billing.sql. */
+export async function getPlanUsage(sb: SupabaseClient, workspaceId: string) {
+  const { data, error } = await sb.from("workspaces").select("plan, plan_status, trial_ends_at, period_end, extras").eq("id", workspaceId).maybeSingle();
+  if (error || !data) return null;
+  const w = data as { plan: PlanId; plan_status: string; trial_ends_at: string | null; period_end: string | null; extras: Extras };
+  const limits = limitsFor(w.plan, w.extras ?? {});
+  const metrics = Object.keys(METRICS) as Metric[];
+  const { data: rows } = await sb.from("usage_counters").select("metric, period, used").eq("workspace_id", workspaceId).in("period", [...new Set(metrics.map((m) => periodOf(m)))]);
+  const used = (m: Metric) => ((rows ?? []) as { metric: string; period: string; used: number }[]).find((r) => r.metric === m && r.period === periodOf(m))?.used ?? 0;
+  const trialLeft = w.plan === "trial" && w.trial_ends_at ? Math.max(0, Math.ceil((Date.parse(w.trial_ends_at) - Date.now()) / 864e5)) : null;
+  return {
+    plan: w.plan,
+    name: limits.name,
+    status: trialLeft === 0 ? "read_only" : w.plan_status,
+    trialLeft,
+    periodEnd: w.period_end,
+    limits,
+    boost: nextPlan(w.plan),
+    allowances: metrics.map((m) => ({ metric: m, label: METRICS[m].label, period: METRICS[m].period, used: used(m), limit: METRICS[m].limit(limits) })),
+  };
+}
+export type PlanUsage = NonNullable<Awaited<ReturnType<typeof getPlanUsage>>>;
 
 // ─────────────── research ───────────────
 
