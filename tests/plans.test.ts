@@ -2,13 +2,13 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { dailyAnswers, LADDER, limitsFor, METRICS, nextPlan, PLANS, periodOf } from "../src/lib/plans.ts";
 
-test("every sold plan costs more and gives more prompts or more often checks than the one before", () => {
+test("every sold plan costs more and gives more prompts, more often checks or more SEO than the one before", () => {
   for (let i = 1; i < LADDER.length; i++) {
     const a = PLANS[LADDER[i - 1]];
     const b = PLANS[LADDER[i]];
     assert.ok(b.price > a.price, `${b.name} should cost more than ${a.name}`);
     assert.ok(b.prompts >= a.prompts && b.seats >= a.seats, `${b.name} should never give less than ${a.name}`);
-    assert.ok(b.prompts > a.prompts || b.checkEvery < a.checkEvery, `${b.name} should give more than ${a.name}`);
+    assert.ok(b.prompts > a.prompts || b.checkEvery < a.checkEvery || b.researchPerMonth > a.researchPerMonth, `${b.name} should give more than ${a.name}`);
   }
 });
 
@@ -34,7 +34,7 @@ test("white label is only on Agency and Enterprise", () => {
 
 test("extras add to the plan, and the daily extra overrides the schedule", () => {
   const l = limitsFor("scale", { prompts: 10, seats: 1, daily: true });
-  assert.equal(l.prompts, 110);
+  assert.equal(l.prompts, 60);
   assert.equal(l.seats, 4);
   assert.equal(l.checkEvery, 1);
   assert.equal(limitsFor("scale").checkEvery, 7);
@@ -42,7 +42,7 @@ test("extras add to the plan, and the daily extra overrides the schedule", () =>
 
 test("daily AI answers cover every prompt on every AI plus on-demand checks", () => {
   assert.equal(dailyAnswers(PLANS.foundation), (50 + 2) * 6);
-  assert.equal(dailyAnswers(PLANS.trial), 330); // matches the database default for new workspaces (019_plans_v2.sql)
+  assert.equal(dailyAnswers(PLANS.trial), 180); // matches the database default for new workspaces (020_leaner_plans.sql)
 });
 
 test("boost goes one step up and never to Enterprise", () => {
