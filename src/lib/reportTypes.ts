@@ -1,5 +1,6 @@
 // A client report, frozen at the moment it was made. Used for the preview, the PDF and the share link.
 import type { ContentRow } from "./reports.ts";
+import type { ReportTheme } from "./reportTheme.ts";
 
 export type ReportSection = "ai" | "competitors" | "traffic" | "visitors" | "content";
 export const SECTIONS: { id: ReportSection; label: string }[] = [
@@ -10,7 +11,17 @@ export const SECTIONS: { id: ReportSection; label: string }[] = [
   { id: "content", label: "Content" },
 ];
 
-export type ReportStyle = { agency: string; logo: string; color: string };
+/** White label settings. theme is missing on reports made before templates existed. */
+export type ReportStyle = {
+  agency: string;
+  logo: string;
+  color: string;
+  theme?: ReportTheme;
+  title?: string; // the report's name on the cover
+  footer?: string; // a line at the bottom, like contact details
+  whiteLabel?: boolean; // hide "Made with Arrowsterr"
+  clientLogo?: boolean; // show the client's logo on the cover
+};
 
 export type ReportSnapshot = {
   brand: { name: string; domain: string; logo: string };

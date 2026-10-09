@@ -8,11 +8,9 @@ import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
 import { Sheet, type Col, type Edit } from "../Sheet";
 import type { Chat } from "@/lib/chats";
-import { Card, Seg, SidePanel, Thinking } from "../ui";
+import { Card, SidePanel, Thinking } from "../ui";
 import { ContentResults } from "./ContentResults";
-import { AgenticResearch } from "./AgenticResearch";
 import { CalendarGrid } from "./CalendarGrid";
-import { PlanWizard } from "./PlanWizard";
 import { ContentPiece, STATUSES } from "./ContentPiece";
 import { DayPanel, type NewPiece } from "./DayPanel";
 import { Difficulty, downloadCsv, FIELD, STAGE_LABEL, StageTag } from "./shared";
@@ -25,7 +23,16 @@ const parse = (s: string) => {
 };
 const BRIEF_LABEL = { running: "Writing...", done: "Ready", failed: "Failed" } as const;
 
-type Tab = "calendar" | "list" | "plan" | "results";
+type Tab = "calendar" | "list" | "results";
+
+const icon = (d: React.ReactNode) => (
+  <svg viewBox="0 0 24 24" width={17} height={17} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {d}
+  </svg>
+);
+const CalendarIcon = () => icon(<><rect x={3.5} y={5} width={17} height={15} rx={2.5} /><path d="M3.5 10h17M8 3v4M16 3v4" /></>);
+const ListIcon = () => icon(<path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" />);
+const ChartIcon = () => icon(<path d="M4 20V10M10 20V4M16 20v-7M21 20H3" />);
 
 /** The editorial calendar: build it by hand on a month grid or a sheet, or generate a content plan and approve it in. */
 export function ContentCalendar({
@@ -47,8 +54,7 @@ export function ContentCalendar({
 }) {
   const [items, setItems] = useStash<CalendarItem[] | null>(`cal:${site.id}:items`, null);
   const [tab, setTab] = useStash<Tab>(`cal:${site.id}:view`, "calendar");
-  const [wizard, setWizard] = useState(false);
-  const [refresh, setRefresh] = useState(0);
+  const view: Tab = tab === "list" || tab === "results" ? tab : "calendar"; // older sessions may have saved a view that no longer exists
   const [error, setError] = useState("");
   const [planning, setPlanning] = useState(false);
   const [perWeek, setPerWeek] = useState(2);
@@ -235,52 +241,37 @@ export function ContentCalendar({
 
 
 
-  const latest = items.map((i) => i.due_date).filter((d): d is string => Boolean(d)).sort().pop() ?? null;
+  const views: { id: Tab; label: string; icon: React.ReactNode; n?: number }[] = [
+    { id: "calendar", label: "Calendar", icon: <CalendarIcon /> },
+    { id: "list", label: "List", icon: <ListIcon />, n: items.length },
+    { id: "results", label: "Performance Report", icon: <ChartIcon />, n: items.filter((i) => i.status === "published" && (i.url || i.current_url)).length },
+  ];
   const head = (
-    <div className="flex flex-wrap items-center justify-between gap-3">
-      <Seg
-        label="Calendar view"
-        value={tab}
-        onChange={setTab}
-        options={[
-          { id: "calendar", label: "Calendar" },
-          { id: "list", label: `List ${items.length}` },
-          { id: "plan", label: "Content plan" },
-          { id: "results", label: `Results ${items.filter((i) => i.status === "published" && (i.url || i.current_url)).length}` },
-        ]}
-      />
-      {canEdit ? (
-        <button type="button" className="aw-btn aw-btn--accent aw-btn--sm" onClick={() => setWizard(true)}>
-          ✦ Generate content plan
-        </button>
-      ) : null}
-    </div>
+    <nav className="flex items-center gap-1 border-b border-rule" role="tablist" aria-label="Calendar view">
+      {views.map((v, n) => (
+        <span key={v.id} className="flex items-center">
+          {n ? <span className="mx-1 h-5 w-px bg-rule" aria-hidden="true" /> : null}
+          <button
+            type="button"
+            role="tab"
+            aria-selected={view === v.id}
+            onClick={() => setTab(v.id)}
+            className={`-mb-px flex items-center gap-2 rounded-none border-b-2 px-3 py-2.5 text-[15px] transition-colors ${view === v.id ? "border-brand font-medium text-brand" : "border-transparent text-body hover:text-ink"}`}
+          >
+            {v.icon}
+            {v.label}
+            {v.n ? <span className="aw-num rounded-full bg-surface-2 px-1.5 text-[11px] text-muted">{v.n}</span> : null}
+          </button>
+        </span>
+      ))}
+    </nav>
   );
-  const wizardPanel = wizard ? (
-    <PlanWizard
-      sb={sb}
-      auth={auth}
-      site={site}
-      onSite={onSite}
-      onClose={() => setWizard(false)}
-      onStarted={() => {
-        setWizard(false);
-        setTab("plan");
-        setRefresh((n) => n + 1);
-      }}
-    />
-  ) : null;
 
-  if (tab === "results" || tab === "plan")
+  if (view === "results")
     return (
       <div className="flex flex-col gap-5">
         {head}
-        {tab === "results" ? (
-          <ContentResults auth={auth} brandId={results.brandId} domain={site.domain} days={results.days} chats={results.chats} items={items} />
-        ) : (
-          <AgenticResearch sb={sb} auth={auth} site={site} canEdit={canEdit} onOpenCalendar={() => setTab("calendar")} onNew={() => setWizard(true)} onApproved={load} latest={latest} refresh={refresh} />
-        )}
-        {wizardPanel}
+        <ContentResults auth={auth} brandId={results.brandId} domain={site.domain} days={results.days} chats={results.chats} items={items} />
       </div>
     );
 
@@ -315,7 +306,7 @@ export function ContentCalendar({
         </section>
       ) : null}
 
-      {tab === "calendar" ? (
+      {view === "calendar" ? (
         <CalendarGrid
           items={items}
           canEdit={canEdit}
@@ -425,7 +416,6 @@ export function ContentCalendar({
       </Card>
       )}
 
-      {wizardPanel}
       {openItem ? (
         <SidePanel
           title={openItem.keyword}

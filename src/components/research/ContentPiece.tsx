@@ -96,7 +96,7 @@ export function ContentPiece({
     }
   }
 
-  // Open (or make) the draft for this piece in the Writer, with the brief's outline in place.
+  // Open (or make) the draft for this piece in Inkwell, with the brief's outline in place.
   async function toWriter(blank = false) {
     setError("");
     try {
@@ -189,7 +189,7 @@ export function ContentPiece({
                 {draft.words} words · updated {new Date(draft.updated_at).toLocaleDateString()}
               </span>
               <button type="button" className="aw-btn aw-btn--accent" onClick={() => toWriter()}>
-                Open in Writer
+                Open in Inkwell
               </button>
             </>
           ) : (
@@ -199,7 +199,7 @@ export function ContentPiece({
                 <span className="flex flex-wrap gap-2">
                   {brief?.brief ? (
                     <button type="button" className="aw-btn aw-btn--accent" onClick={() => toWriter()}>
-                      Import brief into Writer
+                      Import brief into Inkwell
                     </button>
                   ) : (
                     <button type="button" className="aw-btn aw-btn--accent" onClick={createBrief}>
@@ -301,7 +301,7 @@ function DocToolbar({ editor }: { editor: Editor }) {
   );
 }
 
-/** The brief as a document you can edit, download as Word, and send to the Writer. */
+/** The brief as a document you can edit, download as Word, and send to Inkwell. */
 function BriefEditor({
   sb,
   item,
@@ -383,7 +383,7 @@ function BriefEditor({
         ) : null}
         {canEdit ? (
           <button type="button" className="aw-btn aw-btn--accent aw-btn--sm" onClick={onWriter}>
-            Import into Writer →
+            Import into Inkwell →
           </button>
         ) : null}
       </div>

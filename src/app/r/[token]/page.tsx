@@ -4,6 +4,7 @@ import { PrintButton } from "@/components/reports/PrintButton";
 import { PromptsDoc } from "@/components/reports/PromptsDoc";
 import { ReportDoc } from "@/components/reports/ReportDoc";
 import type { PromptsSnapshot, ReportSnapshot } from "@/lib/reportTypes";
+import { themeOf } from "@/lib/reportTheme";
 import { adminClient } from "@/lib/serverAuth";
 
 export const metadata: Metadata = { title: "Shared report", robots: { index: false, follow: false } };
@@ -21,12 +22,14 @@ export default async function SharedReport({ params }: { params: Promise<{ token
       </main>
     );
   }
+  const isPrompts = (row.data as { kind?: string }).kind === "prompts";
+  const paper = isPrompts ? undefined : themeOf((row.data as ReportSnapshot).style ?? { color: "" }).paper;
   return (
-    <main className="min-h-screen bg-surface-2 py-8 print:bg-white print:py-0">
+    <main className="min-h-screen bg-surface-2 py-8 print:bg-white print:py-0" style={paper ? { background: paper } : undefined}>
       <div className="mx-auto mb-4 flex max-w-6xl justify-end px-4 print:hidden">
         <PrintButton />
       </div>
-      {(row.data as { kind?: string }).kind === "prompts" ? <PromptsDoc r={row.data as PromptsSnapshot} /> : <ReportDoc r={row.data as ReportSnapshot} />}
+      {isPrompts ? <PromptsDoc r={row.data as PromptsSnapshot} /> : <ReportDoc r={row.data as ReportSnapshot} />}
     </main>
   );
 }

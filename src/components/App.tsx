@@ -42,8 +42,8 @@ import { ReportsPage } from "./reports/ReportsPage";
 import { VisitorsPage } from "./VisitorsPage";
 
 export type { Brand } from "@/lib/db";
-type Page = "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "calendar" | "writer" | "summary" | "members";
-const RESEARCH: Page[] = ["keywords", "domain", "calendar", "writer"];
+type Page = "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "calendar" | "topics" | "writer" | "summary" | "members";
+const RESEARCH: Page[] = ["keywords", "domain", "calendar", "topics", "writer"];
 const VISIBILITY: Page[] = ["prompts", "competitors", "domains", "urls"]; // the only pages with period, topic and model filters
 
 /** Each page's address. "/" opens Prompts. */
@@ -57,7 +57,8 @@ const SLUGS: Record<Page, string> = {
   keywords: "/keywords",
   domain: "/domain-research",
   calendar: "/calendar",
-  writer: "/writer",
+  topics: "/topic-bank",
+  writer: "/inkwell",
   summary: "/reports",
   members: "/settings",
 };
@@ -68,8 +69,9 @@ const ALIASES: Record<string, Page> = {
   "/urls": "urls",
   "/analytics": "traffic",
   "/keyword-research": "keywords",
-  "/agentic-research": "calendar",
-  "/planner": "calendar",
+  "/agentic-research": "topics",
+  "/planner": "topics",
+  "/writer": "writer",
   "/content-calendar": "calendar",
   "/reports/content": "calendar",
 };
@@ -541,7 +543,8 @@ const NAV: { group: string; items: { id: Page; label: string; icon: string; also
     group: "Content",
     items: [
       { id: "calendar", label: "Editorial Calendar", icon: "▦" },
-      { id: "writer", label: "Writer", icon: "✎" },
+      { id: "topics", label: "Topic Bank", icon: "❖" },
+      { id: "writer", label: "Inkwell", icon: "✎" },
     ],
   },
   {

@@ -11,14 +11,16 @@ import { Thinking } from "../ui";
 import { ContentCalendar } from "./ContentCalendar";
 import { DomainResearch, type SeoStart } from "./DomainResearch";
 import { KeywordOverview } from "./KeywordOverview";
+import { TopicBank } from "./TopicBank";
 import { Writer } from "./Writer";
 
-export type Tool = "keywords" | "domain" | "calendar" | "writer";
+export type Tool = "keywords" | "domain" | "calendar" | "topics" | "writer";
 const TITLES: Record<Tool, string> = {
   keywords: "Keyword Research",
   domain: "Domain Research",
   calendar: "Editorial Calendar",
-  writer: "Writer",
+  topics: "Topic Bank",
+  writer: "Inkwell",
 };
 
 /** The Research tools for the website picked in the top bar. */
@@ -72,6 +74,8 @@ export function ResearchPage({
         <KeywordOverview sb={sb} auth={auth} site={site} canEdit={canEdit} />
       ) : tool === "domain" ? (
         <DomainResearch sb={sb} auth={auth} site={site} canEdit={canEdit} start={seoStart} onStarted={onSeoStarted} />
+      ) : tool === "topics" ? (
+        <TopicBank sb={sb} auth={auth} site={site} canEdit={canEdit} onSite={setSite} onCalendar={() => onTool("calendar")} />
       ) : tool === "writer" ? (
         <Writer sb={sb} auth={auth} site={site} canEdit={canEdit} />
       ) : (
