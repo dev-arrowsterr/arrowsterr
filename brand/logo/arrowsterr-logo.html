@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arrowsterr Logo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root { --brand: #0943B0; --ink: #171717; --paper: #F7F7F7; --muted: #8A8A8A; --rule: #E8E8E8; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Inter, system-ui, sans-serif; background: var(--paper); color: var(--ink); -webkit-font-smoothing: antialiased; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 48px 24px 80px; }
+  h1 { margin: 0 0 6px; font-size: 32px; font-weight: 600; letter-spacing: -0.035em; }
+  .sub { margin: 0 0 24px; color: var(--muted); font-size: 15px; }
+  .tabs { display: inline-flex; gap: 4px; padding: 4px; margin-bottom: 12px; border-radius: 12px; background: #EDEDED; }
+  .tabs button { box-shadow: none; background: transparent; color: var(--muted); padding: 8px 16px; border-radius: 9px; font-size: 14px; }
+  .tabs button[aria-selected="true"] { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.06), 0 0 0 1px rgba(0,0,0,.06); }
+  .idea { margin: 0 0 24px; font-size: 15px; line-height: 1.6; color: #525252; max-width: 720px; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+  .tile { display: flex; flex-direction: column; border-radius: 16px; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.05), 0 1px 3px rgba(0,0,0,.05); overflow: hidden; }
+  .tile--wide { grid-column: 1 / -1; }
+  .stage { display: flex; align-items: center; justify-content: center; min-height: 240px; padding: 40px; }
+  .stage--blue { background: var(--brand); }
+  .stage--ink { background: var(--ink); }
+  .stage--check { background-color: #fff; background-image: linear-gradient(45deg, #F1F1F1 25%, transparent 25%), linear-gradient(-45deg, #F1F1F1 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #F1F1F1 75%), linear-gradient(-45deg, transparent 75%, #F1F1F1 75%); background-size: 20px 20px; background-position: 0 0, 0 10px, 10px -10px, -10px 0; }
+  .bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 18px; border-top: 1px solid var(--rule); }
+  .bar b { font-size: 14px; font-weight: 500; }
+  .bar span { font-size: 13px; color: var(--muted); }
+  .btns { display: flex; gap: 6px; }
+  button { font: inherit; font-size: 13px; font-weight: 500; padding: 7px 12px; border: 0; border-radius: 8px; cursor: pointer; color: var(--ink); background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04); }
+  button.primary { color: #fff; background: var(--brand); box-shadow: inset 0 1px 0 rgba(255,255,255,.14), 0 1px 2px rgba(6,48,138,.25); }
+  .lockup { display: flex; align-items: center; gap: 0.26em; font-size: 72px; }
+  .lockup svg { height: calc(1.06em * var(--mk, 1)); width: auto; flex: none; }
+  .word { font-weight: 600; letter-spacing: -0.04em; line-height: 1; }
+  .sizes { display: flex; align-items: center; gap: 36px; flex-wrap: wrap; }
+  .sizes .lockup:nth-child(1) { font-size: 40px; }
+  .sizes .lockup:nth-child(2) { font-size: 24px; }
+  .sizes .lockup:nth-child(3) { font-size: 16px; }
+  .icons { display: flex; align-items: center; gap: 28px; }
+  .app { display: flex; align-items: center; justify-content: center; width: 128px; height: 128px; border-radius: 22.5%; background: var(--brand); }
+  .app svg { width: 64%; height: 64%; }
+  .solo svg { width: 96px; height: 96px; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } .lockup { font-size: 44px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Arrowsterr logo</h1>
+  <p class="sub">Brand blue #0943B0 · Inter SemiBold · PNGs download at 4× with a clear background unless the tile has a color.</p>
+
+  <div class="tabs" role="tablist" aria-label="Concept"></div>
+  <p class="idea" id="idea"></p>
+
+  <div class="grid">
+    <div class="tile tile--wide">
+      <div class="stage"><div class="lockup" data-v="primary"></div></div>
+      <div class="bar"><div><b>Primary</b> <span>Blue mark, ink wordmark</span></div><div class="btns"><button class="primary" data-dl="primary">PNG</button></div></div>
+    </div>
+    <div class="tile">
+      <div class="stage"><div class="lockup" style="font-size:50px" data-v="blue"></div></div>
+      <div class="bar"><div><b>All blue</b></div><div class="btns"><button class="primary" data-dl="blue">PNG</button></div></div>
+    </div>
+    <div class="tile">
+      <div class="stage stage--blue"><div class="lockup" style="font-size:50px" data-v="white"></div></div>
+      <div class="bar"><div><b>Reversed</b> <span>For blue</span></div><div class="btns"><button class="primary" data-dl="white">PNG</button></div></div>
+    </div>
+    <div class="tile">
+      <div class="stage"><div class="icons"><div class="app" data-v="icon"></div><div class="solo" data-v="mark"></div></div></div>
+      <div class="bar"><div><b>Icon</b> <span>App, favicon, avatar</span></div><div class="btns"><button class="primary" data-dl="icon">Icon PNG</button><button data-dl="mark">Mark PNG</button><button data-svg="mark">Mark SVG</button></div></div>
+    </div>
+    <div class="tile">
+      <div class="stage stage--ink"><div class="lockup" style="font-size:50px" data-v="white-ink"></div></div>
+      <div class="bar"><div><b>On ink</b></div><div class="btns"><button class="primary" data-dl="white-ink">PNG</button></div></div>
+    </div>
+    <div class="tile tile--wide" id="build">
+      <div class="stage"><div data-v="guides"></div></div>
+      <div class="bar"><div><b>Construction</b> <span>The grid the mark is drawn on</span></div></div>
+    </div>
+    <div class="tile tile--wide">
+      <div class="stage stage--check"><div class="sizes"><div class="lockup" data-v="primary"></div><div class="lockup" data-v="primary"></div><div class="lockup" data-v="primary"></div></div></div>
+      <div class="bar"><div><b>Small sizes</b> <span>40, 24 and 16px</span></div></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const BLUE = '#0943B0', INK = '#171717', WHITE = '#FFFFFF';
+const WORD = 'Arrowsterr';
+let uid = 0;
+const SVGNS = 'http://www.w3.org/2000/svg';
+
+const line = (d, c, w = 8) => `<path d="${d}" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" fill="none"/>`;
+// A four-point AI spark. ry is the height, rx the width.
+const spark = (cx, cy, ry, c, rx = ry, k = 0.17) => {
+  const kx = k * rx, ky = k * ry;
+  return `<path fill="${c}" d="M${cx} ${cy - ry} C${cx + kx} ${cy - ky} ${cx + kx} ${cy - ky} ${cx + rx} ${cy} C${cx + kx} ${cy + ky} ${cx + kx} ${cy + ky} ${cx} ${cy + ry} C${cx - kx} ${cy + ky} ${cx - kx} ${cy + ky} ${cx - rx} ${cy} C${cx - kx} ${cy - ky} ${cx - kx} ${cy - ky} ${cx} ${cy - ry} Z"/>`;
+};
+// Shades for the lower chevrons: light blues on white, see-through white on color.
+const tint = (c, mono, level) => (mono ? c : ['#A9C0F2', '#4F7FE0'][level]);
+const fade = (mono, level) => (mono ? ` opacity="${[0.45, 0.75][level]}"` : '');
+
+// Peak variants on a 64 × 64 grid. box trims the empty edges.
+const PEAKS = [{"name": "Peak soft", "outer": "M5.88 66 L32 28 L58.12 66", "inner": "M19.22 66 L32 47.42 L44.78 66", "w": 6.5, "cy": 11.62, "ry": 8.62, "rx": 7.33, "sk": 0.24, "join": "round", "tone": true, "flat": 62.5, "box": "6.5 2.5 51 60.0", "guides": [11.62, 28, 47.42, 62.5]}, {"name": "Peak", "outer": "M10.00 60 L32 28 L54.00 60", "inner": "M23.35 60 L32 47.42 L40.65 60", "w": 6.5, "cy": 11.62, "ry": 8.62, "rx": 7.33, "sk": 0.24, "join": "round", "tone": true, "box": "6.2 2.5 51.5 61.2", "guides": [11.62, 28, 47.42]}, {"name": "Narrow", "outer": "M14.00 60 L32 26 L50.00 60", "inner": "M26.45 60 L32 49.51 L37.55 60", "w": 6.5, "cy": 10.62, "ry": 7.62, "rx": 6.48, "sk": 0.24, "join": "round", "tone": true, "box": "10.2 2.5 43.5 61.2", "guides": [10.62, 26, 49.51]}, {"name": "Bold", "outer": "M10.00 60 L32 28 L54.00 60", "inner": "M25.17 60 L32 50.06 L38.83 60", "w": 8, "cy": 11.25, "ry": 8.25, "rx": 7.01, "sk": 0.24, "join": "round", "tone": true, "box": "5.5 2.5 53.0 62.0", "guides": [11.25, 28, 50.06]}, {"name": "Light", "outer": "M10.00 60 L32 28 L54.00 60", "inner": "M20.92 60 L32 43.89 L43.08 60", "w": 5, "cy": 12.25, "ry": 9.25, "rx": 7.86, "sk": 0.24, "join": "round", "tone": true, "box": "7.0 2.5 50.0 60.5", "guides": [12.25, 28, 43.89]}, {"name": "Lifted", "outer": "M10.00 60 L32 28 L54.00 60", "inner": "M28.16 53 L32 47.42 L35.84 53", "w": 6.5, "cy": 11.62, "ry": 8.62, "rx": 7.33, "sk": 0.24, "join": "round", "tone": true, "box": "6.2 2.5 51.5 61.2", "guides": [11.62, 28, 47.42]}, {"name": "Sharp", "outer": "M10.00 60 L32 28 L54.00 60", "inner": "M23.35 60 L32 47.42 L40.65 60", "w": 6.5, "cy": 11.62, "ry": 8.62, "rx": 7.33, "sk": 0.24, "join": "miter", "tone": true, "box": "6.2 2.5 51.5 61.2", "guides": [11.62, 28, 47.42]}, {"name": "Mono", "outer": "M10.00 60 L32 28 L54.00 60", "inner": "M23.35 60 L32 47.42 L40.65 60", "w": 6.5, "cy": 11.62, "ry": 8.62, "rx": 7.33, "sk": 0.24, "join": "round", "tone": false, "box": "6.2 2.5 51.5 61.2", "guides": [11.62, 28, 47.42]}, {"name": "Big spark", "outer": "M10.00 60 L32 31 L54.00 60", "inner": "M23.18 60 L32 48.37 L40.82 60", "w": 6.5, "cy": 13.38, "ry": 10.38, "rx": 8.82, "sk": 0.24, "join": "round", "tone": true, "box": "6.2 2.5 51.5 61.2", "guides": [13.38, 31, 48.37]}];
+const peakLine = (d, c, w, join) => `<path d="${d}" stroke="${c}" stroke-width="${w}" stroke-linecap="${join === 'miter' ? 'butt' : 'round'}" stroke-linejoin="${join}" stroke-miterlimit="10" fill="none"/>`;
+const CONCEPTS = Object.fromEntries(PEAKS.map((v, i) => [`p${i}`, {
+  name: v.name,
+  idea: '',
+  box: v.box,
+  scale: 1.2,
+  guides: `<path d="${v.outer}" stroke="#E5484D" stroke-width=".3" fill="none" stroke-dasharray="1 1"/><line x1="32" y1="0" x2="32" y2="64" stroke="#E5484D" stroke-width=".25"/>` + v.guides.map((y) => `<line x1="0" y1="${y}" x2="64" y2="${y}" stroke="#E5484D" stroke-width=".25" stroke-dasharray="1 1"/>`).join(''),
+  draw: (c, mono) => {
+    const id = 'f' + (uid++);
+    const clip = v.flat ? ` clip-path="url(#${id})"` : '';
+    // Flat feet: legs are cut flat at the base, then the cut corners are softened by a small blur-and-threshold.
+    const soft = v.flat ? ` filter="url(#${id}s)"` : '';
+    return (v.flat ? `<defs><clipPath id="${id}"><rect x="-10" y="-10" width="84" height="${v.flat + 10}"/></clipPath>
+        <filter id="${id}s" filterUnits="userSpaceOnUse" x="-10" y="-10" width="84" height="84"><feGaussianBlur stdDeviation="1.4"/><feComponentTransfer><feFuncA type="linear" slope="24" intercept="-11.5"/></feComponentTransfer></filter></defs>` : '')
+      + `<g${soft}><g${clip}>${peakLine(v.outer, c, v.w, v.flat ? 'round' : v.join)}</g></g>`
+      + `<g${v.tone ? fade(mono, 1) : ''}><g${soft}><g${clip}>${peakLine(v.inner, v.tone ? tint(c, mono, 1) : c, v.w, v.join)}</g></g></g>`
+      + spark(32, v.cy, v.ry, c, v.rx, v.sk);
+  },
+}]));
+let concept = 'p0';
+
+function markSVG(color, size) {
+  const C = CONCEPTS[concept];
+  const mono = color !== BLUE;
+  const dims = size ? ` width="${size[0]}" height="${size[1]}"` : '';
+  return `<svg xmlns="${SVGNS}" viewBox="${C.box}"${dims} fill="none" aria-label="Arrowsterr">${C.draw(color, mono)}</svg>`;
+}
+const ratio = () => { const b = CONCEPTS[concept].box.split(' ').map(Number); return b[2] / b[3]; };
+
+const V = {
+  primary: { mark: BLUE, word: INK },
+  blue: { mark: BLUE, word: BLUE },
+  white: { mark: WHITE, word: WHITE, bg: BLUE },
+  'white-ink': { mark: WHITE, word: WHITE, bg: INK },
+};
+
+function render() {
+  document.documentElement.style.setProperty('--mk', CONCEPTS[concept].scale || 1);
+  const idea = document.getElementById('idea'); idea.textContent = CONCEPTS[concept].idea; idea.style.display = CONCEPTS[concept].idea ? '' : 'none';
+  document.querySelectorAll('[data-v]').forEach((el) => {
+    const v = el.dataset.v;
+    if (v === 'icon') return void (el.innerHTML = markSVG(WHITE));
+    if (v === 'mark') return void (el.innerHTML = markSVG(BLUE));
+    if (v === 'guides') {
+      const C = CONCEPTS[concept];
+      document.getElementById('build').style.display = C.guides ? '' : 'none';
+      el.innerHTML = C.guides ? `<svg xmlns="${SVGNS}" viewBox="0 0 64 64" width="260" height="260">${C.guides}${C.draw(BLUE, false)}</svg>` : '';
+      return;
+    }
+    const c = V[v];
+    el.innerHTML = markSVG(c.mark) + `<span class="word" style="color:${c.word}">${WORD}</span>`;
+  });
+  document.querySelectorAll('.tabs button').forEach((b) => b.setAttribute('aria-selected', b.dataset.c === concept ? 'true' : 'false'));
+}
+
+const tabs = document.querySelector('.tabs');
+for (const [id, C] of Object.entries(CONCEPTS)) {
+  const b = document.createElement('button');
+  b.type = 'button'; b.setAttribute('role', 'tab'); b.dataset.c = id; b.textContent = C.name;
+  b.addEventListener('click', () => { concept = id; render(); });
+  tabs.appendChild(b);
+}
+render();
+
+// ─────────────── PNG export ───────────────
+function svgImage(svg) {
+  return new Promise((res, rej) => {
+    const img = new Image();
+    img.onload = () => res(img); img.onerror = rej;
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+}
+
+async function exportPNG(kind) {
+  await document.fonts.load('600 100px Inter');
+  const S = 4;
+  let canvas, ctx;
+  if (kind === 'icon' || kind === 'mark') {
+    const side = 1024;
+    canvas = Object.assign(document.createElement('canvas'), { width: side, height: side });
+    ctx = canvas.getContext('2d');
+    const r = ratio();
+    if (kind === 'icon') {
+      ctx.fillStyle = BLUE; ctx.beginPath(); ctx.roundRect(0, 0, side, side, side * 0.225); ctx.fill();
+      const h = side * 0.62 / Math.max(1, r), w = h * r;
+      ctx.drawImage(await svgImage(markSVG(WHITE, [w, h])), (side - w) / 2, (side - h) / 2, w, h);
+    } else {
+      const h = side * 0.92 / Math.max(1, r), w = h * r;
+      ctx.drawImage(await svgImage(markSVG(BLUE, [w, h])), (side - w) / 2, (side - h) / 2, w, h);
+    }
+  } else {
+    const c = V[kind];
+    const fs = 72 * S, pad = 28 * S, gap = 0.26 * fs, mh = 1.06 * fs * (CONCEPTS[concept].scale || 1), mw = mh * ratio();
+    const probe = document.createElement('canvas').getContext('2d');
+    probe.font = `600 ${fs}px Inter`; probe.letterSpacing = `${-0.04 * fs}px`;
+    const tw = probe.measureText(WORD).width;
+    canvas = Object.assign(document.createElement('canvas'), { width: Math.ceil(pad * 2 + mw + gap + tw), height: Math.ceil(pad * 2 + mh) });
+    ctx = canvas.getContext('2d');
+    if (c.bg) { ctx.fillStyle = c.bg; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+    ctx.drawImage(await svgImage(markSVG(c.mark, [mw, mh])), pad, pad, mw, mh);
+    ctx.font = `600 ${fs}px Inter`; ctx.letterSpacing = `${-0.04 * fs}px`;
+    ctx.fillStyle = c.word; ctx.textBaseline = 'middle';
+    ctx.fillText(WORD, pad + mw + gap, pad + mh / 2 + fs * 0.03);
+  }
+  canvas.toBlob((b) => {
+    const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(b), download: `arrowsterr-${concept}-${kind}.png` });
+    a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }, 'image/png');
+}
+
+function exportSVG() {
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([markSVG(BLUE)], { type: 'image/svg+xml' })), download: `arrowsterr-${concept}-mark.svg` });
+  a.click();
+}
+
+document.querySelectorAll('[data-dl]').forEach((b) => b.addEventListener('click', () => exportPNG(b.dataset.dl)));
+document.querySelectorAll('[data-svg]').forEach((b) => b.addEventListener('click', exportSVG));
+</script>
+</body>
+</html>
