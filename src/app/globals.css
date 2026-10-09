@@ -19,7 +19,7 @@
 /*
  * Brand tokens as Tailwind utilities (bg-brand, text-muted, border-rule ...).
  * Values live in brand.css. Change them there.
- * Radius and shadow are zero on purpose: the brand is square and flat.
+ * Radius and shadow come from the brand tokens: soft corners and quiet depth.
  */
 @theme inline {
   --color-brand: var(--aw-brand);
@@ -62,12 +62,12 @@
   --font-sans: var(--aw-font);
   --font-mono: var(--aw-mono);
 
-  --radius-aw-sm: 0px;
-  --radius-aw: 0px;
-  --radius-aw-lg: 0px;
-  --shadow-aw-sm: none;
-  --shadow-aw: none;
-  --shadow-aw-lg: none;
+  --radius-aw-sm: 6px;
+  --radius-aw: 10px;
+  --radius-aw-lg: 14px;
+  --shadow-aw-sm: 0 1px 2px rgba(15, 20, 31, .04), 0 1px 3px rgba(15, 20, 31, .06);
+  --shadow-aw: 0 2px 4px rgba(15, 20, 31, .04), 0 6px 16px rgba(15, 20, 31, .07);
+  --shadow-aw-lg: 0 8px 24px rgba(15, 20, 31, .10), 0 24px 48px rgba(15, 20, 31, .10);
 }
 
 html,

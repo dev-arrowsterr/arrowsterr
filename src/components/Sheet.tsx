@@ -243,7 +243,7 @@ export function Sheet<T>({
               Columns{layout.hidden.length ? ` · ${layout.hidden.length} hidden` : ""}
             </button>
             {menu ? (
-              <div className="absolute right-0 z-30 mt-1 flex max-h-96 w-64 flex-col overflow-y-auto border border-rule bg-white py-1 shadow-aw-sm">
+              <div className="absolute right-0 z-30 mt-1 flex max-h-96 w-64 flex-col overflow-y-auto rounded-aw border border-rule bg-white py-1 shadow-aw">
                 {ordered.map((c, i) => (
                   <div key={c.id} className="flex items-center gap-2 px-3 py-1.5 text-[13px] text-ink hover:bg-surface-2">
                     <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">

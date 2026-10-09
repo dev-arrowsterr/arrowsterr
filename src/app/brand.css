@@ -22,11 +22,16 @@
    2. Titles stand alone. No subtitle or explanation line under a title.
    3. Embeds: outer container has margin: 0, internal padding only,
       and a little bottom padding so content never sits flush at the bottom.
-   4. NO ROUNDED CORNERS. Every edge is square. Radius is 0 everywhere.
-   5. NO DROP SHADOWS. Surfaces are flat. Separation comes from hairline
-      rules and background tint. Depth is never used to rank things.
-   6. Borders are 1px hairlines in --aw-rule. Structure comes from a
-      visible grid: shared borders between cells, not gaps between cards.
+   4. SOFT CORNERS. Every surface is rounded from the radius scale:
+      4px for tiny marks, 6px for controls (buttons, inputs, selects,
+      chips), 10px for cards and frames, 14px for panels and dialogs,
+      999px for pills, toggles and status tags. Never mix two radii on
+      one edge. Inner corners follow the outer one.
+   5. QUIET DEPTH. Cards sit on paper with a soft, low shadow. Hover may
+      lift a card one step. Popovers and panels use the larger shadow.
+      Shadows are always cool grey and faint; never a hard drop.
+   6. Borders are 1px hairlines in --aw-rule. Cards keep their own border
+      and radius, with a 12 to 16px gap between them.
    7. MONO IS FOR MEASUREMENT. Eyebrows, chips, statuses, table headers,
       stat labels, counters, timestamps and any number that is data.
       Never set a headline, a paragraph or a button in mono.
@@ -137,9 +142,21 @@
   --aw-s5: 20px; --aw-s6: 24px; --aw-s8: 32px; --aw-s10: 40px;
   --aw-s12: 48px; --aw-s16: 64px; --aw-s20: 80px; --aw-s28: 112px;
 
-  /* Shape — square, always */
-  --aw-radius: 0;
+  /* Shape — soft corners */
+  --aw-r-xs: 4px;     /* bars, tiny marks, checkboxes */
+  --aw-r-sm: 6px;     /* buttons, inputs, selects, chips */
+  --aw-r-md: 10px;    /* cards, frames, tables, stats */
+  --aw-r-lg: 14px;    /* panels, dialogs, drawers */
+  --aw-r-pill: 999px; /* status tags, toggles, avatars */
+  --aw-radius: var(--aw-r-md);
   --aw-border-w: 1px;
+
+  /* Depth — faint, cool grey */
+  --aw-shadow-xs: 0 1px 2px rgba(15, 20, 31, .04);
+  --aw-shadow-sm: 0 1px 2px rgba(15, 20, 31, .04), 0 1px 3px rgba(15, 20, 31, .06);
+  --aw-shadow-md: 0 2px 4px rgba(15, 20, 31, .04), 0 6px 16px rgba(15, 20, 31, .07);
+  --aw-shadow-lg: 0 8px 24px rgba(15, 20, 31, .10), 0 24px 48px rgba(15, 20, 31, .10);
+  --aw-ring: 0 0 0 3px rgba(9, 67, 176, .15);
 
   /* Motion */
   --aw-ease: cubic-bezier(.2,.7,.2,1);
@@ -168,8 +185,11 @@
   .aw h1, .aw h2, .aw h3, .aw h4, .aw p, .aw ul, .aw ol, .aw li, .aw figure, .aw table { margin: 0; padding: 0; }
   .aw img { max-width: 100%; height: auto; display: block; }
 }
-/* Nothing in this system is ever round */
-.aw * { border-radius: 0 !important; }
+/* Controls are soft by default. :where keeps this weak, so a Tailwind rounded-* class still wins. */
+@layer base {
+  .aw :where(button, input, select, textarea, [role="tab"], [role="radio"]) { border-radius: var(--aw-r-sm); }
+  .aw :where(input[type="checkbox"]) { border-radius: var(--aw-r-xs); }
+}
 
 
 /* ───────────────────────────────────────────────────────────────────────
@@ -972,3 +992,54 @@
   .aw .aw-drawer-back, .aw .aw-drawer { display: none !important; }
   .aw .aw-frame, .aw .aw-stats { break-inside: avoid; }
 }
+
+
+/* ───────────────────────────────────────────────────────────────────────
+   SHAPE AND DEPTH — soft corners, quiet shadows
+   Every surface takes its radius from the scale in the tokens.
+   Inner pieces that touch a rounded edge inherit its corner, so header
+   tints and table headers never poke out square.
+   ─────────────────────────────────────────────────────────────────────── */
+/* Controls */
+.aw .aw-btn, .aw .aw-input, .aw .aw-textarea, .aw .aw-select, .aw .aw-text-link--box { border-radius: var(--aw-r-sm) !important; }
+.aw .aw-btn { transition: background var(--aw-fast) var(--aw-ease), border-color var(--aw-fast) var(--aw-ease), box-shadow var(--aw-fast) var(--aw-ease), transform var(--aw-fast) var(--aw-ease); }
+.aw .aw-btn--primary, .aw .aw-btn--accent { box-shadow: var(--aw-shadow-xs); }
+.aw .aw-btn--secondary { box-shadow: var(--aw-shadow-xs); }
+.aw .aw-btn:active:not(:disabled) { transform: translateY(1px); }
+.aw .aw-btn:focus-visible, .aw .aw-input:focus, .aw .aw-textarea:focus, .aw .aw-select:focus { box-shadow: var(--aw-ring) !important; }
+
+/* Tags and marks */
+.aw .aw-chip, .aw .aw-badge, .aw .aw-status, .aw .aw-pri, .aw .aw-rank, .aw .aw-engine, .aw .aw-toggle { border-radius: var(--aw-r-pill) !important; }
+.aw .aw-check, .aw .aw-progress, .aw .aw-progress__fill, .aw .aw-score__track, .aw .aw-score__fill, .aw .aw-skel { border-radius: var(--aw-r-xs) !important; }
+.aw .aw-tip, .aw .aw-live, .aw .aw-tile, .aw .aw-logo-badge { border-radius: var(--aw-r-sm) !important; }
+.aw [role="tooltip"] { border-radius: var(--aw-r-sm); }
+
+/* Cards */
+.aw .aw-frame, .aw .aw-stats, .aw .aw-table-wrap, .aw .aw-callout, .aw .aw-error, .aw .aw-window, .aw .aw-panel-dark, .aw .aw-quote, .aw .aw-note, .aw .aw-faq, .aw .aw-tool {
+  border-radius: var(--aw-r-md) !important;
+}
+.aw .aw-frame, .aw .aw-stats, .aw .aw-table-wrap { box-shadow: var(--aw-shadow-sm); }
+.aw .aw-lift { transition: box-shadow var(--aw-fast) var(--aw-ease), transform var(--aw-fast) var(--aw-ease); }
+.aw .aw-lift:hover { box-shadow: var(--aw-shadow-md); transform: translateY(-1px); }
+
+/* Corners inside a card follow the card */
+.aw .aw-frame > :first-child, .aw .aw-window > :first-child { border-top-left-radius: calc(var(--aw-r-md) - 1px); border-top-right-radius: calc(var(--aw-r-md) - 1px); }
+.aw .aw-frame > :last-child, .aw .aw-window > :last-child { border-bottom-left-radius: calc(var(--aw-r-md) - 1px); border-bottom-right-radius: calc(var(--aw-r-md) - 1px); }
+.aw .aw-frame > :first-child thead tr:first-child th:first-child,
+.aw .aw-table-wrap thead tr:first-child th:first-child { border-top-left-radius: calc(var(--aw-r-md) - 1px); }
+.aw .aw-frame > :first-child thead tr:first-child th:last-child,
+.aw .aw-table-wrap thead tr:first-child th:last-child { border-top-right-radius: calc(var(--aw-r-md) - 1px); }
+.aw .aw-frame > :last-child tbody:last-child tr:last-child td:first-child,
+.aw .aw-table-wrap tbody:last-child tr:last-child td:first-child { border-bottom-left-radius: calc(var(--aw-r-md) - 1px); }
+.aw .aw-frame > :last-child tbody:last-child tr:last-child td:last-child,
+.aw .aw-table-wrap tbody:last-child tr:last-child td:last-child { border-bottom-right-radius: calc(var(--aw-r-md) - 1px); }
+.aw .aw-stats > .aw-stat:first-child { border-top-left-radius: calc(var(--aw-r-md) - 1px); border-bottom-left-radius: calc(var(--aw-r-md) - 1px); }
+.aw .aw-stats > .aw-stat:last-child { border-top-right-radius: calc(var(--aw-r-md) - 1px); border-bottom-right-radius: calc(var(--aw-r-md) - 1px); }
+.aw .aw-sheet-wrap { border-bottom-left-radius: calc(var(--aw-r-md) - 1px); border-bottom-right-radius: calc(var(--aw-r-md) - 1px); }
+
+/* Panels and dialogs */
+.aw .aw-drawer, .aw [role="dialog"] { box-shadow: var(--aw-shadow-lg); }
+.aw .aw-drawer, .aw [role="dialog"][aria-modal="true"] { border-top-left-radius: var(--aw-r-lg); border-bottom-left-radius: var(--aw-r-lg); }
+
+/* Rows feel soft on hover */
+.aw .aw-table tbody tr { transition: background var(--aw-fast) var(--aw-ease); }
