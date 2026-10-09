@@ -35,7 +35,7 @@ const ROWS: { group: string; rows: { label: React.ReactNode; value: (p: Plan) =>
   {
     group: "SEO & content",
     rows: [
-      { label: "Keyword & domain lookups a day", value: (p) => (p.researchPerDay ? n(p.researchPerDay) : "–") },
+      { label: "Keyword & Website Research a month", value: (p) => (p.researchPerMonth ? n(p.researchPerMonth) : "–") },
       { label: "Content briefs a month", value: (p) => (p.briefsPerMonth ? n(p.briefsPerMonth) : "–") },
       { label: "Content plans a month", value: (p) => (p.plansPerMonth ? n(p.plansPerMonth) : "–") },
       { label: "Agentic Writer", value: (p) => yes(p.writer === "full") },
@@ -45,8 +45,9 @@ const ROWS: { group: string; rows: { label: React.ReactNode; value: (p: Plan) =>
   {
     group: "Reports & data",
     rows: [
-      { label: "Client reports", value: (p) => ({ basic: "Basic", templates: "8 templates", share: "Live links", whitelabel: "White label" })[p.reports] },
-      { label: "Tracked website visits a month", value: (p) => (p.pageviewsPerMonth >= 1_000_000 ? `${p.pageviewsPerMonth / 1_000_000}M` : `${p.pageviewsPerMonth / 1000}k`) },
+      { label: "Live report links", value: () => "✓" },
+      { label: "8 report templates", value: (p) => yes(p.reports === "templates" || p.reports === "whitelabel") },
+      { label: "White-label reports", value: (p) => yes(p.reports === "whitelabel") },
       { label: "Google Analytics 4", value: () => "✓" },
       { label: "CSV export", value: () => "✓" },
       { label: "Slack, Zapier & API", value: (p) => yes(p.alerts) },

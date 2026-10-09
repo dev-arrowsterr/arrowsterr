@@ -49,7 +49,7 @@ function limitReached(e: Entitlement, m: Metric, limit: number) {
   // Not on this plan at all: name the plan it starts on.
   if (limit <= 0) {
     const on = firstWith(m);
-    const error = `${label[0].toUpperCase()}${label.slice(1)} start on ${on ? PLANS[on].name : "a bigger plan"}.`;
+    const error = `Your plan doesn't include ${label}. It starts on ${on ? PLANS[on].name : "a bigger plan"}.`;
     return Response.json({ error, limit: true, metric: m, boost: on }, { status: 429 });
   }
   const up = nextPlan(e.plan);

@@ -14,7 +14,7 @@ test("every sold plan costs more and gives more prompts or more often checks tha
 
 test("Foundation is AI visibility only, and SEO and content start on Scale", async () => {
   const { firstWith } = await import("../src/lib/plans.ts");
-  assert.equal(PLANS.foundation.researchPerDay + PLANS.foundation.briefsPerMonth + PLANS.foundation.plansPerMonth, 0);
+  assert.equal(PLANS.foundation.researchPerMonth + PLANS.foundation.briefsPerMonth + PLANS.foundation.plansPerMonth, 0);
   assert.equal(PLANS.foundation.seats, 1);
   assert.equal(PLANS.scale.seats, 3);
   assert.equal(firstWith("research"), "scale");
@@ -55,7 +55,8 @@ test("boost goes one step up and never to Enterprise", () => {
 test("monthly allowances count by month, daily ones by day", () => {
   const at = new Date("2026-10-09T12:00:00Z");
   assert.equal(periodOf("briefs", at), "2026-10");
-  assert.equal(periodOf("research", at), "2026-10-09");
+  assert.equal(periodOf("research", at), "2026-10");
+  assert.equal(periodOf("checknow", at), "2026-10-09");
   for (const m of Object.keys(METRICS) as (keyof typeof METRICS)[]) assert.ok(METRICS[m].limit(PLANS.scale) >= 1, m);
 });
 

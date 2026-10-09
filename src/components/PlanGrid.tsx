@@ -17,15 +17,8 @@ export const AIS: { name: string; logo: string }[] = [
 
 const n = (v: number) => v.toLocaleString("en-US");
 const count = (v: number, one: string, many = `${one}s`) => (v >= UNLIMITED ? `Unlimited ${many}` : `${n(v)} ${v === 1 ? one : many}`);
-const short = (v: number) => (v >= 1_000_000 ? `${v / 1_000_000}M` : `${v / 1000}k`);
-const REPORTS: Record<Plan["reports"], string> = {
-  basic: "Client reports",
-  templates: "8 report templates",
-  share: "Live report links",
-  whitelabel: "White-label reports",
-};
 
-export type Feature = { text: string; on: boolean; logos?: boolean };
+export type Feature = { text: string; on: boolean; logos?: boolean; tag?: string };
 export type Group = { title: string; items: Feature[] };
 
 /** What a plan gives, grouped the way the cards and the table show it. */
@@ -45,7 +38,7 @@ export function groups(p: Plan): Group[] {
     {
       title: "SEO & content",
       items: [
-        { text: p.researchPerDay ? `${n(p.researchPerDay)} keyword & domain lookups a day` : "Keyword & Domain Research", on: p.researchPerDay > 0 },
+        { text: p.researchPerMonth ? `Keyword & Website Research · ${n(p.researchPerMonth)} a month` : "Keyword & Website Research", on: p.researchPerMonth > 0 },
         { text: p.briefsPerMonth ? `${n(p.briefsPerMonth)} content briefs a month` : "Content briefs", on: p.briefsPerMonth > 0 },
         { text: p.plansPerMonth ? `${count(p.plansPerMonth, "content plan")} a month` : "Content plans", on: p.plansPerMonth > 0 },
         { text: "Agentic Writer", on: p.writer === "full" },
@@ -54,8 +47,10 @@ export function groups(p: Plan): Group[] {
     {
       title: "Reports & data",
       items: [
-        { text: REPORTS[p.reports], on: true },
-        { text: `${short(p.pageviewsPerMonth)} tracked visits a month`, on: true },
+        { text: "Live report links", on: true },
+        { text: "8 report templates", on: p.reports === "templates" || p.reports === "whitelabel" },
+        { text: "White-label reports", on: p.reports === "whitelabel" },
+        { text: "CSV export", on: true },
         { text: "Slack, Zapier & API", on: p.alerts },
       ],
     },
@@ -112,6 +107,7 @@ function Line({ f }: { f: Feature }) {
       <span className="flex flex-col gap-1.5">
         {f.text}
         {f.logos && f.on ? <LogoStack size={18} /> : null}
+        {f.tag ? <span className="self-start rounded-full bg-brand-pale px-2 py-0.5 text-[11px] font-medium text-brand">{f.tag}</span> : null}
       </span>
     </li>
   );

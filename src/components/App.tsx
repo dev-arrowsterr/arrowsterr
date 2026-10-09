@@ -561,9 +561,9 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             <BillingPage key={ws.id} sb={sb} ws={ws} auth={auth} onPlan={loadPlan} />
           ) : !view ? (
             <div className="aw-callout max-w-xl">This workspace has no brands yet. Ask an editor or admin to add one.</div>
-          ) : RESEARCH.includes(page) && plan && (page === "keywords" || page === "domain" ? plan.limits.researchPerDay : plan.limits.briefsPerMonth) === 0 ? (
+          ) : RESEARCH.includes(page) && plan && (page === "keywords" || page === "domain" ? plan.limits.researchPerMonth : plan.limits.briefsPerMonth) === 0 ? (
             <Locked
-              title={page === "keywords" || page === "domain" ? "SEO research starts on Scale" : "Content starts on Scale"}
+              title={page === "keywords" || page === "domain" ? "Keyword & Website Research starts on Scale" : "Content starts on Scale"}
               admin={atLeast(ws.role, "admin")}
               busy={boosting}
               onBoost={async () => {
@@ -645,7 +645,7 @@ function Locked({ title, admin, busy, onBoost, onPlans }: { title: string; admin
       </span>
       <h1 className="aw-h3 mb-0!">{title}</h1>
       <ul className="flex flex-col gap-2 text-left text-[15px] text-body">
-        <li>✓ {p.researchPerDay} keyword & domain lookups a day</li>
+        <li>✓ Keyword & Website Research, {p.researchPerMonth.toLocaleString("en-US")} a month</li>
         <li>✓ {p.briefsPerMonth} content briefs and {p.plansPerMonth} content plan a month</li>
         <li>✓ Agentic Writer, Editorial Calendar and Topic Bank</li>
         <li>✓ {p.prompts} prompts and {p.seats} seats</li>
