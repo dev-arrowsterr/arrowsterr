@@ -6,8 +6,11 @@ import type { PlanBrief } from "@/lib/research";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
 import { metered, meteredRoute } from "@/lib/meter";
 import { entitlement, take } from "@/lib/entitlements";
+import { enqueue, queueReady } from "@/lib/jobs";
+import { periodOf } from "@/lib/plans";
 
-// Agentic Keyword Research: start a run, answer right away, and keep working in the background.
+// Agentic Keyword Research: start a run, answer right away, and keep working on the job queue
+// (or in the background before supabase/016_queue.sql).
 // The page reads progress from keyword_runs.
 async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
@@ -46,6 +49,10 @@ async function handle(request: Request) {
   const max = (await entitlement(body.workspaceId)).limits.planMaxKeywords;
   const asked = cleanBrief(body.brief);
   const brief = asked ? { ...asked, size: Math.min(asked.size ?? max, max) as 30 | 60 | 120 } : { size: max };
+  if (await queueReady()) {
+    await enqueue("plan", { runId: run.id, site: { ...site, brief }, period: periodOf("plans") }, { workspaceId: body.workspaceId, key: `plan:${run.id}`, maxAttempts: 2 });
+    return Response.json({ id: run.id });
+  }
   after(async () => {
     await metered(body.workspaceId, "content plan", () => runAgent(auth.sb, run.id, { ...(site as { id: string; domain: string; name: string; profile: Profile }), brief }));
     // A plan that failed does not count against the month's plans.

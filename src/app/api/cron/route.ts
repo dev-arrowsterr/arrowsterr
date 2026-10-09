@@ -1,15 +1,18 @@
-import { createHash, timingSafeEqual } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { answerChat, readAnswer } from "@/lib/answer";
 import type { Chat } from "@/lib/chats";
 import { getTask, postTasks, type DfsEngine } from "@/lib/dataforseo";
 import { answerRows, saveAnswers } from "@/lib/db";
 import { availableEngines, viaDfs, type Engine } from "@/lib/engines";
+import { allowed } from "@/lib/cronAuth";
 import { entitlement } from "@/lib/entitlements";
+import { queueReady } from "@/lib/jobs";
 import { metered } from "@/lib/meter";
 import { adminClient } from "@/lib/serverAuth";
 
-// The daily job. scripts/daily-run.mjs calls this over and over until it answers done: true.
+// The old daily job, kept for setups without the job queue. Once supabase/016_queue.sql has run,
+// the worker (/api/worker) does this work spread over the day, and this route answers done right away.
+// scripts/daily-run.mjs calls this over and over until it answers done: true.
 // Each call:
 //   1. starts today's runs for brands that need one,
 //   2. queues every ChatGPT, Gemini, AI Overview and AI Mode question at DataForSEO (the cheap way, ready in up to 45 minutes),
@@ -21,13 +24,6 @@ const CHECKS = 30; // queued tasks checked per call
 const CONCURRENCY = 3;
 const DAY_MS = 20 * 3600_000; // a brand with a run in the last 20 hours is skipped
 const GIVE_UP_MS = 3 * 3600_000; // queued tasks older than this are marked failed
-
-const hash = (s: string) => createHash("sha256").update(s).digest();
-function allowed(request: Request) {
-  const secret = process.env.CRON_SECRET?.trim();
-  const given = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
-  return Boolean(secret) && timingSafeEqual(hash(secret!), hash(given));
-}
 
 type Queued = { id: string | null; engine: DfsEngine; prompt: string; at: string };
 type Row = {
@@ -74,6 +70,7 @@ export async function POST(request: Request) {
   if (!allowed(request)) return Response.json({ error: "Wrong or missing CRON_SECRET." }, { status: 401 });
   const sb = adminClient();
   if (!sb) return Response.json({ error: "Add SUPABASE_SECRET_KEY on Render." }, { status: 500 });
+  if (await queueReady()) return Response.json({ done: true, message: "The job queue runs daily checks now." });
   const engines = availableEngines();
   if (!engines.length) return Response.json({ done: true, message: "No engine keys are set." });
   const fail = (error: { message: string }) => Response.json({ error: error.message }, { status: 500 });

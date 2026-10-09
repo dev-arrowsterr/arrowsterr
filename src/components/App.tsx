@@ -244,13 +244,18 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
     if (ws && activeId) writeLocal(`arrowsterr.brand.${ws.id}`, activeId);
   }, [ws, activeId]);
 
-  // Load a brand's run history the first time it is opened.
+  // Load a brand's run history: the chosen timeframe and the one before it, for the change numbers.
+  // A longer timeframe loads more; a shorter one keeps what is already loaded.
+  const loaded = useRef<Record<string, number>>({});
   useEffect(() => {
-    if (!active || runs[active.id]) return;
-    listRuns(sb, active.id)
+    if (!active) return;
+    const want = Math.min(400, Math.max(14, days * 2));
+    if (runs[active.id] && (loaded.current[active.id] ?? 0) >= want) return;
+    loaded.current[active.id] = want;
+    listRuns(sb, active.id, want)
       .then((list) => setRuns((r) => ({ ...r, [active.id]: list })))
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  }, [sb, active, runs]);
+  }, [sb, active, runs, days]);
 
   async function runBrand(brand: Brand) {
     if (!engines?.length || running || !ws) return;
@@ -800,7 +805,7 @@ function TopBar(p: {
           </span>
         ) : (
           <span className="aw-live" title="The daily job checks every prompt on every model">
-            {p.hasRuns ? "Updates daily at 06:00 UTC" : "First results after the next daily check"}
+            {p.hasRuns ? "Updates daily" : "First results after the next daily check"}
           </span>
         )}
       </div>

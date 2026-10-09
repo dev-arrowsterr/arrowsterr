@@ -113,9 +113,9 @@ export async function deleteBrand(sb: SupabaseClient, id: string) {
   check(await sb.from("brands").delete().eq("id", id));
 }
 
-/** Runs from the last 180 days, oldest first. That covers every timeframe on the dashboard. */
-export async function listRuns(sb: SupabaseClient, brandId: string): Promise<SavedRun[]> {
-  const since = new Date(Date.now() - 180 * 864e5).toISOString();
+/** Runs from the last `days` days, oldest first. */
+export async function listRuns(sb: SupabaseClient, brandId: string, days = 180): Promise<SavedRun[]> {
+  const since = new Date(Date.now() - days * 864e5).toISOString();
   return check(
     await sb.from("runs").select("id, at, engines, chats").eq("brand_id", brandId).gte("at", since).order("at"),
   ) as SavedRun[];
