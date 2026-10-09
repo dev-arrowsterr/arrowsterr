@@ -1,5 +1,6 @@
 import "server-only";
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { PLANS, planOfLookup } from "./plans";
 
 // A small Stripe client over its REST API. Needs STRIPE_SECRET_KEY, and STRIPE_WEBHOOK_SECRET for the webhook.
 
@@ -61,9 +62,27 @@ export async function priceFor(lookupKey: string): Promise<Price> {
   const hit = prices.get(lookupKey);
   if (hit && Date.now() - hit.at < 600_000) return hit.price;
   const { data } = await stripe<{ data: Price[] }>("GET", "prices", { lookup_keys: [lookupKey], active: true, limit: 1 });
-  if (!data[0]) throw new Error(`No Stripe price with lookup key ${lookupKey}. Run scripts/stripe-setup.mjs.`);
-  prices.set(lookupKey, { at: Date.now(), price: data[0] });
-  return data[0];
+  const price = data[0] ?? (await makePrice(lookupKey));
+  prices.set(lookupKey, { at: Date.now(), price });
+  return price;
+}
+
+/** Make a plan's product and price in Stripe the first time someone picks it, from src/lib/plans.ts. */
+async function makePrice(lookupKey: string): Promise<Price> {
+  const found = planOfLookup(lookupKey);
+  if (!found) throw new Error(`Unknown plan price ${lookupKey}.`);
+  const plan = PLANS[found.plan];
+  const productId = `arrowsterr_${found.plan}`;
+  await stripe("GET", `products/${productId}`).catch(() =>
+    stripe("POST", "products", { id: productId, name: `Arrowsterr ${plan.name}`, metadata: { plan: found.plan } }, `product-${productId}`),
+  );
+  const cents = Math.round((found.interval === "year" ? plan.annual * 12 : plan.price) * 100);
+  return stripe<Price>(
+    "POST",
+    "prices",
+    { product: productId, currency: "usd", unit_amount: cents, recurring: { interval: found.interval }, lookup_key: lookupKey, tax_behavior: "exclusive", metadata: { plan: found.plan, interval: found.interval } },
+    `price-${lookupKey}-${cents}`,
+  );
 }
 
 /** Check a webhook really came from Stripe. Returns the event, or null. */
