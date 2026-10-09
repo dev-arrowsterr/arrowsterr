@@ -1,6 +1,8 @@
-import { cached, DAY } from "@/lib/cache";
+import { cached, DAY, readCache, writeCache } from "@/lib/cache";
 import { dfsReady } from "@/lib/dataforseo";
 import { competitors, research, Spend, type Mode } from "@/lib/keywords";
+import type { Keyword } from "@/lib/research";
+import { broaderSeed } from "@/lib/kwReport";
 import { marketOf } from "@/lib/research";
 import { requireRole } from "@/lib/serverAuth";
 import { normalizeSite } from "@/lib/site";
@@ -22,6 +24,7 @@ async function handle(request: Request) {
   const mode: Mode = MODES.includes(body.mode) ? body.mode : "ideas";
   let query = typeof body.query === "string" ? body.query.trim().replace(/\s+/g, " ").slice(0, 200) : "";
   if (BY_DOMAIN.includes(mode)) query = normalizeSite(query)?.domain ?? "";
+  else query = query.toLowerCase().replace(/["“”?!.]/g, "").trim();
   if (!query) return Response.json({ error: BY_DOMAIN.includes(mode) ? "Enter a domain, like acme.com." : "Enter a keyword." }, { status: 400 });
 
   const { data: site, error } = await auth.sb.from("sites").select("profile").eq("id", body.siteId).eq("workspace_id", body.workspaceId).maybeSingle();
@@ -32,12 +35,22 @@ async function handle(request: Request) {
     const spend = new Spend();
     const market = marketOf((site.profile as { country?: string })?.country);
     // Shared across every workspace for 30 days: the second search for the same thing is free.
-    const key = `kr:${mode}:${market.location}:${market.language}:${query.toLowerCase()}`;
+    const key = `kr2:${mode}:${market.location}:${market.language}:${query.toLowerCase()}`;
     if (mode === "competitors") {
       const { data } = await cached(key, 30 * DAY, () => competitors(query, market, spend));
       return Response.json({ competitors: data, cost: spend.total });
     }
-    const { data: rows } = await cached(key, 30 * DAY, () => research(mode, query, market, spend));
+    const hit = await readCache<Keyword[]>(key, 30 * DAY);
+    if (hit) return Response.json({ rows: hit, cost: 0 });
+    let rows = await research(mode, query, market, spend);
+    // Long or new searches are often missing from the keyword database: widen the search before giving up.
+    if (!rows.length && !BY_DOMAIN.includes(mode)) {
+      const wider = broaderSeed(query);
+      if (wider) rows = await research(mode, wider, market, spend);
+      if (!rows.length && mode !== "ideas") rows = await research("ideas", wider ?? query, market, spend);
+    }
+    // Empty results are not saved, so the next search tries again.
+    if (rows.length) await writeCache(key, rows);
     return Response.json({ rows, cost: spend.total });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

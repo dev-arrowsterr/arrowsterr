@@ -71,7 +71,10 @@ export async function overviewMany(keywords: string[], m: Market, cost: { total:
 }
 
 async function suggestions(keyword: string, m: Market, questions: boolean, cost: { total: number }, limit = 20): Promise<KwList> {
-  const { data } = await cached<KwList>(`${questions ? "q" : "sug"}:${limit}:${m.location}:${m.language}:${keyword}`, 30 * DAY, async () => {
+  const key = `${questions ? "q2" : "sug2"}:${limit}:${m.location}:${m.language}:${keyword}`;
+  const hit = await readCache<KwList>(key, 30 * DAY);
+  if (hit) return hit;
+  const data = await (async () => {
     const r = await task(
       "dataforseo_labs/google/keyword_suggestions/live",
       {
@@ -87,8 +90,84 @@ async function suggestions(keyword: string, m: Market, questions: boolean, cost:
     );
     const rows = ((r.items ?? []) as Info[]).map(toSummary).filter((x): x is KwSummary => Boolean(x));
     return { total: Number(r.total_count ?? rows.length), volume: rows.reduce((n, x) => n + (x.volume ?? 0), 0), rows };
-  });
+  })();
+  // An empty list is not saved, so a search that finds nothing today can find something next time.
+  if (data.rows.length) await writeCache(key, data);
   return data;
+}
+
+/** Words that make a search longer without changing what it is about. */
+const FILLER = /\b(best|top|good|great|cheap|cheapest|affordable|the|a|an|buy|reviews?|review|near me|online|20\d\d)\b/g;
+
+/** "best pillow for kids" → "pillow for kids". Null when nothing changes. */
+export function broaderSeed(keyword: string): string | null {
+  const b = keyword.replace(FILLER, " ").replace(/\s+/g, " ").trim();
+  return b && b !== keyword ? b : null;
+}
+
+/** Related ideas by topic, for searches too new or too long to have phrase matches. */
+async function ideas(keyword: string, m: Market, cost: { total: number }, limit = 20): Promise<KwList> {
+  const key = `ideas:${limit}:${m.location}:${m.language}:${keyword}`;
+  const hit = await readCache<KwList>(key, 30 * DAY);
+  if (hit) return hit;
+  const r = await task(
+    "dataforseo_labs/google/keyword_ideas/live",
+    { keywords: [keyword], location_code: m.location, language_code: m.language, limit, include_serp_info: true, order_by: ["keyword_info.search_volume,desc"] },
+    cost,
+  );
+  const rows = ((r.items ?? []) as Info[]).map(toSummary).filter((x): x is KwSummary => Boolean(x));
+  const data = { total: Number(r.total_count ?? rows.length), volume: rows.reduce((n, x) => n + (x.volume ?? 0), 0), rows };
+  if (rows.length) await writeCache(key, data);
+  return data;
+}
+
+type AdsRow = { keyword?: string; search_volume?: number | null; cpc?: number | null; competition_index?: number | null; monthly_searches?: { year: number; month: number; search_volume: number | null }[] | null };
+
+/** Google Ads numbers for searches DataForSEO Labs does not have yet (long, new or rare ones). One call for up to 1,000. */
+async function adsMany(keywords: string[], m: Market, cost: { total: number }): Promise<Map<string, KwSummary | null>> {
+  const out = new Map<string, KwSummary | null>();
+  const missing: string[] = [];
+  await Promise.all(
+    keywords.map(async (k) => {
+      const hit = await readCache<KwSummary | null>(`ads:${m.location}:${m.language}:${k}`, 30 * DAY);
+      if (hit !== undefined) out.set(k, hit);
+      else missing.push(k);
+    }),
+  );
+  for (let i = 0; i < missing.length; i += 1000) {
+    const chunk = missing.slice(i, i + 1000);
+    const tasks = await call("keywords_data/google_ads/search_volume/live", [{ keywords: chunk, location_code: m.location, language_code: m.language }]);
+    const t = tasks[0];
+    cost.total += Number(t?.cost ?? 0);
+    const rows = (t?.status_code === 20000 ? t.result ?? [] : []) as AdsRow[];
+    const found = new Map(rows.filter((r) => r.keyword).map((r) => [String(r.keyword).toLowerCase(), r]));
+    await Promise.all(
+      chunk.map(async (k) => {
+        const r = found.get(k);
+        const s = r
+          ? toSummary({
+              keyword: k,
+              keyword_info: { search_volume: r.search_volume ?? null, cpc: r.cpc ?? null, competition: r.competition_index != null ? r.competition_index / 100 : null, monthly_searches: r.monthly_searches ?? null },
+            })
+          : null;
+        out.set(k, s);
+        await writeCache(`ads:${m.location}:${m.language}:${k}`, s);
+      }),
+    );
+  }
+  return out;
+}
+
+/** Variations or questions, widening the search when the exact phrase has none. */
+async function widen(kw: string, first: KwList, m: Market, questions: boolean, cost: { total: number }): Promise<KwList> {
+  if (first.rows.length) return first;
+  const wider = broaderSeed(kw);
+  if (wider) {
+    const w = await suggestions(wider, m, questions, cost).catch(() => first);
+    if (w.rows.length) return w;
+  }
+  if (questions) return first;
+  return ideas(kw, m, cost).catch(() => first);
 }
 
 type SerpItem = {
@@ -161,6 +240,9 @@ export async function keywordReport(keyword: string, country: string, device: "d
       return null;
     }),
   ]);
+  // Long or new searches are often missing from DataForSEO Labs. Fall back to Google Ads numbers and wider ideas.
+  const overview = main.get(kw) ?? (await adsMany([kw], m, cost).catch(() => new Map<string, KwSummary | null>())).get(kw) ?? null;
+  const [vars, qs] = await Promise.all([widen(kw, variations, m, false, cost), widen(kw, questions, m, true, cost)]);
   if (google?.rows.length) {
     const t = await traffic(google.rows.map((r) => r.url), m, cost).catch(() => ({}) as Record<string, { etv: number; count: number }>);
     google.rows = google.rows.map((r) => ({ ...r, traffic: t[r.url]?.etv ?? null, keywords: t[r.url]?.count ?? null }));
@@ -169,11 +251,11 @@ export async function keywordReport(keyword: string, country: string, device: "d
     keyword: kw,
     country,
     device,
-    overview: main.get(kw) ?? null,
+    overview,
     byCountry: others,
-    variations,
-    questions,
-    clusters: clustersOf([...variations.rows, ...questions.rows], kw),
+    variations: vars,
+    questions: qs,
+    clusters: clustersOf([...vars.rows, ...qs.rows], kw),
     serp: google,
     cost: Math.round(cost.total * 10000) / 10000,
     cached: cost.total === 0,
@@ -186,6 +268,11 @@ export async function bulkReport(keywords: string[], country: string) {
   const cost = { total: 0 };
   const list = [...new Set(keywords.map((k) => k.trim().toLowerCase().replace(/\s+/g, " ").slice(0, 80)).filter(Boolean))].slice(0, 700);
   const map = await overviewMany(list, m, cost);
+  const gaps = list.filter((k) => !map.get(k));
+  if (gaps.length) {
+    const ads = await adsMany(gaps, m, cost).catch(() => new Map<string, KwSummary | null>());
+    for (const k of gaps) if (ads.get(k)) map.set(k, ads.get(k)!);
+  }
   return { rows: list.map((k) => map.get(k) ?? { keyword: k, volume: null, kd: null, cpc: null, competition: null, intent: null, otherIntents: [], trend: [], serp: [], results: null, core: null }), cost: Math.round(cost.total * 10000) / 10000 };
 }
 
