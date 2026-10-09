@@ -76,7 +76,7 @@ export function AuthScreen({ sb, invited }: { sb: SupabaseClient; invited: boole
         setError("");
         setSent("");
       }}
-      className={`flex-1 px-3 py-2 text-[15px] font-medium ${mode === m ? "bg-brand text-white" : "text-body hover:bg-surface-2"}`}
+      className={`flex-1 px-3 py-2 text-[15px] font-medium ${mode === m ? "bg-white text-ink shadow-aw-sm" : "text-muted hover:text-ink"}`}
     >
       {label}
     </button>

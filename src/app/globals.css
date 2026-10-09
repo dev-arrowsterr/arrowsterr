@@ -4,7 +4,7 @@
 /* Point the brand font tokens at the fonts loaded by next/font in layout.tsx. */
 .aw {
   --aw-font: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --aw-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
+  --aw-mono: var(--font-inter), Inter, system-ui, sans-serif;
   /* Token names the app uses that the brand file names differently. */
   --aw-brand-fg: var(--aw-brand-lift);
   --aw-brand-mist: #C9D5F0;

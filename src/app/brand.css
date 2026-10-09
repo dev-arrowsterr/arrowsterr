@@ -1,19 +1,19 @@
 /* ═══════════════════════════════════════════════════════════════════════
    ARROWSTERR BRAND SYSTEM — CSS
-   Version 3 · Technical editorial
+   Version 4 · Clean product (Inter only, neutral greys, blue #0943B0)
    ─────────────────────────────────────────────────────────────────────
    HOW TO USE
    Wrap any embed in <div class="aw"> … </div>. Everything is scoped to
    .aw so it never leaks into (or gets broken by) the WordPress theme.
-   Load both faces once per page:
-   <link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&family=Inter:wght@300;400;500&display=swap" rel="stylesheet">
+   Load the face once per page:
+   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
 
    THE IDEA
-   Two typefaces carry the whole system. Inter says the human things:
-   headlines, body copy, buttons. Geist Mono says the machine things:
-   labels, counters, statuses, table headers, anything measured. That
-   split is what makes the product read as an instrument instead of a
-   brochure. Use the wrong one and the system stops working.
+   One typeface, Inter, does everything. Neutral greys carry the page and
+   brand blue (#0943B0) marks the one thing to do next. Surfaces are white
+   cards with a hairline ring on a light grey page. Headings are medium
+   weight with tight tracking. Labels are small and in sentence case.
+   Numbers use tabular figures so columns line up.
 
    BRAND RULES (apply to every graphic, embed and page)
    1. Logo: always the image file, never the "arrowsterr.com" text.
@@ -23,21 +23,19 @@
    3. Embeds: outer container has margin: 0, internal padding only,
       and a little bottom padding so content never sits flush at the bottom.
    4. SOFT CORNERS. Every surface is rounded from the radius scale:
-      4px for tiny marks, 6px for controls (buttons, inputs, selects,
-      chips), 10px for cards and frames, 14px for panels and dialogs,
-      999px for pills, toggles and status tags. Never mix two radii on
+      4px for tiny marks, 8px for controls (buttons, inputs, selects),
+      12px for cards and frames, 16px for panels and dialogs, 24px for
+      showcase frames, 999px for pills, toggles and status tags. Never mix two radii on
       one edge. Inner corners follow the outer one.
    5. QUIET DEPTH. Cards sit on paper with a soft, low shadow. Hover may
       lift a card one step. Popovers and panels use the larger shadow.
       Shadows are always cool grey and faint; never a hard drop.
    6. Borders are 1px hairlines in --aw-rule. Cards keep their own border
       and radius, with a 12 to 16px gap between them.
-   7. MONO IS FOR MEASUREMENT. Eyebrows, chips, statuses, table headers,
-      stat labels, counters, timestamps and any number that is data.
-      Never set a headline, a paragraph or a button in mono.
-   8. Type is restrained. Body is 400, headings are 500. Nothing is bold.
-      Headings carry tight negative tracking. Mono labels carry positive
-      tracking and uppercase.
+   7. LABELS ARE QUIET. Eyebrows, chips, statuses and table headers are
+      12 to 13px Inter, medium weight, sentence case, in grey.
+   8. Type is restrained. Body is 400, headings are 500. Headings carry
+      tight negative tracking (-0.04em on the largest).
    9. Blue is the accent, not the field. One blue element per view holds
       the eye. If two things are blue, neither is important.
    10. Copy: 9th-grade vocabulary, short sentences, direct "you". No em dashes.
@@ -62,27 +60,27 @@
   --aw-brand-pale: #F2F5FC;     /* highlighted rows */
 
   /* Ink — blue-tinted near-black. Never pure black for text. */
-  --aw-ink: #0F141F;
-  --aw-ink-hover: #1C2331;
-  --aw-body: #4A5160;           /* body copy */
-  --aw-muted: #767E8C;          /* captions, axis labels, secondary */
-  --aw-faint: #A8AEBA;          /* placeholders, disabled */
+  --aw-ink: #171717;
+  --aw-ink-hover: #2B2B2B;
+  --aw-body: #525252;           /* body copy */
+  --aw-muted: #8A8A8A;          /* captions, axis labels, secondary */
+  --aw-faint: #B5B5B5;          /* placeholders, disabled */
 
   /* Rules and surfaces — cool technical neutrals */
-  --aw-rule: #DFE2E8;           /* every hairline border */
-  --aw-rule-faint: #EBEDF1;     /* inner dividers, gridlines */
-  --aw-paper: #F5F6F8;          /* page background */
+  --aw-rule: #E8E8E8;           /* every hairline border */
+  --aw-rule-faint: #F0F0F0;     /* inner dividers, gridlines */
+  --aw-paper: #F7F7F7;          /* page background */
   --aw-surface: #FFFFFF;        /* cards sitting on paper */
-  --aw-surface-2: #EFF1F4;      /* tinted blocks, table headers */
-  --aw-surface-3: #E6E9EE;      /* pressed / active */
+  --aw-surface-2: #F5F5F5;      /* tinted blocks, table headers */
+  --aw-surface-3: #EBEBEB;      /* pressed / active */
 
   /* Dark surfaces */
-  --aw-dark: #0F141F;
-  --aw-dark-2: #1A2130;
-  --aw-dark-3: #262E3E;         /* borders inside dark panels */
+  --aw-dark: #171717;
+  --aw-dark-2: #222222;
+  --aw-dark-3: #333333;         /* borders inside dark panels */
   --aw-on-dark: #FFFFFF;
-  --aw-on-dark-2: #A9B1C1;
-  --aw-on-dark-3: #6B7488;
+  --aw-on-dark-2: #A3A3A3;
+  --aw-on-dark-3: #737373;
 
   /* Data states — desaturated to sit inside the cool palette */
   --aw-pos: #0E7C57;            /* ranked, present, up */
@@ -107,18 +105,18 @@
 
   /* Typography — two faces, two jobs */
   --aw-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --aw-mono: 'Geist Mono', ui-monospace, SFMono-Regular, 'JetBrains Mono', Menlo, monospace;
+  --aw-mono: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; /* v4: one face; numbers use tabular figures */
 
-  --aw-fs-hero: 58px;
-  --aw-fs-display: 44px;
-  --aw-fs-h2: 36px;
+  --aw-fs-hero: 56px;
+  --aw-fs-display: 52px;
+  --aw-fs-h2: 40px;
   --aw-fs-h3: 24px;
   --aw-fs-h4: 19px;
   --aw-fs-body: 17px;
   --aw-fs-ui: 15px;
   --aw-fs-small: 14px;
   --aw-fs-micro: 12px;
-  --aw-fs-nano: 11px;           /* mono labels */
+  --aw-fs-nano: 12px;           /* labels */
 
   /* Weights — nothing is ever bold */
   --aw-w-light: 300;
@@ -126,11 +124,11 @@
   --aw-w-medium: 500;
 
   /* Tracking */
-  --aw-tr-hero: -2.2px;
-  --aw-tr-display: -1.6px;
-  --aw-tr-h2: -1.1px;
-  --aw-tr-h3: -0.6px;
-  --aw-tr-mono: 0.08em;         /* mono labels, uppercase */
+  --aw-tr-hero: -0.04em;
+  --aw-tr-display: -0.04em;
+  --aw-tr-h2: -0.035em;
+  --aw-tr-h3: -0.02em;
+  --aw-tr-mono: 0;              /* labels are sentence case, no tracking */
 
   /* Line heights */
   --aw-lh-tight: 1.06;
@@ -144,19 +142,21 @@
 
   /* Shape — soft corners */
   --aw-r-xs: 4px;     /* bars, tiny marks, checkboxes */
-  --aw-r-sm: 6px;     /* buttons, inputs, selects, chips */
-  --aw-r-md: 10px;    /* cards, frames, tables, stats */
-  --aw-r-lg: 14px;    /* panels, dialogs, drawers */
+  --aw-r-sm: 8px;     /* buttons, inputs, selects */
+  --aw-r-md: 12px;    /* cards, frames, tables, stats */
+  --aw-r-lg: 16px;    /* panels, dialogs, drawers */
+  --aw-r-xl: 24px;    /* showcase frames on the website */
   --aw-r-pill: 999px; /* status tags, toggles, avatars */
   --aw-radius: var(--aw-r-md);
   --aw-border-w: 1px;
 
   /* Depth — faint, cool grey */
-  --aw-shadow-xs: 0 1px 2px rgba(15, 20, 31, .04);
-  --aw-shadow-sm: 0 1px 2px rgba(15, 20, 31, .04), 0 1px 3px rgba(15, 20, 31, .06);
-  --aw-shadow-md: 0 2px 4px rgba(15, 20, 31, .04), 0 6px 16px rgba(15, 20, 31, .07);
-  --aw-shadow-lg: 0 8px 24px rgba(15, 20, 31, .10), 0 24px 48px rgba(15, 20, 31, .10);
-  --aw-ring: 0 0 0 3px rgba(9, 67, 176, .15);
+  --aw-shadow-xs: 0 0 0 1px rgba(0, 0, 0, .06), 0 1px 2px rgba(0, 0, 0, .04);
+  --aw-shadow-sm: 0 0 0 1px rgba(0, 0, 0, .05), 0 1px 3px rgba(0, 0, 0, .05);
+  --aw-shadow-md: 0 0 0 1px rgba(0, 0, 0, .05), 0 4px 12px rgba(0, 0, 0, .06);
+  --aw-shadow-lg: 0 0 0 1px rgba(0, 0, 0, .05), 0 12px 32px rgba(0, 0, 0, .10);
+  --aw-ring: 0 0 0 3px rgba(9, 67, 176, .14);
+  --aw-btn-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 1px 2px rgba(6, 48, 138, .25);
 
   /* Motion */
   --aw-ease: cubic-bezier(.2,.7,.2,1);
@@ -1081,3 +1081,75 @@
 .aw .aw-doc--side th, .aw .aw-doc--side td { border: 1px solid var(--aw-rule-faint); padding: 6px 8px; vertical-align: top; text-align: left; }
 .aw .aw-doc--side th { background: var(--aw-surface-2); }
 .aw .aw-doc--side a { color: var(--aw-brand); text-decoration: underline; }
+
+
+/* ═══════════════════════════════════════════════════════════════════════
+   V4 · CLEAN PRODUCT LAYER
+   One typeface (Inter). Neutral greys. Labels in sentence case.
+   Hairline rings in place of borders and shadows. 8px controls, 12px cards.
+   The blue button is the main action; the dark button is the quiet one.
+   ═══════════════════════════════════════════════════════════════════════ */
+.aw { font-feature-settings: 'cv11' 1, 'ss01' 1; }
+
+/* Headings: medium weight, tight tracking */
+.aw .aw-hero, .aw .aw-display { line-height: 1.08 !important; }
+.aw .aw-h2 { line-height: 1.12 !important; }
+
+/* Labels, chips, statuses and table headers: small Inter, sentence case */
+.aw .aw-label, .aw .aw-eyebrow__t, .aw .aw-live, .aw .aw-field-label,
+.aw .aw-chip, .aw .aw-badge, .aw .aw-status, .aw .aw-pri, .aw .aw-engine,
+.aw .aw-table th, .aw .aw-sheet th {
+  font-family: var(--aw-font) !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+.aw .aw-label, .aw .aw-field-label { font-size: 13px !important; font-weight: var(--aw-w-medium) !important; color: var(--aw-muted) !important; }
+.aw .aw-table th { font-size: 13px !important; font-weight: var(--aw-w-medium) !important; background: var(--aw-surface) !important; border-bottom-color: var(--aw-rule-faint) !important; }
+.aw .aw-chip { font-size: 12px !important; font-weight: var(--aw-w-medium) !important; padding: 3px 10px; color: var(--aw-body) !important; background: var(--aw-surface); border-color: transparent; box-shadow: 0 0 0 1px rgba(0, 0, 0, .08); }
+.aw .aw-chip--brand { color: var(--aw-brand) !important; background: var(--aw-brand-pale); box-shadow: 0 0 0 1px rgba(9, 67, 176, .18); }
+.aw .aw-chip--fill { color: var(--aw-on-dark) !important; background: var(--aw-ink); box-shadow: none; }
+.aw .aw-badge { font-size: 12px !important; font-weight: var(--aw-w-medium) !important; padding: 3px 10px; }
+.aw .aw-status { font-size: 12px !important; font-weight: var(--aw-w-medium) !important; padding: 2px 9px; }
+.aw .aw-status::before { border-radius: 999px; }
+.aw .aw-engine { font-size: 13px !important; font-weight: var(--aw-w-medium) !important; }
+.aw .aw-readout, .aw .aw-rank, .aw .aw-td-num, .aw .aw-num { font-family: var(--aw-font) !important; font-variant-numeric: tabular-nums; }
+
+/* Buttons */
+.aw .aw-btn, .aw a.aw-btn, .aw a.aw-btn:link, .aw a.aw-btn:visited {
+  font-weight: var(--aw-w-medium) !important; letter-spacing: -0.01em;
+  padding: 10px 16px; gap: 6px; min-height: 40px; border-radius: var(--aw-r-sm) !important;
+}
+.aw .aw-btn--sm { font-size: 13px !important; padding: 6px 12px; min-height: 32px; }
+.aw .aw-btn--lg { font-size: 15px !important; padding: 12px 18px; min-height: 44px; }
+.aw .aw-btn--primary, .aw a.aw-btn--primary:link, .aw a.aw-btn--primary:visited,
+.aw .aw-btn--accent, .aw a.aw-btn--accent:link, .aw a.aw-btn--accent:visited {
+  background: var(--aw-brand) !important; color: #fff !important; border-color: transparent !important; box-shadow: var(--aw-btn-shadow) !important;
+}
+.aw .aw-btn--primary:hover, .aw .aw-btn--accent:hover { background: var(--aw-brand-deep) !important; border-color: transparent !important; }
+.aw .aw-btn--dark, .aw a.aw-btn--dark:link, .aw a.aw-btn--dark:visited { background: var(--aw-ink) !important; color: #fff !important; border-color: transparent !important; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1), 0 1px 2px rgba(0, 0, 0, .2) !important; }
+.aw .aw-btn--dark:hover { background: var(--aw-ink-hover) !important; }
+.aw .aw-btn--secondary, .aw a.aw-btn--secondary:link, .aw a.aw-btn--secondary:visited {
+  background: var(--aw-surface) !important; color: var(--aw-ink) !important; border-color: transparent !important; box-shadow: var(--aw-shadow-xs) !important;
+}
+.aw .aw-btn--secondary:hover { background: #FAFAFA !important; border-color: transparent !important; box-shadow: 0 0 0 1px rgba(0, 0, 0, .1), 0 1px 2px rgba(0, 0, 0, .05) !important; }
+.aw .aw-btn:disabled, .aw .aw-btn[aria-disabled="true"] { box-shadow: none !important; opacity: .7; }
+.aw .aw-btn:focus-visible { outline: 2px solid var(--aw-brand); outline-offset: 3px; }
+.aw .aw-text-link, .aw a.aw-text-link:link, .aw a.aw-text-link:visited { border-bottom: 0; padding-bottom: 0; font-weight: var(--aw-w-medium) !important; }
+.aw .aw-text-link:hover { color: var(--aw-brand) !important; }
+
+/* Cards: white, hairline ring, quiet depth */
+.aw .aw-frame, .aw .aw-stats, .aw .aw-table-wrap { border-color: transparent !important; box-shadow: var(--aw-shadow-sm); }
+.aw .aw-frame, .aw .aw-stats, .aw .aw-table-wrap, .aw .aw-callout, .aw .aw-error, .aw .aw-window, .aw .aw-quote, .aw .aw-note, .aw .aw-faq { border-radius: var(--aw-r-md) !important; }
+.aw .aw-panel-dark { border-radius: var(--aw-r-lg) !important; }
+.aw .aw-callout { border-color: rgba(9, 67, 176, .14) !important; }
+
+/* Forms */
+.aw .aw-input, .aw .aw-textarea, .aw .aw-select {
+  padding: 9px 12px; min-height: 40px; border-color: transparent; box-shadow: 0 0 0 1px rgba(0, 0, 0, .1), 0 1px 2px rgba(0, 0, 0, .03);
+}
+.aw .aw-input:focus, .aw .aw-textarea:focus, .aw .aw-select:focus { border-color: transparent; box-shadow: 0 0 0 1px var(--aw-brand), var(--aw-ring) !important; }
+.aw .aw-input--lg { padding: 12px 14px; min-height: 48px; }
+.aw .aw-input--mono { font-family: var(--aw-font) !important; letter-spacing: 0; }
+.aw .aw-progress { height: 4px; border-radius: 999px; }
+.aw .aw-progress__fill { border-radius: 999px; }
+.aw ::selection { background: rgba(9, 67, 176, .16); color: var(--aw-ink); }
