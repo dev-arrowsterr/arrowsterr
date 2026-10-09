@@ -64,6 +64,7 @@ export function AgenticResearch({
   onApproved,
   latest,
   refresh,
+  quiet = false,
 }: {
   sb: SupabaseClient;
   auth: RunAuth;
@@ -74,6 +75,7 @@ export function AgenticResearch({
   onApproved: () => void;
   latest: string | null; // the last due date already on the calendar
   refresh: number; // bumps when a new plan starts
+  quiet?: boolean; // the page already has a Generate button: show nothing until a plan exists
 }) {
   const [runs, setRuns] = useStash<KeywordRun[] | null>(`agentic:${site.id}:runs`, null);
   const [runId, setRunId] = useState<string | null>(null);
@@ -134,7 +136,7 @@ export function AgenticResearch({
       </select>
     ) : null;
 
-  if (!run) return error ? <p className="aw-error">{error}</p> : intro;
+  if (!run) return error ? <p className="aw-error">{error}</p> : quiet ? null : intro;
 
   if (running) {
     const at = stepIndex(run.step);
@@ -401,7 +403,7 @@ export function AgenticResearch({
             >
               Export CSV
             </button>
-            {canEdit ? (
+            {canEdit && !quiet ? (
               <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={onNew}>
                 New plan
               </button>

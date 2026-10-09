@@ -20,7 +20,7 @@ const TITLES: Record<Tool, string> = {
   domain: "Domain Research",
   calendar: "Editorial Calendar",
   topics: "Topic Bank",
-  writer: "Inkwell",
+  writer: "Agentic Writer",
 };
 
 /** The Research tools for the website picked in the top bar. */

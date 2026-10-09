@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { sortRows, useSort, type Sort } from "./ui";
 
 // A spreadsheet: click a column name to sort (again to flip), type in the row under it to filter.
-// Numbers filter with 100, >100, <50 or 10-50. Lists filter with a dropdown. Text filters by "contains".
+// Numbers and dates filter with =, >, ≥, <, ≤ or between, picked from a menu. Lists filter with a dropdown. Text filters by "contains".
 // Like Google Sheets: show, hide and move columns, drag a column edge to resize, click a cell to edit it.
 // The layout is saved per sheet in this browser.
 
@@ -53,6 +53,59 @@ function numberMatch(v: Value, f: string) {
   }
   if ((m = s.match(/^(-?\d+(?:\.\d+)?)-(-?\d+(?:\.\d+)?)$/))) return v >= Number(m[1]) && v <= Number(m[2]);
   return true;
+}
+
+/** Dates filter like numbers, compared as YYYY-MM-DD text. Between is "a..b". */
+function dateMatch(v: Value, f: string) {
+  if (!v) return false;
+  const d = String(v).slice(0, 10);
+  const [op, a, b] = parseCond(f);
+  if (!a) return true;
+  return op === "between" ? d >= a && (!b || d <= b) : op === ">" ? d > a : op === ">=" ? d >= a : op === "<" ? d < a : op === "<=" ? d <= a : d === a;
+}
+
+type Op = "=" | ">" | ">=" | "<" | "<=" | "between";
+const OPS: { id: Op; label: string }[] = [
+  { id: "=", label: "=" },
+  { id: ">", label: ">" },
+  { id: ">=", label: "≥" },
+  { id: "<", label: "<" },
+  { id: "<=", label: "≤" },
+  { id: "between", label: "↔" },
+];
+/** "op|a|b" from the filter menu. Older typed filters like ">100" or "10-50" still work in numberMatch. */
+function parseCond(f: string): [Op, string, string] {
+  const [op, a = "", b = ""] = f.split("|");
+  return [(OPS.some((o) => o.id === op) ? op : "=") as Op, a, b];
+}
+function condToNumber(f: string) {
+  if (!f.includes("|")) return f;
+  const [op, a, b] = parseCond(f);
+  if (!a && !(op === "between" && b)) return "";
+  if (op === "between") return `${a || "-999999999999"}-${b || "999999999999"}`;
+  return op === "=" ? a : `${op}${a}`;
+}
+
+/** The filter under a number or date column: pick a comparison, then type one value, or two for between. */
+function CondFilter({ label, value, type, onChange }: { label: string; value: string; type: "number" | "date"; onChange: (v: string) => void }) {
+  const [op, a, b] = parseCond(value);
+  const set = (o: Op, x: string, y: string) => onChange(x || y ? `${o}|${x}|${y}` : o === "=" ? "" : `${o}||`);
+  const input = (v: string, on: (x: string) => void, ph: string, name: string) => (
+    <input aria-label={`${label} ${name}`} type={type === "date" ? "date" : "text"} inputMode={type === "number" ? "decimal" : undefined} value={v} onChange={(e) => on(e.target.value.replace(type === "number" ? /[^\d.\-]/g : /$^/, ""))} placeholder={ph} className="min-w-0 flex-1" />
+  );
+  return (
+    <span className="aw-cond flex flex-wrap items-center gap-1">
+      <select aria-label={`${label} comparison`} value={op} onChange={(e) => set(e.target.value as Op, a, b)} className="w-11! shrink-0 px-1! text-center">
+        {OPS.map((o) => (
+          <option key={o.id} value={o.id} title={o.id === "between" ? "between" : o.id}>
+            {o.label}
+          </option>
+        ))}
+      </select>
+      {input(a, (x) => set(op, x, b), op === "between" ? "from" : "any", "value")}
+      {op === "between" ? input(b, (y) => set(op, a, y), "to", "to") : null}
+    </span>
+  );
 }
 
 const show = (v: Value) => (v === null || v === undefined || v === "" ? <span className="text-muted">–</span> : typeof v === "number" ? v.toLocaleString("en-US") : v);
@@ -127,7 +180,7 @@ export function Sheet<T>({
   const [menu, setMenu] = useState(false);
   const [editing, setEditing] = useState<string | null>(null); // "rowKey|colId"
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const active = Object.entries(filters).filter(([, v]) => v.trim());
+  const active = Object.entries(filters).filter(([, v]) => v.replace(/^[^|]*\|/, "").replace(/\|/g, "").trim());
 
   const setLayout = (next: Layout) => {
     setLayoutState(next);
@@ -198,7 +251,8 @@ export function Sheet<T>({
         const c = allCols.find((x) => x.id === cid);
         if (!c) return true;
         const v = c.value(r);
-        if (c.type === "number") return numberMatch(v, f);
+        if (c.type === "number") return numberMatch(v, condToNumber(f));
+        if (c.type === "date") return dateMatch(v, f.includes("|") ? f : `=|${f}|`);
         if (c.type === "list") return String(v ?? "") === f;
         return String(v ?? "").toLowerCase().includes(f.trim().toLowerCase());
       }),
@@ -216,6 +270,9 @@ export function Sheet<T>({
     else next.delete(key);
     onSelect(next);
   };
+  // The first column (the keyword) stays in view while the sheet scrolls sideways.
+  const first = cols[0]?.id;
+  const stickyCls = (c: Col<T>) => (c.id === first ? `aw-sheet__key ${onSelect ? "is-after-pick" : ""}` : "");
   const sized = (c: Col<T>) => {
     const w = widthOf(c);
     return w ? { width: w, minWidth: w, maxWidth: w } : c.width ? { minWidth: c.width } : undefined;
@@ -230,7 +287,7 @@ export function Sheet<T>({
             Clear {active.length} {active.length === 1 ? "filter" : "filters"}
           </button>
         ) : (
-          <span>Click a column name to sort. Type under it to filter.{allCols.some((c) => c.edit) ? " Click a cell to edit it." : ""}</span>
+          <span>Click a column name to sort. Use the row under it to filter: =, &gt;, ≥, &lt;, ≤ or ↔ between.{allCols.some((c) => c.edit) ? " Click a cell to edit it." : ""}</span>
         )}
         <span className="ml-auto flex items-center gap-2">
           {onAddColumn ? (
@@ -300,7 +357,7 @@ export function Sheet<T>({
                 const on = sort.key === c.id;
                 const text = c.type === "text" || c.type === "list";
                 return (
-                  <th key={c.id} style={sized(c)} className="relative" aria-sort={on ? (sort.desc ? "descending" : "ascending") : "none"}>
+                  <th key={c.id} style={sized(c)} className={`relative ${stickyCls(c)}`} aria-sort={on ? (sort.desc ? "descending" : "ascending") : "none"}>
                     <button type="button" className={`aw-sort ${on ? "is-on" : ""}`} onClick={() => setSort(on ? { key: c.id, desc: !sort.desc } : { key: c.id, desc: !text && c.type !== "date" })}>
                       {c.label}
                       <span aria-hidden="true" className="aw-sort__arrow">
@@ -321,7 +378,7 @@ export function Sheet<T>({
                 if (c.type === "list") {
                   const opts = c.options ?? [...new Set(rows.map((r) => String(c.value(r) ?? "")).filter(Boolean))].sort();
                   return (
-                    <th key={c.id} style={sized(c)}>
+                    <th key={c.id} style={sized(c)} className={stickyCls(c)}>
                       <select aria-label={`Filter ${c.label}`} value={v} onChange={(e) => set(e.target.value)}>
                         <option value="">All</option>
                         {opts.map((o) => (
@@ -333,9 +390,15 @@ export function Sheet<T>({
                     </th>
                   );
                 }
+                if (c.type === "number" || c.type === "date")
+                  return (
+                    <th key={c.id} style={{ ...sized(c), minWidth: Math.max(c.type === "date" ? 180 : 140, widthOf(c) ?? 0) }} className={stickyCls(c)}>
+                      <CondFilter label={`Filter ${c.label}`} value={v} type={c.type} onChange={set} />
+                    </th>
+                  );
                 return (
-                  <th key={c.id} style={sized(c)}>
-                    <input aria-label={`Filter ${c.label}`} value={v} onChange={(e) => set(e.target.value)} placeholder={c.type === "number" ? ">0" : "Filter"} />
+                  <th key={c.id} style={sized(c)} className={stickyCls(c)}>
+                    <input aria-label={`Filter ${c.label}`} value={v} onChange={(e) => set(e.target.value)} placeholder="Contains" />
                   </th>
                 );
               })}
@@ -357,7 +420,7 @@ export function Sheet<T>({
                     const cellId = `${key}|${c.id}`;
                     const content = c.cell ? c.cell(r) : show(c.value(r));
                     return (
-                      <td key={c.id} style={sized(c)} className={`${c.type === "number" ? "is-num" : ""} ${widthOf(c) ? "overflow-hidden text-ellipsis whitespace-nowrap" : ""}`}>
+                      <td key={c.id} style={sized(c)} className={`${c.type === "number" ? "is-num" : ""} ${widthOf(c) ? "overflow-hidden text-ellipsis whitespace-nowrap" : ""} ${stickyCls(c)}`}>
                         {editing === cellId && c.edit ? (
                           <CellEditor row={r} col={c} onDone={() => setEditing(null)} />
                         ) : j === 0 && onOpen ? (

@@ -7,10 +7,11 @@ import { EditorContent, mergeAttributes, Node, useEditor, type Editor } from "@t
 import StarterKit from "@tiptap/starter-kit";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Brief } from "@/lib/briefTypes";
-import { createDoc, deleteDoc, getBrief, getDoc, getGuideline, listDocs, saveDoc, type Doc, type DocMeta, type Site } from "@/lib/db";
+import { createDoc, deleteDoc, ensureCalendarItem, getBrief, linkDoc, listCalendar, updateCalendarItem, type CalendarItem, getDoc, getGuideline, listDocs, saveDoc, type Doc, type DocMeta, type Site } from "@/lib/db";
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
-import { coverage, mdToHtml, type Section } from "@/lib/writer";
+import { briefDocHtml } from "@/lib/briefDoc";
+import { briefToDoc, coverage, mdToHtml, type Section } from "@/lib/writer";
 import type { BrandGuideline, ChatMessage } from "@/lib/writerTypes";
 import { Seg, Thinking } from "../ui";
 import { post } from "./shared";
@@ -166,15 +167,89 @@ export function Writer({ sb, auth, site, canEdit }: { sb: SupabaseClient; auth: 
           ))}
         </ul>
       ) : (
-        <section className="aw-frame flex flex-col items-start gap-4 p-10">
-          <h2 className="aw-h3">No drafts yet</h2>
-          {canEdit ? (
-            <button type="button" className="aw-btn aw-btn--accent" onClick={blank}>
-              Start writing
-            </button>
-          ) : null}
-        </section>
+        <FromCalendar sb={sb} auth={auth} site={site} canEdit={canEdit} onBlank={blank} onOpen={(d) => {
+          setDocs([d, ...docs]);
+          setOpenId(d.id);
+        }} />
       )}
+    </div>
+  );
+}
+
+/** With no drafts yet: start from a brief or a planned piece on the Editorial Calendar, or a blank page. */
+function FromCalendar({ sb, auth, site, canEdit, onBlank, onOpen }: { sb: SupabaseClient; auth: RunAuth; site: Site; canEdit: boolean; onBlank: () => void; onOpen: (d: DocMeta) => void }) {
+  const [items, setItems] = useState<CalendarItem[] | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let live = true;
+    listCalendar(sb, site.id)
+      .then((list) => live && setItems(list.filter((i) => i.status !== "published")))
+      .catch(() => live && setItems([]));
+    return () => {
+      live = false;
+    };
+  }, [sb, site.id]);
+
+  async function start(i: CalendarItem) {
+    setError("");
+    try {
+      const b = i.brief_status === "done" ? (await getBrief(sb, i.id)).brief : null;
+      const doc = await createDoc(sb, {
+        workspace_id: auth.workspaceId,
+        site_id: site.id,
+        calendar_item_id: i.id,
+        title: b?.brief.h1 || i.keyword,
+        content: (b ? briefToDoc(i.keyword, i.secondary, b) : { type: "doc", content: [{ type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: i.keyword }] }, { type: "paragraph" }] }) as unknown as Record<string, unknown>,
+      });
+      if (i.status === "planned" || i.status === "brief") await updateCalendarItem(sb, i.id, { status: "writing" }).catch(() => {});
+      onOpen(doc);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  const briefs = (items ?? []).filter((i) => i.brief_status === "done");
+  const planned = (items ?? []).filter((i) => i.brief_status !== "done").sort((a, b) => (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999"));
+  const card = (i: CalendarItem, tag: string) => (
+    <li key={i.id}>
+      <button type="button" disabled={!canEdit} onClick={() => start(i)} className="aw-frame flex h-full w-full flex-col gap-2 p-5 text-left transition-shadow hover:shadow-aw">
+        <span className="flex items-center gap-2">
+          <span className="aw-chip">{tag}</span>
+          {i.due_date ? <span className="aw-num text-[12px] text-muted">{new Date(`${i.due_date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span> : null}
+        </span>
+        <span className="text-[16px] font-medium text-ink">{i.keyword}</span>
+        <span className="mt-auto text-[13px] font-medium text-brand">Start writing →</span>
+      </button>
+    </li>
+  );
+
+  return (
+    <div className="flex flex-col gap-6">
+      {error ? <p className="aw-error">{error}</p> : null}
+      <section className="aw-frame flex flex-wrap items-center justify-between gap-4 p-8">
+        <span className="flex flex-col gap-1">
+          <h2 className="aw-h3">Start writing</h2>
+          <span className="text-[15px] text-body">Pick a brief or a planned piece from your Editorial Calendar, or start on a blank page.</span>
+        </span>
+        {canEdit ? (
+          <button type="button" className="aw-btn aw-btn--secondary" onClick={onBlank}>
+            Blank page
+          </button>
+        ) : null}
+      </section>
+      {items === null ? <Thinking text="Loading your calendar..." /> : null}
+      {briefs.length ? (
+        <section className="flex flex-col gap-3">
+          <h3 className="aw-h4">Briefs ready to write</h3>
+          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{briefs.map((i) => card(i, "Brief ready"))}</ul>
+        </section>
+      ) : null}
+      {planned.length ? (
+        <section className="flex flex-col gap-3">
+          <h3 className="aw-h4">Planned on the calendar</h3>
+          <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{planned.slice(0, 12).map((i) => card(i, "Planned"))}</ul>
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -339,16 +414,17 @@ function DocEditor({
     },
   });
 
+  const [itemId, setItemId] = useState(doc.calendar_item_id);
   useEffect(() => {
-    if (!doc.calendar_item_id) return;
+    if (!itemId) return;
     let live = true;
-    getBrief(sb, doc.calendar_item_id)
+    getBrief(sb, itemId)
       .then((b) => live && setBrief(b.brief))
       .catch(() => {});
     return () => {
       live = false;
     };
-  }, [sb, doc.calendar_item_id]);
+  }, [sb, itemId]);
 
   const words = text.split(/\s+/).filter(Boolean).length;
   const cov = brief ? coverage(parts.body, html, brief, parts.sections) : null;
@@ -421,7 +497,7 @@ function DocEditor({
             onChange={onTab}
             options={[
               { id: "assistant", label: "Assistant" },
-              { id: "brief", label: cov ? `Brief ${cov.score}%` : "Brief" },
+              { id: "brief", label: cov ? `Brief ${cov.score}%` : "Brief +" },
               { id: "brand", label: "Brand" },
             ]}
           />
@@ -430,7 +506,7 @@ function DocEditor({
           {tab === "assistant" ? (
             <Assistant auth={auth} site={site} docId={doc.id} editor={editor} text={text} canEdit={canEdit} hasGuideline={Boolean(guideline)} />
           ) : tab === "brief" ? (
-            <BriefCheck brief={brief} cov={cov} />
+            <BriefTab sb={sb} auth={auth} site={site} docId={doc.id} title={title} itemId={itemId} brief={brief} cov={cov} canEdit={canEdit} onLinked={setItemId} onBrief={setBrief} />
           ) : (
             <BrandPanel auth={auth} site={site} guideline={guideline} onGuideline={onGuideline} canEdit={canEdit} />
           )}
@@ -561,30 +637,138 @@ function Assistant({ auth, site, docId, editor, text, canEdit, hasGuideline }: {
   );
 }
 
-function BriefCheck({ brief, cov }: { brief: Brief | null; cov: ReturnType<typeof coverage> | null }) {
-  if (!brief || !cov) return <p className="aw-small p-4">This draft is not linked to a content brief. Start drafts from a brief in the Editorial Calendar to get a checklist here.</p>;
+/** The brief beside the draft: a checklist of what it covers, the brief itself, or a button to write one. */
+function BriefTab({
+  sb,
+  auth,
+  site,
+  docId,
+  title,
+  itemId,
+  brief,
+  cov,
+  canEdit,
+  onLinked,
+  onBrief,
+}: {
+  sb: SupabaseClient;
+  auth: RunAuth;
+  site: Site;
+  docId: string;
+  title: string;
+  itemId: string | null;
+  brief: Brief | null;
+  cov: ReturnType<typeof coverage> | null;
+  canEdit: boolean;
+  onLinked: (id: string) => void;
+  onBrief: (b: Brief) => void;
+}) {
+  const [keyword, setKeyword] = useState(title.toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, "").trim());
+  const [state, setState] = useState<"idle" | "running" | "failed">("idle");
+  const [error, setError] = useState("");
+  const [view, setView] = useState<"check" | "brief">("check");
+
+  // While the brief is being written, check on it every 4 seconds.
+  useEffect(() => {
+    if (state !== "running" || !itemId) return;
+    const t = setInterval(async () => {
+      const b = await getBrief(sb, itemId).catch(() => null);
+      if (b?.brief_status === "done" && b.brief) {
+        onBrief(b.brief);
+        setState("idle");
+      } else if (b?.brief_status === "failed") {
+        setError(b.brief_error ?? "The brief failed.");
+        setState("failed");
+      }
+    }, 4000);
+    return () => clearInterval(t);
+  }, [state, itemId, sb, onBrief]);
+
+  async function create() {
+    const kw = keyword.trim().replace(/\s+/g, " ");
+    if (!kw) return;
+    setError("");
+    setState("running");
+    try {
+      let id = itemId;
+      if (!id) {
+        id = await ensureCalendarItem(sb, auth.workspaceId, site.id, kw);
+        await linkDoc(sb, docId, id);
+        onLinked(id);
+      }
+      await post(auth, "/api/research/brief", { itemId: id });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setState("failed");
+    }
+  }
+
+  if (state === "running")
+    return (
+      <div className="flex flex-col items-center gap-3 px-4 py-12 text-center" role="status" aria-live="polite">
+        <span className="aw-think__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M12 1.5c.6 4.9 2.9 8.6 10.5 10.5-7.6 1.9-9.9 5.6-10.5 10.5-.6-4.9-2.9-8.6-10.5-10.5C9.1 10.1 11.4 6.4 12 1.5z" />
+          </svg>
+        </span>
+        <span className="text-[14px] font-medium text-ink">Reading Google&apos;s top 10 and writing the brief...</span>
+      </div>
+    );
+
+  if (!brief || !cov)
+    return (
+      <div className="flex flex-col gap-3 p-4">
+        {error ? <p className="aw-error">{error}</p> : null}
+        <span className="text-[15px] font-medium text-ink">Create a content brief</span>
+        {canEdit ? (
+          <>
+            <input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="Main keyword" aria-label="Main keyword" className="aw-input py-2! text-[14px]!" />
+            <button type="button" className="aw-btn aw-btn--accent" onClick={create} disabled={!keyword.trim()}>
+              ✦ Create content brief
+            </button>
+          </>
+        ) : null}
+      </div>
+    );
+
   return (
     <div className="flex flex-col gap-3 p-4">
-      <div className="flex items-center gap-3">
-        <span className="aw-num text-[28px] text-ink">{cov.score}%</span>
-        <span className="text-[13px] text-body">of the brief covered</span>
-      </div>
-      <span className="h-1.5 bg-rule-faint">
-        <span className="block h-full bg-brand" style={{ width: `${cov.score}%` }} />
-      </span>
-      <ul className="flex flex-col gap-1.5">
-        {cov.items.map((i) => (
-          <li key={`${i.kind}${i.label}`} className="flex items-start gap-2 text-[13px]">
-            <span aria-label={i.done ? "Done" : "To do"} className={i.done ? "text-pos" : "text-muted"}>
-              {i.done ? "✓" : "○"}
-            </span>
-            <span className={i.done ? "text-muted line-through" : "text-ink"}>
-              <span className="aw-label mr-1.5">{i.kind}</span>
-              {i.label}
-            </span>
-          </li>
-        ))}
-      </ul>
+      <Seg
+        label="Brief view"
+        value={view}
+        onChange={setView}
+        options={[
+          { id: "check", label: `Checklist ${cov.score}%` },
+          { id: "brief", label: "Brief" },
+        ]}
+      />
+      {view === "brief" ? (
+        // The brief is built from escaped text, or saved from the brief editor, which only keeps its own nodes.
+        <div className="aw-editor aw-doc aw-doc--side" dangerouslySetInnerHTML={{ __html: brief.doc ?? briefDocHtml({ keyword, secondary: [], action: "new", current_url: null }, brief, { name: site.name, country: site.profile.country }, null) }} />
+      ) : (
+        <>
+          <div className="flex items-center gap-3">
+            <span className="aw-num text-[28px] text-ink">{cov.score}%</span>
+            <span className="text-[13px] text-body">of the brief covered</span>
+          </div>
+          <span className="h-1.5 rounded-full bg-rule-faint">
+            <span className="block h-full rounded-full bg-brand" style={{ width: `${cov.score}%` }} />
+          </span>
+          <ul className="flex flex-col gap-1.5">
+            {cov.items.map((i) => (
+              <li key={`${i.kind}${i.label}`} className="flex items-start gap-2 text-[13px]">
+                <span aria-label={i.done ? "Done" : "To do"} className={i.done ? "text-pos" : "text-muted"}>
+                  {i.done ? "✓" : "○"}
+                </span>
+                <span className={i.done ? "text-muted line-through" : "text-ink"}>
+                  <span className="aw-label mr-1.5">{i.kind}</span>
+                  {i.label}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </div>
   );
 }

@@ -34,6 +34,19 @@ export type Profile = {
   country?: string;
   columns?: SheetColumn[]; // custom columns in the Content calendar
   planBrief?: PlanBrief; // last answers to the content plan questionnaire
+  bank?: BankRow[]; // ideas typed into the Topic Bank, not on the calendar yet
+};
+/** One idea in the Topic Bank. */
+export type BankRow = {
+  id: string;
+  keyword: string;
+  stage: "bofu" | "mofu" | "tofu" | null;
+  volume: number | null;
+  kd: number | null;
+  intent: string | null;
+  notes: string | null;
+  source: string;
+  added: string;
 };
 export type SheetColumn = { id: string; name: string; type: "text" | "number" | "date" };
 /** A buying category the brand wants to win, and the prompts that track it. */
@@ -240,7 +253,9 @@ export async function siteForBrand(sb: SupabaseClient, brand: Brand, canEdit: bo
     site = await find();
   }
   if (!site) return null;
-  const profile = brand.profile ?? {};
+  // The brand's answers win, but settings that only live on the website (calendar columns, plan answers, Topic Bank) are kept.
+  const { columns, planBrief, bank } = site.profile ?? {};
+  const profile: Profile = { ...(brand.profile ?? {}), ...(columns ? { columns } : {}), ...(planBrief ? { planBrief } : {}), ...(bank ? { bank } : {}) };
   if (canEdit && (site.brand_id !== brand.id || JSON.stringify(site.profile) !== JSON.stringify(profile) || site.name !== brand.name)) {
     check(await sb.from("sites").update({ brand_id: brand.id, profile, name: brand.name }).eq("id", site.id));
     site = { ...site, brand_id: brand.id, profile, name: brand.name };
@@ -325,6 +340,18 @@ export async function getBrief(sb: SupabaseClient, id: string) {
     brief_error: string | null;
     brief_at: string | null;
   };
+}
+
+/** The calendar item for a keyword on a site, made if it is not there yet. Returns its id. */
+export async function ensureCalendarItem(sb: SupabaseClient, workspaceId: string, siteId: string, keyword: string): Promise<string> {
+  await addCalendarItems(sb, workspaceId, [{ site_id: siteId, keyword, secondary: [], stage: null, theme: null, volume: null, difficulty: null, intent: null, cpc: null, source: "agentic writer" }]);
+  const row = check(await sb.from("calendar_items").select("id").eq("site_id", siteId).eq("keyword", keyword).single()) as { id: string };
+  return row.id;
+}
+
+/** Tie a draft to a calendar item, so its brief shows in the Agentic Writer. */
+export async function linkDoc(sb: SupabaseClient, docId: string, itemId: string) {
+  check(await sb.from("docs").update({ calendar_item_id: itemId }).eq("id", docId));
 }
 
 /** Save the brief after someone edits its document. */

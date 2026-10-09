@@ -733,10 +733,21 @@
   font-family: var(--aw-font); font-size: 12px; color: var(--aw-ink);
 }
 .aw .aw-sheet__filters input:focus, .aw .aw-sheet__filters select:focus { outline: none; border-color: var(--aw-brand); }
+.aw .aw-sheet__filters .aw-cond input { min-width: 56px; width: auto; }
+.aw .aw-sheet__filters .aw-cond select { min-width: 0; }
 .aw .aw-sheet td.is-num { font-family: var(--aw-mono); font-variant-numeric: tabular-nums; text-align: right; color: var(--aw-ink); }
 .aw .aw-sheet__n { width: 36px; min-width: 36px; text-align: right !important; font-family: var(--aw-mono); font-size: 11px; color: var(--aw-faint) !important; background: var(--aw-surface-2); position: sticky; left: 0; z-index: 1; }
 .aw .aw-sheet thead .aw-sheet__n { z-index: 3; }
-.aw .aw-sheet__pick { width: 32px; min-width: 32px; text-align: center !important; }
+.aw .aw-sheet__pick { width: 32px; min-width: 32px; text-align: center !important; position: sticky; left: 36px; z-index: 1; background: var(--aw-surface); }
+.aw .aw-sheet thead .aw-sheet__pick { z-index: 3; background: var(--aw-surface-2); }
+.aw .aw-sheet thead tr.aw-sheet__filters .aw-sheet__pick { background: var(--aw-surface); }
+/* The keyword column stays put while the sheet scrolls sideways. */
+.aw .aw-sheet .aw-sheet__key { position: sticky; left: 36px; z-index: 1; background: var(--aw-surface); box-shadow: inset -1px 0 0 var(--aw-rule); }
+.aw .aw-sheet .aw-sheet__key.is-after-pick { left: 68px; }
+.aw .aw-sheet thead th.aw-sheet__key { z-index: 3; background: var(--aw-surface-2); }
+.aw .aw-sheet thead tr.aw-sheet__filters th.aw-sheet__key { background: var(--aw-surface); }
+.aw .aw-sheet tbody tr:hover td.aw-sheet__key, .aw .aw-sheet tbody tr:hover td.aw-sheet__pick { background: var(--aw-paper); }
+.aw .aw-sheet tbody tr.is-picked td.aw-sheet__key, .aw .aw-sheet tbody tr.is-picked td.aw-sheet__pick { background: var(--aw-brand-pale); }
 .aw .aw-sheet__pick input { width: 15px; height: 15px; accent-color: var(--aw-brand); cursor: pointer; }
 .aw .aw-sheet tbody tr:hover td { background: var(--aw-paper); }
 .aw .aw-sheet tbody tr.is-picked td { background: var(--aw-brand-pale); }
@@ -1059,3 +1070,14 @@
 .aw .aw-doc .ProseMirror h3 { font-size: 18px; }
 .aw .aw-doc .ProseMirror h4 { font-size: 15px; color: var(--aw-ink); margin-top: 1em; }
 .aw .aw-doc .ProseMirror p em:only-child { color: var(--aw-muted); font-style: normal; font-family: var(--aw-mono); font-size: 12px; letter-spacing: var(--aw-tr-mono); text-transform: uppercase; }
+.aw .aw-doc--side { font-size: 14px; line-height: 1.6; color: var(--aw-ink); }
+.aw .aw-doc--side > * + * { margin-top: 0.6em; }
+.aw .aw-doc--side h1 { font-size: 20px; font-weight: 600; }
+.aw .aw-doc--side h2 { font-size: 16px; font-weight: 600; margin-top: 1.2em; padding-top: 0.6em; border-top: 1px solid var(--aw-rule-faint); }
+.aw .aw-doc--side h3, .aw .aw-doc--side h4 { font-size: 14px; font-weight: 600; }
+.aw .aw-doc--side ul { list-style: disc; padding-left: 1.2em; }
+.aw .aw-doc--side ol { list-style: decimal; padding-left: 1.2em; }
+.aw .aw-doc--side table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.aw .aw-doc--side th, .aw .aw-doc--side td { border: 1px solid var(--aw-rule-faint); padding: 6px 8px; vertical-align: top; text-align: left; }
+.aw .aw-doc--side th { background: var(--aw-surface-2); }
+.aw .aw-doc--side a { color: var(--aw-brand); text-decoration: underline; }

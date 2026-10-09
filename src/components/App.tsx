@@ -58,7 +58,7 @@ const SLUGS: Record<Page, string> = {
   domain: "/domain-research",
   calendar: "/calendar",
   topics: "/topic-bank",
-  writer: "/inkwell",
+  writer: "/agentic-writer",
   summary: "/reports",
   members: "/settings",
 };
@@ -72,6 +72,7 @@ const ALIASES: Record<string, Page> = {
   "/agentic-research": "topics",
   "/planner": "topics",
   "/writer": "writer",
+  "/inkwell": "writer",
   "/content-calendar": "calendar",
   "/reports/content": "calendar",
 };
@@ -544,7 +545,7 @@ const NAV: { group: string; items: { id: Page; label: string; icon: string; also
     items: [
       { id: "calendar", label: "Editorial Calendar", icon: "▦" },
       { id: "topics", label: "Topic Bank", icon: "❖" },
-      { id: "writer", label: "Inkwell", icon: "✎" },
+      { id: "writer", label: "Agentic Writer", icon: "✎" },
     ],
   },
   {

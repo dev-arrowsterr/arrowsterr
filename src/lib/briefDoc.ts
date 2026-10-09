@@ -51,7 +51,7 @@ export function briefDocHtml(item: BriefItem, b: Brief, brand: { name: string; c
           `<h4>Don't</h4>${ul(guideline.voice.dont)}`,
           guideline.writing.length ? `<h4>Writing rules</h4>${ul(guideline.writing)}` : "",
         ].join("")
-      : `<p>Add your editorial guideline here, or build one in Inkwell's Brand tab.</p>`,
+      : `<p>Add your editorial guideline here, or build one in Agentic Writer's Brand tab.</p>`,
 
     `<h2>2. ${esc(brand.name)}'s Positioning</h2>`,
     pos

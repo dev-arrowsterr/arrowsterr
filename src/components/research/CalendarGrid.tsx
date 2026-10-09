@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { droppedIdea, IdeaList, type AiIdea, type useAiIdeas } from "./AiIdeas";
 import type { CalendarItem } from "@/lib/db";
 import { STAGE_COLORS } from "./shared";
 
@@ -37,6 +38,8 @@ export function CalendarGrid({
   canEdit,
   onMove,
   onDay,
+  ideas,
+  onIdea,
   onOpen,
   onAutoSchedule,
 }: {
@@ -44,6 +47,8 @@ export function CalendarGrid({
   canEdit: boolean;
   onMove: (id: string, date: string | null) => void;
   onDay: (date: string) => void;
+  ideas: ReturnType<typeof useAiIdeas>;
+  onIdea: (idea: AiIdea, date: string | null) => void;
   onOpen: (id: string) => void;
   onAutoSchedule: () => void;
 }) {
@@ -52,6 +57,7 @@ export function CalendarGrid({
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
   const [over, setOver] = useState<string | null>(null);
+  const [side, setSide] = useState<"unscheduled" | "ideas">("unscheduled");
 
   const first = new Date(month);
   first.setDate(1 - ((month.getDay() + 6) % 7)); // back to Monday
@@ -77,13 +83,16 @@ export function CalendarGrid({
     onDrop: (e: React.DragEvent) => {
       e.preventDefault();
       setOver(null);
+      if (!canEdit) return;
+      const idea = droppedIdea(e);
+      if (idea) return onIdea(idea, date);
       const id = e.dataTransfer.getData("text/plain");
-      if (id && canEdit) onMove(id, date);
+      if (id) onMove(id, date);
     },
   });
 
   return (
-    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
+    <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
       <section className="aw-frame min-w-0">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rule px-4 py-3">
           <h3 className="aw-h4">{month.toLocaleDateString("en-US", { month: "long", year: "numeric" })}</h3>
@@ -134,21 +143,45 @@ export function CalendarGrid({
       </section>
 
       <aside {...drop(null)} className={`aw-frame flex max-h-[760px] flex-col ${over === "tray" ? "outline-2 -outline-offset-2 outline-brand" : ""}`}>
-        <div className="flex items-center justify-between gap-2 border-b border-rule px-4 py-3">
-          <h3 className="aw-h4 whitespace-nowrap">
-            Unscheduled <span className="aw-num text-[14px] text-muted">{unscheduled.length}</span>
-          </h3>
-          {canEdit && unscheduled.length ? (
-            <button type="button" className="aw-btn aw-btn--primary aw-btn--sm whitespace-nowrap" onClick={onAutoSchedule}>
-              Schedule all
+        <div className="flex items-center gap-1 border-b border-rule px-2 pt-2" role="tablist" aria-label="Side list">
+          {(
+            [
+              { id: "unscheduled", label: `Unscheduled ${unscheduled.length}` },
+              { id: "ideas", label: "✦ AI ideas" },
+            ] as const
+          ).map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="tab"
+              aria-selected={side === t.id}
+              onClick={() => setSide(t.id)}
+              className={`-mb-px rounded-none border-b-2 px-3 py-2 text-[14px] ${side === t.id ? "border-brand font-medium text-brand" : "border-transparent text-body hover:text-ink"}`}
+            >
+              {t.label}
             </button>
-          ) : null}
-        </div>
-        <div className="flex min-h-24 flex-col gap-1.5 overflow-y-auto p-3">
-          {unscheduled.map((i) => (
-            <Chip key={i.id} item={i} onOpen={() => onOpen(i.id)} />
           ))}
         </div>
+        {side === "unscheduled" ? (
+          <>
+            {canEdit && unscheduled.length ? (
+              <div className="px-3 pt-3">
+                <button type="button" className="aw-btn aw-btn--primary aw-btn--sm w-full" onClick={onAutoSchedule}>
+                  Schedule all
+                </button>
+              </div>
+            ) : null}
+            <div className="flex min-h-24 flex-col gap-1.5 overflow-y-auto p-3">
+              {unscheduled.map((i) => (
+                <Chip key={i.id} item={i} onOpen={() => onOpen(i.id)} />
+              ))}
+            </div>
+          </>
+        ) : (
+          <div className="min-h-24 overflow-y-auto p-3">
+            <IdeaList state={ideas} canEdit={canEdit} onAdd={(i) => onIdea(i, null)} addLabel="+" compact />
+          </div>
+        )}
         <div className="mt-auto flex flex-wrap gap-x-3 gap-y-1 border-t border-rule-faint px-4 py-2.5 text-[12px] text-body">
           {(["bofu", "mofu", "tofu"] as const).map((s) => (
             <span key={s} className="flex items-center gap-1.5">

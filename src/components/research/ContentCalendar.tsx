@@ -12,7 +12,8 @@ import { Card, SidePanel, Thinking } from "../ui";
 import { ContentResults } from "./ContentResults";
 import { CalendarGrid } from "./CalendarGrid";
 import { ContentPiece, STATUSES } from "./ContentPiece";
-import { DayPanel, type NewPiece } from "./DayPanel";
+import { useAiIdeas } from "./AiIdeas";
+import { DayPanel, ideaPiece, type NewPiece } from "./DayPanel";
 import { Difficulty, downloadCsv, FIELD, STAGE_LABEL, StageTag } from "./shared";
 
 const STAGE_ORDER = (s: Stage | null) => (s ? STAGES.findIndex((x) => x.id === s) : 3);
@@ -85,6 +86,7 @@ export function ContentCalendar({
 
 
 
+  const ideas = useAiIdeas(auth, site, results.brandName, results.chats, (items ?? []).map((i) => i.keyword));
   if (!items) return <Thinking text="Loading your calendar..." />;
 
   async function patch(id: string, p: Partial<CalendarItem>) {
@@ -117,7 +119,21 @@ export function ContentCalendar({
   async function addOn(keyword: string, due_date: string | null, extra: Omit<NewPiece, "keyword"> = {}) {
     try {
       await addCalendarItems(sb, auth.workspaceId, [
-        { site_id: site.id, keyword, secondary: [], stage: extra.stage ?? null, theme: null, volume: null, difficulty: null, intent: null, cpc: null, source: extra.notes ? "ai visibility" : "added by hand", due_date, notes: extra.notes ?? null },
+        {
+          site_id: site.id,
+          keyword,
+          secondary: [],
+          stage: extra.stage ?? null,
+          theme: null,
+          volume: extra.volume ?? null,
+          difficulty: extra.kd ?? null,
+          intent: extra.intent ?? null,
+          cpc: null,
+          source: extra.notes ? "ai visibility" : "added by hand",
+          due_date,
+          notes: extra.notes ?? null,
+          ...(extra.action === "update" && extra.url ? { action: "update" as const, current_url: extra.url } : {}),
+        },
       ]);
       load();
     } catch (err) {
@@ -312,6 +328,8 @@ export function ContentCalendar({
           canEdit={canEdit}
           onMove={(id, date) => patch(id, { due_date: date })}
           onDay={(day) => setPanel({ day, piece: null })}
+          ideas={ideas}
+          onIdea={(idea, date) => addOn(idea.keyword, date, ideaPiece(idea))}
           onOpen={(id) => setPanel({ day: items.find((i) => i.id === id)?.due_date ?? null, piece: id })}
           onAutoSchedule={() => setPlanning(true)}
         />
@@ -451,13 +469,8 @@ export function ContentCalendar({
       ) : panel?.day ? (
         <SidePanel title={dayLabel(panel.day)} kicker="Editorial Calendar" onClose={() => setPanel(null)}>
           <DayPanel
-            auth={auth}
-            date={panel.day}
             items={items.filter((i) => i.due_date === panel.day)}
-            planned={items.map((i) => i.keyword)}
-            chats={results.chats}
-            brand={results.brandName}
-            domain={site.domain}
+            ideas={ideas}
             canEdit={canEdit}
             onOpen={(id) => setPanel({ day: panel.day, piece: id })}
             onAdd={(p) => addOn(p.keyword, panel.day, p)}
