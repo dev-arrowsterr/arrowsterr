@@ -9,6 +9,7 @@ import { answerRows, saveAnswers, type Profile } from "../db";
 import { askEngine, availableEngines, viaDfs, type Engine } from "../engines";
 import { entitlement } from "../entitlements";
 import { enqueue, enqueueMany, finish, rateOk, retry, type Job } from "../jobs";
+import { promptAllowance } from "../plans";
 import type { PlanBrief } from "../research";
 
 // What each kind of job does. A handler either finishes its job, or puts it back with retry().
@@ -39,20 +40,24 @@ export async function schedule(db: SupabaseClient, job: Job) {
   // Close daily runs that never finished, so a crash never blocks tomorrow.
   await db.from("runs").update({ status: "done" }).eq("source", "daily").eq("status", "running").lt("at", new Date(Date.now() - STALE_MS).toISOString());
 
-  const { data: brands, error } = await db.from("brands").select("id, workspace_id, name, domain, prompts").eq("daily", true);
+  const { data: brands, error } = await db.from("brands").select("id, workspace_id, name, domain, prompts, daily").order("created_at");
   if (error) throw new Error(error.message);
   const { data: ran } = await db.from("runs").select("brand_id").eq("source", "daily").gte("at", dayStart);
   const started = new Set((ran ?? []).map((r) => r.brand_id));
-  const due = (brands ?? []).filter((b) => b.prompts?.length && !started.has(b.id) && slotOf(b.id) <= minute);
+  const due = (brands ?? []).filter((b) => b.daily && b.prompts?.length && !started.has(b.id) && slotOf(b.id) <= minute);
 
+  const allowance = new Map<string, Map<string, number>>();
   for (const b of due) {
     const e = await entitlement(b.workspace_id);
     if (e.readOnly) continue;
+    // Only what the plan covers is checked. The rest stays paused until the plan grows.
+    if (!allowance.has(b.workspace_id)) allowance.set(b.workspace_id, promptAllowance((brands ?? []).filter((x) => x.workspace_id === b.workspace_id), e.limits));
+    const prompts: string[] = (b.prompts as string[]).slice(0, allowance.get(b.workspace_id)!.get(b.id) ?? 0);
+    if (!prompts.length) continue;
     // Each plan sets how often Claude is checked. Brands take turns, so the load stays even.
     const every = e.limits.claudeEvery;
     const day = Math.floor(Date.now() / 864e5);
     const list = engines.filter((x) => x !== "Claude" || every <= 1 || (day + seed(b.id)) % every === 0);
-    const prompts: string[] = b.prompts;
     const { data: run, error: err } = await db
       .from("runs")
       .insert({ workspace_id: b.workspace_id, brand_id: b.id, source: "daily", status: "running", engines: list, prompts, chats: [], expected: list.length * prompts.length })

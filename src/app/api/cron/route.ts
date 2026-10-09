@@ -7,6 +7,7 @@ import { availableEngines, viaDfs, type Engine } from "@/lib/engines";
 import { allowed } from "@/lib/cronAuth";
 import { entitlement } from "@/lib/entitlements";
 import { queueReady } from "@/lib/jobs";
+import { promptAllowance } from "@/lib/plans";
 import { metered } from "@/lib/meter";
 import { adminClient } from "@/lib/serverAuth";
 
@@ -81,7 +82,7 @@ export async function POST(request: Request) {
   if (res.error) return fail(res.error);
 
   // 1. Start a daily run for every brand that has daily runs on and no run in the last 20 hours.
-  const brands = await sb.from("brands").select("id, workspace_id, name, domain, prompts").eq("daily", true);
+  const brands = await sb.from("brands").select("id, workspace_id, name, domain, prompts, daily").order("created_at");
   if (brands.error) return fail(brands.error);
   const recent = await sb.from("runs").select("brand_id").gte("at", stale);
   if (recent.error) return fail(recent.error);
@@ -95,11 +96,13 @@ export async function POST(request: Request) {
   };
   const plans = new Map<string, Awaited<ReturnType<typeof entitlement>>>();
   for (const w of new Set((brands.data ?? []).map((b) => b.workspace_id))) plans.set(w, await entitlement(w));
+  const room = (b: { id: string; workspace_id: string }) =>
+    promptAllowance((brands.data ?? []).filter((x) => x.workspace_id === b.workspace_id), plans.get(b.workspace_id)!.limits).get(b.id) ?? 0;
   const fresh = (brands.data ?? [])
-    .filter((b) => !ran.has(b.id) && b.prompts?.length && !plans.get(b.workspace_id)?.readOnly)
+    .filter((b) => b.daily && !ran.has(b.id) && b.prompts?.length && !plans.get(b.workspace_id)?.readOnly && room(b) > 0)
     .map((b) => {
       const every = plans.get(b.workspace_id)?.limits.claudeEvery ?? 1;
-      return { workspace_id: b.workspace_id, brand_id: b.id, source: "daily", status: "running", engines: engines.filter((e) => e !== "Claude" || due(b, every)), prompts: b.prompts, chats: [] };
+      return { workspace_id: b.workspace_id, brand_id: b.id, source: "daily", status: "running", engines: engines.filter((e) => e !== "Claude" || due(b, every)), prompts: b.prompts.slice(0, room(b)), chats: [] };
     });
   if (fresh.length) {
     res = await sb.from("runs").insert(fresh);
@@ -116,7 +119,7 @@ export async function POST(request: Request) {
   if (open.error) return fail(open.error);
   const runs = (open.data ?? []) as Row[];
   if (!runs.length) return Response.json({ done: true, started: fresh.length });
-  const brandOf = new Map((brands.data ?? []).map((b) => [b.id, b as { name: string; domain: string }]));
+  const brandOf = new Map((brands.data ?? []).filter((b) => b.daily).map((b) => [b.id, b as { name: string; domain: string }]));
 
   let queuedNow = 0;
   let answeredNow = 0;

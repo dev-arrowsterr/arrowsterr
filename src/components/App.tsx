@@ -25,7 +25,7 @@ import {
   type SavedRun,
   type Workspace,
 } from "@/lib/db";
-import { PLANS, type PlanId } from "@/lib/plans";
+import { PLANS, promptAllowance, type PlanId } from "@/lib/plans";
 import { splitPeriods, type Filter } from "@/lib/metrics";
 import type { View } from "@/lib/view";
 import { runAll, type RunAuth } from "@/lib/runner";
@@ -286,13 +286,13 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   const loaded = useRef<Record<string, number>>({});
   useEffect(() => {
     if (!active) return;
-    const want = Math.min(400, Math.max(14, days * 2));
+    const want = Math.min(plan?.limits.historyDays ?? 400, 400, Math.max(14, days * 2));
     if (runs[active.id] && (loaded.current[active.id] ?? 0) >= want) return;
     loaded.current[active.id] = want;
     listRuns(sb, active.id, want)
       .then((list) => setRuns((r) => ({ ...r, [active.id]: list })))
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  }, [sb, active, runs, days]);
+  }, [sb, active, runs, days, plan]);
 
   async function runBrand(brand: Brand) {
     if (!engines?.length || running || !ws) return;
@@ -307,7 +307,9 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
     } catch (e) {
       setError(`Could not save this run: ${e instanceof Error ? e.message : String(e)}`);
     }
-    const finished = await runAll(brand, engines, { workspaceId: ws.id, token }, (run, done, total) => {
+    // Prompts past the plan (after a downgrade) are not checked.
+    const room = plan ? (promptAllowance(brands?.some((b) => b.id === brand.id) ? brands : [...(brands ?? []), brand], plan.limits).get(brand.id) ?? brand.prompts.length) : brand.prompts.length;
+    const finished = await runAll({ ...brand, prompts: brand.prompts.slice(0, room) }, engines, { workspaceId: ws.id, token }, (run, done, total) => {
       setRuns((r) => ({ ...r, [brand.id]: [...past, { ...run, id: runId ?? "live" }] }));
       setProgress({ done, total });
       // Save every 5 chats so a closed tab keeps most of the run.
@@ -430,6 +432,9 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   const modelList = [...new Set([...(engines ?? []), ...runEngines])];
   const filter: Filter = (c) => (model === "All" || c.engine === model) && (topic === "All" || topicPrompts.has(c.prompt));
   const { current, previous } = splitPeriods(brandRuns, days);
+  // Prompts past the plan's limits, after a downgrade. They stay, but daily checks skip them.
+  const checked = active && plan ? (promptAllowance(brands, plan.limits).get(active.id) ?? active.prompts.length) : (active?.prompts.length ?? 0);
+  const paused = new Set(active?.prompts.slice(checked) ?? []);
   const view: View | null = active
     ? { brand: active, current, previous, filter, topics: topicList, engines: model === "All" ? modelList : [model], days }
     : null;
@@ -563,6 +568,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
               key={`${view.brand.id}-${focus ?? ""}`}
               view={view}
               initial={focus}
+              limit={plan?.limits.competitors}
               onTopic={(t) => {
                 setFocusTopic(t);
                 go("prompts");
@@ -592,6 +598,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
               auth={auth}
               view={view}
               focusTopic={focusTopic}
+              paused={paused}
               readOnly={!canEdit}
               onChange={update}
               onRemove={() => remove(view.brand.id)}

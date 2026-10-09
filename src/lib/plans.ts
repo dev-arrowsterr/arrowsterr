@@ -63,6 +63,21 @@ export function limitsFor(plan: PlanId, extras: Extras = {}): Plan {
 /** AI answers a day the workspace may use: every prompt on every AI, plus on-demand checks. */
 export const dailyAnswers = (l: Plan, engines = 6) => (l.prompts + l.checkNowPerDay) * engines;
 
+/**
+ * How many of each brand's prompts the plan checks, in the order the brands were added.
+ * After a downgrade, brands and prompts past the plan's limits are paused, never deleted.
+ */
+export function promptAllowance(brands: { id: string; prompts: string[] | null }[], limits: Pick<Plan, "brands" | "prompts">) {
+  const out = new Map<string, number>();
+  let left = limits.prompts;
+  brands.forEach((b, i) => {
+    const n = i < limits.brands ? Math.max(0, Math.min(b.prompts?.length ?? 0, left)) : 0;
+    out.set(b.id, n);
+    left -= n;
+  });
+  return out;
+}
+
 /** The next plan up, for the Boost button. */
 export function nextPlan(plan: PlanId): PlanId | null {
   const i = LADDER.indexOf(plan === "trial" ? "scale" : plan === "legacy" ? "thrive" : plan);

@@ -54,3 +54,14 @@ test("billing months start on the plan's day, and short months use their last da
   assert.deepEqual(planOfLookup(lookupKey("thrive", "year")), { plan: "thrive", interval: "year" });
   assert.equal(planOfLookup("arrowsterr_enterprise_month"), null);
 });
+
+test("after a downgrade, prompts past the plan are paused in the order brands were added", async () => {
+  const { promptAllowance } = await import("../src/lib/plans.ts");
+  const brands = [
+    { id: "a", prompts: Array(15).fill("p") },
+    { id: "b", prompts: Array(10).fill("p") },
+    { id: "c", prompts: Array(5).fill("p") },
+  ];
+  const m = promptAllowance(brands, { brands: 2, prompts: 20 });
+  assert.deepEqual([m.get("a"), m.get("b"), m.get("c")], [15, 5, 0]);
+});

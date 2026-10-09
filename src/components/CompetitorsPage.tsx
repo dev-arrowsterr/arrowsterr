@@ -167,7 +167,7 @@ function Quadrant({
 }
 
 /** Every brand AI names next to yours on a quadrant, who wins each topic, and a battle card for any two brands. */
-export function CompetitorsPage({ view, initial, onTopic }: { view: View; initial?: string | null; onTopic: (topic: string) => void }) {
+export function CompetitorsPage({ view, initial, limit, onTopic }: { view: View; initial?: string | null; limit?: number; onTopic: (topic: string) => void }) {
   const { brand, current, previous, filter, topics, engines, days } = view;
   const you = { name: brand.name, domain: brand.domain };
   const chats = answered(current, filter);
@@ -189,7 +189,9 @@ export function CompetitorsPage({ view, initial, onTopic }: { view: View; initia
 
   if (!chats.length) return <Empty>No results in the last {days} days yet. They show up after the first check finishes, then update every day.</Empty>;
 
-  const top = stats.slice(0, MAX_BRANDS);
+  // You, plus as many competitors as the plan tracks.
+  const top = stats.filter((s) => s.isYou || others.indexOf(s) < (limit ?? MAX_BRANDS)).slice(0, MAX_BRANDS);
+  const hidden = Math.max(0, Math.min(others.length, MAX_BRANDS - 1) - (top.length - 1));
   const defaults = () => new Set([brand.name, ...others.slice(0, SHOWN - 1).map((s) => s.name)]);
   const on = shown ?? defaults();
   const flip = (n: string) => setShown(on.has(n) ? new Set([...on].filter((x) => x !== n)) : new Set([...on, n]));
@@ -337,6 +339,7 @@ export function CompetitorsPage({ view, initial, onTopic }: { view: View; initia
         <SidePanel title="All competitors" kicker={`${listed.length} brands · last ${days} days`} onClose={() => setFull(false)}>
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search brands" aria-label="Search all brands" className="aw-input max-w-md py-1.5! text-[14px]!" />
           <div className="border border-rule">{brandTable(listed)}</div>
+          {hidden ? <p className="aw-small mt-3">{hidden} more on a bigger plan</p> : null}
         </SidePanel>
       ) : null}
 

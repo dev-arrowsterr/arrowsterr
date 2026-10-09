@@ -22,6 +22,7 @@ type Props = {
   view: View;
   readOnly: boolean;
   focusTopic?: string | null;
+  paused?: Set<string>;
   onChange: (b: Brand) => void;
   onRemove: () => void;
   onCompetitor: (name: string) => void;
@@ -124,7 +125,7 @@ export function PromptsPage(p: Props) {
         </form>
       ) : null}
       <Scores view={view} />
-      <Results sb={p.sb} view={view} engines={shown} edit={edit} focusTopic={p.focusTopic} onCompetitor={p.onCompetitor} />
+      <Results sb={p.sb} view={view} engines={shown} edit={edit} focusTopic={p.focusTopic} paused={p.paused} onCompetitor={p.onCompetitor} />
       {!readOnly ? (
         <button
           type="button"
@@ -342,6 +343,7 @@ function Results({
   engines,
   edit,
   focusTopic,
+  paused,
   onCompetitor,
 }: {
   sb: SupabaseClient;
@@ -349,6 +351,7 @@ function Results({
   engines: string[];
   edit: Editing | null;
   focusTopic?: string | null;
+  paused?: Set<string>;
   onCompetitor: (name: string) => void;
 }) {
   const { brand, current, filter, topics } = view;
@@ -488,7 +491,10 @@ function Results({
                                   onCancel={() => setEditing(null)}
                                 />
                               ) : (
-                                <span className="text-[14px] leading-snug text-ink">{r.prompt}</span>
+                                <span className={`text-[14px] leading-snug ${paused?.has(r.prompt) ? "text-muted" : "text-ink"}`}>
+                                  {r.prompt}
+                                  {paused?.has(r.prompt) ? <span className="aw-chip ml-2 align-middle">Paused</span> : null}
+                                </span>
                               )}
                               {edit && editing !== key ? <RowTools label="prompt" onEdit={() => setEditing(key)} onRemove={() => edit.removePrompt(t.name, r.prompt)} /> : null}
                             </span>

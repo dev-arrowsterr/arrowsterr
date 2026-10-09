@@ -153,6 +153,19 @@ export function AuthScreen({ sb, invited }: { sb: SupabaseClient; invited: boole
           {busy ? "Please wait..." : mode === "signin" ? "Sign in" : mode === "signup" ? "Create account" : "Send reset link"}
         </button>
       </form>
+      {mode === "signup" ? (
+        <p className="aw-small">
+          By creating an account you agree to the{" "}
+          <a className="aw-text-link" href="https://arrowsterr.com/terms" target="_blank" rel="noopener noreferrer">
+            Terms
+          </a>{" "}
+          and{" "}
+          <a className="aw-text-link" href="https://arrowsterr.com/privacy" target="_blank" rel="noopener noreferrer">
+            Privacy Policy
+          </a>
+          .
+        </p>
+      ) : null}
       {mode === "signin" ? (
         <button type="button" className="aw-text-link self-start" onClick={() => setMode("forgot")}>
           Forgot your password?
