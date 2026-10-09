@@ -1,6 +1,7 @@
 "use client";
 
-import { Fragment, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
+import { useStash } from "@/lib/stash";
 import {
   answered,
   brandStats,
@@ -68,6 +69,13 @@ const pageTitle = (title: string | null, url: string) => {
     return url;
   }
 };
+const pathOnly = (u: string) => {
+  try {
+    return (new URL(u, "https://x.invalid").pathname.replace(/\/+$/, "") || "/").toLowerCase();
+  } catch {
+    return u.toLowerCase();
+  }
+};
 const VERDICT: Record<string, string> = { strong: "aw-status--ranked", okay: "aw-status--pending", weak: "aw-status--missed" };
 
 type Group = "owned" | "third" | "reviews";
@@ -79,7 +87,9 @@ const GROUPS: { id: Group; label: string; color: string; help: string }[] = [
 const groupOf = (t: SourceType): Group => (t === "You" ? "owned" : t === "Reviews" ? "reviews" : "third");
 
 /** Owned, third-party and review sites the AI answers cite: the share of each, a map of the biggest, and every site and link. */
-export function SourcesPage({ view, auth, onSeo }: { view: View; auth: RunAuth | null; onSeo: (target: string, scope: Scope) => void }) {
+type AiPages = { pages: { path: string; visits: number; engines: Record<string, number> }[]; source?: string };
+
+export function SourcesPage({ view, auth, reader, onSeo }: { view: View; auth: RunAuth | null; reader: RunAuth; onSeo: (target: string, scope: Scope) => void }) {
   const { brand, current, filter, days, topics, engines } = view;
   const [group, setGroup] = useState<Group>("third");
   const [list, setList] = useState<"sites" | "links">("sites");
@@ -88,6 +98,30 @@ export function SourcesPage({ view, auth, onSeo }: { view: View; auth: RunAuth |
   const [linkSort, setLinkSort] = useSort("used");
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [deep, setDeep] = useState<UrlRow | null>(null);
+  // Visits from AI to each of your pages, from Google Analytics or the tracking script. Shared with the Traffic page.
+  const [traffic, setTraffic] = useStash<Record<number, AiPages>>(`traffic:${brand.id}:data`, {});
+  const aiPages = traffic[days] ?? null;
+  useEffect(() => {
+    if (aiPages) return;
+    let live = true;
+    (async () => {
+      const res = await fetch("/api/traffic", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await reader.token()}` },
+        body: JSON.stringify({ workspaceId: reader.workspaceId, brandId: brand.id, days }),
+      }).catch(() => null);
+      const data = res?.ok ? await res.json().catch(() => null) : null;
+      if (live && data?.pages) setTraffic((x) => ({ ...x, [days]: data }));
+    })();
+    return () => {
+      live = false;
+    };
+  }, [aiPages, reader, brand.id, days, setTraffic]);
+  const aiVisitsOf = (url: string) => {
+    if (!aiPages) return null;
+    const path = pathOnly(url);
+    return aiPages.pages.filter((p) => pathOnly(p.path) === path).reduce((n, p) => n + p.visits, 0);
+  };
   const cacheKey = `arrowsterr.insights.${brand.id}.${days}`;
   const [insights, setInsights] = useState<Insights | null>(() => readCache(cacheKey));
   const [busy, setBusy] = useState(false);
@@ -358,6 +392,7 @@ export function SourcesPage({ view, auth, onSeo }: { view: View; auth: RunAuth |
                   <SortTh id="chats" sort={linkSort} onSort={setLinkSort} className="w-32">
                     Answers
                   </SortTh>
+                  {aiPages && group === "owned" ? <th className="w-28">AI visits</th> : null}
                   <SortTh id="prompts" sort={linkSort} onSort={setLinkSort} className="w-28">
                     Prompts
                     <Tip text="How many of your prompts got an answer citing this link." />
@@ -367,7 +402,7 @@ export function SourcesPage({ view, auth, onSeo }: { view: View; auth: RunAuth |
               </thead>
               <tbody>
                 {sortRows(links.slice(0, 300), linkSort, { title: (u) => pageTitle(u.title, u.url), used: (u) => u.used, chats: (u) => u.chats, prompts: (u) => u.prompts.length }).map((u, i) => (
-                  <LinkRow key={u.url} u={u} n={i + 1} note={notes.get(pageKey(u.url))} onOpen={() => setDeep(u)} />
+                  <LinkRow key={u.url} u={u} n={i + 1} note={notes.get(pageKey(u.url))} ai={aiPages && group === "owned" ? aiVisitsOf(u.url) : undefined} onOpen={() => setDeep(u)} />
                 ))}
               </tbody>
             </table>
@@ -375,7 +410,7 @@ export function SourcesPage({ view, auth, onSeo }: { view: View; auth: RunAuth |
         </section>
       ) : null}
 
-      {deep ? <LinkPanel u={deep} runs={current} filter={filter} topics={topics} days={days} onSeo={onSeo} onClose={() => setDeep(null)} /> : null}
+      {deep ? <LinkPanel aiVisits={deep.type === "You" ? aiVisitsOf(deep.url) : null} u={deep} runs={current} filter={filter} topics={topics} days={days} onSeo={onSeo} onClose={() => setDeep(null)} /> : null}
 
       <Card
         title="Executive summary"
@@ -420,7 +455,7 @@ export function SourcesPage({ view, auth, onSeo }: { view: View; auth: RunAuth |
 }
 
 /** One cited link: title, address, share of answers and prompts. */
-function LinkRow({ u, n, note, indent = false, onOpen }: { u: UrlRow; n?: number; note?: Insights["pages"][number]; indent?: boolean; onOpen: () => void }) {
+function LinkRow({ u, n, note, indent = false, ai, onOpen }: { u: UrlRow; n?: number; note?: Insights["pages"][number]; indent?: boolean; ai?: number | null; onOpen: () => void }) {
   return (
     <tr className={`cursor-pointer hover:bg-brand-pale ${indent ? "bg-paper" : ""}`} onClick={onOpen}>
       <td className="aw-num text-muted">{n ?? ""}</td>
@@ -443,6 +478,7 @@ function LinkRow({ u, n, note, indent = false, onOpen }: { u: UrlRow; n?: number
       </td>
       <td className="aw-num">{pct(u.used)}</td>
       <td className="aw-num">{u.chats}</td>
+      {ai !== undefined ? <td className="aw-num">{ai === null ? "–" : ai.toLocaleString("en-US")}</td> : null}
       <td className="aw-num" title={u.prompts.join("\n")}>
         {u.prompts.length}
       </td>
@@ -457,6 +493,7 @@ type Cite = { at: string; engine: string; prompt: string };
 
 /** Every answer that cited one link: which prompts and models, how often, and when. */
 function LinkPanel({
+  aiVisits,
   u,
   runs,
   filter,
@@ -465,6 +502,7 @@ function LinkPanel({
   onSeo,
   onClose,
 }: {
+  aiVisits: number | null;
   u: UrlRow;
   runs: Run[];
   filter: Filter;
@@ -501,8 +539,9 @@ function LinkPanel({
         </button>
       </div>
 
-      <div className="aw-stats aw-stats--tight" style={{ ["--cols" as string]: 5 }}>
+      <div className="aw-stats aw-stats--tight" style={{ ["--cols" as string]: aiVisits === null ? 5 : 6 }}>
         {[
+          ...(aiVisits === null ? [] : [["Visits from AI", aiVisits.toLocaleString("en-US")]]),
           ["Times cited", String(cites.length)],
           ["Used", pct(u.used)],
           ["Prompts", String(byPrompt.length)],

@@ -3,7 +3,17 @@ import { inspectSite } from "@/lib/platform";
 import { requireRole } from "@/lib/serverAuth";
 import { active, createWebsite, stats, trackerOrigin, umamiReady } from "@/lib/umami";
 
-type SiteRow = { id: string; name: string; domain: string; umami_website_id: string | null; site_platform: string | null; install_token: string | null };
+type SiteRow = {
+  id: string;
+  name: string;
+  domain: string;
+  umami_website_id: string | null;
+  site_platform: string | null;
+  install_token: string | null;
+  ga4_property?: string | null;
+  ga4_property_name?: string | null;
+  ga4_email?: string | null;
+};
 
 // Website tracking for one brand.
 //   action "connect": create the brand's website in Umami and a private install link. Editors only.
@@ -14,14 +24,15 @@ export async function POST(request: Request) {
   const action = body.action === "connect" ? "connect" : body.action === "verify" ? "verify" : "status";
   const auth = await requireRole(request, body.workspaceId, action === "connect" ? "editor" : "viewer");
   if ("denied" in auth) return auth.denied;
-  if (!umamiReady()) return Response.json({ error: "Website tracking is not set up yet. Add UMAMI_API_KEY on Render." }, { status: 500 });
 
-  const { data, error } = await auth.sb
-    .from("brands")
-    .select("id, name, domain, umami_website_id, site_platform, install_token")
-    .eq("id", body.brandId)
-    .eq("workspace_id", body.workspaceId)
-    .maybeSingle();
+  // Google Analytics comes first when it is connected. Older databases without the columns fall back to the script.
+  const cols = "id, name, domain, umami_website_id, site_platform, install_token";
+  let { data, error } = await auth.sb.from("brands").select(`${cols}, ga4_property, ga4_property_name, ga4_email`).eq("id", body.brandId).eq("workspace_id", body.workspaceId).maybeSingle();
+  if (error && /ga4_/.test(error.message)) ({ data, error } = await auth.sb.from("brands").select(cols).eq("id", body.brandId).eq("workspace_id", body.workspaceId).maybeSingle());
+  const g = data as SiteRow | null;
+  const ga4 = g?.ga4_email ? { email: g.ga4_email, property: g.ga4_property ?? null, name: g.ga4_property_name ?? null } : null;
+  if (action === "status" && ga4?.property) return Response.json({ connected: true, live: true, source: "ga4", domain: g!.domain, ga4 });
+  if (!umamiReady()) return action === "status" ? Response.json({ connected: false, ga4 }) : Response.json({ error: "Website tracking is not set up yet. Add UMAMI_API_KEY on Render." }, { status: 500 });
   if (error) {
     const hint = /umami_website_id|install_token|site_platform/.test(error.message) ? " Run supabase/005_website_tracking.sql in Supabase." : "";
     return Response.json({ error: error.message + hint }, { status: 500 });
@@ -38,7 +49,7 @@ export async function POST(request: Request) {
       if (res.error) throw new Error(res.error.message);
       site = { ...site, ...update };
     }
-    if (!site.umami_website_id) return Response.json({ connected: false });
+    if (!site.umami_website_id) return Response.json({ connected: false, ga4 });
     if (action === "verify") return Response.json(await verify(site.domain, site.umami_website_id));
 
     const now = Date.now();
@@ -55,6 +66,7 @@ export async function POST(request: Request) {
       installed: page.installed, // the snippet is in the homepage HTML (tag managers hide it, so this can be false while it works)
       live: recent.pageviews > 0,
       pageviews: recent.pageviews,
+      ga4,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

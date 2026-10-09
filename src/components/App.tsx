@@ -473,6 +473,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
               key={view.brand.id}
               view={view}
               auth={canEdit ? auth : null}
+              reader={auth}
               onSeo={(target, scope) => {
                 setSeoStart({ target, scope });
                 go("domain");

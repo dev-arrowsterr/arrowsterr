@@ -13,7 +13,107 @@ import { useStash } from "@/lib/stash";
 import { SampleBars, SampleRows, SampleStats, ToolIntro } from "./ToolIntro";
 import { Card, Delta, favicon, pct, Seg, sortRows, SortTh, Thinking, useSort } from "./ui";
 
-type Status = { connected: boolean; websiteId?: string; domain?: string; platform?: string; token?: string; installed?: boolean; live?: boolean; pageviews?: number };
+type Ga4 = { email: string; property: string | null; name: string | null };
+type Status = {
+  connected: boolean;
+  source?: "ga4";
+  websiteId?: string;
+  domain?: string;
+  platform?: string;
+  token?: string;
+  installed?: boolean;
+  live?: boolean;
+  pageviews?: number;
+  ga4?: Ga4 | null;
+};
+
+/** Connect Google Analytics 4: sign in with Google, then pick the property for this brand. */
+function Ga4Connect({ status, canEdit, call, onDone }: { status: Status; canEdit: boolean; call: (path: string, body: Record<string, unknown>) => Promise<Record<string, unknown>>; onDone: () => void }) {
+  const [props, setProps] = useState<{ id: string; name: string; account: string }[] | null>(null);
+  const [pick, setPick] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const signedIn = Boolean(status.ga4?.email);
+
+  useEffect(() => {
+    if (!signedIn || !canEdit) return;
+    let live = true;
+    call("/api/ga4", { action: "properties" })
+      .then((d) => {
+        if (!live) return;
+        const list = (d.properties as { id: string; name: string; account: string }[]) ?? [];
+        setProps(list);
+        setPick(list[0]?.id ?? "");
+      })
+      .catch((e) => live && setError(e instanceof Error ? e.message : String(e)));
+    return () => {
+      live = false;
+    };
+  }, [signedIn, canEdit, call]);
+
+  async function signIn() {
+    setBusy(true);
+    setError("");
+    try {
+      const d = await call("/api/google/connect", { back: window.location.pathname });
+      window.location.href = String(d.url);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+      setBusy(false);
+    }
+  }
+  async function choose() {
+    setBusy(true);
+    setError("");
+    try {
+      await call("/api/ga4", { action: "select", property: pick });
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="aw-frame flex flex-col gap-4 p-6">
+      <div className="flex items-center gap-3">
+        <BrandLogo src={favicon("analytics.google.com")} name="Google Analytics" size={28} />
+        <div className="flex flex-col">
+          <span className="text-[16px] font-medium text-ink">Google Analytics 4</span>
+          <span className="text-[13px] text-body">{signedIn ? `Signed in as ${status.ga4!.email}` : "Use the analytics you already have. Visits from AI, landing pages and conversions in one click."}</span>
+        </div>
+      </div>
+      {error ? <p className="aw-error">{error}</p> : null}
+      {!canEdit ? (
+        <p className="aw-small">Ask an editor to connect Google Analytics.</p>
+      ) : !signedIn ? (
+        <div>
+          <button type="button" className="aw-btn aw-btn--accent" onClick={signIn} disabled={busy}>
+            {busy ? "Opening Google..." : "Connect Google Analytics"}
+          </button>
+        </div>
+      ) : props === null ? (
+        <p className="aw-small">Loading your properties...</p>
+      ) : props.length ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <select value={pick} onChange={(e) => setPick(e.target.value)} aria-label="GA4 property" className="aw-input h-11! w-auto! min-w-72 py-0!">
+            {props.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} · {p.account}
+              </option>
+            ))}
+          </select>
+          <button type="button" className="aw-btn aw-btn--primary h-11! py-0!" onClick={choose} disabled={busy || !pick}>
+            Use this property
+          </button>
+        </div>
+      ) : (
+        <p className="aw-small">This Google account has no GA4 properties. Sign in with the account that owns your site&apos;s analytics.</p>
+      )}
+    </section>
+  );
+}
 type Totals = { pageviews: number; visitors: number; visits: number; bounces: number; totaltime: number };
 type Row = { x: string; y: number };
 type Traffic = {
@@ -183,6 +283,22 @@ export function TrafficPage({ view, auth, canEdit }: { view: View; auth: RunAuth
   const [verifying, setVerifying] = useState(false);
   const [verified, setVerified] = useState<Verify | null>(null);
   const [pageSort, setPageSort] = useSort("visits");
+  // Back from Google's sign-in: say how it went, then tidy the address.
+  const [back] = useState(() => (typeof window === "undefined" ? null : new URLSearchParams(window.location.search)));
+  const ga4Result = back?.get("ga4");
+  useEffect(() => {
+    if (!ga4Result) return;
+    const q = new URLSearchParams(window.location.search);
+    q.delete("ga4");
+    q.delete("reason");
+    window.history.replaceState(null, "", window.location.pathname + (q.size ? `?${q}` : ""));
+  }, [ga4Result]);
+  const notice =
+    ga4Result === "error" ? (
+      <p className="aw-error">{back?.get("reason") ?? "Could not connect Google Analytics."}</p>
+    ) : ga4Result === "connected" ? (
+      <div className="aw-callout">Google Analytics is connected. Pick the property for {brand.domain}.</div>
+    ) : null;
 
   const call = useCallback(
     async (path: string, body: Record<string, unknown>) => {
@@ -239,6 +355,17 @@ export function TrafficPage({ view, auth, canEdit }: { view: View; auth: RunAuth
     }
   }
 
+  async function disconnectGa4() {
+    if (!confirm("Disconnect Google Analytics from this brand?")) return;
+    try {
+      await call("/api/ga4", { action: "disconnect" });
+      setSaved({});
+      await check();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   async function verify() {
     setVerifying(true);
     setError("");
@@ -272,6 +399,9 @@ export function TrafficPage({ view, auth, canEdit }: { view: View; auth: RunAuth
       <div className="flex flex-col gap-5">
         <h1 className="aw-h2">Traffic</h1>
         {error ? <p className="aw-error">{error}</p> : null}
+        {notice}
+        <Ga4Connect status={status} canEdit={canEdit} call={call} onDone={check} />
+        <span className="aw-label">Or use the Arrowsterr tracking script</span>
         <ToolIntro
           title={`See every visit to ${brand.domain}, including visits from AI`}
           lead="Add one line of code to your site and see your visitors, top pages, sources, countries and devices. Arrowsterr also shows exactly how many people arrive from ChatGPT, Perplexity, Gemini and other AI assistants."
@@ -423,15 +553,31 @@ export function TrafficPage({ view, auth, canEdit }: { view: View; auth: RunAuth
           <span className="aw-live">
             {traffic.now === null ? `Live on ${status.domain}` : `${num(traffic.now)} ${traffic.now === 1 ? "visitor" : "visitors"} online now`}
           </span>
-          {verifyButton}
-          {canEdit ? (
-            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => setSetup(true)}>
-              Setup
-            </button>
-          ) : null}
+          {status.source === "ga4" ? (
+            <>
+              <span className="aw-chip" title={status.ga4?.email}>
+                Google Analytics · {status.ga4?.name}
+              </span>
+              {canEdit ? (
+                <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={disconnectGa4}>
+                  Disconnect
+                </button>
+              ) : null}
+            </>
+          ) : (
+            <>
+              {verifyButton}
+              {canEdit ? (
+                <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => setSetup(true)}>
+                  Setup
+                </button>
+              ) : null}
+            </>
+          )}
         </span>
       </div>
       {error ? <p className="aw-error">{error}</p> : null}
+      {notice}
       {verified ? <VerifyResult result={verified} onClose={() => setVerified(null)} /> : null}
 
       <div className="aw-stats aw-stats--tight" style={{ ["--cols" as string]: 6 }}>

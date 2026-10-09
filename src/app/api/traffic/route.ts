@@ -1,4 +1,6 @@
-import { requireRole } from "@/lib/serverAuth";
+import { ga4Traffic } from "@/lib/ga4";
+import { accessToken } from "@/lib/google";
+import { adminClient, requireRole } from "@/lib/serverAuth";
 import { active, aiSourceOf, AI_SOURCES, metrics, series, stats, umamiReady, type Range, type Row } from "@/lib/umami";
 
 // Everything Umami knows about one brand's website, plus visits from AI assistants. Cached for 10 minutes.
@@ -44,8 +46,28 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "viewer");
   if ("denied" in auth) return auth.denied;
-  if (!umamiReady()) return Response.json({ error: "Website tracking is not set up yet." }, { status: 500 });
   const days = [7, 30, 60, 90].includes(Number(body.days)) ? Number(body.days) : 30;
+
+  // Google Analytics, when the brand has a property picked. Cached for 10 minutes, like Umami.
+  const { data: g } = await auth.sb.from("brands").select("ga4_property").eq("id", body.brandId).eq("workspace_id", body.workspaceId).maybeSingle();
+  const property = (g as { ga4_property: string | null } | null)?.ga4_property;
+  if (property) {
+    const key = `ga4:${property}:${days}`;
+    const hit = cache.get(key);
+    if (hit && Date.now() - hit.at < 10 * 60_000) return Response.json(hit.data);
+    try {
+      const { data: conn } = (await adminClient()?.from("ga4_connections").select("refresh_token").eq("brand_id", body.brandId).maybeSingle()) ?? { data: null };
+      if (!conn) return Response.json({ error: "Reconnect Google Analytics." }, { status: 400 });
+      const data = await ga4Traffic(await accessToken(conn.refresh_token), property, days);
+      cache.set(key, { at: Date.now(), data });
+      return Response.json(data);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      console.error("GA4 traffic failed:", message);
+      return Response.json({ error: message }, { status: 500 });
+    }
+  }
+  if (!umamiReady()) return Response.json({ error: "Website tracking is not set up yet." }, { status: 500 });
 
   const { data: brand, error } = await auth.sb
     .from("brands")
