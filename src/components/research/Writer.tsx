@@ -7,12 +7,11 @@ import { EditorContent, mergeAttributes, Node, useEditor, type Editor } from "@t
 import StarterKit from "@tiptap/starter-kit";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Brief } from "@/lib/briefTypes";
-import { deleteDoc, getBrief, getDoc, getGuideline, listDocs, saveDoc, type Doc, type DocMeta, type Site } from "@/lib/db";
+import { createDoc, deleteDoc, getBrief, getDoc, getGuideline, listDocs, saveDoc, type Doc, type DocMeta, type Site } from "@/lib/db";
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
 import { coverage, mdToHtml, type Section } from "@/lib/writer";
 import type { BrandGuideline, ChatMessage } from "@/lib/writerTypes";
-import { SampleChips, SampleRing, ToolIntro } from "../ToolIntro";
 import { Seg, Thinking } from "../ui";
 import { post } from "./shared";
 
@@ -61,6 +60,7 @@ export function Writer({ sb, auth, site, canEdit }: { sb: SupabaseClient; auth: 
   const [openId, setOpenId] = useStash<string | null>(k("open"), null);
   const [guideline, setGuideline] = useStash<BrandGuideline | null | undefined>(k("guideline"), undefined);
   const [tab, setTab] = useStash<"assistant" | "brief" | "brand">(k("tab"), "assistant");
+  const [side, setSide] = useStash(k("side"), true);
   const [doc, setDoc] = useState<Doc | null>(null);
   const [error, setError] = useState("");
 
@@ -109,67 +109,126 @@ export function Writer({ sb, auth, site, canEdit }: { sb: SupabaseClient; auth: 
 
   if (!docs) return <Thinking text="Opening your workspace..." />;
 
+  async function blank() {
+    setError("");
+    try {
+      const d = await createDoc(sb, { workspace_id: auth.workspaceId, site_id: site.id, title: "Untitled", content: { type: "doc", content: [{ type: "paragraph" }] } });
+      setDocs([{ ...d }, ...docs!]);
+      setOpenId(d.id);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
+  const open = doc && doc.id === openId ? doc : null;
   return (
     <div className="flex flex-col gap-4">
       {error ? <p className="aw-error">{error}</p> : null}
-      <div className="grid gap-4 xl:grid-cols-[220px_minmax(0,1fr)_380px]">
-        <aside className="aw-frame flex flex-col self-start">
-          <div className="flex items-center justify-between border-b border-rule px-4 py-3">
-            <span className="aw-label">Drafts</span>
-          </div>
-          <ul className="max-h-[70vh] overflow-auto">
-            {docs.map((d) => (
-              <li key={d.id} className={`group flex items-start justify-between gap-2 border-b border-rule-faint px-4 py-2.5 ${d.id === openId ? "bg-brand-pale" : "hover:bg-paper"}`}>
-                <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setOpenId(d.id)}>
-                  <span className="block truncate text-[14px] text-ink">{d.title || "Untitled"}</span>
-                  <span className="text-[11px] text-muted">
-                    {d.words} words · {ago(d.updated_at)}
-                    {d.calendar_item_id ? " · from brief" : ""}
-                  </span>
-                </button>
-                {canEdit ? (
-                  <button type="button" aria-label={`Delete ${d.title}`} className="text-[12px] text-muted opacity-0 group-hover:opacity-100" onClick={() => remove(d.id)}>
-                    ✕
-                  </button>
-                ) : null}
-              </li>
-            ))}
-            {!docs.length ? <li className="aw-small px-4 py-4">No drafts yet. Open a content brief in the Calendar and click Write in Writer.</li> : null}
-          </ul>
-        </aside>
-
-        {doc && doc.id === openId ? (
-          <DocEditor
-            key={doc.id}
-            sb={sb}
-            auth={auth}
-            site={site}
-            doc={doc}
-            canEdit={canEdit}
-            guideline={guideline ?? null}
-            onGuideline={setGuideline}
-            tab={tab}
-            onTab={setTab}
-            onSaved={(meta) => setDocs((list) => [{ ...meta }, ...(list ?? []).filter((x) => x.id !== meta.id)])}
-          />
-        ) : (
-          <div className="xl:col-span-2">
-            <ToolIntro
-              title="Write on-brand content with the brief and your brand guide by your side"
-              lead="Start a draft from any content brief and every heading is already in place, with a note under each on what to write. An assistant that knows your brand voice helps with ideas, edits, checks and on-brand code."
-              features={[
-                { title: "Drafts from briefs", text: "Click Write in Writer on a brief. Headings, FAQs, notes and internal links come pre-filled." },
-                { title: "Brand guideline", text: "Built from your homepage: voice, words to use and avoid, colors, fonts and ready-to-paste CSS.", visual: <SampleChips items={[["Confident", "#E0E7FF"], ["Plain-spoken", "#FEF3C7"], ["#0943B0", "#DBEAFE"]]} /> },
-                { title: "Brief score", text: "A live checklist of topics, questions, terms and links, with a score that rises as you write.", visual: <SampleRing value={72} label="covered" /> },
-                { title: "Assistant", text: "Intro ideas, rewrites of your selected text in your brand voice, and draft checks." },
-                { title: "On-brand code", text: "Ask for an HTML section, like a comparison table, and preview it in your brand style." },
-                { title: "Clean exports", text: "Copy or download HTML. Writer notes stay out of the export." },
-              ]}
-              steps={["Open a brief in the Calendar and click Write in Writer.", "Build your brand guideline in the Brand tab.", "Write, check the Brief score, and copy the HTML into your site."]}
-            />
-          </div>
-        )}
+      <div className="flex flex-wrap items-center gap-2">
+        <DraftMenu docs={docs} openId={openId} canEdit={canEdit} onOpen={setOpenId} onRemove={remove} onClose={() => setOpenId(null)} />
+        {canEdit ? (
+          <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={blank}>
+            + New draft
+          </button>
+        ) : null}
       </div>
+
+      {open ? (
+        <DocEditor
+          key={open.id}
+          sb={sb}
+          auth={auth}
+          site={site}
+          doc={open}
+          canEdit={canEdit}
+          guideline={guideline ?? null}
+          onGuideline={setGuideline}
+          tab={tab}
+          onTab={setTab}
+          side={side}
+          onSide={setSide}
+          onSaved={(meta) => setDocs((list) => [{ ...meta }, ...(list ?? []).filter((x) => x.id !== meta.id)])}
+        />
+      ) : openId ? (
+        <Thinking text="Opening the draft..." />
+      ) : docs.length ? (
+        <ul className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {docs.map((d) => (
+            <li key={d.id}>
+              <button type="button" onClick={() => setOpenId(d.id)} className="aw-frame flex h-full w-full flex-col gap-2 p-5 text-left transition-shadow hover:shadow-aw">
+                <span className="line-clamp-2 text-[16px] font-medium text-ink">{d.title || "Untitled"}</span>
+                <span className="aw-num mt-auto text-[12px] text-muted">
+                  {d.words} words · {ago(d.updated_at)}
+                  {d.calendar_item_id ? " · from brief" : ""}
+                </span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <section className="aw-frame flex flex-col items-start gap-4 p-10">
+          <h2 className="aw-h3">No drafts yet</h2>
+          {canEdit ? (
+            <button type="button" className="aw-btn aw-btn--accent" onClick={blank}>
+              Start writing
+            </button>
+          ) : null}
+        </section>
+      )}
+    </div>
+  );
+}
+
+/** Pick a draft from a menu, so the editor gets the full width. */
+function DraftMenu({ docs, openId, canEdit, onOpen, onRemove, onClose }: { docs: DocMeta[]; openId: string | null; canEdit: boolean; onOpen: (id: string) => void; onRemove: (id: string) => void; onClose: () => void }) {
+  const [show, setShow] = useState(false);
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (!show) return;
+    const away = (e: MouseEvent) => ref.current && !ref.current.contains(e.target as globalThis.Node) && setShow(false);
+    document.addEventListener("mousedown", away);
+    return () => document.removeEventListener("mousedown", away);
+  }, [show]);
+  const cur = docs.find((d) => d.id === openId);
+  return (
+    <div className="relative" ref={ref}>
+      <span className="flex items-center gap-1">
+        {cur ? (
+          <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={onClose} aria-label="All drafts">
+            ←
+          </button>
+        ) : null}
+        <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm max-w-96" onClick={() => setShow(!show)} aria-expanded={show}>
+          <span className="truncate">{cur ? cur.title || "Untitled" : `All drafts · ${docs.length}`}</span> ▾
+        </button>
+      </span>
+      {show ? (
+        <ul className="absolute z-30 mt-2 max-h-[60vh] w-80 overflow-auto rounded-aw border border-rule bg-white py-1 shadow-aw-lg">
+          {docs.map((d) => (
+            <li key={d.id} className={`group flex items-start gap-2 px-3 py-2 ${d.id === openId ? "bg-brand-pale" : "hover:bg-surface-2"}`}>
+              <button
+                type="button"
+                className="min-w-0 flex-1 rounded-none text-left"
+                onClick={() => {
+                  onOpen(d.id);
+                  setShow(false);
+                }}
+              >
+                <span className="block truncate text-[14px] text-ink">{d.title || "Untitled"}</span>
+                <span className="text-[11px] text-muted">
+                  {d.words} words · {ago(d.updated_at)}
+                </span>
+              </button>
+              {canEdit ? (
+                <button type="button" aria-label={`Delete ${d.title}`} className="text-[12px] text-muted opacity-0 group-hover:opacity-100" onClick={() => onRemove(d.id)}>
+                  ✕
+                </button>
+              ) : null}
+            </li>
+          ))}
+          {!docs.length ? <li className="aw-small px-3 py-3">No drafts yet</li> : null}
+        </ul>
+      ) : null}
     </div>
   );
 }
@@ -217,6 +276,8 @@ function DocEditor({
   onGuideline,
   tab,
   onTab,
+  side,
+  onSide,
   onSaved,
 }: {
   sb: SupabaseClient;
@@ -228,6 +289,8 @@ function DocEditor({
   onGuideline: (g: BrandGuideline) => void;
   tab: "assistant" | "brief" | "brand";
   onTab: (t: "assistant" | "brief" | "brand") => void;
+  side: boolean;
+  onSide: (v: boolean) => void;
   onSaved: (meta: DocMeta) => void;
 }) {
   const [title, setTitle] = useState(doc.title);
@@ -291,23 +354,21 @@ function DocEditor({
   const cov = brief ? coverage(parts.body, html, brief, parts.sections) : null;
   const exportHtml = () => clean(editor?.getHTML() ?? "");
 
+  const target = brief ? Number((brief.brief.wordCount.match(/[\d,]+/g) ?? []).pop()?.replace(/,/g, "") ?? 0) : 0;
   return (
-    <>
+    <div className={`grid items-start gap-4 ${side ? "xl:grid-cols-[minmax(0,1fr)_400px]" : ""}`}>
       <section className="aw-frame flex min-w-0 flex-col">
-        <div className="flex flex-wrap items-center gap-3 border-b border-rule px-4 py-2.5">
-          <input
-            value={title}
-            disabled={!canEdit}
-            onChange={(e) => {
-              setTitle(e.target.value);
-              titleRef.current = e.target.value;
-              if (editor) save(editor);
-            }}
-            aria-label="Draft title"
-            className="min-w-0 flex-1 border-0 bg-transparent text-[16px] font-medium text-ink outline-none"
-          />
-          <span className="text-[12px] text-muted">
-            {words} words{brief ? ` · aim ${brief.brief.wordCount}` : ""} · {state === "saving" ? "Saving..." : state === "error" ? "Not saved" : "Saved"}
+        <div className="flex flex-wrap items-center gap-3 border-b border-rule px-5 py-3">
+          <span className="flex min-w-40 flex-1 items-center gap-3 text-[13px] text-muted">
+            <span className="aw-num">
+              {words.toLocaleString()} words{brief ? ` / ${brief.brief.wordCount}` : ""}
+            </span>
+            {target ? (
+              <span className="aw-progress w-32" title={`${Math.round((words / target) * 100)}% of the target length`}>
+                <span className="aw-progress__fill block" style={{ width: `${Math.min(100, (words / target) * 100)}%` }} />
+              </span>
+            ) : null}
+            <span>{state === "saving" ? "Saving..." : state === "error" ? "Not saved" : "Saved"}</span>
           </span>
           <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => navigator.clipboard.writeText(exportHtml())}>
             Copy HTML
@@ -325,14 +386,34 @@ function DocEditor({
           >
             Download
           </button>
+          <button type="button" className={`aw-btn aw-btn--sm ${side ? "aw-btn--primary" : "aw-btn--secondary"}`} onClick={() => onSide(!side)} aria-pressed={side}>
+            {side ? "Hide panel" : `Assistant${cov ? ` · Brief ${cov.score}%` : ""}`}
+          </button>
         </div>
-        {editor && canEdit ? <Toolbar editor={editor} /> : null}
-        <div className="aw-editor min-h-[60vh] flex-1 overflow-auto px-8 py-6">
+        {editor && canEdit ? (
+          <div className="sticky top-[57px] z-10 rounded-none bg-white">
+            <Toolbar editor={editor} />
+          </div>
+        ) : null}
+        <div className="aw-editor min-h-[75vh] flex-1 px-6 py-10 sm:px-16">
+          <input
+            value={title}
+            disabled={!canEdit}
+            onChange={(e) => {
+              setTitle(e.target.value);
+              titleRef.current = e.target.value;
+              if (editor) save(editor);
+            }}
+            placeholder="Untitled"
+            aria-label="Draft title"
+            className="mx-auto mb-6 block w-full max-w-[760px] border-0 bg-transparent px-0 font-mono text-[12px] tracking-[0.08em] text-muted uppercase outline-none placeholder:text-faint"
+          />
           <EditorContent editor={editor} />
         </div>
       </section>
 
-      <aside className="aw-frame flex max-h-[85vh] min-w-0 flex-col self-start xl:sticky xl:top-20">
+      {side ? (
+      <aside className="aw-frame flex max-h-[calc(100vh-110px)] min-w-0 flex-col xl:sticky xl:top-[72px]">
         <div className="border-b border-rule px-3 py-2.5">
           <Seg
             label="Side panel"
@@ -355,7 +436,8 @@ function DocEditor({
           )}
         </div>
       </aside>
-    </>
+      ) : null}
+    </div>
   );
 }
 

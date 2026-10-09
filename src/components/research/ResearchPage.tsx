@@ -75,7 +75,7 @@ export function ResearchPage({
       ) : tool === "writer" ? (
         <Writer sb={sb} auth={auth} site={site} canEdit={canEdit} />
       ) : (
-        <ContentCalendar sb={sb} auth={auth} site={site} canEdit={canEdit} onWrite={() => onTool("writer")} results={{ brandId: brand.id, days: view.days, chats: answered(view.current, view.filter) }} onSite={setSite} />
+        <ContentCalendar sb={sb} auth={auth} site={site} canEdit={canEdit} onWrite={() => onTool("writer")} results={{ brandId: brand.id, brandName: brand.name, days: view.days, chats: answered(view.current, view.filter) }} onSite={setSite} />
       )}
     </div>
   );

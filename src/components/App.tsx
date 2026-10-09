@@ -44,6 +44,7 @@ import { VisitorsPage } from "./VisitorsPage";
 export type { Brand } from "@/lib/db";
 type Page = "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "calendar" | "writer" | "summary" | "members";
 const RESEARCH: Page[] = ["keywords", "domain", "calendar", "writer"];
+const VISIBILITY: Page[] = ["prompts", "competitors", "domains", "urls"]; // the only pages with period, topic and model filters
 
 /** Each page's address. "/" opens Prompts. */
 const SLUGS: Record<Page, string> = {
@@ -403,7 +404,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
       <div className="flex min-w-0 flex-1 flex-col">
         {page !== "members" ? (
           <TopBar
-            websiteOnly={RESEARCH.includes(page) && page !== "calendar"}
+            visibility={VISIBILITY.includes(page)}
             brands={brands}
             active={active}
             canEdit={canEdit}
@@ -675,7 +676,7 @@ const TIMEFRAMES = [7, 30, 60, 90];
 
 /** Brand, period, topic and model pickers, and the Run button. */
 function TopBar(p: {
-  websiteOnly: boolean;
+  visibility: boolean;
   brands: Brand[];
   active: Brand | undefined;
   canEdit: boolean;
@@ -737,7 +738,7 @@ function TopBar(p: {
           </div>
         ) : null}
       </div>
-      {p.websiteOnly ? null : (
+      {!p.visibility ? null : (
         <>
       <select aria-label="Time period" value={p.days} onChange={(e) => p.onDays(Number(e.target.value))} className={`${pill} pr-7`}>
         {TIMEFRAMES.map((d) => (
@@ -768,9 +769,7 @@ function TopBar(p: {
         <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => window.print()} title="Download this page as a PDF">
           Download PDF
         </button>
-        {p.websiteOnly ? (
-          <span className="text-[13px] text-muted">Research for {p.active?.domain}</span>
-        ) : p.running ? (
+        {!p.visibility ? null : p.running ? (
           <span className="flex items-center gap-3">
             <span className="aw-label aw-label--brand">First check running</span>
             <span className="aw-progress w-32">

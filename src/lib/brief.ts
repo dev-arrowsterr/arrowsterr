@@ -10,7 +10,7 @@ import { marketOf, type SitePage } from "./research";
 // Content brief: read Google's top 10 for the keyword, read every page, then ask Claude
 // what wins on this results page and how to beat it.
 
-import type { Analysis, Brief, BriefDoc, Serp, SerpPage } from "./briefTypes";
+import type { Analysis, Brief, BriefDoc, BriefTemplate, Serp, SerpPage } from "./briefTypes";
 
 type Item = {
   type?: string;
@@ -191,6 +191,22 @@ Return JSON only, in exactly this shape:
     "sources": ["kinds of data or sources to cite, like 'a 2025 industry survey on X'"],
     "makeItYours": ["first-hand things only this business can add: tests, data, screenshots, quotes, a clear stance. 4 to 6 items"],
     "aiTips": ["how to write so AI assistants quote this page. 3 to 5 items"]
+  },
+  "template": {
+    "positioning": {
+      "who": "what ${site.name} is and who uses it, in one or two sentences",
+      "whereTo": "what it helps them do",
+      "howTo": "how it does that: the product, method or features",
+      "whySo": "why it does that: what it believes"
+    },
+    "goals": ["3 or 4 article goals. Each starts with a short bold-style phrase, then a sentence. Cover: the intent to capture and how ${site.name} should appear, the keyword cluster to rank for, the topical authority to build, and the action the page should drive"],
+    "lema": {
+      "knows": ["what the searcher already knows. 3 or 4 items"],
+      "wants": ["what the searcher wants to find out. 4 or 5 items"],
+      "shouldKnow": ["what they should know but did not think to ask. 2 or 3 items"],
+      "action": "the one action they should take after reading"
+    },
+    "outline": [{"section": "Introduction, then each H2 as 'H2: ...'", "guide": "how to write this section: the angle, what to list or compare, any table to include and its columns, and where ${site.name} fits. Start the introduction with Problem, Agitation, Solution"}]
   }
 }
 Write plainly, for a 9th-grade reader. Use only the internal links listed above.`;
@@ -210,11 +226,11 @@ export async function runBrief(sb: SupabaseClient, itemId: string) {
     const links = linkCandidates((site.pages as SitePage[]) ?? [], [item.keyword, ...(item.secondary ?? [])]).filter((u) => u !== item.current_url);
 
     const { text } = await askClaude(PROMPT(item.keyword, item.secondary ?? [], item.action, item.current_url, site as { domain: string; name: string; profile: Profile }, serp, links), {
-      maxTokens: 10000,
+      maxTokens: 14000,
     });
-    const out = parseJson(text) as { analysis?: Analysis; brief?: BriefDoc };
+    const out = parseJson(text) as { analysis?: Analysis; brief?: BriefDoc; template?: BriefTemplate };
     if (!out.analysis || !out.brief) throw new Error("Claude did not return a full brief. Try again.");
-    const brief: Brief = { serp, analysis: out.analysis, brief: out.brief, at: new Date().toISOString(), cost: Math.round(g.cost * 1000) / 1000 };
+    const brief: Brief = { serp, analysis: out.analysis, brief: out.brief, template: out.template, at: new Date().toISOString(), cost: Math.round(g.cost * 1000) / 1000 };
     await save({ brief, brief_status: "done", brief_error: null, brief_at: brief.at, status: item.status === "planned" ? "brief" : item.status });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

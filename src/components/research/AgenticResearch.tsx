@@ -8,7 +8,6 @@ import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
 import { Sheet, type Col } from "../Sheet";
 import { Card, Thinking } from "../ui";
-import { AiBar } from "./AiBar";
 import { Difficulty, downloadCsv, FIELD, fmtCpc, fmtNum, STAGE_LABEL, StageTag } from "./shared";
 
 const STEPS = [
@@ -382,27 +381,6 @@ export function AgenticResearch({
         </div>
       </Card>
 
-      {canEdit ? (
-        <AiBar
-          kind="plan"
-          auth={auth}
-          domain={site.domain}
-          rows={rows.map((r) => ({ id: r.key, keyword: r.keyword, job: r.action, stage: r.stage, theme: r.theme, volume: r.volume, kd: r.kd, cpc: r.cpc, intent: r.intent, rank: r.rank, added: approved.has(r.key) }))}
-          tips={[
-            "Approve every BOFU page with volume over 50",
-            "Approve the 10 easiest pages that have search volume",
-            "Select the pages to update that rank 11 to 30",
-            "Approve the biggest page in each theme",
-          ]}
-          label={(id) => rows.find((r) => r.key === id)?.keyword ?? id}
-          onApply={async (ops) => {
-            const toApprove = new Set(ops.flatMap((o) => (o.op === "approve" ? o.ids : [])));
-            const toSelect = ops.flatMap((o) => (o.op === "select" ? o.ids : []));
-            if (toSelect.length) setPicked(new Set([...picked, ...toSelect]));
-            if (toApprove.size) await approve(toApprove);
-          }}
-        />
-      ) : null}
 
       <Card
         title="Keyword plan"

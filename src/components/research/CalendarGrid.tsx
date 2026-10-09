@@ -31,19 +31,19 @@ function Chip({ item, onOpen }: { item: CalendarItem; onOpen: () => void }) {
   );
 }
 
-/** A month of pages. Drag a page to a day to move it, or from the side list to schedule it. Click a day to add a page there. */
+/** A month of pages. Drag a page to a day to move it, or from the side list to schedule it. Click a day to open it. */
 export function CalendarGrid({
   items,
   canEdit,
   onMove,
-  onAdd,
+  onDay,
   onOpen,
   onAutoSchedule,
 }: {
   items: CalendarItem[];
   canEdit: boolean;
   onMove: (id: string, date: string | null) => void;
-  onAdd: (keyword: string, date: string) => void;
+  onDay: (date: string) => void;
   onOpen: (id: string) => void;
   onAutoSchedule: () => void;
 }) {
@@ -52,8 +52,6 @@ export function CalendarGrid({
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
   const [over, setOver] = useState<string | null>(null);
-  const [adding, setAdding] = useState<string | null>(null);
-  const [draft, setDraft] = useState("");
 
   const first = new Date(month);
   first.setDate(1 - ((month.getDay() + 6) % 7)); // back to Monday
@@ -117,44 +115,18 @@ export function CalendarGrid({
               <div
                 key={key}
                 {...drop(key)}
-                onClick={() => {
-                  if (!canEdit || adding === key) return;
-                  setAdding(key);
-                  setDraft("");
-                }}
-                className={`group flex min-h-28 flex-col gap-1 border-r border-b border-rule-faint p-1.5 [&:nth-child(7n)]:border-r-0 ${inMonth ? "bg-white" : "bg-paper"} ${over === key ? "bg-brand-pale! outline-2 -outline-offset-2 outline-brand" : ""} ${canEdit ? "cursor-pointer" : ""}`}
+                onClick={() => onDay(key)}
+                className={`group flex min-h-28 flex-col gap-1 border-r border-b border-rule-faint p-1.5 [&:nth-child(7n)]:border-r-0 ${inMonth ? "bg-white" : "bg-paper"} ${over === key ? "bg-brand-pale! outline-2 -outline-offset-2 outline-brand" : ""} cursor-pointer hover:bg-brand-pale/60`}
               >
                 <span className="flex items-center justify-between">
                   <span className={`aw-num text-[12px] ${key === today ? "bg-brand px-1.5 text-white" : inMonth ? "text-ink" : "text-faint"}`}>{d.getDate()}</span>
-                  {canEdit ? <span className="text-[14px] leading-none text-faint opacity-0 group-hover:opacity-100">+</span> : null}
+                  <span className="text-[13px] leading-none text-faint opacity-0 group-hover:opacity-100">Open ›</span>
                 </span>
                 {list.map((i) => (
                   <span key={i.id} onClick={(e) => e.stopPropagation()}>
                     <Chip item={i} onOpen={() => onOpen(i.id)} />
                   </span>
                 ))}
-                {adding === key ? (
-                  <form
-                    onClick={(e) => e.stopPropagation()}
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                      const v = draft.trim().replace(/\s+/g, " ");
-                      if (v) onAdd(v, key);
-                      setAdding(null);
-                    }}
-                  >
-                    <input
-                      autoFocus
-                      value={draft}
-                      onChange={(e) => setDraft(e.target.value)}
-                      onBlur={() => setAdding(null)}
-                      onKeyDown={(e) => e.key === "Escape" && setAdding(null)}
-                      placeholder="Keyword"
-                      aria-label={`Add a page on ${key}`}
-                      className="w-full border border-brand px-1.5 py-1 text-[12px] focus:outline-none"
-                    />
-                  </form>
-                ) : null}
               </div>
             );
           })}

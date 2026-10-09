@@ -82,7 +82,7 @@ function Quadrant({
         <div className="flex w-7 shrink-0 flex-col items-center">
           <span className="text-[12px] leading-none text-ink">▲</span>
           <span className="w-0.5 flex-1 bg-ink" />
-          <span className="flex flex-1 rotate-180 items-center gap-1.5 py-2 text-[12px] font-medium whitespace-nowrap text-ink [writing-mode:vertical-rl]">
+          <span className="flex rotate-180 items-center gap-1.5 py-2 text-[12px] font-medium whitespace-nowrap text-ink [writing-mode:vertical-rl]">
             <EyeIcon />
             Visibility
           </span>

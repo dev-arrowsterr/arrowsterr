@@ -1001,7 +1001,7 @@
    tints and table headers never poke out square.
    ─────────────────────────────────────────────────────────────────────── */
 /* Controls */
-.aw .aw-btn, .aw .aw-input, .aw .aw-textarea, .aw .aw-select, .aw .aw-text-link--box { border-radius: var(--aw-r-sm) !important; }
+.aw .aw-btn, .aw .aw-input, .aw .aw-textarea, .aw .aw-select, .aw .aw-tool { border-radius: var(--aw-r-sm) !important; }
 .aw .aw-btn { transition: background var(--aw-fast) var(--aw-ease), border-color var(--aw-fast) var(--aw-ease), box-shadow var(--aw-fast) var(--aw-ease), transform var(--aw-fast) var(--aw-ease); }
 .aw .aw-btn--primary, .aw .aw-btn--accent { box-shadow: var(--aw-shadow-xs); }
 .aw .aw-btn--secondary { box-shadow: var(--aw-shadow-xs); }
@@ -1015,7 +1015,7 @@
 .aw [role="tooltip"] { border-radius: var(--aw-r-sm); }
 
 /* Cards */
-.aw .aw-frame, .aw .aw-stats, .aw .aw-table-wrap, .aw .aw-callout, .aw .aw-error, .aw .aw-window, .aw .aw-panel-dark, .aw .aw-quote, .aw .aw-note, .aw .aw-faq, .aw .aw-tool {
+.aw .aw-frame, .aw .aw-stats, .aw .aw-table-wrap, .aw .aw-callout, .aw .aw-error, .aw .aw-window, .aw .aw-panel-dark, .aw .aw-quote, .aw .aw-note, .aw .aw-faq {
   border-radius: var(--aw-r-md) !important;
 }
 .aw .aw-frame, .aw .aw-stats, .aw .aw-table-wrap { box-shadow: var(--aw-shadow-sm); }
@@ -1043,3 +1043,19 @@
 
 /* Rows feel soft on hover */
 .aw .aw-table tbody tr { transition: background var(--aw-fast) var(--aw-ease); }
+
+/* Tables inside the editors (the brief document) */
+.aw .aw-editor .ProseMirror table { border-collapse: separate; border-spacing: 0; width: 100%; margin: 1em 0; border: 1px solid var(--aw-rule); border-radius: var(--aw-r-sm); overflow: hidden; table-layout: fixed; }
+.aw .aw-editor .ProseMirror th, .aw .aw-editor .ProseMirror td { border-right: 1px solid var(--aw-rule-faint); border-bottom: 1px solid var(--aw-rule-faint); padding: 10px 12px; vertical-align: top; text-align: left; font-size: 15px; line-height: 1.55; }
+.aw .aw-editor .ProseMirror tr > :last-child { border-right: 0; }
+.aw .aw-editor .ProseMirror tr:last-child > * { border-bottom: 0; }
+.aw .aw-editor .ProseMirror th { background: var(--aw-surface-2); font-weight: 500; color: var(--aw-ink); width: 26%; }
+.aw .aw-editor .ProseMirror td > p + p { margin-top: 0.4em; }
+.aw .aw-editor .ProseMirror .selectedCell { background: var(--aw-brand-pale); }
+/* The brief reads like a document */
+.aw .aw-doc .ProseMirror { max-width: 860px; font-size: 16px; }
+.aw .aw-doc .ProseMirror h1 { font-size: 30px; margin-top: 0.2em; }
+.aw .aw-doc .ProseMirror h2 { font-size: 22px; padding-top: 0.6em; border-top: 1px solid var(--aw-rule-faint); }
+.aw .aw-doc .ProseMirror h3 { font-size: 18px; }
+.aw .aw-doc .ProseMirror h4 { font-size: 15px; color: var(--aw-ink); margin-top: 1em; }
+.aw .aw-doc .ProseMirror p em:only-child { color: var(--aw-muted); font-style: normal; font-family: var(--aw-mono); font-size: 12px; letter-spacing: var(--aw-tr-mono); text-transform: uppercase; }

@@ -11,7 +11,7 @@ import { Sheet } from "../Sheet";
 import { SampleLine, SampleRows, SampleStats, ToolIntro } from "../ToolIntro";
 import { Card, favicon, Seg, Thinking } from "../ui";
 import { flag, KdDot, short } from "./KeywordOverview";
-import { downloadCsv, FIELD, post } from "./shared";
+import { BAR_BUTTON, BAR_FIELD, BAR_INPUT, downloadCsv, post } from "./shared";
 
 export type Scope = NonNullable<DomainReport["scope"]>;
 const SCOPES: { id: Scope; label: string; hint: string }[] = [
@@ -127,22 +127,22 @@ export function DomainResearch({ sb, auth, site, canEdit, start, onStarted }: { 
           analyze(domain);
         }}
       >
-        <select aria-label="Look at" value={scope} onChange={(e) => setScope(e.target.value as Scope)} className={FIELD}>
+        <select aria-label="Look at" value={scope} onChange={(e) => setScope(e.target.value as Scope)} className={BAR_FIELD}>
           {SCOPES.map((x) => (
             <option key={x.id} value={x.id}>
               {x.label}
             </option>
           ))}
         </select>
-        <input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder={SCOPES.find((x) => x.id === scope)!.hint} aria-label="Address" className="aw-input min-w-56 flex-1" />
-        <select aria-label="Country" value={country} onChange={(e) => setCountry(e.target.value)} className={FIELD}>
+        <input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder={SCOPES.find((x) => x.id === scope)!.hint} aria-label="Address" className={BAR_INPUT} />
+        <select aria-label="Country" value={country} onChange={(e) => setCountry(e.target.value)} className={BAR_FIELD}>
           {Object.keys(MARKETS).map((c) => (
             <option key={c} value={c}>
               {flag(c)} {c}
             </option>
           ))}
         </select>
-        <button type="submit" className="aw-btn aw-btn--accent" disabled={!canEdit || Boolean(busy) || !domain.trim()}>
+        <button type="submit" className={BAR_BUTTON} disabled={!canEdit || Boolean(busy) || !domain.trim()}>
           Analyze
         </button>
       </form>

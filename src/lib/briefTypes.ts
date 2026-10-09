@@ -42,5 +42,21 @@ export type BriefDoc = {
   makeItYours: string[];
   aiTips: string[];
 };
-export type Brief = { serp: Serp; analysis: Analysis; brief: BriefDoc; at: string; cost: number };
+/** The parts of the brief that follow the agency template: positioning, goals, LEMA answers and a guided outline. */
+export type BriefTemplate = {
+  positioning: { who: string; whereTo: string; howTo: string; whySo: string };
+  goals: string[];
+  lema: { knows: string[]; wants: string[]; shouldKnow: string[]; action: string };
+  outline: { section: string; guide: string }[];
+};
+export type Brief = {
+  serp: Serp;
+  analysis: Analysis;
+  brief: BriefDoc;
+  template?: BriefTemplate;
+  doc?: string; // the brief document as edited in Arrowsterr, as HTML
+  docAt?: string;
+  at: string;
+  cost: number;
+};
 

@@ -10,7 +10,7 @@ import { BrandLogo } from "../BrandLogo";
 import { Sheet } from "../Sheet";
 import { SampleBars, SampleChips, SampleRing, SampleRows, SampleStats, ToolIntro } from "../ToolIntro";
 import { Card, favicon, Seg, Thinking } from "../ui";
-import { downloadCsv, FIELD, fmtCpc, post, Sparkline } from "./shared";
+import { BAR_BUTTON, BAR_FIELD, BAR_INPUT, downloadCsv, fmtCpc, post, Sparkline } from "./shared";
 
 export const ISO: Record<string, string> = {
   "United States": "US", "United Kingdom": "GB", Canada: "CA", Australia: "AU", Germany: "DE", France: "FR", Spain: "ES", Netherlands: "NL",
@@ -169,16 +169,16 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Enter a keyword, or several separated by commas"
           aria-label="Keyword"
-          className="aw-input min-w-56 flex-1"
+          className={BAR_INPUT}
         />
-        <select aria-label="Country" value={country} onChange={(e) => setCountry(e.target.value)} className={FIELD}>
+        <select aria-label="Country" value={country} onChange={(e) => setCountry(e.target.value)} className={BAR_FIELD}>
           {Object.keys(MARKETS).map((c) => (
             <option key={c} value={c}>
               {flag(c)} {c}
             </option>
           ))}
         </select>
-        <button type="submit" className="aw-btn aw-btn--accent" disabled={!canEdit || Boolean(busy) || !query.trim()}>
+        <button type="submit" className={BAR_BUTTON} disabled={!canEdit || Boolean(busy) || !query.trim()}>
           Analyze
         </button>
       </form>

@@ -118,4 +118,8 @@ export function Check({ checked, some = false, onChange, label, disabled = false
 }
 
 /** A small input or select for toolbars and table cells. */
+/** A select that sits in a search bar, as tall as the search box next to it. */
+export const BAR_FIELD = "h-12 border border-rule bg-white px-3.5 text-[15px] text-ink focus:border-brand focus:outline-none disabled:bg-surface-2 disabled:text-muted";
+export const BAR_INPUT = "aw-input h-12! min-w-56 flex-1 py-0!";
+export const BAR_BUTTON = "aw-btn aw-btn--accent h-12! py-0!";
 export const FIELD = "border border-rule bg-white px-2.5 py-1.5 text-[13px] text-ink focus:border-brand focus:outline-none disabled:bg-surface-2 disabled:text-muted";

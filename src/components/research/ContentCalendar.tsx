@@ -6,24 +6,17 @@ import { addCalendarItems, deleteCalendarItems, listCalendar, saveSite, updateCa
 import { slots, STAGES, type Stage } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
-import type { SheetOp } from "@/lib/sheetAi";
 import { Sheet, type Col, type Edit } from "../Sheet";
 import type { Chat } from "@/lib/chats";
-import { Card, Seg, Thinking } from "../ui";
+import { Card, Seg, SidePanel, Thinking } from "../ui";
 import { ContentResults } from "./ContentResults";
 import { AgenticResearch } from "./AgenticResearch";
-import { AiBar } from "./AiBar";
 import { CalendarGrid } from "./CalendarGrid";
 import { PlanWizard } from "./PlanWizard";
-import { BriefPanel } from "./BriefPanel";
+import { ContentPiece, STATUSES } from "./ContentPiece";
+import { DayPanel, type NewPiece } from "./DayPanel";
 import { Difficulty, downloadCsv, FIELD, STAGE_LABEL, StageTag } from "./shared";
 
-const STATUSES: { id: CalendarStatus; label: string }[] = [
-  { id: "planned", label: "Planned" },
-  { id: "brief", label: "Brief ready" },
-  { id: "writing", label: "Writing" },
-  { id: "published", label: "Published" },
-];
 const STAGE_ORDER = (s: Stage | null) => (s ? STAGES.findIndex((x) => x.id === s) : 3);
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const parse = (s: string) => {
@@ -50,7 +43,7 @@ export function ContentCalendar({
   site: Site;
   canEdit: boolean;
   onWrite: () => void;
-  results: { brandId: string; days: number; chats: Chat[] };
+  results: { brandId: string; brandName: string; days: number; chats: Chat[] };
 }) {
   const [items, setItems] = useStash<CalendarItem[] | null>(`cal:${site.id}:items`, null);
   const [tab, setTab] = useStash<Tab>(`cal:${site.id}:view`, "calendar");
@@ -62,7 +55,7 @@ export function ContentCalendar({
   const [start, setStart] = useState(() => iso(new Date()));
   const [newKw, setNewKw] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [open, setOpen] = useState<string | null>(null);
+  const [panel, setPanel] = useState<{ day: string | null; piece: string | null } | null>(null);
   const [adding, setAdding] = useState(false);
   const [colName, setColName] = useState("");
   const [colType, setColType] = useState<SheetColumn["type"]>("text");
@@ -84,12 +77,7 @@ export function ContentCalendar({
     load();
   }, [load]);
 
-  const onBriefStatus = useCallback(
-    (s: CalendarItem["brief_status"]) => {
-      setItems((list) => list?.map((i) => (i.id === open ? { ...i, brief_status: s, status: s === "done" && i.status === "planned" ? "brief" : i.status } : i)) ?? null);
-    },
-    [open, setItems],
-  );
+
 
   if (!items) return <Thinking text="Loading your calendar..." />;
 
@@ -120,10 +108,10 @@ export function ContentCalendar({
     await addOn(keyword, null);
   }
 
-  async function addOn(keyword: string, due_date: string | null) {
+  async function addOn(keyword: string, due_date: string | null, extra: Omit<NewPiece, "keyword"> = {}) {
     try {
       await addCalendarItems(sb, auth.workspaceId, [
-        { site_id: site.id, keyword, secondary: [], stage: null, theme: null, volume: null, difficulty: null, intent: null, cpc: null, source: "added by hand", due_date },
+        { site_id: site.id, keyword, secondary: [], stage: extra.stage ?? null, theme: null, volume: null, difficulty: null, intent: null, cpc: null, source: extra.notes ? "ai visibility" : "added by hand", due_date, notes: extra.notes ?? null },
       ]);
       load();
     } catch (err) {
@@ -143,7 +131,8 @@ export function ContentCalendar({
   }
 
   const undated = items.filter((i) => !i.due_date && i.status !== "published").length;
-  const openItem = items.find((i) => i.id === open) ?? null;
+  const openItem = panel?.piece ? (items.find((i) => i.id === panel.piece) ?? null) : null;
+  const dayLabel = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
   const text = (k: "keyword" | "theme" | "owner" | "notes"): Edit<CalendarItem> => ({
     kind: "text",
@@ -159,7 +148,7 @@ export function ContentCalendar({
       value: (i) => (i.brief_status ? BRIEF_LABEL[i.brief_status] : "None"),
       options: ["Ready", "Writing...", "Failed", "None"],
       cell: (i) => (
-        <button type="button" className={`aw-status ${i.brief_status === "done" ? "aw-status--ranked" : i.brief_status === "failed" ? "aw-status--missed" : i.brief_status === "running" ? "aw-status--warn" : "aw-status--pending"}`} onClick={() => setOpen(i.id)}>
+        <button type="button" className={`aw-status ${i.brief_status === "done" ? "aw-status--ranked" : i.brief_status === "failed" ? "aw-status--missed" : i.brief_status === "running" ? "aw-status--warn" : "aw-status--pending"}`} onClick={() => setPanel({ day: i.due_date, piece: i.id })}>
           {i.brief_status ? BRIEF_LABEL[i.brief_status] : "Write brief"}
         </button>
       ),
@@ -244,40 +233,7 @@ export function ContentCalendar({
     if (c && confirm(`Delete the column "${c.name}"? Its values stay saved but hidden.`)) saveColumns(custom.filter((x) => x.id !== cid));
   }
 
-  /** Make the AI's changes: one save per row, so changes to the same row do not overwrite each other. */
-  async function applyOps(ops: SheetOp[]) {
-    const byRow = new Map<string, Partial<CalendarItem>>();
-    for (const o of ops) {
-      if (o.op !== "update") continue;
-      for (const id of o.ids) {
-        const item = items!.find((i) => i.id === id);
-        if (!item) continue;
-        const p = byRow.get(id) ?? {};
-        for (const [k, v] of Object.entries(o.set)) {
-          if (custom.some((c) => c.id === k)) p.extra = { ...(item.extra ?? {}), ...(p.extra ?? {}), [k]: v };
-          else (p as Record<string, unknown>)[k] = v;
-        }
-        byRow.set(id, p);
-      }
-    }
-    await Promise.all([...byRow].map(([id, p]) => patch(id, p)));
-    const gone = ops.flatMap((o) => (o.op === "delete" ? o.ids : []));
-    if (gone.length) {
-      await deleteCalendarItems(sb, gone);
-      setItems((list) => list?.filter((i) => !gone.includes(i.id)) ?? null);
-    }
-    const added = ops.flatMap((o) => (o.op === "add" ? o.keywords : []));
-    if (added.length) {
-      await addCalendarItems(
-        sb,
-        auth.workspaceId,
-        added.map((keyword) => ({ site_id: site.id, keyword, secondary: [], stage: null, theme: null, volume: null, difficulty: null, intent: null, cpc: null, source: "added by AI" })),
-      );
-      await load();
-    }
-    const sel = ops.flatMap((o) => (o.op === "select" ? o.ids : []));
-    if (sel.length) setPicked(new Set([...picked, ...sel]));
-  }
+
 
   const latest = items.map((i) => i.due_date).filter((d): d is string => Boolean(d)).sort().pop() ?? null;
   const head = (
@@ -333,38 +289,6 @@ export function ContentCalendar({
       {error ? <p className="aw-error">{error}</p> : null}
       {head}
 
-      {canEdit ? (
-        <AiBar
-          kind="calendar"
-          auth={auth}
-          domain={site.domain}
-          rows={items.map((i) => ({
-            id: i.id,
-            keyword: i.keyword,
-            status: i.status,
-            due: i.due_date,
-            owner: i.owner,
-            job: i.action,
-            stage: i.stage,
-            theme: i.theme,
-            volume: i.volume,
-            kd: i.difficulty,
-            notes: i.notes,
-            brief: i.brief_status,
-            ...Object.fromEntries(custom.map((c) => [c.id, i.extra?.[c.id] ?? null])),
-          }))}
-          columns={custom.map((c) => ({ id: c.id, name: c.name }))}
-          tips={[
-            "Schedule all undated pages, 2 a week from next Monday, BOFU first",
-            "Mark pages with a ready brief as Writing",
-            "Push every TOFU page with volume under 20 to the end of the schedule",
-            "Remove keywords with no search volume",
-          ]}
-          label={(id) => items.find((i) => i.id === id)?.keyword ?? id}
-          columnName={(k) => custom.find((c) => c.id === k)?.name ?? k.replace("_", " ")}
-          onApply={applyOps}
-        />
-      ) : null}
 
       {planning ? (
         <section className="aw-frame flex flex-wrap items-end gap-4 px-4 py-4">
@@ -396,8 +320,8 @@ export function ContentCalendar({
           items={items}
           canEdit={canEdit}
           onMove={(id, date) => patch(id, { due_date: date })}
-          onAdd={(keyword, date) => addOn(keyword, date)}
-          onOpen={setOpen}
+          onDay={(day) => setPanel({ day, piece: null })}
+          onOpen={(id) => setPanel({ day: items.find((i) => i.id === id)?.due_date ?? null, piece: id })}
           onAutoSchedule={() => setPlanning(true)}
         />
       ) : (
@@ -496,13 +420,60 @@ export function ContentCalendar({
           sort={{ key: "due", desc: false }}
           selected={canEdit ? picked : undefined}
           onSelect={canEdit ? setPicked : undefined}
-          onOpen={(i) => setOpen(i.id)}
+          onOpen={(i) => setPanel({ day: null, piece: i.id })}
         />
       </Card>
       )}
 
       {wizardPanel}
-      {openItem ? <BriefPanel sb={sb} auth={auth} item={openItem} canEdit={canEdit} onClose={() => setOpen(null)} onStatus={onBriefStatus} onWrite={onWrite} /> : null}
+      {openItem ? (
+        <SidePanel
+          title={openItem.keyword}
+          kicker={
+            panel?.day ? (
+              <button type="button" className="aw-text-link" onClick={() => setPanel({ day: panel.day, piece: null })}>
+                ← {dayLabel(panel.day)}
+              </button>
+            ) : (
+              "Content piece"
+            )
+          }
+          onClose={() => setPanel(null)}
+        >
+          <ContentPiece
+            key={openItem.id}
+            sb={sb}
+            auth={auth}
+            site={site}
+            brandName={results.brandName}
+            item={openItem}
+            canEdit={canEdit}
+            onPatch={(p) => patch(openItem.id, p)}
+            onRemove={async () => {
+              if (!confirm(`Remove "${openItem.keyword}" from the calendar?`)) return;
+              await deleteCalendarItems(sb, [openItem.id]).catch((e) => setError(e instanceof Error ? e.message : String(e)));
+              setItems(items.filter((i) => i.id !== openItem.id));
+              setPanel(panel?.day ? { day: panel.day, piece: null } : null);
+            }}
+            onWrite={onWrite}
+          />
+        </SidePanel>
+      ) : panel?.day ? (
+        <SidePanel title={dayLabel(panel.day)} kicker="Editorial Calendar" onClose={() => setPanel(null)}>
+          <DayPanel
+            auth={auth}
+            date={panel.day}
+            items={items.filter((i) => i.due_date === panel.day)}
+            planned={items.map((i) => i.keyword)}
+            chats={results.chats}
+            brand={results.brandName}
+            domain={site.domain}
+            canEdit={canEdit}
+            onOpen={(id) => setPanel({ day: panel.day, piece: id })}
+            onAdd={(p) => addOn(p.keyword, panel.day, p)}
+          />
+        </SidePanel>
+      ) : null}
     </div>
   );
 }

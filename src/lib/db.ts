@@ -327,6 +327,11 @@ export async function getBrief(sb: SupabaseClient, id: string) {
   };
 }
 
+/** Save the brief after someone edits its document. */
+export async function saveBrief(sb: SupabaseClient, id: string, brief: Brief) {
+  check(await sb.from("calendar_items").update({ brief }).eq("id", id));
+}
+
 export async function updateCalendarItem(sb: SupabaseClient, id: string, patch: Partial<CalendarItem>) {
   check(await sb.from("calendar_items").update(patch).eq("id", id));
 }
