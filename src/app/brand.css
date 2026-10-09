@@ -17,7 +17,7 @@
 
    BRAND RULES (apply to every graphic, embed and page)
    1. Logo: always the image file, never the "arrowsterr.com" text.
-      https://arrowsterr.com/wp-content/uploads/2026/10/Arrowsterr-Logo.png
+      /brand/arrowsterr-logo-color.svg (white version: /brand/arrowsterr-logo-white.svg)
       Always set the logo height explicitly (see .aw-logo sizes). Never let it scale freely.
    2. Titles stand alone. No subtitle or explanation line under a title.
    3. Embeds: outer container has margin: 0, internal padding only,
@@ -295,10 +295,9 @@
    4. LOGO
    ─────────────────────────────────────────────────────────────────────── */
 .aw .aw-logo { display: block; width: auto !important; object-fit: contain; margin: 0 !important; }
-.aw .aw-logo--sm { height: 18px !important; max-width: 100px !important; }
-.aw .aw-logo--md { height: 26px !important; max-width: 150px !important; }
-.aw .aw-logo--lg { height: 34px !important; max-width: 200px !important; }
-.aw .aw-logo--invert { filter: brightness(0) invert(1); }
+.aw .aw-logo--sm { height: 24px !important; max-width: none !important; }
+.aw .aw-logo--md { height: 32px !important; max-width: none !important; }
+.aw .aw-logo--lg { height: 40px !important; max-width: none !important; }
 
 .aw .aw-logo-badge {
   display: inline-flex; align-items: center; justify-content: center;
