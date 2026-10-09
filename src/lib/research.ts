@@ -28,7 +28,47 @@ export type AgentKeyword = Keyword & { stage: Stage; theme: string; group: numbe
 export type AgentGroup = { id: number; primary: string; stage: Stage; theme: string; keywords: string[]; volume: number };
 /** An article already on the site that ranks low or not at all, and the keyword to aim it at. */
 export type AgentUpdate = Keyword & { stage: Stage; theme: string; page: string };
+/** Answers from the plan questionnaire. Every field is optional, so older runs and empty answers still work. */
+export type PlanBrief = {
+  goal?: "leads" | "traffic" | "ai" | "authority";
+  funnel?: "balanced" | "bofu" | "mofu" | "tofu";
+  size?: 30 | 60 | 120;
+  difficulty?: "easy" | "mixed" | "hard";
+  formats?: string[];
+  focus?: string;
+  audience?: string;
+  avoid?: string;
+  rivals?: string;
+  updates?: boolean;
+  perWeek?: number;
+  start?: string;
+};
+export const GOALS: Record<NonNullable<PlanBrief["goal"]>, string> = {
+  leads: "More leads and sales",
+  traffic: "More search traffic",
+  ai: "Get cited by AI answers",
+  authority: "Own a topic",
+};
+export const FORMATS = ["Blog posts", "How-to guides", "Comparisons", "Alternatives", "Best-of lists", "Landing pages", "Case studies", "Glossary pages"];
+
+/** How many keywords each stage gets for a plan size and funnel focus. */
+export function stageCounts(b: PlanBrief | undefined): Record<Stage, number> {
+  const total = b?.size ?? PER_STAGE * 3;
+  const weights: Record<NonNullable<PlanBrief["funnel"]>, [number, number, number]> = {
+    balanced: [1, 1, 1],
+    bofu: [2, 1, 1],
+    mofu: [1, 2, 1],
+    tofu: [1, 1, 2],
+  };
+  const [w1, w2, w3] = weights[b?.funnel ?? "balanced"];
+  const sum = w1 + w2 + w3;
+  const bofu = Math.round((total * w1) / sum);
+  const mofu = Math.round((total * w2) / sum);
+  return { bofu, mofu, tofu: Math.max(0, total - bofu - mofu) };
+}
+
 export type AgentResult = {
+  brief?: PlanBrief;
   themes?: string[];
   keywords?: AgentKeyword[];
   groups?: AgentGroup[];
@@ -206,6 +246,7 @@ export function clustersOf(rows: KwSummary[], seed: string, max = 6): KwCluster[
 
 export type DomainReport = {
   domain: string;
+  scope?: "domain" | "subdomain" | "subfolder" | "url";
   country: string;
   overview: { keywords: number; traffic: number; top3: number; top10: number; top20: number; top100: number; newKw: number; lostKw: number } | null;
   keywords: Keyword[];

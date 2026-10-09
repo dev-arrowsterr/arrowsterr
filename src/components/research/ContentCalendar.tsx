@@ -8,11 +8,13 @@ import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
 import type { SheetOp } from "@/lib/sheetAi";
 import { Sheet, type Col, type Edit } from "../Sheet";
-import { SampleRows, SampleStats, ToolIntro } from "../ToolIntro";
 import type { Chat } from "@/lib/chats";
 import { Card, Seg, Thinking } from "../ui";
 import { ContentResults } from "./ContentResults";
+import { AgenticResearch } from "./AgenticResearch";
 import { AiBar } from "./AiBar";
+import { CalendarGrid } from "./CalendarGrid";
+import { PlanWizard } from "./PlanWizard";
 import { BriefPanel } from "./BriefPanel";
 import { Difficulty, downloadCsv, FIELD, STAGE_LABEL, StageTag } from "./shared";
 
@@ -30,13 +32,14 @@ const parse = (s: string) => {
 };
 const BRIEF_LABEL = { running: "Writing...", done: "Ready", failed: "Failed" } as const;
 
-/** Every planned page for one website, as a spreadsheet. Click a keyword to open its content brief. */
+type Tab = "calendar" | "list" | "plan" | "results";
+
+/** The editorial calendar: build it by hand on a month grid or a sheet, or generate a content plan and approve it in. */
 export function ContentCalendar({
   sb,
   auth,
   site,
   canEdit,
-  onFind,
   onWrite,
   results,
   onSite,
@@ -46,12 +49,13 @@ export function ContentCalendar({
   auth: RunAuth;
   site: Site;
   canEdit: boolean;
-  onFind: () => void;
   onWrite: () => void;
   results: { brandId: string; days: number; chats: Chat[] };
 }) {
   const [items, setItems] = useStash<CalendarItem[] | null>(`cal:${site.id}:items`, null);
-  const [tab, setTab] = useStash<"plan" | "results">(`cal:${site.id}:tab`, "plan");
+  const [tab, setTab] = useStash<Tab>(`cal:${site.id}:view`, "calendar");
+  const [wizard, setWizard] = useState(false);
+  const [refresh, setRefresh] = useState(0);
   const [error, setError] = useState("");
   const [planning, setPlanning] = useState(false);
   const [perWeek, setPerWeek] = useState(2);
@@ -112,11 +116,15 @@ export function ContentCalendar({
     e.preventDefault();
     const keyword = newKw.trim().replace(/\s+/g, " ");
     if (!keyword) return;
+    setNewKw("");
+    await addOn(keyword, null);
+  }
+
+  async function addOn(keyword: string, due_date: string | null) {
     try {
       await addCalendarItems(sb, auth.workspaceId, [
-        { site_id: site.id, keyword, secondary: [], stage: null, theme: null, volume: null, difficulty: null, intent: null, cpc: null, source: "added by hand" },
+        { site_id: site.id, keyword, secondary: [], stage: null, theme: null, volume: null, difficulty: null, intent: null, cpc: null, source: "added by hand", due_date },
       ]);
-      setNewKw("");
       load();
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -136,41 +144,6 @@ export function ContentCalendar({
 
   const undated = items.filter((i) => !i.due_date && i.status !== "published").length;
   const openItem = items.find((i) => i.id === open) ?? null;
-
-  if (!items.length) {
-    return (
-      <div className="flex flex-col gap-4">
-        {error ? <p className="aw-error">{error}</p> : null}
-        <ToolIntro
-          title="Plan, brief and track every page in one sheet"
-          lead="Your calendar holds every page you plan to write or update. Set dates, assign owners, write a content brief from Google's top 10 in one click, and mark pages published to track their results."
-          action={
-            <>
-              <button type="button" className="aw-btn aw-btn--accent" onClick={onFind}>
-                Plan keywords
-              </button>
-              {canEdit ? (
-                <form onSubmit={add} className="flex gap-2">
-                  <input value={newKw} onChange={(e) => setNewKw(e.target.value)} placeholder="Or add a keyword" aria-label="Add a keyword" className={`${FIELD} w-56`} />
-                  <button type="submit" className="aw-btn aw-btn--secondary aw-btn--sm" disabled={!newKw.trim()}>
-                    Add
-                  </button>
-                </form>
-              ) : null}
-            </>
-          }
-          features={[
-            { title: "One sheet for every page", text: "Sort and filter by stage, status, volume, difficulty, owner and due date.", visual: <SampleRows rows={[["crm for dentists", 900, "Writing"], ["best dental crm", 600, "Brief"], ["what is a crm", 2400, "Planned"]]} /> },
-            { title: "Content briefs in one click", text: "Reads Google's top 10, then gives you the format that wins, an outline, questions to answer and gaps to fill." },
-            { title: "Dates on autopilot", text: "Pick posts per week. Plan dates schedules ready-to-buy pages first, biggest volume first.", visual: <SampleStats items={[["Per week", "2"], ["Planned", "24"], ["Weeks", "12"]]} /> },
-            { title: "Write in Writer", text: "Open any brief as a draft with headings in place and a note under each on what to write." },
-            { title: "Track what you publish", text: "Add the live URL and the page shows up in Content performance with its Google, AI and visitor numbers." },
-          ]}
-          steps={["Run the Planner, or add keywords from Keywords or Domains.", "Click a keyword to write its content brief.", "Write it, publish it, and paste the live URL."]}
-        />
-      </div>
-    );
-  }
 
   const text = (k: "keyword" | "theme" | "owner" | "notes"): Edit<CalendarItem> => ({
     kind: "text",
@@ -306,30 +279,59 @@ export function ContentCalendar({
     if (sel.length) setPicked(new Set([...picked, ...sel]));
   }
 
-  const switcher = (
-    <Seg
-      label="Calendar view"
-      value={tab}
-      onChange={setTab}
-      options={[
-        { id: "plan", label: "Plan" },
-        { id: "results", label: `Results ${items.filter((i) => i.status === "published" && (i.url || i.current_url)).length}` },
-      ]}
-    />
+  const latest = items.map((i) => i.due_date).filter((d): d is string => Boolean(d)).sort().pop() ?? null;
+  const head = (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <Seg
+        label="Calendar view"
+        value={tab}
+        onChange={setTab}
+        options={[
+          { id: "calendar", label: "Calendar" },
+          { id: "list", label: `List ${items.length}` },
+          { id: "plan", label: "Content plan" },
+          { id: "results", label: `Results ${items.filter((i) => i.status === "published" && (i.url || i.current_url)).length}` },
+        ]}
+      />
+      {canEdit ? (
+        <button type="button" className="aw-btn aw-btn--accent aw-btn--sm" onClick={() => setWizard(true)}>
+          ✦ Generate content plan
+        </button>
+      ) : null}
+    </div>
   );
+  const wizardPanel = wizard ? (
+    <PlanWizard
+      sb={sb}
+      auth={auth}
+      site={site}
+      onSite={onSite}
+      onClose={() => setWizard(false)}
+      onStarted={() => {
+        setWizard(false);
+        setTab("plan");
+        setRefresh((n) => n + 1);
+      }}
+    />
+  ) : null;
 
-  if (tab === "results")
+  if (tab === "results" || tab === "plan")
     return (
       <div className="flex flex-col gap-5">
-        <div>{switcher}</div>
-        <ContentResults auth={auth} brandId={results.brandId} domain={site.domain} days={results.days} chats={results.chats} items={items} />
+        {head}
+        {tab === "results" ? (
+          <ContentResults auth={auth} brandId={results.brandId} domain={site.domain} days={results.days} chats={results.chats} items={items} />
+        ) : (
+          <AgenticResearch sb={sb} auth={auth} site={site} canEdit={canEdit} onOpenCalendar={() => setTab("calendar")} onNew={() => setWizard(true)} onApproved={load} latest={latest} refresh={refresh} />
+        )}
+        {wizardPanel}
       </div>
     );
 
   return (
     <div className="flex flex-col gap-5">
       {error ? <p className="aw-error">{error}</p> : null}
-      <div>{switcher}</div>
+      {head}
 
       {canEdit ? (
         <AiBar
@@ -366,9 +368,6 @@ export function ContentCalendar({
 
       {planning ? (
         <section className="aw-frame flex flex-wrap items-end gap-4 px-4 py-4">
-          <p className="w-full text-[14px] text-body">
-            Give dates to the {undated} pages that have none. BOFU goes first, then MOFU, then TOFU, biggest search volume first. Posts land on weekdays.
-          </p>
           <label className="flex flex-col gap-1">
             <span className="aw-label">Posts per week</span>
             <select value={perWeek} onChange={(e) => setPerWeek(Number(e.target.value))} className={FIELD}>
@@ -392,6 +391,16 @@ export function ContentCalendar({
         </section>
       ) : null}
 
+      {tab === "calendar" ? (
+        <CalendarGrid
+          items={items}
+          canEdit={canEdit}
+          onMove={(id, date) => patch(id, { due_date: date })}
+          onAdd={(keyword, date) => addOn(keyword, date)}
+          onOpen={setOpen}
+          onAutoSchedule={() => setPlanning(true)}
+        />
+      ) : (
       <Card
         title={`${items.length} pages`}
         action={
@@ -480,7 +489,7 @@ export function ContentCalendar({
         <Sheet
           id={`cal:${site.id}`}
           onAddColumn={canEdit ? () => setAdding(true) : undefined}
-          label="Content calendar"
+          label="Editorial calendar"
           rows={items}
           cols={cols}
           rowKey={(i) => i.id}
@@ -490,7 +499,9 @@ export function ContentCalendar({
           onOpen={(i) => setOpen(i.id)}
         />
       </Card>
+      )}
 
+      {wizardPanel}
       {openItem ? <BriefPanel sb={sb} auth={auth} item={openItem} canEdit={canEdit} onClose={() => setOpen(null)} onStatus={onBriefStatus} onWrite={onWrite} /> : null}
     </div>
   );

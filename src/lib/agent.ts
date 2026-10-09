@@ -5,17 +5,17 @@ import { BUSINESS_TYPES } from "./onboarding";
 import type { Profile } from "./db";
 import { competitors, overview, Spend, research, topUrls, type Market } from "./keywords";
 import { cleanUrl, findPages } from "./sitemap";
-import { groupBySerp, marketOf, PATTERNS, PER_STAGE, pick, STAGES, type AgentKeyword, type AgentResult, type AgentUpdate, type Keyword, type SitePage, type Stage } from "./research";
+import { FORMATS, GOALS, groupBySerp, marketOf, PATTERNS, pick, STAGES, stageCounts, type PlanBrief, type AgentKeyword, type AgentResult, type AgentUpdate, type Keyword, type SitePage, type Stage } from "./research";
 
 // Agentic Keyword Research: Claude writes keywords stage by stage, DataForSEO checks each one,
 // and keywords that share Google results are grouped so each page targets one group.
 
-type Site = { id: string; domain: string; name: string; profile: Profile };
+type Site = { id: string; domain: string; name: string; profile: Profile; brief?: PlanBrief };
 type Draft = { keyword: string; theme: string };
 /** What the planner knows before it writes: rival keywords and pages the site already has. */
 type Context = { ranked: Keyword[]; rivals: string[]; articles: string[] };
 
-const CANDIDATES = 65; // written per stage, so enough survive the volume check
+const EXTRA = 25; // written per stage on top of what is needed, so enough survive the volume check
 const words = (k: string) => k.trim().split(/\s+/).length;
 const norm = (k: string) => k.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
 
@@ -25,8 +25,23 @@ Products and services: ${s.profile.products || "Not given"}
 Customers: ${s.profile.customers || "Not given"}
 Key features: ${s.profile.features || "Not given"}
 Market: ${s.profile.country || "United States"}
+${planNotes(s.brief)}
 ${ranked.length ? `It already ranks on Google for: ${ranked.slice(0, 40).map((k) => k.keyword).join(", ")}` : "It ranks for very few keywords on Google today."}
 ${articles.length ? `It already has articles at: ${articles.slice(0, 80).join(", ")}` : ""}`;
+
+/** The questionnaire answers, as lines for the prompt. */
+function planNotes(b?: PlanBrief) {
+  if (!b) return "";
+  const lines = [
+    b.goal ? `Main goal of this content: ${GOALS[b.goal]}.` : "",
+    b.focus?.trim() ? `Focus on these products, services or topics: ${b.focus.trim()}` : "",
+    b.audience?.trim() ? `Write for this audience: ${b.audience.trim()}` : "",
+    b.avoid?.trim() ? `Never plan keywords about: ${b.avoid.trim()}` : "",
+    b.formats?.length ? `Favor keywords that suit these formats: ${b.formats.filter((f) => FORMATS.includes(f)).join(", ")}.` : "",
+    b.difficulty === "easy" ? "Favor long, specific searches that a small site can win soon." : b.difficulty === "hard" ? "Include big, competitive head terms too." : "",
+  ];
+  return lines.filter(Boolean).join("\n");
+}
 
 function stagePrompt(s: Site, ctx: Context, stage: Stage, themes: string[] | null, taken: string[], count: number, focus = "") {
   const st = STAGES.find((x) => x.id === stage)!;
@@ -82,6 +97,11 @@ async function pool<T>(items: T[], size: number, fn: (x: T) => Promise<void>) {
 
 /** Sites that compete with this one on Google. Falls back to asking Claude, with web search, when the site is too new to have data. */
 async function rivalsOf(site: Site, m: Market, spend: Spend): Promise<string[]> {
+  const given = (site.brief?.rivals ?? "")
+    .split(/[\s,]+/)
+    .map((d) => d.toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, ""))
+    .filter((d) => /^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/.test(d) && d !== site.domain);
+  if (given.length) return [...new Set(given)].slice(0, 4);
   const found = (await competitors(site.domain, m, spend, 6).catch(() => [])).map((c) => c.domain);
   if (found.length >= 2) return found.slice(0, 4);
   const { text } = await askClaude(
@@ -185,11 +205,14 @@ export async function runAgent(sb: SupabaseClient, runId: string, site: Site) {
     let themes: string[] | null = null;
     const seen = new Set<string>();
     const chosen: AgentKeyword[] = [];
+    const counts = stageCounts(site.brief);
     for (const st of STAGES) {
+      const need = counts[st.id];
+      if (!need) continue;
       await step(`Writing ${st.label} keywords`);
       const taken = chosen.map((k) => k.keyword);
       ctx.rivals = rivalList.filter((k) => !seen.has(k));
-      const first = await draft(stagePrompt(site, ctx, st.id, themes, taken, CANDIDATES), themes);
+      const first = await draft(stagePrompt(site, ctx, st.id, themes, taken, need + EXTRA), themes);
       themes = first.themes.length ? first.themes : ["General"];
       let cands = first.rows.filter((r) => !seen.has(norm(r.keyword)) && seen.add(norm(r.keyword)));
 
@@ -200,9 +223,9 @@ export async function runAgent(sb: SupabaseClient, runId: string, site: Site) {
       let usable = enrich(cands).filter((c) => (c.volume ?? 0) > 0 && !rankedTop.has(norm(c.keyword)));
 
       // Not enough real searches: ask once more, for the themes that came up short.
-      if (usable.length < PER_STAGE) {
+      if (usable.length < need) {
         await step(`Finding more ${st.label} keywords`);
-        const short = themes.filter((t) => usable.filter((u) => u.theme === t).length < PER_STAGE / themes!.length);
+        const short = themes.filter((t) => usable.filter((u) => u.theme === t).length < need / themes!.length);
         const more = await draft(
           stagePrompt(site, ctx, st.id, themes, [...taken, ...cands.map((c) => c.keyword)], 40, `\n- Many earlier ideas had no searches. Use simpler, more common wording. Focus on: ${short.join(", ")}.`),
           themes,
@@ -213,16 +236,20 @@ export async function runAgent(sb: SupabaseClient, runId: string, site: Site) {
         cands = [...cands, ...extra];
         usable = enrich(cands).filter((c) => (c.volume ?? 0) > 0 && !rankedTop.has(norm(c.keyword)));
       }
-      const picked = pick(usable, PER_STAGE, themes);
+      // Easy wins first: drop hard keywords when there are enough others.
+      const maxKd = site.brief?.difficulty === "easy" ? 40 : site.brief?.difficulty === "mixed" ? 70 : 101;
+      const easy = usable.filter((c) => (c.kd ?? 0) < maxKd);
+      const picked = pick(easy.length >= need ? easy : usable, need, themes);
       // Still short: fill with the rest, marked as low data.
       const got = new Set(picked.map((k) => k.keyword));
       const rest = enrich(cands).filter((c) => !got.has(c.keyword) && !rankedTop.has(norm(c.keyword)));
-      const filled = [...picked.map((k) => ({ ...k, lowData: false })), ...rest.slice(0, PER_STAGE - picked.length).map((k) => ({ ...k, lowData: true }))];
+      const filled = [...picked.map((k) => ({ ...k, lowData: false })), ...rest.slice(0, need - picked.length).map((k) => ({ ...k, lowData: true }))];
       chosen.push(...filled.map((k) => ({ ...k, stage: st.id, group: -1, competitor: rivalKw.get(norm(k.keyword))?.domain ?? null })));
     }
 
-    await step(`Checking ${articles.length} existing articles`);
-    const updates = await updatesFor(site, map.pages, ranked, themes ?? ["General"], m, spend).catch((e) => {
+    const skipUpdates = site.brief?.updates === false;
+    if (!skipUpdates) await step(`Checking ${articles.length} existing articles`);
+    const updates = skipUpdates ? [] : await updatesFor(site, map.pages, ranked, themes ?? ["General"], m, spend).catch((e) => {
       console.error("Existing articles check failed:", e instanceof Error ? e.message : e);
       return [] as AgentUpdate[];
     });
@@ -239,6 +266,7 @@ export async function runAgent(sb: SupabaseClient, runId: string, site: Site) {
     const groups = groupBySerp(fresh, serps);
 
     const result: AgentResult = {
+      brief: site.brief,
       themes: themes ?? [],
       keywords: fresh,
       groups,

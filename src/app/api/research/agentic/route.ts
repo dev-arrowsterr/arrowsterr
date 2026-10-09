@@ -2,6 +2,7 @@ import { after } from "next/server";
 import { runAgent } from "@/lib/agent";
 import { dfsReady } from "@/lib/dataforseo";
 import type { Profile } from "@/lib/db";
+import type { PlanBrief } from "@/lib/research";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
 
 // Agentic Keyword Research: start a run, answer right away, and keep working in the background.
@@ -37,6 +38,30 @@ export async function POST(request: Request) {
     .single();
   if (err || !run) return Response.json({ error: err?.message ?? "Could not start." }, { status: 500 });
 
-  after(() => runAgent(auth.sb, run.id, site as { id: string; domain: string; name: string; profile: Profile }));
+  const brief = cleanBrief(body.brief);
+  after(() => runAgent(auth.sb, run.id, { ...(site as { id: string; domain: string; name: string; profile: Profile }), brief }));
   return Response.json({ id: run.id });
+}
+
+const text = (v: unknown) => (typeof v === "string" ? v.trim().slice(0, 500) : undefined);
+const oneOf = <T extends string | number>(v: unknown, list: readonly T[]) => (list.includes(v as T) ? (v as T) : undefined);
+
+/** Keep only answers the planner understands. */
+function cleanBrief(b: unknown): PlanBrief | undefined {
+  if (!b || typeof b !== "object") return undefined;
+  const x = b as Record<string, unknown>;
+  return {
+    goal: oneOf(x.goal, ["leads", "traffic", "ai", "authority"] as const),
+    funnel: oneOf(x.funnel, ["balanced", "bofu", "mofu", "tofu"] as const),
+    size: oneOf(x.size, [30, 60, 120] as const),
+    difficulty: oneOf(x.difficulty, ["easy", "mixed", "hard"] as const),
+    formats: Array.isArray(x.formats) ? x.formats.filter((f): f is string => typeof f === "string").slice(0, 10) : undefined,
+    focus: text(x.focus),
+    audience: text(x.audience),
+    avoid: text(x.avoid),
+    rivals: text(x.rivals),
+    updates: typeof x.updates === "boolean" ? x.updates : undefined,
+    perWeek: oneOf(x.perWeek, [1, 2, 3, 4, 5] as const),
+    start: typeof x.start === "string" && /^\d{4}-\d{2}-\d{2}$/.test(x.start) ? x.start : undefined,
+  };
 }

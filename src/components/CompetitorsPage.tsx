@@ -1,13 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { isAnswered, type Chat } from "@/lib/chats";
 import { answered, battle, brandStats, rankOf, topicGrid, trend, type BattleRow, type BrandStat } from "@/lib/metrics";
 import type { View } from "@/lib/view";
 import { BrandLogo } from "./BrandLogo";
 import { EngineName } from "./Engines";
 import { TrendChart } from "./TrendChart";
-import { BrandName, Card, Delta, Empty, favicon, guessDomain, pct, pos, score, Seg, sortRows, SortTh, Tip, TIPS, useSort, YOU_COLOR } from "./ui";
+import { BrandName, Card, Delta, Empty, favicon, guessDomain, pct, pos, score, Seg, sortRows, SidePanel, SortTh, Tip, TIPS, useSort, YOU_COLOR } from "./ui";
 
 const B_COLOR = "#F5B70A";
 const MAX_BRANDS = 50;
@@ -26,12 +25,25 @@ function Bar({ v, color }: { v: number | null; color: string }) {
 }
 
 type Dot = { name: string; domain: string | null; isYou: boolean; visibility: number; position: number };
-const QUADRANTS = [
-  { id: "leaders", label: "Leaders", help: "Often named and ranked high in the list", cls: "top-2 right-3 items-end text-right" },
-  { id: "challengers", label: "Challengers", help: "Often named but ranked low in the list", cls: "top-2 left-3" },
-  { id: "kings", label: "Niche Kings", help: "Less named but ranked high", cls: "bottom-2 right-3 items-end text-right" },
-  { id: "rising", label: "Rising Stars", help: "Less named and ranked low", cls: "bottom-2 left-3" },
-];
+const SHOWN_ROWS = 9; // rows in the table before View all
+const quadLabel = "text-[12px] font-medium tracking-wide text-ink uppercase";
+
+function EyeIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+      <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" />
+      <circle cx={12} cy={12} r={3} />
+    </svg>
+  );
+}
+
+function RankIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={14} height={14} fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+      <path d="M4 20V12M10 20V6M16 20v-10M22 20H2" />
+    </svg>
+  );
+}
 
 /**
  * Each brand as its logo, in four quadrants. Up is named more often. Right is named higher in the list.
@@ -62,7 +74,20 @@ function Quadrant({
   const ticks = Array.from({ length: worst }, (_, i) => i + 1).filter((t) => worst <= 8 || t % 2 === 1 || t === worst);
   return (
     <div className="flex h-full min-h-0 flex-col gap-1 p-4">
+      <div className="flex justify-between gap-3 pl-[76px] pb-1">
+        <span className={quadLabel}>Challengers</span>
+        <span className={quadLabel}>Leaders</span>
+      </div>
       <div className="flex min-h-0 flex-1 gap-2">
+        <div className="flex w-7 shrink-0 flex-col items-center">
+          <span className="text-[12px] leading-none text-ink">▲</span>
+          <span className="w-0.5 flex-1 bg-ink" />
+          <span className="flex flex-1 rotate-180 items-center gap-1.5 py-2 text-[12px] font-medium whitespace-nowrap text-ink [writing-mode:vertical-rl]">
+            <EyeIcon />
+            Visibility
+          </span>
+          <span className="w-0.5 flex-1 bg-ink" />
+        </div>
         <div className="relative w-9 shrink-0 font-mono text-[11px] text-ink">
           {[100, 75, 50, 25, 0].map((t) => (
             <span key={t} className="absolute right-0 -translate-y-1/2" style={{ top: `${y(t)}%` }}>
@@ -77,12 +102,6 @@ function Quadrant({
           ))}
           <span className="absolute right-0 left-0 border-t-2 border-ink/40" style={{ top: `${y(50)}%` }} />
           <span className="absolute top-0 bottom-0 border-l-2 border-ink/40" style={{ left: `${x(mid)}%` }} />
-          {QUADRANTS.map((q) => (
-            <span key={q.id} className={`pointer-events-none absolute flex flex-col ${q.cls}`}>
-              <span className="text-[12px] font-medium tracking-wide text-ink uppercase">{q.label}</span>
-              <span className="text-[11px] text-body">{q.help}</span>
-            </span>
-          ))}
           {dots.map((d) => {
             const on = hover === d.name;
             const size = d.isYou ? 36 : 30;
@@ -121,7 +140,7 @@ function Quadrant({
         </div>
       </div>
       <div className="flex gap-2">
-        <span className="w-9 shrink-0" />
+        <span className="w-[76px] shrink-0" />
         <div className="relative h-5 flex-1 font-mono text-[11px] text-ink">
           {ticks.map((t) => (
             <span key={t} className="absolute top-0.5 -translate-x-1/2" style={{ left: `${x(t)}%` }}>
@@ -130,10 +149,18 @@ function Quadrant({
           ))}
         </div>
       </div>
-      <div className="flex justify-between gap-3 pl-11 text-[12px] text-ink">
-        <span>← Lower in the list</span>
-        <span className="font-medium">Average position · up is more visible</span>
-        <span>Named first →</span>
+      <div className="flex items-center gap-2 pl-[76px] text-[12px] font-medium text-ink">
+        <span className="h-0.5 flex-1 bg-ink" />
+        <span className="flex items-center gap-1.5">
+          <RankIcon />
+          Ranking
+        </span>
+        <span className="h-0.5 flex-1 bg-ink" />
+        <span className="-ml-2 leading-none">▶</span>
+      </div>
+      <div className="flex justify-between gap-3 pl-[76px]">
+        <span className={quadLabel}>Rising Stars</span>
+        <span className={quadLabel}>Niche Kings</span>
       </div>
     </div>
   );
@@ -153,7 +180,7 @@ export function CompetitorsPage({ view, initial, onTopic }: { view: View; initia
   const [query, setQuery] = useState("");
   const [shown, setShown] = useState<Set<string> | null>(null);
   const [hover, setHover] = useState<string | null>(null);
-  const [day, setDay] = useState<number>(-1); // -1 is the whole period
+  const [full, setFull] = useState(false);
   const [a, setA] = useState(brand.name);
   const [b, setB] = useState<string | null>(initial ?? null);
   const [split, setSplit] = useState<"model" | "topic" | "prompt">("model");
@@ -167,14 +194,10 @@ export function CompetitorsPage({ view, initial, onTopic }: { view: View; initia
   const on = shown ?? defaults();
   const flip = (n: string) => setShown(on.has(n) ? new Set([...on].filter((x) => x !== n)) : new Set([...on, n]));
 
-  // A day on the slider shows where brands stood that day.
-  const checkDays = [...new Set(current.map((r) => r.at.slice(0, 10)))].sort();
-  const dayChats: Chat[] = day < 0 ? chats : current.filter((r) => r.at.slice(0, 10) === checkDays[day]).flatMap((r) => r.chats).filter((c) => filter(c) && isAnswered(c));
-  const dayStats = day < 0 ? stats : brandStats(dayChats, you);
-  const dots: Dot[] = dayStats
+  const dots: Dot[] = stats
     .filter((s): s is BrandStat & { position: number } => on.has(s.name) && s.position !== null)
     .map((s) => ({ name: s.name, domain: s.domain, isYou: s.isYou, visibility: s.visibility, position: s.position }));
-  const best = [...dayStats].filter((s) => s.position !== null).sort((x, y) => y.visibility - x.visibility || x.position! - y.position!)[0]?.name ?? null;
+  const best = [...stats].filter((s) => s.position !== null).sort((x, y) => y.visibility - x.visibility || x.position! - y.position!)[0]?.name ?? null;
 
   const find = (n: string | null) => stats.find((s) => s.name.toLowerCase() === n?.toLowerCase());
   const A = find(a) ?? stats.find((s) => s.isYou)!;
@@ -189,6 +212,79 @@ export function CompetitorsPage({ view, initial, onTopic }: { view: View; initia
     top.filter((s) => !query.trim() || s.name.toLowerCase().includes(query.trim().toLowerCase())),
     sort,
     { name: (s) => s.name, visibility: (s) => s.visibility, position: (s) => (s.position === null ? null : -s.position) },
+  );
+
+  const brandTable = (rows: typeof listed) => (
+    <table className="aw-table table-fixed">
+      <thead className="sticky top-0 z-10">
+        <tr>
+          <th className="w-9">
+            <input
+              type="checkbox"
+              aria-label="Show every listed brand on the chart"
+              checked={rows.length > 0 && rows.every((s) => on.has(s.name))}
+              onChange={(e) => setShown(e.target.checked ? new Set([...on, ...rows.map((s) => s.name)]) : new Set([...on].filter((n) => n === brand.name || !rows.some((s) => s.name === n))))}
+              className="h-4 w-4 accent-[var(--aw-brand)]"
+            />
+          </th>
+          <th className="w-10">#</th>
+          <SortTh id="name" sort={sort} onSort={setSort} text>
+            Brand
+          </SortTh>
+          <SortTh id="visibility" sort={sort} onSort={setSort} className="w-36">
+            Visibility
+            <Tip text={TIPS.visibility} />
+          </SortTh>
+          <SortTh id="position" sort={sort} onSort={setSort} className="w-36">
+            Position
+            <Tip text={TIPS.position} />
+          </SortTh>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((s) => {
+          const w = was(s.name);
+          return (
+            <tr
+              key={s.name}
+              onClick={() => !s.isYou && setB(s.name)}
+              onMouseEnter={() => setHover(s.name)}
+              onMouseLeave={() => setHover(null)}
+              className={`${s.isYou ? "is-you" : "cursor-pointer"} ${B?.name === s.name || hover === s.name ? "bg-brand-pale" : ""}`}
+              aria-selected={B?.name === s.name}
+            >
+              <td onClick={(e) => e.stopPropagation()}>
+                <input type="checkbox" checked={on.has(s.name)} onChange={() => flip(s.name)} aria-label={`Show ${s.name} on the chart`} className="h-4 w-4 accent-[var(--aw-brand)]" />
+              </td>
+              <td className="aw-num text-muted">{top.indexOf(s) + 1}</td>
+              <td className="truncate">
+                <span className="flex items-center gap-1">
+                  {best === s.name ? (
+                    <span role="img" aria-label="Best brand">
+                      👑
+                    </span>
+                  ) : null}
+                  <BrandName name={s.name} domain={s.domain} logo={s.isYou ? brand.logo : undefined} isYou={s.isYou} size={20} />
+                </span>
+              </td>
+              <td className="aw-num whitespace-nowrap">
+                {pct(s.visibility)} {hadBefore ? <Delta now={s.visibility} before={w?.visibility ?? 0} /> : null}
+              </td>
+              <td className="aw-num whitespace-nowrap">
+                {pos(s.position)} {hadBefore && w ? <Delta now={s.position} before={w.position} lowerIsBetter /> : null}
+              </td>
+            </tr>
+          );
+        })}
+        {!rows.length ? (
+          <tr>
+            <td colSpan={5} className="aw-small">
+              No brand matches “{query}”.
+            </td>
+          </tr>
+        ) : null}
+      </tbody>
+    </table>
   );
 
   const picker = (value: string, onPick: (v: string) => void, label: string, not?: string) => (
@@ -217,98 +313,32 @@ export function CompetitorsPage({ view, initial, onTopic }: { view: View; initia
           <div className="flex min-h-0 flex-col border-rule xl:border-r">
             <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint px-4 py-3">
               <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search brands" aria-label="Search brands" className="aw-input min-w-40 flex-1 py-1.5! text-[14px]!" />
+              {listed.length > SHOWN_ROWS ? (
+                <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => setFull(true)}>
+                  View all {listed.length}
+                </button>
+              ) : null}
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto max-xl:max-h-[480px]">
-              <table className="aw-table">
-                <thead className="sticky top-0 z-10">
-                  <tr>
-                    <th className="w-9">
-                      <input
-                        type="checkbox"
-                        aria-label="Show every listed brand on the chart"
-                        checked={listed.length > 0 && listed.every((s) => on.has(s.name))}
-                        onChange={(e) => setShown(e.target.checked ? new Set([...on, ...listed.map((s) => s.name)]) : new Set([...on].filter((n) => n === brand.name || !listed.some((s) => s.name === n))))}
-                        className="h-4 w-4 accent-[var(--aw-brand)]"
-                      />
-                    </th>
-                    <th className="w-10">#</th>
-                    <SortTh id="name" sort={sort} onSort={setSort} text>
-                      Brand
-                    </SortTh>
-                    <SortTh id="visibility" sort={sort} onSort={setSort} className="w-32">
-                      Visibility
-                      <Tip text={TIPS.visibility} />
-                    </SortTh>
-                    <SortTh id="position" sort={sort} onSort={setSort} className="w-32">
-                      Position
-                      <Tip text={TIPS.position} />
-                    </SortTh>
-                  </tr>
-                </thead>
-                <tbody>
-                  {listed.map((s, i) => {
-                    const w = was(s.name);
-                    return (
-                      <tr
-                        key={s.name}
-                        onClick={() => !s.isYou && setB(s.name)}
-                        onMouseEnter={() => setHover(s.name)}
-                        onMouseLeave={() => setHover(null)}
-                        className={`${s.isYou ? "is-you" : "cursor-pointer"} ${B?.name === s.name || hover === s.name ? "bg-brand-pale" : ""}`}
-                        aria-selected={B?.name === s.name}
-                      >
-                        <td onClick={(e) => e.stopPropagation()}>
-                          <input type="checkbox" checked={on.has(s.name)} onChange={() => flip(s.name)} aria-label={`Show ${s.name} on the chart`} className="h-4 w-4 accent-[var(--aw-brand)]" />
-                        </td>
-                        <td className="aw-num text-muted">{i + 1}</td>
-                        <td className="max-w-48">
-                          <span className="flex items-center gap-1">
-                            {best === s.name ? (
-                              <span role="img" aria-label="Best brand">
-                                👑
-                              </span>
-                            ) : null}
-                            <BrandName name={s.name} domain={s.domain} logo={s.isYou ? brand.logo : undefined} isYou={s.isYou} size={20} />
-                          </span>
-                        </td>
-                        <td className="aw-num whitespace-nowrap">
-                          {pct(s.visibility)} {hadBefore ? <Delta now={s.visibility} before={w?.visibility ?? 0} /> : null}
-                        </td>
-                        <td className="aw-num whitespace-nowrap">
-                          {pos(s.position)} {hadBefore && w ? <Delta now={s.position} before={w.position} lowerIsBetter /> : null}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                  {!listed.length ? (
-                    <tr>
-                      <td colSpan={5} className="aw-small">
-                        No brand matches “{query}”.
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
+            <div className="min-h-0 flex-1 overflow-hidden">
+              {brandTable(listed.slice(0, SHOWN_ROWS))}
             </div>
           </div>
 
-          {/* Right: the quadrant, with a slider to see any day */}
+          {/* Right: the quadrant */}
           <div className="flex min-h-[520px] flex-col max-xl:border-t max-xl:border-rule">
             <div className="min-h-0 flex-1">
               <Quadrant dots={dots} logo={brand.logo} picked={B?.name} hover={hover} onHover={setHover} onPick={setB} crown={best} />
             </div>
-            {checkDays.length > 1 ? (
-              <div className="flex flex-wrap items-center gap-3 border-t border-rule-faint px-5 py-3">
-                <span className="aw-label">Over time</span>
-                <input type="range" min={-1} max={checkDays.length - 1} value={day} onChange={(e) => setDay(Number(e.target.value))} aria-label="Pick a day" className="min-w-40 flex-1 accent-[var(--aw-brand)]" />
-                <span className="aw-num w-32 text-right text-[13px] text-ink">
-                  {day < 0 ? `Last ${days} days` : new Date(`${checkDays[day]}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-                </span>
-              </div>
-            ) : null}
           </div>
         </div>
       </section>
+
+      {full ? (
+        <SidePanel title="All competitors" kicker={`${listed.length} brands · last ${days} days`} onClose={() => setFull(false)}>
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search brands" aria-label="Search all brands" className="aw-input max-w-md py-1.5! text-[14px]!" />
+          <div className="border border-rule">{brandTable(listed)}</div>
+        </SidePanel>
+      ) : null}
 
       {topics.length ? (
         <Card title="Topic Leaders">

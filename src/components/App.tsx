@@ -35,14 +35,15 @@ import { MembersPage } from "./MembersPage";
 import { Onboarding, type NewBrand } from "./Onboarding";
 import { PromptsPage } from "./PromptsPage";
 import { ResearchPage, type Tool } from "./research/ResearchPage";
+import type { SeoStart } from "./research/DomainResearch";
 import { SourcesPage } from "./SourcesPage";
 import { TrafficPage } from "./TrafficPage";
 import { ReportsPage } from "./reports/ReportsPage";
 import { VisitorsPage } from "./VisitorsPage";
 
 export type { Brand } from "@/lib/db";
-type Page = "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "agentic" | "calendar" | "writer" | "summary" | "members";
-const RESEARCH: Page[] = ["keywords", "domain", "agentic", "calendar", "writer"];
+type Page = "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "calendar" | "writer" | "summary" | "members";
+const RESEARCH: Page[] = ["keywords", "domain", "calendar", "writer"];
 
 /** Each page's address. "/" opens Prompts. */
 const SLUGS: Record<Page, string> = {
@@ -54,7 +55,6 @@ const SLUGS: Record<Page, string> = {
   visitors: "/visitors",
   keywords: "/keywords",
   domain: "/domain-research",
-  agentic: "/planner",
   calendar: "/calendar",
   writer: "/writer",
   summary: "/reports",
@@ -67,7 +67,8 @@ const ALIASES: Record<string, Page> = {
   "/urls": "urls",
   "/analytics": "traffic",
   "/keyword-research": "keywords",
-  "/agentic-research": "agentic",
+  "/agentic-research": "calendar",
+  "/planner": "calendar",
   "/content-calendar": "calendar",
   "/reports/content": "calendar",
 };
@@ -157,6 +158,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   const [topic, setTopic] = useState("All");
   const [focus, setFocus] = useState<string | null>(null); // competitor to open on the Competitors page
   const [focusTopic, setFocusTopic] = useState<string | null>(null); // topic to scroll to on the Prompts page
+  const [seoStart, setSeoStart] = useState<SeoStart | null>(null); // a site or link from Sources to open in Domain Research
   const [error, setError] = useState("");
 
   const token = useCallback(async () => (await sb.auth.getSession()).data.session?.access_token ?? "", [sb]);
@@ -445,7 +447,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           ) : !view ? (
             <div className="aw-callout max-w-xl">This workspace has no brands yet. Ask an editor or admin to add one.</div>
           ) : RESEARCH.includes(page) ? (
-            <ResearchPage key={view.brand.id} sb={sb} auth={auth} view={view} canEdit={canEdit} tool={page as Tool} onTool={(t) => go(t)} />
+            <ResearchPage key={view.brand.id} sb={sb} auth={auth} view={view} canEdit={canEdit} tool={page as Tool} onTool={(t) => go(t)} seoStart={seoStart} onSeoStarted={() => setSeoStart(null)} />
           ) : page === "competitors" ? (
             <CompetitorsPage
               key={`${view.brand.id}-${focus ?? ""}`}
@@ -463,7 +465,15 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           ) : page === "traffic" ? (
             <TrafficPage key={view.brand.id} view={view} auth={auth} canEdit={canEdit} />
           ) : page === "domains" || page === "urls" ? (
-            <SourcesPage key={view.brand.id} view={view} auth={canEdit ? auth : null} />
+            <SourcesPage
+              key={view.brand.id}
+              view={view}
+              auth={canEdit ? auth : null}
+              onSeo={(target, scope) => {
+                setSeoStart({ target, scope });
+                go("domain");
+              }}
+            />
           ) : (
             <PromptsPage
               key={`${view.brand.id}-${focusTopic ?? ""}`}
@@ -520,25 +530,24 @@ const NAV: { group: string; items: { id: Page; label: string; icon: string; also
     ],
   },
   {
-    group: "Website",
-    items: [
-      { id: "traffic", label: "Traffic", icon: "↗" },
-      { id: "visitors", label: "Visitors", icon: "☺" },
-    ],
-  },
-  {
     group: "SEO research",
     items: [
-      { id: "keywords", label: "Keywords", icon: "⌕" },
-      { id: "domain", label: "Domains", icon: "◎" },
+      { id: "keywords", label: "Keyword Research", icon: "⌕" },
+      { id: "domain", label: "Domain Research", icon: "◎" },
     ],
   },
   {
     group: "Content",
     items: [
-      { id: "agentic", label: "Planner", icon: "✦" },
-      { id: "calendar", label: "Calendar", icon: "▦" },
+      { id: "calendar", label: "Editorial Calendar", icon: "▦" },
       { id: "writer", label: "Writer", icon: "✎" },
+    ],
+  },
+  {
+    group: "Website",
+    items: [
+      { id: "traffic", label: "Traffic", icon: "↗" },
+      { id: "visitors", label: "Visitors", icon: "☺" },
     ],
   },
   {

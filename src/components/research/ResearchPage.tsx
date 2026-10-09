@@ -8,23 +8,39 @@ import { answered } from "@/lib/metrics";
 import type { View } from "@/lib/view";
 import type { RunAuth } from "@/lib/runner";
 import { Thinking } from "../ui";
-import { AgenticResearch } from "./AgenticResearch";
 import { ContentCalendar } from "./ContentCalendar";
-import { DomainResearch } from "./DomainResearch";
+import { DomainResearch, type SeoStart } from "./DomainResearch";
 import { KeywordOverview } from "./KeywordOverview";
 import { Writer } from "./Writer";
 
-export type Tool = "keywords" | "domain" | "agentic" | "calendar" | "writer";
+export type Tool = "keywords" | "domain" | "calendar" | "writer";
 const TITLES: Record<Tool, string> = {
-  keywords: "Keyword research",
-  domain: "Domain research",
-  agentic: "Content planner",
-  calendar: "Content calendar",
+  keywords: "Keyword Research",
+  domain: "Domain Research",
+  calendar: "Editorial Calendar",
   writer: "Writer",
 };
 
 /** The Research tools for the website picked in the top bar. */
-export function ResearchPage({ sb, auth, view, canEdit, tool, onTool }: { sb: SupabaseClient; auth: RunAuth; view: View; canEdit: boolean; tool: Tool; onTool: (t: Tool) => void }) {
+export function ResearchPage({
+  sb,
+  auth,
+  view,
+  canEdit,
+  tool,
+  onTool,
+  seoStart,
+  onSeoStarted,
+}: {
+  sb: SupabaseClient;
+  auth: RunAuth;
+  view: View;
+  canEdit: boolean;
+  tool: Tool;
+  onTool: (t: Tool) => void;
+  seoStart?: SeoStart | null;
+  onSeoStarted?: () => void;
+}) {
   const brand = view.brand;
   const [site, setSite] = useStash<Site | null | undefined>(`site:${brand.id}`, undefined);
   const [error, setError] = useStash(`site-error:${brand.id}`, "");
@@ -55,13 +71,11 @@ export function ResearchPage({ sb, auth, view, canEdit, tool, onTool }: { sb: Su
       ) : tool === "keywords" ? (
         <KeywordOverview sb={sb} auth={auth} site={site} canEdit={canEdit} />
       ) : tool === "domain" ? (
-        <DomainResearch sb={sb} auth={auth} site={site} canEdit={canEdit} />
+        <DomainResearch sb={sb} auth={auth} site={site} canEdit={canEdit} start={seoStart} onStarted={onSeoStarted} />
       ) : tool === "writer" ? (
         <Writer sb={sb} auth={auth} site={site} canEdit={canEdit} />
-      ) : tool === "agentic" ? (
-        <AgenticResearch sb={sb} auth={auth} site={site} canEdit={canEdit} onOpenCalendar={() => onTool("calendar")} />
       ) : (
-        <ContentCalendar sb={sb} auth={auth} site={site} canEdit={canEdit} onFind={() => onTool("agentic")} onWrite={() => onTool("writer")} results={{ brandId: brand.id, days: view.days, chats: answered(view.current, view.filter) }} onSite={setSite} />
+        <ContentCalendar sb={sb} auth={auth} site={site} canEdit={canEdit} onWrite={() => onTool("writer")} results={{ brandId: brand.id, days: view.days, chats: answered(view.current, view.filter) }} onSite={setSite} />
       )}
     </div>
   );

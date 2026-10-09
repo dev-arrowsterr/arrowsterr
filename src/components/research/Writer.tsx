@@ -480,7 +480,7 @@ function Assistant({ auth, site, docId, editor, text, canEdit, hasGuideline }: {
 }
 
 function BriefCheck({ brief, cov }: { brief: Brief | null; cov: ReturnType<typeof coverage> | null }) {
-  if (!brief || !cov) return <p className="aw-small p-4">This draft is not linked to a content brief. Start drafts from a brief in the Content calendar to get a checklist here.</p>;
+  if (!brief || !cov) return <p className="aw-small p-4">This draft is not linked to a content brief. Start drafts from a brief in the Editorial Calendar to get a checklist here.</p>;
   return (
     <div className="flex flex-col gap-3 p-4">
       <div className="flex items-center gap-3">

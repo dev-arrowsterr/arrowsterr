@@ -10,6 +10,7 @@ import type { RunAuth } from "@/lib/runner";
 import { MAX_PROMPTS, MAX_TOPICS } from "@/lib/onboarding";
 import type { View } from "@/lib/view";
 import { BrandLogo } from "./BrandLogo";
+import { Gauge } from "./Donut";
 import { ENGINE_LOGOS, EngineName } from "./Engines";
 import { Markdown } from "./Markdown";
 import { TrendChart } from "./TrendChart";
@@ -75,22 +76,15 @@ export function PromptsPage(p: Props) {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="aw-h2">Prompts</h1>
         <div className="flex flex-wrap items-center gap-2 print:hidden">
-          <span className="aw-tag">
-            {total} of {MAX_PROMPTS} prompts
-          </span>
-          {!readOnly ? (
-            <button type="button" className={`aw-chip aw-chip--btn ${brand.daily ? "is-on" : ""}`} aria-pressed={brand.daily} onClick={() => p.onChange({ ...brand, daily: !brand.daily })} title="The server checks every prompt on every model once a day">
-              Daily checks {brand.daily ? "on" : "off"}
-            </button>
-          ) : null}
-          {!readOnly ? (
-            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={share} disabled={sharing}>
-              {sharing ? "Creating link..." : "Share"}
-            </button>
-          ) : null}
           {!readOnly ? (
             <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={() => setNewTopic("")} disabled={all.length >= MAX_TOPICS}>
               + Add topic
+            </button>
+          ) : null}
+          {!readOnly ? (
+            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm inline-flex items-center gap-1.5" onClick={share} disabled={sharing}>
+              <ShareIcon />
+              {sharing ? "Creating link..." : "Share"}
             </button>
           ) : null}
         </div>
@@ -127,7 +121,6 @@ export function PromptsPage(p: Props) {
           <button type="button" className="aw-text-link text-[13px]" onClick={() => setNewTopic(null)}>
             Cancel
           </button>
-          <span className="aw-small w-full">A new topic starts with its own name as the first prompt. Add more under it. Up to {MAX_TOPICS} topics and {MAX_PROMPTS} prompts.</span>
         </form>
       ) : null}
       <Scores view={view} />
@@ -264,7 +257,6 @@ function Scores({ view }: { view: View }) {
     <section className="aw-frame">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rule px-5 py-3.5">
         <span className="text-[15px] text-ink">{headline}</span>
-        <span className="aw-label">Scores out of 100</span>
       </div>
       <div className="grid sm:grid-cols-3">
         {(
@@ -282,10 +274,12 @@ function Scores({ view }: { view: View }) {
                 {m.lab}
                 <Tip text={m.tip} />
               </span>
-              <span className="flex items-baseline gap-2">
-                <span className="aw-num text-[38px] leading-none tracking-tight text-ink">{m.now === null ? "–" : Math.round(m.now)}</span>
-                <span className="aw-num text-[14px] text-muted">/100</span>
-                <Delta now={m.now} before={m.before} digits={0} />
+              <span className="flex items-center gap-4">
+                <Gauge value={m.now} color={GAUGE[m.id]} label={m.lab} />
+                <span className="flex items-baseline gap-2">
+                  <span className="aw-num text-[38px] leading-none tracking-tight text-ink">{m.now === null ? "–" : Math.round(m.now)}</span>
+                  <Delta now={m.now} before={m.before} digits={0} />
+                </span>
               </span>
               <span className="flex flex-wrap items-center justify-between gap-2 text-[13px] text-muted">
                 {m.help}
@@ -299,6 +293,16 @@ function Scores({ view }: { view: View }) {
         })}
       </div>
     </section>
+  );
+}
+
+const GAUGE = { visibility: "var(--aw-brand)", sentiment: "var(--aw-pos)", position: "#7B61C9" } as const;
+
+function ShareIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="square" aria-hidden="true">
+      <path d="M12 3v12M7 8l5-5 5 5M8 11H5v10h14V11h-3" />
+    </svg>
   );
 }
 
@@ -515,7 +519,7 @@ function Results({
                         setDrafts({ ...drafts, [t.name]: "" });
                       }}
                       disabled={edit.full}
-                      placeholder={edit.full ? `You have used all ${MAX_PROMPTS} prompts` : "+ Add prompt and press Enter"}
+                      placeholder={edit.full ? `You have used all ${MAX_PROMPTS} prompts` : "+ Add prompt"}
                       aria-label={`Add a prompt to ${t.name}`}
                       className="ml-5 w-[calc(100%-1.25rem)] max-w-xl border border-transparent bg-transparent px-2 py-1 text-[14px] text-ink placeholder:text-muted hover:border-rule focus:border-brand focus:bg-white focus:outline-none"
                     />
@@ -526,9 +530,6 @@ function Results({
           );
         })}
       </table>
-      <p className="aw-small border-t border-rule-faint px-4 py-3">
-        #N is your spot in the list of brands that answer named. Blank means it did not name you. Click a prompt to see the brands and sites in its answers.
-      </p>
       {open && rows.some((r) => r.prompt === open) ? (
         <Detail
           key={open}

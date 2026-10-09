@@ -1,7 +1,7 @@
 "use client";
 
 // Small pieces every page shares.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { BrandLogo } from "./BrandLogo";
 
 export const favicon = (domain: string) => `https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`;
@@ -168,5 +168,40 @@ export function Tip({ text }: { text: string }) {
         {text}
       </span>
     </span>
+  );
+}
+
+/** A full height panel that slides in from the right, like the prompt deep dive. Escape or a click outside closes it. */
+export function SidePanel({ title, kicker, onClose, children }: { title: React.ReactNode; kicker?: React.ReactNode; onClose: () => void; children: React.ReactNode }) {
+  useEffect(() => {
+    const keys = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", keys);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", keys);
+      document.body.style.overflow = overflow;
+    };
+  }, [onClose]);
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-[rgba(16,20,30,0.45)] print:hidden" onClick={onClose}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
+        className="flex h-full w-full max-w-[1320px] flex-col gap-6 overflow-y-auto bg-white px-6 py-6 shadow-aw-sm md:w-[calc(100%-240px)] md:px-10"
+      >
+        <div className="flex items-start justify-between gap-6">
+          <div className="flex min-w-0 flex-col gap-1.5">
+            {kicker ? <span className="aw-micro">{kicker}</span> : null}
+            <h2 className="text-[24px] leading-snug font-medium break-words text-ink">{title}</h2>
+          </div>
+          <button type="button" aria-label="Close" title="Close (Esc)" onClick={onClose} className="shrink-0 px-2 py-1 text-[26px] leading-none text-body hover:text-ink">
+            ×
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
   );
 }

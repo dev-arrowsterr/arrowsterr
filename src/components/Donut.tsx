@@ -57,3 +57,16 @@ export function Legend({ slices }: { slices: Slice[] }) {
     </ul>
   );
 }
+
+/** One score out of 100 as a filled ring, like Ahrefs' DR ring. */
+export function Gauge({ value, color = "var(--aw-brand)", size = 84, label }: { value: number | null; color?: string; size?: number; label: string }) {
+  const v = value === null ? 0 : Math.max(0, Math.min(100, value));
+  const r = 30;
+  const c = 2 * Math.PI * r;
+  return (
+    <svg viewBox="0 0 84 84" width={size} height={size} role="img" aria-label={`${label}: ${value === null ? "none" : Math.round(v)} of 100`} className="shrink-0">
+      <circle cx={42} cy={42} r={r} fill="none" stroke="var(--aw-surface-3)" strokeWidth={16} />
+      {v > 0 ? <circle cx={42} cy={42} r={r} fill="none" stroke={color} strokeWidth={16} strokeDasharray={`${(v / 100) * c} ${c}`} transform="rotate(-90 42 42)" /> : null}
+    </svg>
+  );
+}

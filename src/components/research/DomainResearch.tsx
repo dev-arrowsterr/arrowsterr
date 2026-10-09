@@ -1,7 +1,7 @@
 "use client";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { addCalendarItems, type Site } from "@/lib/db";
 import { MARKETS, stageFromIntent, type DomainReport, type Keyword } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
@@ -13,10 +13,21 @@ import { Card, favicon, Seg, Thinking } from "../ui";
 import { flag, KdDot, short } from "./KeywordOverview";
 import { downloadCsv, FIELD, post } from "./shared";
 
+export type Scope = NonNullable<DomainReport["scope"]>;
+const SCOPES: { id: Scope; label: string; hint: string }[] = [
+  { id: "domain", label: "Domain", hint: "competitor.com" },
+  { id: "subdomain", label: "Subdomain", hint: "blog.competitor.com" },
+  { id: "subfolder", label: "Subfolder", hint: "competitor.com/blog" },
+  { id: "url", label: "Exact URL", hint: "competitor.com/pricing" },
+];
+
 /** Any website on Google: how big it is, what it ranks for, its best pages and its competitors. */
-export function DomainResearch({ sb, auth, site, canEdit }: { sb: SupabaseClient; auth: RunAuth; site: Site; canEdit: boolean }) {
+export type SeoStart = { target: string; scope: Scope };
+
+export function DomainResearch({ sb, auth, site, canEdit, start, onStarted }: { sb: SupabaseClient; auth: RunAuth; site: Site; canEdit: boolean; start?: SeoStart | null; onStarted?: () => void }) {
   const k = (name: string) => `dom:${site.id}:${name}`;
   const [domain, setDomain] = useStash(k("q"), site.domain);
+  const [scope, setScope] = useStash<Scope>(k("scope"), "domain");
   const [country, setCountry] = useStash(k("country"), site.profile.country && MARKETS[site.profile.country] ? site.profile.country : "United States");
   const [report, setReport] = useStash<DomainReport | null>(k("report"), null);
   const [tab, setTab] = useStash<"keywords" | "pages" | "competitors">(k("tab"), "keywords");
@@ -29,7 +40,7 @@ export function DomainResearch({ sb, auth, site, canEdit }: { sb: SupabaseClient
     if (!report) return;
     setBusy("Loading up to 500 keywords...");
     try {
-      setReport(await post<DomainReport>(auth, "/api/research/domain", { domain: report.domain, country: report.country, more: true }));
+      setReport(await post<DomainReport>(auth, "/api/research/domain", { domain: report.domain, scope: report.scope ?? "domain", country: report.country, more: true }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -37,15 +48,16 @@ export function DomainResearch({ sb, auth, site, canEdit }: { sb: SupabaseClient
     }
   }
 
-  async function analyze(d: string) {
+  async function analyze(d: string, as: Scope = scope) {
     if (!d.trim()) return;
     setDomain(d);
+    setScope(as);
     setBusy(`Reading ${d} on Google...`);
     setError("");
     setNotice("");
     setPicked(new Set());
     try {
-      setReport(await post<DomainReport>(auth, "/api/research/domain", { domain: d, country }));
+      setReport(await post<DomainReport>(auth, "/api/research/domain", { domain: d, scope: as, country }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -53,7 +65,22 @@ export function DomainResearch({ sb, auth, site, canEdit }: { sb: SupabaseClient
     }
   }
 
-  const own = report?.domain === site.domain.replace(/^www\./, "");
+  // Opened from Sources with a site or link to analyze: run it once.
+  const began = useRef(false);
+  useEffect(() => {
+    if (!start || began.current) return;
+    began.current = true;
+    onStarted?.();
+    // Running the analysis Sources asked for is the point of this effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (canEdit) analyze(start.target, start.scope);
+    else {
+      setDomain(start.target);
+      setScope(start.scope);
+    }
+  }, [start]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const own = (report?.scope ?? "domain") === "domain" && report?.domain === site.domain.replace(/^www\./, "");
   async function addToCalendar(rows: Keyword[]) {
     setError("");
     try {
@@ -75,7 +102,7 @@ export function DomainResearch({ sb, auth, site, canEdit }: { sb: SupabaseClient
           ...(own ? { action: "update" as const, current_url: r.url ?? null, current_rank: r.rank ?? null } : {}),
         })),
       );
-      setNotice(`${n} added to the content calendar.${n < rows.length ? ` ${rows.length - n} were already on it.` : ""}`);
+      setNotice(`${n} added to the editorial calendar.${n < rows.length ? ` ${rows.length - n} were already on it.` : ""}`);
       setPicked(new Set());
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -100,7 +127,14 @@ export function DomainResearch({ sb, auth, site, canEdit }: { sb: SupabaseClient
           analyze(domain);
         }}
       >
-        <input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="Enter a domain, like competitor.com" aria-label="Domain" className="aw-input min-w-56 flex-1" />
+        <select aria-label="Look at" value={scope} onChange={(e) => setScope(e.target.value as Scope)} className={FIELD}>
+          {SCOPES.map((x) => (
+            <option key={x.id} value={x.id}>
+              {x.label}
+            </option>
+          ))}
+        </select>
+        <input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder={SCOPES.find((x) => x.id === scope)!.hint} aria-label="Address" className="aw-input min-w-56 flex-1" />
         <select aria-label="Country" value={country} onChange={(e) => setCountry(e.target.value)} className={FIELD}>
           {Object.keys(MARKETS).map((c) => (
             <option key={c} value={c}>
@@ -121,10 +155,11 @@ export function DomainResearch({ sb, auth, site, canEdit }: { sb: SupabaseClient
         <>
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div className="flex items-center gap-3">
-              <BrandLogo src={favicon(report.domain)} name={report.domain} size={28} />
+              <BrandLogo src={favicon(report.domain.split("/")[0])} name={report.domain} size={28} />
               <div className="flex flex-col">
                 <h2 className="aw-h3">
                   {report.domain} {own ? <span className="aw-badge align-middle">You</span> : null}
+                  {report.scope && report.scope !== "domain" ? <span className="aw-tag ml-2 align-middle">{SCOPES.find((x) => x.id === report.scope)?.label}</span> : null}
                 </h2>
                 <span className="text-[13px] text-muted">
                   {flag(report.country)} {report.country} · {report.cached ? "Free, saved results" : `Cost $${report.cost.toFixed(3)}`}
@@ -270,7 +305,7 @@ export function DomainResearch({ sb, auth, site, canEdit }: { sb: SupabaseClient
                 rows={report.competitors}
                 rowKey={(c) => c.domain}
                 sort={{ key: "shared", desc: true }}
-                onOpen={(c) => analyze(c.domain)}
+                onOpen={(c) => analyze(c.domain, "domain")}
                 cols={[
                   {
                     id: "domain",
@@ -307,7 +342,7 @@ export function DomainResearch({ sb, auth, site, canEdit }: { sb: SupabaseClient
           title="See how any website performs on Google"
           lead="Enter a domain to see how many keywords it ranks for, how much traffic Google sends it, its best pages and its closest competitors. Start with your own site, then size up the competition."
           examples={[site.domain, "hubspot.com", "notion.so"]}
-          onExample={canEdit ? (x) => analyze(x) : undefined}
+          onExample={canEdit ? (x) => analyze(x, "domain") : undefined}
           features={[
             { title: "Organic overview", text: "Total keywords on Google, estimated monthly visits, and how many rank in the top 3 and top 10.", visual: <SampleStats items={[["Keywords", "1.2K"], ["Visits", "3.8K"], ["Top 10", "160"]]} /> },
             { title: "Top keywords", text: "Every keyword the site ranks for, with its position, volume and the visits it brings.", visual: <SampleRows rows={[["seo agency", 900, "#2"], ["geo services", 640, "#4"], ["ai seo", 420, "#7"]]} /> },

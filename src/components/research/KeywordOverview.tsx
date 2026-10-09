@@ -108,7 +108,7 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
         auth.workspaceId,
         rows.map((r) => ({ site_id: site.id, keyword: r.keyword, secondary: [], stage: stageFromIntent(r.intent), theme: null, volume: r.volume, difficulty: r.kd, intent: r.intent, cpc: r.cpc, source: "keyword research" })),
       );
-      setNotice(`${n} added to the content calendar.${n < rows.length ? ` ${rows.length - n} were already on it.` : ""}`);
+      setNotice(`${n} added to the editorial calendar.${n < rows.length ? ` ${rows.length - n} were already on it.` : ""}`);
       setPicked(new Set());
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -426,7 +426,7 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
           steps={[
             "Type a keyword and pick a country.",
             "Click Analyze.",
-            "Check difficulty, volume and intent, then add the best keywords to your content calendar.",
+            "Check difficulty, volume and intent, then add the best keywords to your editorial calendar.",
             "Paste several keywords, separated by commas, to compare them side by side.",
           ]}
           faqs={[

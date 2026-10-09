@@ -1,7 +1,7 @@
 // Every read and write the app makes. Row level security in Supabase decides what each person may do.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Chat, Run } from "./chats";
-import type { AgentResult } from "./research";
+import type { AgentResult, PlanBrief } from "./research";
 import type { Brief } from "./briefTypes";
 import type { BrandGuideline } from "./writerTypes";
 
@@ -33,6 +33,7 @@ export type Profile = {
   businessType?: BusinessType;
   country?: string;
   columns?: SheetColumn[]; // custom columns in the Content calendar
+  planBrief?: PlanBrief; // last answers to the content plan questionnaire
 };
 export type SheetColumn = { id: string; name: string; type: "text" | "number" | "date" };
 /** A buying category the brand wants to win, and the prompts that track it. */
@@ -290,7 +291,7 @@ export type NewCalendarItem = Omit<
   CalendarItem,
   "id" | "status" | "due_date" | "owner" | "url" | "notes" | "created_at" | "action" | "current_url" | "current_rank" | "brief_status" | "brief_error" | "brief_at" | "extra"
 > &
-  Partial<Pick<CalendarItem, "status" | "action" | "current_url" | "current_rank" | "notes">>;
+  Partial<Pick<CalendarItem, "status" | "action" | "current_url" | "current_rank" | "notes" | "due_date">>;
 const CAL_COLS =
   "id, site_id, keyword, secondary, stage, theme, volume, difficulty, intent, cpc, status, due_date, owner, url, notes, source, created_at, action, current_url, current_rank, brief_status, brief_error, brief_at";
 

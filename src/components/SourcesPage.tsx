@@ -13,14 +13,18 @@ import {
   typeShares,
   urlGroups,
   urlRows,
+  type Filter,
   type SourceType,
   type UrlRow,
 } from "@/lib/metrics";
 import { treemap } from "@/lib/treemap";
 import type { RunAuth } from "@/lib/runner";
+import { isAnswered, type Run } from "@/lib/chats";
 import type { View } from "@/lib/view";
+import type { Scope } from "./research/DomainResearch";
 import { BrandLogo } from "./BrandLogo";
-import { Card, Empty, favicon, pct, Seg, sortRows, SortTh, Tip, TIPS, useSort } from "./ui";
+import { ENGINE_LOGOS } from "./Engines";
+import { Card, Empty, favicon, pct, Seg, SidePanel, sortRows, SortTh, Tip, TIPS, useSort } from "./ui";
 
 export const TYPE_COLORS: Record<SourceType, string> = {
   You: "#0943B0",
@@ -75,7 +79,7 @@ const GROUPS: { id: Group; label: string; color: string; help: string }[] = [
 const groupOf = (t: SourceType): Group => (t === "You" ? "owned" : t === "Reviews" ? "reviews" : "third");
 
 /** Owned, third-party and review sites the AI answers cite: the share of each, a map of the biggest, and every site and link. */
-export function SourcesPage({ view, auth }: { view: View; auth: RunAuth | null }) {
+export function SourcesPage({ view, auth, onSeo }: { view: View; auth: RunAuth | null; onSeo: (target: string, scope: Scope) => void }) {
   const { brand, current, filter, days, topics, engines } = view;
   const [group, setGroup] = useState<Group>("third");
   const [list, setList] = useState<"sites" | "links">("sites");
@@ -83,6 +87,7 @@ export function SourcesPage({ view, auth }: { view: View; auth: RunAuth | null }
   const [sort, setSort] = useSort("used");
   const [linkSort, setLinkSort] = useSort("used");
   const [open, setOpen] = useState<Set<string>>(new Set());
+  const [deep, setDeep] = useState<UrlRow | null>(null);
   const cacheKey = `arrowsterr.insights.${brand.id}.${days}`;
   const [insights, setInsights] = useState<Insights | null>(() => readCache(cacheKey));
   const [busy, setBusy] = useState(false);
@@ -155,7 +160,12 @@ export function SourcesPage({ view, auth }: { view: View; auth: RunAuth | null }
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="aw-h2">Sources</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="aw-h2">Sources</h1>
+        <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={() => onSeo(focus ?? brand.domain, "domain")}>
+          Analyze SEO performance
+        </button>
+      </div>
 
       {/* 1. Share bar */}
       <section className="aw-frame flex flex-col gap-3 p-5">
@@ -287,7 +297,7 @@ export function SourcesPage({ view, auth }: { view: View; auth: RunAuth | null }
                     Pages
                     <Tip text={TIPS.pages} />
                   </SortTh>
-                  <th className="w-10" aria-label="Open" />
+                  <th className="w-40" aria-label="Actions" />
                 </tr>
               </thead>
               <tbody>
@@ -307,14 +317,26 @@ export function SourcesPage({ view, auth }: { view: View; auth: RunAuth | null }
                         <td className="aw-num">{pct(g.used)}</td>
                         <td className="aw-num">{g.chats}</td>
                         <td className="aw-num">{g.pages.length}</td>
-                        <td className="text-muted" aria-hidden="true">
-                          {isOpen ? "▴" : "▾"}
+                        <td className="text-right whitespace-nowrap">
+                          <button
+                            type="button"
+                            className="aw-text-link mr-3 text-[13px]"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSeo(g.domain, "domain");
+                            }}
+                          >
+                            Analyze SEO
+                          </button>
+                          <span className="text-muted" aria-hidden="true">
+                            {isOpen ? "▴" : "▾"}
+                          </span>
                         </td>
                       </tr>
                       {isOpen
                         ? [...g.pages]
                             .sort((x, y) => y.chats - x.chats)
-                            .map((u) => <LinkRow key={u.url} u={u} note={notes.get(pageKey(u.url))} indent />)
+                            .map((u) => <LinkRow key={u.url} u={u} note={notes.get(pageKey(u.url))} indent onOpen={() => setDeep(u)} />)
                         : null}
                     </Fragment>
                   );
@@ -345,13 +367,15 @@ export function SourcesPage({ view, auth }: { view: View; auth: RunAuth | null }
               </thead>
               <tbody>
                 {sortRows(links.slice(0, 300), linkSort, { title: (u) => pageTitle(u.title, u.url), used: (u) => u.used, chats: (u) => u.chats, prompts: (u) => u.prompts.length }).map((u, i) => (
-                  <LinkRow key={u.url} u={u} n={i + 1} note={notes.get(pageKey(u.url))} />
+                  <LinkRow key={u.url} u={u} n={i + 1} note={notes.get(pageKey(u.url))} onOpen={() => setDeep(u)} />
                 ))}
               </tbody>
             </table>
           )}
         </section>
       ) : null}
+
+      {deep ? <LinkPanel u={deep} runs={current} filter={filter} topics={topics} days={days} onSeo={onSeo} onClose={() => setDeep(null)} /> : null}
 
       <Card
         title="Executive summary"
@@ -396,15 +420,15 @@ export function SourcesPage({ view, auth }: { view: View; auth: RunAuth | null }
 }
 
 /** One cited link: title, address, share of answers and prompts. */
-function LinkRow({ u, n, note, indent = false }: { u: UrlRow; n?: number; note?: Insights["pages"][number]; indent?: boolean }) {
+function LinkRow({ u, n, note, indent = false, onOpen }: { u: UrlRow; n?: number; note?: Insights["pages"][number]; indent?: boolean; onOpen: () => void }) {
   return (
-    <tr className={indent ? "bg-paper" : ""}>
+    <tr className={`cursor-pointer hover:bg-brand-pale ${indent ? "bg-paper" : ""}`} onClick={onOpen}>
       <td className="aw-num text-muted">{n ?? ""}</td>
       <td>
         <span className={`flex min-w-0 flex-col gap-0.5 ${indent ? "pl-8" : ""}`}>
-          <a href={u.url} target="_blank" rel="noopener noreferrer nofollow" className="max-w-xl truncate text-[14px]" title={u.url}>
-            {pageTitle(u.title, u.url)} ↗
-          </a>
+          <span className="max-w-xl truncate text-[14px] font-medium text-ink" title={u.url}>
+            {pageTitle(u.title, u.url)}
+          </span>
           <span className="flex min-w-0 items-center gap-1.5 text-[12px] text-muted">
             {!indent ? <BrandLogo src={favicon(u.domain)} name={u.domain} size={12} /> : null}
             <span className="max-w-xl truncate">{u.url.replace(/^https?:\/\/(www\.)?/, "")}</span>
@@ -422,7 +446,136 @@ function LinkRow({ u, n, note, indent = false }: { u: UrlRow; n?: number; note?:
       <td className="aw-num" title={u.prompts.join("\n")}>
         {u.prompts.length}
       </td>
-      <td />
+      <td className="text-muted" aria-hidden="true">
+        ›
+      </td>
     </tr>
+  );
+}
+
+type Cite = { at: string; engine: string; prompt: string };
+
+/** Every answer that cited one link: which prompts and models, how often, and when. */
+function LinkPanel({
+  u,
+  runs,
+  filter,
+  topics,
+  days,
+  onSeo,
+  onClose,
+}: {
+  u: UrlRow;
+  runs: Run[];
+  filter: Filter;
+  topics: View["topics"];
+  days: number;
+  onSeo: (target: string, scope: Scope) => void;
+  onClose: () => void;
+}) {
+  const key = pageKey(u.url);
+  const cites: Cite[] = runs.flatMap((r) =>
+    r.chats.filter((c) => filter(c) && isAnswered(c) && c.sources.some((x) => pageKey(x.url) === key)).map((c) => ({ at: r.at, engine: c.engine, prompt: c.prompt })),
+  );
+  const topicOf = (p: string) => topics.find((t) => t.prompts.includes(p))?.name ?? "";
+  const byPrompt = [...new Set(cites.map((c) => c.prompt))]
+    .map((prompt) => {
+      const list = cites.filter((c) => c.prompt === prompt);
+      return { prompt, n: list.length, engines: [...new Set(list.map((c) => c.engine))], last: list.map((c) => c.at).sort().pop()! };
+    })
+    .sort((a, b) => b.n - a.n);
+  const byEngine = [...new Set(cites.map((c) => c.engine))].map((engine) => ({ engine, n: cites.filter((c) => c.engine === engine).length })).sort((a, b) => b.n - a.n);
+  const dates = cites.map((c) => c.at).sort();
+  const day = (iso?: string) => (iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "–");
+  const most = Math.max(1, ...byEngine.map((e) => e.n));
+
+  return (
+    <SidePanel title={pageTitle(u.title, u.url)} kicker={`Link · ${u.domain} · last ${days} days`} onClose={onClose}>
+      <div className="flex flex-wrap items-center gap-3">
+        <a href={u.url} target="_blank" rel="noopener noreferrer nofollow" className="max-w-full truncate text-[14px]">
+          {u.url.replace(/^https?:\/\//, "")} ↗
+        </a>
+        <TypeTag type={u.type} />
+        <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm ml-auto" onClick={() => onSeo(u.url, "url")}>
+          Analyze SEO performance
+        </button>
+      </div>
+
+      <div className="aw-stats aw-stats--tight" style={{ ["--cols" as string]: 5 }}>
+        {[
+          ["Times cited", String(cites.length)],
+          ["Used", pct(u.used)],
+          ["Prompts", String(byPrompt.length)],
+          ["First cited", day(dates[0])],
+          ["Last cited", day(dates[dates.length - 1])],
+        ].map(([lab, v]) => (
+          <div key={lab} className="aw-stat">
+            <div className="aw-stat__lab">{lab}</div>
+            <span className="aw-stat__num">{v}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <section className="aw-frame">
+          <div className="aw-frame__head">
+            <h3 className="aw-h4">Prompts that cite it</h3>
+          </div>
+          <table className="aw-table">
+            <thead>
+              <tr>
+                <th>Prompt</th>
+                <th className="w-28">Times</th>
+                <th className="w-40">Models</th>
+                <th className="w-28">Last</th>
+              </tr>
+            </thead>
+            <tbody>
+              {byPrompt.map((p) => (
+                <tr key={p.prompt}>
+                  <td>
+                    <span className="flex flex-col gap-0.5">
+                      <span className="text-[14px] text-ink">{p.prompt}</span>
+                      {topicOf(p.prompt) ? <span className="text-[12px] text-muted">{topicOf(p.prompt)}</span> : null}
+                    </span>
+                  </td>
+                  <td className="aw-num">{p.n}</td>
+                  <td>
+                    <span className="flex items-center gap-1">
+                      {p.engines.map((e) => (
+                        <span key={e} title={e}>
+                          <BrandLogo src={ENGINE_LOGOS[e] ?? ""} name={e} size={18} />
+                        </span>
+                      ))}
+                    </span>
+                  </td>
+                  <td className="aw-num text-muted">{day(p.last)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+
+        <section className="aw-frame">
+          <div className="aw-frame__head">
+            <h3 className="aw-h4">By model</h3>
+          </div>
+          <ul className="flex flex-col gap-3 p-5">
+            {byEngine.map((e) => (
+              <li key={e.engine} className="flex items-center gap-3 text-[14px]">
+                <span className="flex w-32 shrink-0 items-center gap-2 text-ink">
+                  <BrandLogo src={ENGINE_LOGOS[e.engine] ?? ""} name={e.engine} size={16} />
+                  <span className="truncate">{e.engine}</span>
+                </span>
+                <span className="h-2 flex-1 bg-rule-faint">
+                  <span className="block h-full bg-[var(--aw-brand)]" style={{ width: `${(e.n / most) * 100}%` }} />
+                </span>
+                <span className="aw-num w-8 text-right text-ink">{e.n}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
+    </SidePanel>
   );
 }

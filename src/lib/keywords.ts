@@ -131,6 +131,73 @@ export async function competitors(domain: string, m: Market, spend: Spend, limit
     .slice(0, limit);
 }
 
+/** What Domain Research looks at: a whole domain, one subdomain, a folder, or a single page. */
+export type Scope = "domain" | "subdomain" | "subfolder" | "url";
+export type Target = { scope: Scope; host: string; path: string };
+
+/** Read what someone typed into a target for the chosen scope. Returns null when it is not a web address. */
+export function parseTarget(input: string, scope: Scope): Target | null {
+  let s = input.trim();
+  if (!s) return null;
+  if (!/^https?:\/\//i.test(s)) s = "https://" + s;
+  let u: URL;
+  try {
+    u = new URL(s);
+  } catch {
+    return null;
+  }
+  const host = u.hostname.toLowerCase();
+  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}$/.test(host)) return null;
+  const path = u.pathname.replace(/\/+$/, "");
+  if (scope === "domain") return { scope, host: host.replace(/^www\./, ""), path: "" };
+  if (scope === "subdomain") return { scope, host, path: "" };
+  if (!path) return null; // a folder or a page needs a path
+  return { scope, host, path: scope === "subfolder" ? `${path}/` : path + u.search };
+}
+
+/** How a target shows on screen and in the cache key. */
+export const targetLabel = (t: Target) => t.host + t.path;
+
+/** The ranked_keywords settings for a target. */
+function rankedTarget(t: Target): Record<string, unknown> {
+  if (t.scope === "domain") return { target: t.host, include_subdomains: true };
+  if (t.scope === "subdomain") return { target: t.host, include_subdomains: false };
+  if (t.scope === "url") return { target: `https://${t.host}${t.path}` };
+  return { target: t.host, include_subdomains: false, filters: ["ranked_serp_element.serp_item.relative_url", "like", `${t.path}%`] };
+}
+
+type Organic = Record<string, number>;
+const sizeOf = (o: Organic | undefined) => {
+  if (!o) return null;
+  const n = (k: string) => Number(o[k] ?? 0);
+  const top3 = n("pos_1") + n("pos_2_3");
+  const top10 = top3 + n("pos_4_10");
+  const top20 = top10 + n("pos_11_20");
+  return {
+    keywords: n("count"),
+    traffic: Math.round(n("etv")),
+    top3,
+    top10,
+    top20,
+    top100: top20 + ["pos_21_30", "pos_31_40", "pos_41_50", "pos_51_60", "pos_61_70", "pos_71_80", "pos_81_90", "pos_91_100"].reduce((s, k) => s + n(k), 0),
+    newKw: n("is_new"),
+    lostKw: n("is_lost"),
+  };
+};
+
+/** Keywords a target ranks for, plus its size on Google from the same call. */
+export async function rankedFor(t: Target, m: Market, spend: Spend, limit: number) {
+  const tasks = await call("dataforseo_labs/google/ranked_keywords/live", [
+    { ...rankedTarget(t), location_code: m.location, language_code: m.language, limit, order_by: ["keyword_data.keyword_info.search_volume,desc"] },
+  ]);
+  spend.add(tasks);
+  const task = tasks[0];
+  if (task?.status_code !== 20000) throw new Error(`DataForSEO: ${task?.status_message ?? "no result"}`);
+  const result = task.result?.[0];
+  const items: Item[] = result?.items ?? [];
+  return { keywords: items.map(toKeyword).filter((k): k is Keyword => Boolean(k)), overview: sizeOf(result?.metrics?.organic as Organic | undefined) };
+}
+
 /** A domain's size on Google: keywords, estimated visits and how many rank in the top 3, 10, 20 and 100. */
 export async function domainOverview(domain: string, m: Market, spend: Spend) {
   const tasks = await call("dataforseo_labs/google/domain_rank_overview/live", [{ target: domain, location_code: m.location, language_code: m.language }]);
