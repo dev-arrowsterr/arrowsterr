@@ -140,7 +140,7 @@ const PITCH: Record<Track, string> = {
 };
 
 /** The other toolset, shown with demo numbers behind an upgrade card. */
-export function Glimpse({ track, admin, busy, onBoost, onPlans }: { track: Track; admin: boolean; busy: boolean; onBoost: () => void; onPlans: () => void }) {
+export function Glimpse({ track, title, pitch, admin, busy, onBoost, onPlans }: { track: Track; title?: string; pitch?: string; admin: boolean; busy: boolean; onBoost: () => void; onPlans: () => void }) {
   const pro = PLANS.scale;
   return (
     <div className="relative">
@@ -151,8 +151,8 @@ export function Glimpse({ track, admin, busy, onBoost, onPlans }: { track: Track
       <div className="absolute inset-x-0 top-24 flex justify-center px-4">
         <div className="flex max-w-lg flex-col items-center gap-4 rounded-[20px] border border-rule bg-white px-6 py-8 text-center shadow-aw-lg">
           <span className="aw-label">Not on your Starter plan</span>
-          <h2 className="aw-h3 mb-0!">Add {TRACKS[track].label} with Pro</h2>
-          <p className="text-[15px] text-body">{PITCH[track]}</p>
+          <h2 className="aw-h3 mb-0!">{title ?? `Add ${TRACKS[track].label} with Pro`}</h2>
+          <p className="text-[15px] text-body">{pitch ?? PITCH[track]}</p>
           <p className="text-[13px] text-muted">
             Pro has both toolsets, {pro.prompts} prompts checked daily and {pro.tasksPerMonth.toLocaleString("en-US")} tasks a month, for ${pro.price}/mo.
           </p>

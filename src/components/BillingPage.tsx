@@ -91,40 +91,32 @@ export function BillingPage({ sb, ws, auth, onPlan }: { sb: SupabaseClient; ws: 
   }
 
   const paying = Boolean(plan && plan.customer && plan.plan !== "trial" && plan.plan !== "legacy" && plan.status !== "read_only");
-  const button = (id: PlanId) => {
-    // Starter: one toolset. Pick it here, or switch it once a month when already on Starter.
-    if (id === "foundation") {
-      const onStarter = paying && plan?.plan === "foundation";
-      const sameCycle = (plan?.interval ?? "month") === cycle;
+  const button = (id: PlanId, pick?: Track) => {
+    // Starter: one toolset. Pick it on the card, or switch it once a month when already on Starter.
+    if (id === "foundation" && pick) {
+      const onStarter = paying && plan?.plan === "foundation" && (plan.interval ?? "month") === cycle;
+      const current = onStarter && (plan?.track ?? "visibility") === pick;
       return (
-        <div className="flex flex-col gap-2">
-          {(["visibility", "seo"] as Track[]).map((t) => {
-            const current = onStarter && sameCycle && (plan?.track ?? "visibility") === t;
-            return (
-              <button
-                key={t}
-                type="button"
-                className={`aw-btn aw-btn--block ${current ? "aw-btn--secondary" : "aw-btn--primary"}`}
-                disabled={current || !isAdmin || busy !== null}
-                title={isAdmin ? undefined : "Ask an admin"}
-                onClick={() => {
-                  if (onStarter && sameCycle) {
-                    if (!confirm(`Switch Starter to ${TRACKS[t].label}? You can switch once a month.`)) return;
-                    act(`track:${t}`, async () => {
-                      await post(auth, "/api/billing/track", { track: t });
-                      return `Starter now opens ${TRACKS[t].label}.`;
-                    });
-                    return;
-                  }
-                  if (paying && !confirm(`Switch to Starter with ${TRACKS[t].label}? The difference is charged or credited today.`)) return;
-                  act(`foundation:${t}`, () => choosePlan(auth, "foundation", cycle, t));
-                }}
-              >
-                {busy === `foundation:${t}` || busy === `track:${t}` ? "Opening..." : current ? `Current: ${TRACKS[t].short}` : onStarter && sameCycle ? `Switch to ${TRACKS[t].short}` : `Choose ${TRACKS[t].short}`}
-              </button>
-            );
-          })}
-        </div>
+        <button
+          type="button"
+          className={`aw-btn aw-btn--block ${current ? "aw-btn--secondary" : "aw-btn--primary"}`}
+          disabled={current || !isAdmin || busy !== null}
+          title={isAdmin ? undefined : "Ask an admin"}
+          onClick={() => {
+            if (onStarter) {
+              if (!confirm(`Switch Starter to ${TRACKS[pick].label}? You can switch once a month.`)) return;
+              act(`track:${pick}`, async () => {
+                await post(auth, "/api/billing/track", { track: pick });
+                return `Starter now opens ${TRACKS[pick].label}.`;
+              });
+              return;
+            }
+            if (paying && !confirm(`Switch to Starter with ${TRACKS[pick].label}? The difference is charged or credited today.`)) return;
+            act(`foundation:${pick}`, () => choosePlan(auth, "foundation", cycle, pick));
+          }}
+        >
+          {busy === `foundation:${pick}` || busy === `track:${pick}` ? "Opening..." : current ? "Current plan" : onStarter ? `Switch to ${TRACKS[pick].label}` : `Choose ${TRACKS[pick].label}`}
+        </button>
       );
     }
     if (id === "enterprise")
@@ -266,7 +258,7 @@ export function BillingPage({ sb, ws, auth, onPlan }: { sb: SupabaseClient; ws: 
           <h2 className="aw-h4 mb-0!">Plans</h2>
           <IntervalSwitch value={cycle} onChange={setCycle} />
         </div>
-        <PlanGrid interval={cycle} current={paying ? plan?.plan : null} action={button} />
+        <PlanGrid interval={cycle} current={paying ? plan?.plan : null} track={plan?.track} action={button} />
       </section>
     </div>
   );

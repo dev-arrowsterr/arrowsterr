@@ -71,6 +71,13 @@ export async function requireTrack(workspaceId: string, track: Track): Promise<R
   return Response.json({ error: `Your Starter plan has ${TRACKS[e.open.seo ? "seo" : "visibility"].label}. Get ${TRACKS[track].label} too on Pro.`, limit: true, boost: "scale" }, { status: 429 });
 }
 
+/** The Agentic Writer and publishing start on Pro. Starter's Organic Research goes up to content briefs. */
+export async function requireWriter(workspaceId: string): Promise<Response | null> {
+  const e = await entitlement(workspaceId);
+  if (e.limits.writer === "full" && e.open.seo) return null;
+  return Response.json({ error: "The Agentic Writer is on Pro. Starter's Organic Research goes up to content briefs.", limit: true, boost: "scale" }, { status: 429 });
+}
+
 function readOnly(e: Entitlement) {
   const error = e.plan === "trial" ? "Your free trial has ended. Pick a plan to keep going. Your data is safe." : "This workspace is read-only until billing is sorted out. Your data is safe.";
   return Response.json({ error, readOnly: true }, { status: 402 });

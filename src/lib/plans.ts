@@ -38,8 +38,8 @@ export const PLANS: Record<PlanId, Plan> = {
   // Not sold. Kept so older rows still read.
   free: { ...base, id: "free", name: "Free", tagline: "", price: 0, annual: 0, prompts: 0, brands: 1, seats: 1, competitors: 0, historyDays: 30, checkEvery: 7, checkNowPerDay: 0, briefsPerMonth: 0, plansPerMonth: 0, planMaxKeywords: 30, researchPerMonth: 0, tasksPerMonth: 0, aiPerMonth: 0, pageviewsPerMonth: 0, writer: "none", reports: "basic", alerts: false },
   // Starter opens one toolset, picked by the customer: AI Visibility or SEO. See TRACKS.
-  foundation: { ...base, id: "foundation", name: "Starter", tagline: "One toolset: AI Visibility or SEO", price: 29, annual: 24, prompts: 50, brands: UNLIMITED, seats: 2, competitors: 10, historyDays: 180, checkEvery: 1, checkNowPerDay: 3, briefsPerMonth: 0, plansPerMonth: 1, planMaxKeywords: 120, researchPerMonth: 0, tasksPerMonth: 3_000, aiPerMonth: 0, pageviewsPerMonth: 25_000, writer: "full", reports: "templates", alerts: false },
-  scale: { ...base, id: "scale", name: "Pro", tagline: "AI Visibility and SEO together", price: 99, annual: 84, prompts: 100, brands: UNLIMITED, seats: 5, competitors: 15, historyDays: 365, checkEvery: 1, checkNowPerDay: 10, briefsPerMonth: 0, plansPerMonth: 1, planMaxKeywords: 120, researchPerMonth: 0, tasksPerMonth: 8_000, aiPerMonth: 0, pageviewsPerMonth: 250_000, writer: "full", reports: "templates", alerts: true },
+  foundation: { ...base, id: "foundation", name: "Starter", tagline: "One toolset: AI Visibility or Organic Research", price: 29, annual: 24, prompts: 50, brands: UNLIMITED, seats: 2, competitors: 10, historyDays: 180, checkEvery: 1, checkNowPerDay: 3, briefsPerMonth: 0, plansPerMonth: 1, planMaxKeywords: 120, researchPerMonth: 0, tasksPerMonth: 3_000, aiPerMonth: 0, pageviewsPerMonth: 25_000, writer: "full", reports: "templates", alerts: false },
+  scale: { ...base, id: "scale", name: "Pro", tagline: "AI Visibility and Organic Research together", price: 99, annual: 84, prompts: 100, brands: UNLIMITED, seats: 5, competitors: 15, historyDays: 365, checkEvery: 1, checkNowPerDay: 10, briefsPerMonth: 0, plansPerMonth: 1, planMaxKeywords: 120, researchPerMonth: 0, tasksPerMonth: 8_000, aiPerMonth: 0, pageviewsPerMonth: 250_000, writer: "full", reports: "templates", alerts: true },
   agency: { ...base, id: "agency", name: "Agency", tagline: "Every client, your brand on the report", price: 299, annual: 254, prompts: 300, brands: UNLIMITED, seats: 15, competitors: 25, historyDays: 730, checkEvery: 1, checkNowPerDay: 30, briefsPerMonth: 0, plansPerMonth: 1, planMaxKeywords: 120, researchPerMonth: 0, tasksPerMonth: 25_000, aiPerMonth: 0, pageviewsPerMonth: 2_000_000, writer: "full", reports: "whitelabel", alerts: true },
   enterprise: { id: "enterprise", name: "Enterprise", tagline: "Custom volume, security and support", price: 1500, annual: 1500, prompts: 1000, brands: UNLIMITED, seats: UNLIMITED, competitors: 50, historyDays: 1095, checkEvery: 1, checkNowPerDay: 500, briefsPerMonth: 0, plansPerMonth: 1, planMaxKeywords: 120, researchPerMonth: 0, tasksPerMonth: 150_000, aiPerMonth: 0, pageviewsPerMonth: 10_000_000, writer: "full", reports: "whitelabel", alerts: true, sso: true },
   // No longer sold. Workspaces that bought it keep it.
@@ -69,12 +69,12 @@ export const TASK_COST = {
 export type Track = "visibility" | "seo";
 export const TRACKS: Record<Track, { label: string; short: string; text: string }> = {
   visibility: { label: "AI Visibility", short: "AI Visibility", text: "50 prompts checked daily across AI, competitors, sources and reports" },
-  seo: { label: "SEO toolset", short: "SEO", text: "Keyword, domain and competitive research, Topic Bank, briefs and the Agentic Writer" },
+  seo: { label: "Organic Research", short: "Organic Research", text: "Keyword, domain and competitive research, Topic Bank, briefs and the Editorial Calendar" },
 };
 /** Starter's limits for each toolset: the AI Visibility side tracks prompts, the SEO side gets the tasks. */
 const STARTER: Record<Track, Partial<Plan>> = {
   visibility: { prompts: 50, tasksPerMonth: 300, writer: "none" },
-  seo: { prompts: 0, checkNowPerDay: 0, tasksPerMonth: 3_000 },
+  seo: { prompts: 0, checkNowPerDay: 0, tasksPerMonth: 3_000, writer: "none" }, // up to content briefs; the Agentic Writer is on Pro
 };
 /** Which toolsets a plan opens. A Starter without a pick yet opens AI Visibility. */
 export function access(plan: PlanId, track?: Track | null): Record<Track, boolean> {

@@ -619,6 +619,29 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
               }}
               onPlans={() => go("billing")}
             />
+          ) : page === "writer" && plan && plan.limits.writer !== "full" ? (
+            <Glimpse
+              track="seo"
+              title="Add the Agentic Writer with Pro"
+              pitch="Turn every content brief into a finished, on-brand draft. AI agents write each section, build tables and interactive elements, add stats and links, then publish to your CMS."
+              admin={atLeast(ws.role, "admin")}
+              busy={boosting}
+              onBoost={async () => {
+                setBoosting(true);
+                try {
+                  const done = await choosePlan(auth, "scale", plan.interval ?? "month");
+                  if (done) {
+                    setNotice(done);
+                    loadPlan();
+                  }
+                } catch (e) {
+                  setError(e instanceof Error ? e.message : String(e));
+                } finally {
+                  setBoosting(false);
+                }
+              }}
+              onPlans={() => go("billing")}
+            />
           ) : RESEARCH.includes(page) ? (
             <ResearchPage key={view.brand.id} sb={sb} auth={auth} view={view} canEdit={canEdit} tool={page as Tool} onTool={(t) => go(t)} seoStart={seoStart}
               onSeoStarted={() => setSeoStart(null)}

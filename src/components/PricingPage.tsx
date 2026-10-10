@@ -16,20 +16,20 @@ const ROWS: { group: string; rows: { label: React.ReactNode; value: (p: Plan) =>
     group: "Toolsets",
     rows: [
       { label: "AI Visibility", value: (p) => (p.id === "foundation" ? "Pick one" : "✓") },
-      { label: "SEO toolset", value: (p) => (p.id === "foundation" ? "Pick one" : "✓") },
+      { label: "Organic Research", value: (p) => (p.id === "foundation" ? "Pick one" : "✓") },
     ],
   },
   {
     group: "Tasks",
     rows: [
-      { label: "Tasks a month", value: (p) => (p.id === "foundation" ? "3,000 on SEO · 300 on AI Visibility" : n(p.tasksPerMonth)) },
+      { label: "Tasks a month", value: (p) => (p.id === "foundation" ? "3,000 on Organic Research" : n(p.tasksPerMonth)) },
       { label: "Task packs to top up", value: () => "✓" },
     ],
   },
   {
     group: "AI visibility",
     rows: [
-      { label: "Prompts checked daily (no tasks used)", value: (p) => (p.id === "foundation" ? `${n(p.prompts)} on AI Visibility` : n(p.prompts)) },
+      { label: "Prompts checked daily", value: (p) => (p.id === "foundation" ? `${n(p.prompts)} on AI Visibility` : n(p.prompts)) },
       { label: "Checks", value: (p) => (p.checkEvery === 1 ? "Daily (Claude & Perplexity weekly)" : "Weekly") },
       {
         label: (
@@ -47,12 +47,12 @@ const ROWS: { group: string; rows: { label: React.ReactNode; value: (p: Plan) =>
     ],
   },
   {
-    group: "SEO & content",
+    group: "Organic Research",
     rows: [
       { label: "Keyword, Domain & Competitive Research", value: () => "✓" },
-      { label: "Topic Bank, built once per brand", value: () => "✓" },
+      { label: "Revenue-driven Topic Bank", value: () => "✓" },
       { label: "Content briefs & Editorial Calendar", value: () => "✓" },
-      { label: "Agentic Writer", value: (p) => yes(p.writer === "full") },
+      { label: "Agentic Writer", value: (p) => (p.id === "foundation" ? "–" : "✓") },
       { label: "Publish to your CMS", value: () => "✓" },
     ],
   },

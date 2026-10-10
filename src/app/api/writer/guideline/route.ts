@@ -1,7 +1,7 @@
 import { buildGuideline } from "@/lib/guideline";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
 import { meteredRoute } from "@/lib/meter";
-import { requireTrack, take } from "@/lib/entitlements";
+import { requireWriter, take } from "@/lib/entitlements";
 import { TASK_COST } from "@/lib/plans";
 
 // Build the brand guideline for a website from its homepage, and save it. Uses one AI answer.
@@ -9,7 +9,7 @@ async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
-  const paid = await requireTrack(body.workspaceId, "seo");
+  const paid = await requireWriter(body.workspaceId);
   if (paid) return paid;
   const took = await take(body.workspaceId, "tasks", TASK_COST.guideline);
   if (!took.ok) return took.response;

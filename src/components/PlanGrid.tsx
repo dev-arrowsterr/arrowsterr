@@ -1,6 +1,7 @@
 "use client";
 
-import { limitsFor, PLANS, SELF_SERVE, UNLIMITED, type Interval, type Plan, type PlanId } from "@/lib/plans";
+import { useState } from "react";
+import { limitsFor, PLANS, SELF_SERVE, UNLIMITED, type Interval, type Plan, type PlanId, type Track } from "@/lib/plans";
 import { BrandLogo } from "./BrandLogo";
 import { ENGINE_LOGOS } from "./Engines";
 import { Seg } from "./ui";
@@ -18,81 +19,61 @@ export const AIS: { name: string; logo: string }[] = [
 const n = (v: number) => v.toLocaleString("en-US");
 const count = (v: number, one: string, many = `${one}s`) => (v >= UNLIMITED ? `Unlimited ${many}` : `${n(v)} ${v === 1 ? one : many}`);
 
-export type Feature = { text: string; on: boolean; logos?: boolean; tag?: string };
+export type Feature = { text: string; on: boolean; logos?: boolean; tag?: string; tip?: string };
 export type Group = { title: string; items: Feature[] };
 
-/** What a plan gives, grouped the way the cards and the table show it. */
-export function groups(p: Plan): Group[] {
+const TIPS = {
+  tasks: "Tasks pay for Organic Research. A keyword lookup uses 10, a domain report 10 and a content brief 100. Run out? Top up with a task pack.",
+  bank: "An AI agent studies your business and builds your list of keywords with the most revenue potential, once per brand.",
+};
+const history = (d: number) => (d >= 365 ? `${Math.round(d / 365)} ${d >= 730 ? "years" : "year"} of history` : `${d} days of history`);
+
+function visibility(p: Plan): Group {
+  return {
+    title: "AI Visibility",
+    items: [
+      { text: `${n(p.prompts)} prompts checked daily`, on: true, logos: true, tip: "Daily on ChatGPT, Gemini, AI Overviews and AI Mode. Weekly on Claude and Perplexity." },
+      { text: `${n(p.competitors)} competitors per brand`, on: true },
+      { text: "Sources AI cites", on: true },
+      { text: history(p.historyDays), on: true },
+    ],
+  };
+}
+
+function organic(p: Plan): Group {
+  const writer = p.writer === "full";
+  return {
+    title: "Organic Research",
+    items: [
+      { text: `${n(p.tasksPerMonth)} tasks a month`, on: true, tip: TIPS.tasks },
+      { text: "Keyword & Domain Research", on: true },
+      { text: "Competitive Analysis", on: true },
+      { text: "Revenue-driven Topic Bank", on: true, tip: TIPS.bank },
+      { text: "Content Briefs", on: true },
+      { text: "Editorial Calendar", on: true },
+      { text: "Agentic Writer", on: writer, tag: writer ? undefined : "On Pro" },
+      { text: "Content Performance Report", on: writer },
+    ],
+  };
+}
+
+/** What a plan gives, grouped the way the cards and the table show it. Starter shows the toolset picked. */
+export function groups(p: Plan, track: Track = "visibility"): Group[] {
+  const reports: Group = {
+    title: "Workspace & reports",
+    items: [
+      { text: count(p.brands, "brand"), on: true },
+      { text: count(p.seats, "seat"), on: true },
+      { text: "Live report links & 8 templates", on: true },
+      { text: "White-label reports", on: p.reports === "whitelabel" },
+      { text: "Slack, Zapier & API", on: p.alerts },
+    ],
+  };
   if (p.id === "foundation") {
-    const ai = limitsFor("foundation", { track: "visibility" });
-    const seo = limitsFor("foundation", { track: "seo" });
-    return [
-      {
-        title: "Pick one toolset",
-        items: [
-          { text: `AI Visibility: ${n(ai.prompts)} prompts checked daily, competitors, sources and reports`, on: true, logos: true },
-          { text: `SEO: ${n(seo.tasksPerMonth)} tasks a month for keyword, domain and competitive research, Topic Bank, briefs and the Agentic Writer`, on: true },
-          { text: "A demo look at the other toolset", on: true },
-          { text: "Both toolsets", on: false, tag: "On Pro" },
-        ],
-      },
-      {
-        title: "Workspace",
-        items: [
-          { text: count(p.brands, "brand"), on: true },
-          { text: count(p.seats, "seat"), on: true },
-          { text: `${n(p.competitors)} competitors per brand`, on: true },
-          { text: `${p.historyDays} days of history`, on: true },
-        ],
-      },
-      {
-        title: "Reports & data",
-        items: [
-          { text: "Live report links", on: true },
-          { text: "8 report templates", on: true },
-          { text: "CSV export", on: true },
-          { text: "Task packs to top up", on: true },
-        ],
-      },
-    ];
+    const l = limitsFor("foundation", { track });
+    return [track === "visibility" ? visibility(l) : organic(l), reports];
   }
-  return [
-    {
-      title: "Tasks",
-      items: [{ text: `${n(p.tasksPerMonth)} tasks a month`, on: true, tag: "Top up with task packs" }],
-    },
-    {
-      title: "AI visibility",
-      items: [
-        { text: `${n(p.prompts)} prompts tracked, no tasks used`, on: true },
-        { text: p.checkEvery === 1 ? "Daily on ChatGPT, Gemini & Google AI, weekly on Claude & Perplexity" : "Checked weekly on 6 AIs", on: true, logos: true },
-        { text: count(p.brands, "brand"), on: true },
-        { text: count(p.seats, "seat"), on: true },
-        { text: `${n(p.competitors)} competitors per brand`, on: true },
-        { text: p.historyDays >= 365 ? `${Math.round(p.historyDays / 365)} ${p.historyDays >= 730 ? "years" : "year"} of history` : `${p.historyDays} days of history`, on: true },
-      ],
-    },
-    {
-      title: "Organic research & content",
-      items: [
-        { text: "Keyword, Domain & Competitive Research", on: true },
-        { text: "Topic Bank, built once per brand", on: true },
-        { text: "Content briefs & Editorial Calendar", on: true },
-        { text: "Agentic Writer", on: p.writer === "full" },
-        { text: "Publish to WordPress, Webflow & more", on: true },
-      ],
-    },
-    {
-      title: "Reports & data",
-      items: [
-        { text: "Live report links", on: true },
-        { text: "8 report templates", on: p.reports === "templates" || p.reports === "whitelabel" },
-        { text: "White-label reports", on: p.reports === "whitelabel" },
-        { text: "CSV export", on: true },
-        { text: "Slack, Zapier & API", on: p.alerts },
-      ],
-    },
-  ];
+  return [visibility(p), organic(p), reports];
 }
 
 /** Overlapping AI logos. */
@@ -146,13 +127,15 @@ function Line({ f }: { f: Feature }) {
         {f.text}
         {f.logos && f.on ? <LogoStack size={18} /> : null}
         {f.tag ? <span className="self-start rounded-full bg-brand-pale px-2 py-0.5 text-[11px] font-medium text-brand">{f.tag}</span> : null}
+        {f.tip && f.on ? <span className="text-[12px] leading-snug text-muted">{f.tip}</span> : null}
       </span>
     </li>
   );
 }
 
 /** The self-serve plans side by side, then Enterprise. `action` draws each plan's button. */
-export function PlanGrid({ interval, current, action }: { interval: Interval; current?: PlanId | null; action: (plan: PlanId) => React.ReactNode }) {
+export function PlanGrid({ interval, current, track: start, action }: { interval: Interval; current?: PlanId | null; track?: Track | null; action: (plan: PlanId, track?: Track) => React.ReactNode }) {
+  const [track, setTrack] = useState<Track>(start ?? "visibility");
   return (
     <div className="flex flex-col gap-5">
       <div className="grid items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -174,9 +157,21 @@ export function PlanGrid({ interval, current, action }: { interval: Interval; cu
               <div className="mt-4">
                 <Price p={p} interval={interval} />
               </div>
-              <div className="mt-5">{action(id)}</div>
+              {id === "foundation" ? (
+                <div className="mt-4 flex flex-col gap-1.5">
+                  <span className="aw-label mb-0!">Pick one</span>
+                  <div className="aw-pick" role="radiogroup" aria-label="Starter toolset">
+                    {(["visibility", "seo"] as Track[]).map((t) => (
+                      <button key={t} type="button" role="radio" aria-checked={track === t} className={track === t ? "is-on" : ""} onClick={() => setTrack(t)}>
+                        {t === "visibility" ? "AI Visibility" : "Organic Research"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              <div className="mt-5">{id === "foundation" ? action(id, track) : action(id)}</div>
               <div className="mt-6 flex flex-1 flex-col gap-5 border-t border-rule-faint pt-5">
-                {groups(p).map((g) => (
+                {groups(p, track).map((g) => (
                   <div key={g.title} className="flex flex-col gap-2.5">
                     <span className="aw-label mb-0!">{g.title}</span>
                     <ul className="flex flex-col gap-2.5">

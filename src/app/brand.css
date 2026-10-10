@@ -1322,3 +1322,9 @@
 .aw .aw-guide:not(.is-active) .aw-guide__go svg.aw-icon { color: var(--aw-brand); }
 .aw .aw-guide:not(.is-active) .aw-guide__more { width: 28px; height: 28px; border-radius: 8px; }
 .aw .aw-guide:hover:not(.is-active) { border-color: var(--aw-brand-mist, #C9D8F5); }
+
+/* Starter: pick one toolset. */
+.aw .aw-pick { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--aw-rule); border-radius: 12px; padding: 3px; background: var(--aw-surface-2); }
+.aw .aw-pick button { padding: 8px 6px; border-radius: 9px; font-size: 13px; color: var(--aw-muted); }
+.aw .aw-pick button + button { border-left: 1px solid var(--aw-rule); border-radius: 0 9px 9px 0; }
+.aw .aw-pick button.is-on { background: #fff; color: var(--aw-brand); font-weight: 500; box-shadow: var(--aw-shadow-xs); border-left-color: transparent; border-radius: 9px; }

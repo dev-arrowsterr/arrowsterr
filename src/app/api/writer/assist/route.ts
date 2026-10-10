@@ -4,7 +4,7 @@ import { guidelineText } from "@/lib/guideline";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
 import type { BrandGuideline, ChatMessage } from "@/lib/writerTypes";
 import { meteredRoute } from "@/lib/meter";
-import { requireTrack, take } from "@/lib/entitlements";
+import { requireWriter, take } from "@/lib/entitlements";
 import { TASK_COST } from "@/lib/plans";
 
 // The writing assistant. It knows the brand guideline, the content brief and the draft, and helps the
@@ -13,7 +13,7 @@ async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
-  const paid = await requireTrack(body.workspaceId, "seo");
+  const paid = await requireWriter(body.workspaceId);
   if (paid) return paid;
   const took = await take(body.workspaceId, "tasks", TASK_COST.agent);
   if (!took.ok) return took.response;

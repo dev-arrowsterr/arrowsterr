@@ -1,7 +1,7 @@
 import { CMS_API } from "@/lib/cms";
 import { CMS, type CmsKind, type Published, type PublishInput } from "@/lib/cmsTypes";
 import { adminClient, requireRole } from "@/lib/serverAuth";
-import { requireTrack } from "@/lib/entitlements";
+import { requireWriter } from "@/lib/entitlements";
 import type { DocPublishMeta } from "@/lib/writerAgent";
 
 const str = (v: unknown, n: number) => String(v ?? "").trim().slice(0, n);
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
   }
 
   if (body.action === "publish") {
-    const locked = await requireTrack(ws, "seo");
+    const locked = await requireWriter(ws);
     if (locked) return locked;
     const { data: conn } = await db.from("cms_connections").select("id, kind, config").eq("id", str(body.connectionId, 60)).eq("workspace_id", ws).maybeSingle();
     if (!conn) return err("Connect a CMS in Workspace settings first.", 404);
