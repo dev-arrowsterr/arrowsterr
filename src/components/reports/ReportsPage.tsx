@@ -1,7 +1,8 @@
 "use client";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { preinit } from "react-dom";
 import { getGuideline, listCalendar, siteForBrand, type CalendarItem } from "@/lib/db";
 import { FONTS, fontsUrl, TEMPLATES, themeOf, type Cards, type Font, type Hero, type ReportTheme } from "@/lib/reportTheme";
 import type { BrandGuideline } from "@/lib/writerTypes";
@@ -10,7 +11,7 @@ import { answered, brandStats } from "@/lib/metrics";
 import { contentRows, winsAndDrops, type TrafficData } from "@/lib/reports";
 import { SECTIONS, type ReportSection, type ReportSnapshot, type ReportStyle } from "@/lib/reportTypes";
 import type { RunAuth } from "@/lib/runner";
-import { useStash } from "@/lib/stash";
+import { peek, useStash } from "@/lib/stash";
 import type { View } from "@/lib/view";
 import { citedPathsOf } from "../research/ContentResults";
 import { Seg, Thinking } from "../ui";
@@ -19,6 +20,8 @@ import { ReportDoc, reportCss } from "./ReportDoc";
 type Data = { traffic: TrafficData | null; visitors: Visitor[] | null; items: CalendarItem[] | null; guideline: BrandGuideline | null; at: string };
 type Summary = { headline: string; points: string[]; next: string[] };
 const STYLE_KEY = (ws: string) => `arrowsterr.reportstyle.${ws}`;
+const DATA_KEY = (brand: string) => `report:${brand}`;
+const FRESH = 10 * 60_000;
 
 const BASE: ReportStyle = { agency: "", logo: "", color: TEMPLATES[0].accent, theme: TEMPLATES[0], title: "", footer: "", whiteLabel: false };
 function readStyle(ws: string): ReportStyle {
@@ -63,7 +66,7 @@ function Thumb({ t, on, onPick }: { t: ReportTheme; on: boolean; onPick: () => v
 /** Build a client report: pick sections, add your agency's logo and color, then download a PDF or share a link. */
 export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; auth: RunAuth; view: View; canEdit: boolean }) {
   const { brand, current, previous, filter, days, engines } = view;
-  const [saved, setSaved] = useStash<Record<number, Data>>(`report:${brand.id}`, {});
+  const [saved, setSaved] = useStash<Record<number, Data>>(DATA_KEY(brand.id), {});
   const [summaries, setSummaries] = useStash<Record<number, Summary>>(`report:${brand.id}:ai`, {});
   const [sections, setSections] = useStash<ReportSection[]>(`report:${brand.id}:sections`, ["ai", "competitors", "traffic", "visitors", "content"]);
   const [style, setStyleState] = useState<ReportStyle>(() => readStyle(auth.workspaceId));
@@ -73,7 +76,14 @@ export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; a
   const [panel, setPanel] = useState<"templates" | "agent" | "label" | "sections">("templates");
   const [ask, setAsk] = useState("");
   const [why, setWhy] = useState("");
-  const data = saved[days] ?? null;
+  // While a new period loads, keep showing the last one instead of dropping to a spinner.
+  const data = saved[days] ?? Object.values(saved).sort((a, b) => b.at.localeCompare(a.at))[0] ?? null;
+  const stale = !saved[days];
+  // The app hands us a new auth object on every render. Read the latest one without refetching.
+  const authRef = useRef(auth);
+  useEffect(() => {
+    authRef.current = auth;
+  });
   const summary = summaries[days] ?? null;
 
   const setStyle = (patch: Partial<ReportStyle>) => {
@@ -86,14 +96,20 @@ export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; a
     }
   };
 
+  // Every template's fonts, so switching templates never waits on a font sheet.
+  for (const t of TEMPLATES) preinit(fontsUrl(t), { as: "style", precedence: "default" });
+
+  const workspaceId = auth.workspaceId;
   useEffect(() => {
+    const have = peek<Record<number, Data>>(DATA_KEY(brand.id))?.[days];
+    if (have && Date.now() - Date.parse(have.at) < FRESH) return;
     let live = true;
     const call = async <T,>(path: string, body: Record<string, unknown>): Promise<T | null> => {
       try {
         const res = await fetch(path, {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${await auth.token()}` },
-          body: JSON.stringify({ ...body, workspaceId: auth.workspaceId, brandId: brand.id }),
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${await authRef.current.token()}` },
+          body: JSON.stringify({ ...body, workspaceId, brandId: brand.id }),
         });
         return res.ok ? ((await res.json()) as T) : null;
       } catch {
@@ -113,7 +129,7 @@ export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; a
     return () => {
       live = false;
     };
-  }, [sb, auth, brand, canEdit, days, setSaved]);
+  }, [sb, workspaceId, brand, canEdit, days, setSaved]);
 
   if (!data) return <Thinking text="Pulling your report together..." />;
 
@@ -396,7 +412,7 @@ export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; a
       <div className="flex min-w-0 flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2 print:hidden">
           {canEdit ? (
-            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={writeSummary} disabled={Boolean(busy)}>
+            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={writeSummary} disabled={Boolean(busy) || stale}>
               {busy === "summary" ? "Writing..." : summary ? "Rewrite AI summary" : "✦ Add AI summary"}
             </button>
           ) : null}
@@ -408,7 +424,7 @@ export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; a
               Download PDF
             </button>
             {canEdit ? (
-              <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={share} disabled={Boolean(busy)}>
+              <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={share} disabled={Boolean(busy) || stale}>
                 {busy === "share" ? "Creating link..." : "Share link"}
               </button>
             ) : null}
@@ -422,7 +438,7 @@ export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; a
             </a>
           </p>
         ) : null}
-        <div className="min-w-0 overflow-hidden rounded-aw-lg border border-rule print:rounded-none print:border-0" style={{ background: theme.paper }}>
+        <div aria-busy={stale} className={`min-h-[80vh] min-w-0 overflow-hidden rounded-aw-lg border border-rule transition-opacity print:min-h-0 print:rounded-none print:border-0 ${stale ? "opacity-60" : ""}`} style={{ background: theme.paper }}>
           <ReportDoc r={snapshot} />
         </div>
       </div>

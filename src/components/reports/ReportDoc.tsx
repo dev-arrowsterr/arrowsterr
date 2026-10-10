@@ -1,8 +1,8 @@
 "use client";
 
+import { preinit } from "react-dom";
 import type { ReportSnapshot } from "@/lib/reportTypes";
 import { fontStack, fontsUrl, themeOf, type ReportTheme } from "@/lib/reportTheme";
-
 
 const num = (n: number | null | undefined) => (n === null || n === undefined ? "–" : n.toLocaleString("en-US"));
 const pctOf = (n: number | null | undefined) => (n === null || n === undefined ? "–" : `${Math.round(n)}%`);
@@ -136,6 +136,8 @@ function SectionHead({ n, title, note }: { n: number; title: string; note?: stri
 /** A designed client report. The same component renders the preview, the PDF, the downloaded HTML and the shared link. */
 export function ReportDoc({ r, id = "report" }: { r: ReportSnapshot; id?: string }) {
   const t = themeOf(r.style);
+  // Load the fonts once into <head>. A <link precedence> here would hold the whole report back until a new font sheet arrives.
+  preinit(fontsUrl(t), { as: "style", precedence: "default" });
   const has = (s: ReportSnapshot["sections"][number]) => r.sections.includes(s);
   const date = new Date(r.at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
   const title = r.style.title?.trim() || "AI Visibility Report";
@@ -178,7 +180,6 @@ export function ReportDoc({ r, id = "report" }: { r: ReportSnapshot; id?: string
 
   return (
     <article id={id} className="rp">
-      <link rel="stylesheet" href={fontsUrl(t)} precedence="default" />
       <style>{reportCss(t)}</style>
 
       {/* Cover */}
