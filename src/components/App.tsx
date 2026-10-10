@@ -96,6 +96,9 @@ const pageFromPath = (path: string): Page => {
   return (Object.entries(SLUGS).find(([, slug]) => slug === p)?.[0] as Page | undefined) ?? ALIASES[p] ?? "prompts";
 };
 const PENDING_BRAND = "arrowsterr.brand.pending";
+/** Adding a brand has its own address. */
+const ONBOARDING = "/onboarding";
+const onOnboarding = () => window.location.pathname.replace(/\/+$/, "") === ONBOARDING;
 
 const INVITE_KEY = "arrowsterr.invite";
 const LEGACY_BRANDS = "arrowsterr.brands";
@@ -152,7 +155,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   const [wsId, setWsId] = useState<string | null>(() => readLocal(`arrowsterr.ws.${userId}`));
   const [brands, setBrands] = useState<Brand[] | null>(null);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
+  const [adding, setAdding] = useState(() => window.location.pathname.replace(/\/+$/, "") === ONBOARDING);
   const [promptRoom, setPromptRoom] = useState<number | undefined>(undefined); // prompts the plan still has room for, while adding a brand
   const tester = email.toLowerCase() === WEBSITE_TESTER;
   // Website pages are for the tester only: everyone else lands on Prompts.
@@ -164,8 +167,11 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
     if (window.location.pathname !== SLUGS[p]) window.history.pushState(null, "", SLUGS[p] + window.location.search);
   }, []);
   useEffect(() => {
-    if (window.location.pathname !== SLUGS[page]) window.history.replaceState(null, "", SLUGS[page] + window.location.search);
-    const back = () => setPage(allowed(pageFromPath(window.location.pathname)));
+    if (window.location.pathname !== SLUGS[page] && !onOnboarding()) window.history.replaceState(null, "", SLUGS[page] + window.location.search);
+    const back = () => {
+      setPage(allowed(pageFromPath(window.location.pathname)));
+      setAdding(onOnboarding());
+    };
     window.addEventListener("popstate", back);
     return () => window.removeEventListener("popstate", back);
     // Only on first load: after that, go() moves the address.
@@ -269,6 +275,13 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
     };
   }, [sb, ws, needsRoom]);
   const canEdit = atLeast(ws?.role, "editor");
+  // Onboarding lives at /onboarding. Leaving it puts the page's own address back.
+  const onboarding = Boolean(canEdit && brands && (adding || !brands.length));
+  useEffect(() => {
+    if (!brands) return;
+    if (onboarding && !onOnboarding()) window.history.pushState(null, "", ONBOARDING + window.location.search);
+    else if (!onboarding && onOnboarding()) window.history.replaceState(null, "", SLUGS[page] + window.location.search);
+  }, [onboarding, brands, page]);
   const loadPlan = useCallback(() => {
     if (ws) getPlanUsage(sb, ws.id).then(setPlan).catch(() => setPlan(null));
   }, [sb, ws]);
@@ -434,7 +447,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   }
 
   const auth: RunAuth = { workspaceId: ws.id, token };
-  if (canEdit && (adding || !brands.length)) {
+  if (onboarding) {
     return (
       <Onboarding
         auth={auth}
