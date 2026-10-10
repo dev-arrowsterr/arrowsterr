@@ -372,7 +372,8 @@ export function TopicBank({ sb, auth, site, canEdit, onSite, onCalendar }: { sb:
         </div>
       ) : null}
 
-      {bank.length ? (
+      {/* Once a plan exists, the bank stays here even when every keyword was deleted or moved to the calendar. */}
+      {bank.length || hasPlan ? (
       <Card action={toolbar}>
           {picked.size && canEdit ? (
             <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint bg-brand-pale px-5 py-2.5">
@@ -395,6 +396,20 @@ export function TopicBank({ sb, auth, site, canEdit, onSite, onCalendar }: { sb:
               </button>
             </div>
           ) : null}
+          {!bank.length ? (
+            <div className="flex flex-col items-center gap-3 px-6 py-12 text-center">
+              <span className="aw-h4">Your Topic Bank is empty</span>
+              <p className="max-w-md text-[15px] text-ink">
+                {canEdit ? "Type or paste keywords above, upload a CSV, or let the AI agent build a fresh Topic Bank." : "An editor can add keywords or build a fresh Topic Bank."}
+              </p>
+              {canEdit ? (
+                <button type="button" className="aw-btn aw-btn--accent" onClick={() => setWizard(true)}>
+                  <AiIcon />
+                  Generate Topic Bank
+                </button>
+              ) : null}
+            </div>
+          ) : (
           <Sheet<Row>
             id={`bank:${site.id}`}
             label="Topic Bank"
@@ -409,6 +424,7 @@ export function TopicBank({ sb, auth, site, canEdit, onSite, onCalendar }: { sb:
             canSelect={(r) => !r.blank}
             height="60vh"
           />
+          )}
         </Card>
       ) : null}
 
