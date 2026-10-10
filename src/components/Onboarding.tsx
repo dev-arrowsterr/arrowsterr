@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { MUSINGS } from "@/lib/musings";
 import { flatPrompts, type Brand, type BrandCard, type Profile, type RivalCard, type Topic } from "@/lib/db";
-import { ANGLES, BUSINESS_TYPES, COUNTRIES, MAX_PROMPTS, MAX_TOPICS, type Angle, type PickedTopic, type TopicRole } from "@/lib/onboarding";
+import { ANGLES, BUSINESS_TYPES, COUNTRIES, MAX_PROMPTS, MAX_TOPICS, type Angle, type PickedTopic } from "@/lib/onboarding";
 import type { RunAuth } from "@/lib/runner";
 import { BrandLogo } from "./BrandLogo";
 import { Logo } from "./Logo";
@@ -35,11 +35,6 @@ const QUADRANTS: { k: keyof BrandCard; label: string; ask: string; glyph: string
   { k: "whySo", label: "Why-so", ask: "What it believes, and the problem it fights", glyph: "✦" },
 ];
 
-export const ROLES: Record<TopicRole, { label: string; about: string }> = {
-  core: { label: "Core", about: "Your home ground, where your difference wins" },
-  contested: { label: "Contested", about: "A large shared category with strong players" },
-  conquest: { label: "Conquest", about: "Buyers looking to leave a competitor" },
-};
 const angleLabel = (a: Angle) => ANGLES.find((x) => x.id === a)?.label ?? a;
 const PRICES = ["budget", "mid", "premium"] as const;
 
@@ -318,49 +313,49 @@ function SiteStep(p: { seo: boolean; website: string; setWebsite: (v: string) =>
   );
 }
 
-function PencilIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M4 20l4-1 11-11a2.1 2.1 0 0 0-3-3L5 16l-1 4z" />
-      <path d="M14 7l3 3" />
-    </svg>
-  );
-}
-
-/** A titled bullet list. The pencil turns it into a text box, one point per line. */
+/** A titled bullet list. Click the list to edit it as text, one point per line. Click away to save. */
 function Bullets({ label, ask, glyph, items, onChange, className = "" }: { label: string; ask?: string; glyph?: string; items: string[]; onChange: (v: string[]) => void; className?: string }) {
   const [edit, setEdit] = useState(false);
   const [draft, setDraft] = useState("");
-  const toggle = () => {
-    if (edit) onChange(draft.split("\n").map((x) => x.replace(/^[-•*]\s*/, "").trim()).filter(Boolean));
-    else setDraft(items.join("\n"));
-    setEdit(!edit);
+  const open = () => {
+    setDraft(items.join("\n"));
+    setEdit(true);
+  };
+  const save = () => {
+    onChange(draft.split("\n").map((x) => x.replace(/^[-•*]\s*/, "").trim()).filter(Boolean));
+    setEdit(false);
   };
   return (
     <section className={`aw-quad ${className}`}>
-      <header className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <span className="aw-quad__label">
-            {glyph ? <i aria-hidden="true">{glyph}</i> : null}
-            {label}
-          </span>
-          {ask ? <p className="aw-quad__ask">{ask}</p> : null}
-        </div>
-        <button type="button" className={`aw-pencil ${edit ? "is-on" : ""}`} onMouseDown={(e) => e.preventDefault()} onClick={toggle} aria-label={edit ? `Save ${label}` : `Edit ${label}`} title={edit ? "Save" : "Edit"}>
-          {edit ? "✓" : <PencilIcon />}
-        </button>
+      <header className="min-w-0">
+        <span className="aw-quad__label">
+          {glyph ? <i aria-hidden="true">{glyph}</i> : null}
+          {label}
+        </span>
+        {ask ? <p className="aw-quad__ask">{ask}</p> : null}
       </header>
       {edit ? (
-        <textarea autoFocus rows={Math.max(3, items.length + 1)} value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={toggle} className="aw-textarea text-[14px]!" aria-label={`${label}, one point per line`} />
-      ) : items.length ? (
-        <ul className="aw-quad__list">
-          {items.map((x, i) => (
-            <li key={i}>{x.charAt(0).toUpperCase() + x.slice(1)}</li>
-          ))}
-        </ul>
+        <textarea
+          autoFocus
+          rows={Math.max(3, items.length + 1)}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={save}
+          onKeyDown={(e) => e.key === "Escape" && setEdit(false)}
+          className="aw-textarea text-[14px]!"
+          aria-label={`${label}, one point per line`}
+        />
       ) : (
-        <button type="button" className="aw-text-link self-start text-[13px]" onClick={toggle}>
-          + Add points
+        <button type="button" className="aw-quad__edit" onClick={open} title="Click to edit" aria-label={`Edit ${label}`}>
+          {items.length ? (
+            <ul className="aw-quad__list">
+              {items.map((x, i) => (
+                <li key={i}>{x.charAt(0).toUpperCase() + x.slice(1)}</li>
+              ))}
+            </ul>
+          ) : (
+            <span className="text-[13px] text-muted">Click to add points</span>
+          )}
         </button>
       )}
     </section>
@@ -384,7 +379,7 @@ function BrandStep(p: {
   return (
     <>
       <StepHead n={1} kicker="Brand Card" title="Here is how we read your brand">
-        Click the pencil on anything that looks off. Topics and prompts build on this.
+        Click any list to edit it. Topics and prompts build on this.
       </StepHead>
 
       <div className="aw-frame aw-onb__id">
@@ -596,7 +591,6 @@ function PriceTag({ price }: { price: string }) {
 }
 
 function TopicsStep({ topics, setTopics, candidates, onBack, onNext }: { topics: TopicPick[]; setTopics: (t: TopicPick[]) => void; candidates: number; onBack: () => void; onNext: () => void }) {
-  const [draft, setDraft] = useState("");
   const max = Math.max(1, ...topics.map((t) => t.volume ?? 0));
   const on = topics.filter((t) => t.on).length;
   return (
@@ -618,7 +612,7 @@ function TopicsStep({ topics, setTopics, candidates, onBack, onNext }: { topics:
         <span className="aw-formula__op">×</span>
         <span className="aw-formula__term">
           <b>Diversity</b>
-          Each topic covers a new kind of buyer
+          No two topics serve the same buyer
         </span>
       </div>
 
@@ -634,12 +628,12 @@ function TopicsStep({ topics, setTopics, candidates, onBack, onNext }: { topics:
                   onChange={(e) => setTopics(topics.map((x, j) => (j === i ? { ...x, topic: e.target.value } : x)))}
                   className="aw-topic__name"
                 />
-                <span className={`aw-role aw-role--${t.role}`} title={ROLES[t.role].about}>
-                  {ROLES[t.role].label}
-                </span>
               </div>
-              {t.reason ? <p className="aw-small">{t.reason}</p> : null}
-              {t.buyer ? <p className="text-[13px] text-muted">Buyer: {t.buyer}</p> : null}
+              <p className="text-[13px] text-muted">
+                {t.buyer ? <b className="font-medium text-body">{t.buyer}</b> : null}
+                {t.buyer && t.reason ? " · " : null}
+                {t.reason}
+              </p>
             </div>
             <div className="aw-topic__vol">
               <span className="aw-topic__num">{t.volume === null ? "–" : t.volume.toLocaleString("en-US")}</span>
@@ -658,33 +652,6 @@ function TopicsStep({ topics, setTopics, candidates, onBack, onNext }: { topics:
           </li>
         ))}
       </ol>
-
-      <form
-        className="flex gap-2"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const v = draft.trim().toLowerCase();
-          if (!v) return;
-          setTopics([...topics, { topic: v, role: "core", relevance: 5, buyer: "", reason: "Added by you", volume: null, score: 0, on: on < MAX_TOPICS }]);
-          setDraft("");
-        }}
-      >
-        <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Add your own topic, like: best desktop po editor" className="aw-input" />
-        <button type="submit" className="aw-btn aw-btn--secondary" disabled={!draft.trim()}>
-          Add
-        </button>
-      </form>
-
-      <dl className="aw-roles">
-        {(Object.keys(ROLES) as TopicRole[]).map((r) => (
-          <div key={r}>
-            <dt>
-              <span className={`aw-role aw-role--${r}`}>{ROLES[r].label}</span>
-            </dt>
-            <dd>{ROLES[r].about}</dd>
-          </div>
-        ))}
-      </dl>
 
       <Footer onBack={onBack} next="Write my prompts" onNext={onNext} disabled={!on || on > MAX_TOPICS} note={`${on} of ${MAX_TOPICS} topics`} />
     </>

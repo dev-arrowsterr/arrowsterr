@@ -1,5 +1,5 @@
 import { askJson } from "@/lib/claude";
-import { CANDIDATE_TOPICS, cleanProfile, pickTopics, TOPICS_PROMPT, TOPICS_SCHEMA, type Candidate, type TopicRole } from "@/lib/onboarding";
+import { CANDIDATE_TOPICS, cleanProfile, pickTopics, TOPICS_PROMPT, TOPICS_SCHEMA, type Candidate } from "@/lib/onboarding";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
 import { take } from "@/lib/entitlements";
 import { TASK_COST } from "@/lib/plans";
@@ -21,7 +21,7 @@ async function handle(request: Request) {
 
   try {
     const profile = cleanProfile(body.profile);
-    const out = await askJson<{ topics: { topic: string; role: TopicRole; relevance: number; buyer: string; reason: string }[] }>(TOPICS_PROMPT(name, domain, profile), TOPICS_SCHEMA, { maxTokens: 8000 });
+    const out = await askJson<{ topics: { topic: string; group: string; relevance: number; buyer: string; reason: string }[] }>(TOPICS_PROMPT(name, domain, profile), TOPICS_SCHEMA, { maxTokens: 8000 });
     const seen = new Set<string>();
     const cands = (out.topics ?? [])
       .map((t) => ({ ...t, topic: t.topic.trim().toLowerCase().replace(/\s+/g, " ").slice(0, 80) }))

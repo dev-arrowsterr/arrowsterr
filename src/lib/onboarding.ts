@@ -116,13 +116,14 @@ export const SITE_SCHEMA = {
 
 // ── Step 2: 50 candidate topics, then the 5 best ───────────────────────────────
 
+// How buyers usually phrase a category, by business type. Examples only: the research decides the topics.
 const TYPE_RULES: Record<BusinessType, string> = {
-  saas: `Software business. Use "best [category] software", "best [category] tools", "best [category] app" and "[competitor] alternatives".`,
-  ecommerce: `Ecommerce brand. Use "best [product]", "best [product] for [need]" and "[competitor brand] alternatives".`,
-  service: `Service business. Use "best [service] agencies", "best [service] services", "[service] company for [industry]" and "[competitor] alternatives".`,
-  local: `Local business. Use "best [service] in [city]" and "[service] near [area]". Skip alternatives unless a well-known chain competes.`,
-  marketplace: `Marketplace. Use "best [thing] marketplace", "best sites to [book or find thing]" and "[competitor] alternatives".`,
-  other: `Use "best [category]" and "[competitor] alternatives".`,
+  saas: `Buyers usually search like "best [category] software" or "best [category] tool for [use]".`,
+  ecommerce: `Buyers usually search like "best [product]" or "best [product] for [need]".`,
+  service: `Buyers usually search like "best [service] agency" or "[service] company for [industry]".`,
+  local: `Buyers usually search like "best [service] in [city]".`,
+  marketplace: `Buyers usually search like "best [thing] marketplace" or "best sites to [book or find thing]".`,
+  other: `Buyers usually search like "best [category]".`,
 };
 
 const about = (name: string, site: string, p: Profile) => {
@@ -146,19 +147,16 @@ ${about(name, site, p)}
 
 ${TYPE_RULES[p.businessType ?? "other"]}
 
-Write ${CANDIDATE_TOPICS} candidate topics.
-- Bottom of the funnel only: the buyer is ready to compare and choose.
-- 5 words or fewer, lowercase except brand and place names. Real search phrases, not long-tail sentences.
-- Start general (the main category), then go niche (by customer type, use case, platform, feature or price). In a niche industry, include both.
-- Strictly mutually exclusive: no two topics may serve the same buyer with the same need. Plurals, synonyms and reworded duplicates count as the same topic.
+Write ${CANDIDATE_TOPICS} candidate topics, based on the research above. Let the research decide what fits this business best.
+- Bottom of the funnel: the buyer is ready to compare and choose.
+- 5 words or fewer, lowercase except brand and place names. Simple, precise, real search phrases.
+- Cover the whole market: the main category, then each distinct buyer type, use case, platform or need this business serves.
+- No duplicates. Plurals, synonyms and reworded topics count as the same topic.
 - Never include ${name} itself.
-- role:
-  - core: the brand's home ground, where its difference wins.
-  - contested: a large shared category with strong players.
-  - conquest: "[competitor] alternatives", using the competitors above.
-- relevance 1 to 5: how likely a buyer in this topic would choose ${name}. Give 5 only when the topic matches how ${name} differs from its competitors. Example: a desktop PO editor scores 5 on "best desktop po editor" and 2 on "localization management platform".
+- group: a 2 to 4 word label for the buyer and need the topic serves, like "solo wordpress developers" or "enterprise localization teams". Topics that serve the same buyer and need share the exact same label.
+- relevance 1 to 5: how likely a buyer in this topic would choose ${name}. Give 5 only when the topic matches how ${name} differs from its competitors.
 - buyer: who searches this, in under 8 words.
-- reason: why it fits or not, in under 15 words.`;
+- reason: why it fits, in under 15 words.`;
 
 export const TOPICS_SCHEMA = {
   type: "object",
@@ -170,10 +168,10 @@ export const TOPICS_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["topic", "role", "relevance", "buyer", "reason"],
+        required: ["topic", "group", "relevance", "buyer", "reason"],
         properties: {
           topic: { type: "string" },
-          role: { type: "string", enum: ["core", "contested", "conquest"] },
+          group: { type: "string" },
           relevance: { type: "integer", enum: [1, 2, 3, 4, 5] },
           buyer: { type: "string" },
           reason: { type: "string" },
@@ -183,8 +181,7 @@ export const TOPICS_SCHEMA = {
   },
 };
 
-export type TopicRole = "core" | "contested" | "conquest";
-export type Candidate = { topic: string; role: TopicRole; relevance: number; buyer: string; reason: string; volume: number | null };
+export type Candidate = { topic: string; group: string; relevance: number; buyer: string; reason: string; volume: number | null };
 export type PickedTopic = Candidate & { score: number };
 
 const FILLER = new Set(["best", "top", "software", "tools", "tool", "app", "apps", "platform", "platforms", "services", "service", "agency", "agencies", "for", "the", "a", "an", "and", "of", "in", "to", "with", "near", "company", "companies", "online"]);
@@ -198,9 +195,9 @@ function overlap(a: Set<string>, b: Set<string>) {
 
 /**
  * Pick the topics to track. Score = Volume × Relevance × Diversity.
- * Volume is on a log scale so one huge topic cannot win on size alone. Each pick lowers the
- * score of topics close to it, so the final set covers different buyers. The set holds at
- * least one core, one contested and one conquest topic when the candidates allow it.
+ * Volume is on a log scale so one huge topic cannot win on size alone. Diversity: each buyer
+ * group gives at most one topic, and topics that share words with a pick score lower. So the
+ * final set spreads across as many different buyers and needs as the candidates allow.
  */
 export function pickTopics(cands: Candidate[], n = MAX_TOPICS): PickedTopic[] {
   const pool = cands.filter((c) => (c.volume ?? 0) > 0 || c.relevance >= 5);
@@ -208,11 +205,13 @@ export function pickTopics(cands: Candidate[], n = MAX_TOPICS): PickedTopic[] {
   const top = Math.log10(Math.max(...pool.map((c) => c.volume ?? 0)) + 10);
   const base = (c: Candidate) => (Math.log10((c.volume ?? 0) + 10) / top) * Math.pow(c.relevance / 5, 1.5);
   const terms = new Map(pool.map((c) => [c.topic, termsOf(c.topic)]));
+  const groupOf = (c: Candidate) => c.group.trim().toLowerCase();
   const out: PickedTopic[] = [];
   const left = [...pool];
   while (out.length < n && left.length) {
-    const missing = (["core", "contested", "conquest"] as const).filter((r) => !out.some((o) => o.role === r) && left.some((c) => c.role === r));
-    const choices = n - out.length <= missing.length ? left.filter((c) => missing.includes(c.role)) : left;
+    // A new buyer group first. Only reuse a group once every group has a topic.
+    const fresh = left.filter((c) => !out.some((o) => groupOf(o) === groupOf(c)));
+    const choices = fresh.length ? fresh : left;
     let best: Candidate | null = null;
     let bestScore = -1;
     for (const c of choices) {
