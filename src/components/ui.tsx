@@ -12,6 +12,7 @@ export const score = (n: number | null | undefined) => (n === null || n === unde
 
 // Your brand is the blue series. Competitors use the Perceptric neutrals and gold.
 export const YOU_COLOR = "#0943B0";
+export const RIVAL_COLOR = "#E8603C"; // the competitor in any one-on-one view
 export const OTHER_COLORS = ["#F5B70A", "#2B3242", "#D08A4E", "#28A745", "#7C8697", "#B3241A", "#2E6BE0", "#A6AEBB"];
 
 export function Card({ title, action, children, className = "" }: { title?: React.ReactNode; action?: React.ReactNode; children: React.ReactNode; className?: string }) {

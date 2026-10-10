@@ -87,8 +87,6 @@ export function ResearchPage({
           site={site}
           canEdit={canEdit}
           onSite={setSite}
-          brand={brand.name}
-          chats={answered(view.current, view.filter)}
           stats={brandStats(answered(view.current, view.filter), { name: brand.name, domain: brand.domain })}
         />
       ) : tool === "topics" ? (

@@ -1,45 +1,31 @@
 "use client";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { useEffect, useState } from "react";
-import type { Chat } from "@/lib/chats";
+import { useEffect, useId, useState } from "react";
 import type { Site } from "@/lib/db";
 import type { BrandStat } from "@/lib/metrics";
 import type { Gap, GapRow } from "@/lib/gap";
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
 import { Sheet, type Col } from "../Sheet";
-import { BookmarkIcon, Card, favicon, Thinking } from "../ui";
+import { BookmarkIcon, Card, favicon, RIVAL_COLOR, Thinking, YOU_COLOR } from "../ui";
 import { BAR_BUTTON, BAR_INPUT, Difficulty, downloadCsv, fmtNum, post } from "./shared";
 import { KeywordPanel } from "./KeywordPanel";
 import { addToBank } from "./TopicBank";
 
-type Tab = "missing" | "weaker" | "shared" | "only";
-const TABS: { id: Tab; label: string; tone: string }[] = [
-  { id: "missing", label: "Missing", tone: "text-neg" },
-  { id: "weaker", label: "Weaker", tone: "text-ink" },
-  { id: "shared", label: "Shared", tone: "text-brand" },
-  { id: "only", label: "Only you", tone: "text-pos" },
-];
+type Tab = "missing" | "shared" | "weaker" | "lead" | "only";
+const LABEL = (them: string): Record<Tab, string> => ({
+  missing: `Owned by ${them}`,
+  shared: "Shared Keywords",
+  weaker: "Opportunity",
+  lead: "You lead",
+  only: "Owned by you",
+});
 const rank = (n: number | null) => (n === null ? <span className="text-muted">–</span> : <span className="aw-rank">#{n}</span>);
 
 const bare = (d: string | null | undefined) => (d ?? "").toLowerCase().replace(/^www\./, "");
 
-/** Prompts where the rival is named and you are not, with their spot. */
-function wins(chats: Chat[], rival: string, you: string) {
-  const by = new Map<string, { prompt: string; spots: number[]; answers: number }>();
-  for (const c of chats) {
-    const them = c.brands.find((b) => b.name.toLowerCase() === rival.toLowerCase());
-    const mine = c.brands.some((b) => b.name.toLowerCase() === you.toLowerCase());
-    const row = by.get(c.prompt) ?? { prompt: c.prompt, spots: [], answers: 0 };
-    row.answers += 1;
-    if (them && !mine) row.spots.push(them.position);
-    by.set(c.prompt, row);
-  }
-  return [...by.values()].filter((r) => r.spots.length).sort((a, b) => b.spots.length - a.spots.length);
-}
-
-/** Competitive Analysis: rivals from your AI answers and from Google, how they beat you in AI answers, and the keywords they rank for that you don't. */
+/** Competitive Analysis: rivals from your AI answers and from Google, and how your keywords overlap with theirs. */
 export function KeywordGap({
   sb,
   auth,
@@ -47,8 +33,6 @@ export function KeywordGap({
   canEdit,
   onSite,
   stats,
-  chats,
-  brand,
 }: {
   sb: SupabaseClient;
   auth: RunAuth;
@@ -56,11 +40,8 @@ export function KeywordGap({
   canEdit: boolean;
   onSite: (s: Site) => void;
   stats: BrandStat[];
-  chats: Chat[];
-  brand: string;
 }) {
   const [open, setOpen] = useState<GapRow | null>(null);
-  const you = stats.find((s) => s.isYou);
   const aiRivals = stats.filter((s) => !s.isYou && s.domain && bare(s.domain) !== bare(site.domain)).slice(0, 8);
   const [rivals, setRivals] = useStash<string[] | null>(`rivals:${site.id}`, null);
   const [result, setResult] = useStash<{ gap: Gap; them: string } | null>(`gap:${site.id}`, null);
@@ -101,12 +82,13 @@ export function KeywordGap({
   }
 
   const gap = result?.gap;
+  // Shared keywords split by who ranks higher: an opportunity when they beat you, a lead when you beat them.
   const weaker = (gap?.shared ?? []).filter((r) => r.you !== null && r.them !== null && r.you > r.them);
-  const lists: Record<Tab, GapRow[]> = { missing: gap?.missing ?? [], weaker, shared: gap?.shared ?? [], only: gap?.only ?? [] };
-  const counts: Record<Tab, number> = { missing: gap?.totals.missing ?? 0, weaker: weaker.length, shared: gap?.totals.shared ?? 0, only: gap?.totals.only ?? 0 };
+  const lead = (gap?.shared ?? []).filter((r) => !weaker.includes(r));
+  const lists: Record<Tab, GapRow[]> = { missing: gap?.missing ?? [], shared: gap?.shared ?? [], weaker, lead, only: gap?.only ?? [] };
+  const counts: Record<Tab, number> = { missing: gap?.totals.missing ?? 0, shared: gap?.totals.shared ?? 0, weaker: weaker.length, lead: lead.length, only: gap?.totals.only ?? 0 };
   const rows = lists[tab];
-  const rival = result ? stats.find((s) => !s.isYou && bare(s.domain) === bare(result.them)) : undefined;
-  const won = rival ? wins(chats, rival.name, brand) : [];
+  const labels = LABEL(result?.them ?? "them");
 
   const cols: Col<GapRow>[] = [
     { id: "keyword", label: "Keyword", type: "text", value: (r) => r.keyword, width: 280 },
@@ -190,71 +172,18 @@ export function KeywordGap({
 
       {!busy && gap ? (
         <>
-          {rival ? (
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
-              <section className="aw-frame flex flex-col">
-                <div className="aw-frame__head">
-                  <h3 className="aw-h4">In AI answers</h3>
-                </div>
-                <div className="grid grid-cols-2 gap-px bg-rule-faint">
-                  {[
-                    { lab: "Visibility", a: you ? `${Math.round(you.visibility)}%` : "–", b: `${Math.round(rival.visibility)}%` },
-                    { lab: "Position", a: you?.position ? `#${you.position.toFixed(1)}` : "–", b: rival.position ? `#${rival.position.toFixed(1)}` : "–" },
-                    { lab: "Sentiment", a: you?.sentiment !== null && you?.sentiment !== undefined ? Math.round(you.sentiment) : "–", b: rival.sentiment !== null ? Math.round(rival.sentiment) : "–" },
-                    { lab: "Mentions", a: you?.mentions ?? 0, b: rival.mentions },
-                  ].map((x) => (
-                    <div key={x.lab} className="flex flex-col gap-1.5 bg-white px-5 py-4">
-                      <span className="aw-label">{x.lab}</span>
-                      <span className="flex items-baseline gap-3 text-[20px] font-medium text-ink">
-                        <span className="text-brand">{x.a}</span>
-                        <span className="text-[13px] text-muted">vs</span>
-                        <span>{x.b}</span>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </section>
-              <section className="aw-frame flex flex-col">
-                <div className="aw-frame__head">
-                  <h3 className="aw-h4">Prompts {rival.name} wins</h3>
-                  <span className="aw-label">{won.length}</span>
-                </div>
-                <ul className="max-h-64 divide-y divide-rule-faint overflow-y-auto">
-                  {won.slice(0, 12).map((w) => (
-                    <li key={w.prompt} className="flex items-center justify-between gap-3 px-5 py-2.5 text-[13px]">
-                      <span className="min-w-0 truncate text-ink" title={w.prompt}>
-                        {w.prompt}
-                      </span>
-                      <span className="aw-num shrink-0 text-muted">
-                        {w.spots.length} of {w.answers} · #{(w.spots.reduce((n, x) => n + x, 0) / w.spots.length).toFixed(1)}
-                      </span>
-                    </li>
-                  ))}
-                  {!won.length ? <li className="px-5 py-3 text-[13px] text-muted">–</li> : null}
-                </ul>
-              </section>
-            </div>
-          ) : null}
-          <div className="aw-kpis" role="tablist" aria-label="Keyword gap">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                role="tab"
-                aria-selected={tab === t.id}
-                className={`aw-kpi ${tab === t.id ? "is-on" : ""}`}
-                onClick={() => {
-                  setTab(t.id);
-                  setPicked(new Set());
-                }}
-              >
-                <span className="aw-kpi__lab">{t.label}</span>
-                <span className={`aw-kpi__num ${t.tone}`}>{fmtNum(counts[t.id])}</span>
-              </button>
-            ))}
-          </div>
+          <Venn
+            them={result!.them}
+            you={site.domain}
+            counts={counts}
+            tab={tab}
+            onTab={(t) => {
+              setTab(t);
+              setPicked(new Set());
+            }}
+          />
           <Card
-            title={`${result!.them} · ${TABS.find((t) => t.id === tab)!.label}`}
+            title={labels[tab]}
             action={
               <button
                 type="button"
@@ -293,5 +222,83 @@ export function KeywordGap({
       ) : null}
       {open ? <KeywordPanel sb={sb} auth={auth} site={site} keyword={open.keyword} seed={{ volume: open.volume, kd: open.kd, intent: open.intent }} canEdit={canEdit} onSite={onSite} onClose={() => setOpen(null)} /> : null}
     </div>
+  );
+}
+
+/** You vs one competitor as two circles. Each region is a button that filters the table below. */
+export function Venn({ them, you, counts, tab, onTab }: { them: string; you: string; counts: Record<Tab, number>; tab: Tab; onTab: (t: Tab) => void }) {
+  const id = useId().replace(/:/g, "");
+  const L = LABEL(them);
+  const on = (t: Tab) => tab === t || (tab === "shared" && (t === "weaker" || t === "lead"));
+  const region = (t: Tab) => ({
+    role: "button",
+    tabIndex: 0,
+    "aria-label": `${L[t]}: ${counts[t]} keywords`,
+    "aria-pressed": tab === t,
+    className: "cursor-pointer outline-none transition-opacity hover:opacity-80 focus-visible:opacity-80",
+    onClick: () => onTab(t),
+    onKeyDown: (e: React.KeyboardEvent) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), onTab(t)),
+  });
+  const fill = (color: string, t: Tab) => ({ fill: color, fillOpacity: on(t) ? 0.28 : 0.1 });
+  const text = (x: number, y: number, lines: string[], n: number, color: string, size = 30) => (
+    <g pointerEvents="none" textAnchor="middle">
+      {lines.map((l, i) => (
+        <text key={i} x={x} y={y + i * 16} fontSize="13" fill="var(--aw-body)">
+          {l}
+        </text>
+      ))}
+      <text x={x} y={y + (lines.length - 1) * 16 + size + 4} fontSize={size} fontWeight="500" fill={color}>
+        {fmtNum(n)}
+      </text>
+    </g>
+  );
+  return (
+    <section className="aw-frame flex flex-col">
+      <div className="aw-frame__head justify-between">
+        <h3 className="aw-h4">Keyword overlap</h3>
+        <span className="flex items-center gap-4 text-[13px] text-body">
+          <span className="flex items-center gap-1.5">
+            <i className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: RIVAL_COLOR }} aria-hidden="true" />
+            {them}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <i className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: YOU_COLOR }} aria-hidden="true" />
+            {you}
+          </span>
+        </span>
+      </div>
+      <div className="flex flex-col items-center gap-2 px-4 py-5">
+        <button type="button" onClick={() => onTab("shared")} aria-pressed={tab === "shared"} className={`aw-chip ${tab === "shared" ? "aw-chip--brand" : ""}`}>
+          Shared Keywords <span className="aw-num">{fmtNum(counts.shared)}</span>
+        </button>
+        <svg viewBox="0 0 640 290" className="w-full max-w-[680px]" role="group" aria-label={`Keywords ${them} and ${you} rank for`}>
+          <defs>
+            <clipPath id={`${id}t`}>
+              <circle cx="245" cy="145" r="135" />
+            </clipPath>
+            <clipPath id={`${id}y`}>
+              <circle cx="395" cy="145" r="135" />
+            </clipPath>
+          </defs>
+          <circle cx="245" cy="145" r="135" {...fill(RIVAL_COLOR, "missing")} {...region("missing")} />
+          <circle cx="395" cy="145" r="135" {...fill(YOU_COLOR, "only")} {...region("only")} />
+          <g clipPath={`url(#${id}t)`}>
+            <g clipPath={`url(#${id}y)`}>
+              <rect x="0" y="0" width="640" height="145" fill="#fff" />
+              <rect x="0" y="145" width="640" height="145" fill="#fff" />
+              <rect x="0" y="0" width="640" height="145" {...fill(RIVAL_COLOR, "weaker")} {...region("weaker")} />
+              <rect x="0" y="145" width="640" height="145" {...fill(YOU_COLOR, "lead")} {...region("lead")} />
+              <line x1="0" y1="145" x2="640" y2="145" stroke="var(--aw-rule)" pointerEvents="none" />
+            </g>
+          </g>
+          <circle cx="245" cy="145" r="135" fill="none" stroke={RIVAL_COLOR} strokeWidth={tab === "missing" ? 2.5 : 1.5} pointerEvents="none" />
+          <circle cx="395" cy="145" r="135" fill="none" stroke={YOU_COLOR} strokeWidth={tab === "only" ? 2.5 : 1.5} pointerEvents="none" />
+          {text(178, 122, ["Owned by", them.length > 22 ? `${them.slice(0, 21)}…` : them], counts.missing, RIVAL_COLOR)}
+          {text(462, 130, [L.only], counts.only, YOU_COLOR)}
+          {text(320, 92, [L.weaker], counts.weaker, RIVAL_COLOR, 20)}
+          {text(320, 182, [L.lead], counts.lead, YOU_COLOR, 20)}
+        </svg>
+      </div>
+    </section>
   );
 }

@@ -10,10 +10,10 @@ import { BrandLogo } from "./BrandLogo";
 import { EngineName } from "./Engines";
 import { flag, short } from "./research/KeywordOverview";
 import { post } from "./research/shared";
-import { Delta, favicon, guessDomain, pct, pos, score, SidePanel, Thinking, Tip, TIPS, YOU_COLOR } from "./ui";
+import { Delta, favicon, Seg, guessDomain, pct, pos, RIVAL_COLOR, score, SidePanel, Thinking, Tip, TIPS, YOU_COLOR } from "./ui";
 
 /** Side B of the battle card, and the competitor in its deep dive. */
-export const B_COLOR = "#F5B70A";
+export const B_COLOR = RIVAL_COLOR;
 
 /** A value with a thin bar next to it. */
 export function Bar({ v, color }: { v: number | null; color: string }) {
@@ -111,7 +111,9 @@ export function CompetitorPanel({
     return x && all ? (x.mentions / all) * 100 : null;
   };
   const rank = rankOf(stats.map((r) => ({ ...r, isYou: r.name === s.name })), "visibility");
-  const models = battle(chats, s.name, you.name, engines, topics).byEngine.map((r) => {
+  const [by, setBy] = useState<"model" | "topic">("model");
+  const fight = battle(chats, s.name, you.name, engines, topics);
+  const models = fight.byEngine.map((r) => {
     const named = chats.filter((c) => c.engine === r.key).flatMap((c) => c.brands.filter((b) => same(b.name, s.name)));
     return { ...r, position: avg(named.map((b) => b.position)) };
   });
@@ -159,7 +161,7 @@ export function CompetitorPanel({
       kicker={`Competitor · last ${days} days`}
       title={
         <span className="flex items-center gap-3">
-          <span className="rounded-[10px] border-2 border-ink bg-white p-1 shadow-[3px_3px_0_0_#F5B70A]">
+          <span className="rounded-[10px] border-2 border-ink bg-white p-1 shadow-[3px_3px_0_0_#E8603C]">
             <BrandLogo src={favicon(s.domain || guessDomain(s.name))} name={s.name} size={32} />
           </span>
           <span className="truncate">{s.name}</span>
@@ -204,131 +206,136 @@ export function CompetitorPanel({
         )}
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <section className={SECTION}>
-          <div className="aw-frame__head justify-between">
-            <h3 className="aw-h4">Prompts they win</h3>
-            <span className="aw-micro">{wins.length}</span>
-          </div>
-          {wins.length ? (
-            <div className="max-h-[520px] overflow-auto">
-              <table className="aw-table">
-                <thead className="sticky top-0 z-10">
-                  <tr>
-                    <th>Prompt</th>
-                    <th className="w-24">Position</th>
-                    <th className="w-24">Them</th>
-                    <th className="w-24">You</th>
-                    <th className="w-24">Won</th>
-                    <th className="w-32">Models</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {wins.map((w) => (
-                    <tr key={w.prompt}>
-                      <td>
-                        <span className="flex flex-col gap-0.5">
-                          <span className="text-[14px] text-ink">{w.prompt}</span>
-                          {w.topic ? <span className="text-[12px] text-muted">{w.topic}</span> : null}
-                        </span>
-                      </td>
-                      <td className="aw-num text-ink">{pos(w.themPos)}</td>
-                      <td className="aw-num">{pct(w.them)}</td>
-                      <td className="aw-num">
-                        <span className="flex flex-col">
-                          <span>{pct(w.you)}</span>
-                          {w.youPos !== null ? <span className="text-[12px] text-muted">{pos(w.youPos)}</span> : null}
-                        </span>
-                      </td>
-                      <td className="aw-num whitespace-nowrap">
-                        {w.won} <span className="text-muted">of {w.answers}</span>
-                      </td>
-                      <td>
-                        <span className="flex flex-wrap items-center gap-1">
-                          {w.engines.map((e) => (
-                            <span key={e} title={e}>
-                              <EngineName engine={e} size={16} />
-                            </span>
-                          ))}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <p className="aw-small p-5">None in this period.</p>
-          )}
-        </section>
-
-        <div className="flex min-w-0 flex-col gap-6">
-          <section className={SECTION}>
-            <div className="aw-frame__head justify-between">
-              <h3 className="aw-h4">By model</h3>
-              <span className="flex items-center gap-3 text-[12px] text-muted">
-                <span className="flex items-center gap-1.5">
-                  <i className="inline-block h-2 w-2" style={{ background: B_COLOR }} aria-hidden="true" />
-                  {s.name}
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <i className="inline-block h-2 w-2" style={{ background: YOU_COLOR }} aria-hidden="true" />
-                  You
-                </span>
-              </span>
-            </div>
-            <ul className="flex flex-col gap-4 p-5">
-              {models.map((m) => (
-                <li key={m.key} className="flex flex-col gap-1.5">
-                  <span className="flex items-center justify-between gap-3 text-[14px] text-ink">
-                    <EngineName engine={m.key} size={16} />
-                    <span className="aw-num text-[12px] text-muted">{pos(m.position)}</span>
-                  </span>
-                  <Bar v={m.a} color={B_COLOR} />
-                  <Bar v={m.b} color={YOU_COLOR} />
-                </li>
-              ))}
-              {!models.length ? <li className="aw-small">–</li> : null}
-            </ul>
-          </section>
-
-          <section className={SECTION}>
-            <div className="aw-frame__head justify-between">
-              <h3 className="aw-h4">Top sources</h3>
-              <span className="aw-micro">{cited.answers} answers</span>
-            </div>
-            {cited.sites.length ? (
-              <table className="aw-table">
-                <thead>
-                  <tr>
-                    <th>Site</th>
-                    <th className="w-20">Answers</th>
-                    <th className="w-20">Share</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cited.sites.slice(0, 10).map((x) => (
-                    <tr key={x.site}>
-                      <td className="max-w-0">
-                        <span className="flex min-w-0 items-center gap-2">
-                          <BrandLogo src={favicon(x.site)} name={x.site} size={16} />
-                          <span className="truncate text-ink">{x.site}</span>
-                          {domain && ownsDomain(x.site, domain) ? <span className="aw-tag shrink-0">Their site</span> : null}
-                          {ownsDomain(x.site, brand.domain?.toLowerCase().replace(/^www\./, "")) ? <span className="aw-badge shrink-0">You</span> : null}
-                        </span>
-                      </td>
-                      <td className="aw-num">{x.n}</td>
-                      <td className="aw-num">{pct((x.n / cited.answers) * 100)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            ) : (
-              <p className="aw-small p-5">–</p>
-            )}
-          </section>
+      <section className={SECTION}>
+        <div className="aw-frame__head justify-between">
+          <h3 className="aw-h4">Prompts they win</h3>
+          <span className="aw-micro">{wins.length}</span>
         </div>
-      </div>
+        {wins.length ? (
+          <div className="max-h-[520px] overflow-auto">
+            <table className="aw-table">
+              <thead className="sticky top-0 z-10">
+                <tr>
+                  <th>Prompt</th>
+                  <th className="w-24">Position</th>
+                  <th className="w-24">Them</th>
+                  <th className="w-24">You</th>
+                  <th className="w-24">Won</th>
+                  <th className="w-32">Models</th>
+                </tr>
+              </thead>
+              <tbody>
+                {wins.map((w) => (
+                  <tr key={w.prompt}>
+                    <td>
+                      <span className="flex flex-col gap-0.5">
+                        <span className="text-[14px] text-ink">{w.prompt}</span>
+                        {w.topic ? <span className="text-[12px] text-muted">{w.topic}</span> : null}
+                      </span>
+                    </td>
+                    <td className="aw-num text-ink">{pos(w.themPos)}</td>
+                    <td className="aw-num">{pct(w.them)}</td>
+                    <td className="aw-num">
+                      <span className="flex flex-col">
+                        <span>{pct(w.you)}</span>
+                        {w.youPos !== null ? <span className="text-[12px] text-muted">{pos(w.youPos)}</span> : null}
+                      </span>
+                    </td>
+                    <td className="aw-num whitespace-nowrap">
+                      {w.won} <span className="text-muted">of {w.answers}</span>
+                    </td>
+                    <td>
+                      <span className="flex flex-wrap items-center gap-1">
+                        {w.engines.map((e) => (
+                          <span key={e} title={e}>
+                            <EngineName engine={e} size={16} />
+                          </span>
+                        ))}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="aw-small p-5">None in this period.</p>
+        )}
+      </section>
+
+
+      <section className={SECTION}>
+        <div className="aw-frame__head flex-wrap justify-between gap-3">
+          <Seg
+            label="Compare by"
+            value={by}
+            onChange={setBy}
+            options={[
+              { id: "model", label: "By model" },
+              { id: "topic", label: "By topic" },
+            ]}
+          />
+          <span className="flex items-center gap-3 text-[12px] text-muted">
+            <span className="flex items-center gap-1.5">
+              <i className="inline-block h-2 w-2" style={{ background: B_COLOR }} aria-hidden="true" />
+              {s.name}
+            </span>
+            <span className="flex items-center gap-1.5">
+              <i className="inline-block h-2 w-2" style={{ background: YOU_COLOR }} aria-hidden="true" />
+              You
+            </span>
+          </span>
+        </div>
+        <ul className="grid gap-x-10 gap-y-5 p-5 md:grid-cols-2">
+          {(by === "model" ? models : fight.byTopic.map((r) => ({ ...r, position: null as number | null }))).map((m) => (
+            <li key={m.key} className="flex min-w-0 flex-col gap-1.5">
+              <span className="flex items-center justify-between gap-3 text-[14px] text-ink">
+                {by === "model" ? <EngineName engine={m.key} size={16} /> : <span className="truncate">{m.key}</span>}
+                {by === "model" ? <span className="aw-num text-[12px] text-muted">{pos(m.position)}</span> : null}
+              </span>
+              <Bar v={m.a} color={B_COLOR} />
+              <Bar v={m.b} color={YOU_COLOR} />
+            </li>
+          ))}
+          {!(by === "model" ? models : fight.byTopic).length ? <li className="aw-small">–</li> : null}
+        </ul>
+      </section>
+
+      <section className={SECTION}>
+        <div className="aw-frame__head justify-between">
+          <h3 className="aw-h4">Top sources</h3>
+          <span className="aw-micro">{cited.answers} answers</span>
+        </div>
+        {cited.sites.length ? (
+          <table className="aw-table">
+            <thead>
+              <tr>
+                <th>Site</th>
+                <th className="w-20">Answers</th>
+                <th className="w-20">Share</th>
+              </tr>
+            </thead>
+            <tbody>
+              {cited.sites.slice(0, 10).map((x) => (
+                <tr key={x.site}>
+                  <td className="max-w-0">
+                    <span className="flex min-w-0 items-center gap-2">
+                      <BrandLogo src={favicon(x.site)} name={x.site} size={16} />
+                      <span className="truncate text-ink">{x.site}</span>
+                      {domain && ownsDomain(x.site, domain) ? <span className="aw-tag shrink-0">Their site</span> : null}
+                      {ownsDomain(x.site, brand.domain?.toLowerCase().replace(/^www\./, "")) ? <span className="aw-badge shrink-0">You</span> : null}
+                    </span>
+                  </td>
+                  <td className="aw-num">{x.n}</td>
+                  <td className="aw-num">{pct((x.n / cited.answers) * 100)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        ) : (
+          <p className="aw-small p-5">–</p>
+        )}
+      </section>
 
       {domain && (auth || report) ? (
         <section className={SECTION}>

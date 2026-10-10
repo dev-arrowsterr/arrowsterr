@@ -105,7 +105,7 @@ function Quadrant({
                 onFocus={() => onHover(d.name)}
                 onBlur={() => onHover(null)}
                 aria-label={`${d.name}: visibility ${Math.round(d.visibility)}%, average position #${d.position.toFixed(1)}`}
-                className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-[10px] border-2 bg-white p-1 transition-transform ${d.isYou ? "border-brand shadow-[3px_3px_0_0_var(--aw-brand)]" : picked === d.name ? "border-ink shadow-[3px_3px_0_0_#F5B70A]" : "border-ink shadow-[3px_3px_0_0_var(--aw-ink)]"} ${on ? "z-30 -translate-y-[calc(50%+2px)] scale-115" : "z-10 hover:z-30"}`}
+                className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-[10px] border-2 bg-white p-1 transition-transform ${d.isYou ? "border-brand shadow-[3px_3px_0_0_var(--aw-brand)]" : picked === d.name ? "border-ink shadow-[3px_3px_0_0_#E8603C]" : "border-ink shadow-[3px_3px_0_0_var(--aw-ink)]"} ${on ? "z-30 -translate-y-[calc(50%+2px)] scale-115" : "z-10 hover:z-30"}`}
                 style={{ left: `${x(d.position)}%`, top: `${y(d.visibility)}%` }}
               >
                 {crown === d.name ? (
@@ -300,7 +300,7 @@ export function CompetitorsPage({
     </table>
   );
 
-  /** A battle card side: the brand's own logo, framed in its side's color (blue for A, yellow for B). */
+  /** A battle card side: the brand's own logo, framed in its side's color (blue for A, coral for B). */
   const side = (s: BrandStat, color: string, size: number) => (
     <span key={s.name} className="inline-flex shrink-0 rounded-[8px] border-2 bg-white p-0.5" style={{ borderColor: color }} title={s.name}>
       <BrandLogo src={logoOf(s)} name={s.name} size={size} />
