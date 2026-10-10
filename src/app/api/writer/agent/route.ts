@@ -1,6 +1,6 @@
 import type { Brief } from "@/lib/briefTypes";
 import { askClaude, parseJson } from "@/lib/claude";
-import { guidelineText } from "@/lib/guideline";
+import { buildGuideline, guidelineText } from "@/lib/guideline";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
 import { findPages } from "@/lib/sitemap";
 import type { BrandGuideline } from "@/lib/writerTypes";
@@ -10,7 +10,7 @@ import { cached, DAY } from "@/lib/cache";
 import { normalizeSite } from "@/lib/site";
 import type { AgentTask } from "@/lib/writerAgent";
 
-const TASKS: AgentTask[] = ["table", "stats", "faq", "meta", "links"];
+const TASKS: AgentTask[] = ["write", "table", "widget", "stats", "links", "faq", "meta", "custom"];
 const str = (v: unknown, n: number) => String(v ?? "").slice(0, n);
 const list = (v: unknown) => (Array.isArray(v) ? v : []);
 
@@ -27,8 +27,14 @@ async function handle(request: Request) {
   if (!took.ok) return took.response;
   if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
 
-  const { data: site } = await auth.sb.from("sites").select("name, domain, guideline").eq("id", body.siteId).eq("workspace_id", body.workspaceId).maybeSingle();
+  const { data: site } = await auth.sb.from("sites").select("id, name, domain, guideline").eq("id", body.siteId).eq("workspace_id", body.workspaceId).maybeSingle();
   if (!site) return Response.json({ error: "Website not found." }, { status: 404 });
+  // Writing and design jobs follow the brand. The first time, the agent reads the site and saves its guideline.
+  let guideline = site.guideline as BrandGuideline | null;
+  if (!guideline && ["write", "table", "widget", "custom"].includes(task)) {
+    guideline = await buildGuideline(site.domain, site.name).catch(() => null);
+    if (guideline) await auth.sb.from("sites").update({ guideline, guideline_at: guideline.at }).eq("id", site.id);
+  }
   let brief: Brief | null = null;
   let keyword = "";
   if (body.docId) {
@@ -43,22 +49,76 @@ async function handle(request: Request) {
   if (limited) return limited;
 
   const heading = str(body.heading, 300);
+  const guide = str(body.guide, 3000);
+  const ask = str(body.instruction, 1500);
   const section = str(body.section, 8000);
   const docText = str(body.docText, 14000);
   const head = `You are an agent inside Arrowsterr working on a draft for ${site.name} (${site.domain})${keyword ? `, target keyword "${keyword}"` : ""}. A human writes the article. You do one job around it and answer with JSON only, no other text. Never invent facts, numbers, customers or quotes.`;
 
+  const brand = guidelineText(guideline);
+  const context = `Brand guideline:
+${brand}
+
+${
+  brief
+    ? `Content brief: intent: ${brief.analysis.intent}. Format: ${brief.analysis.format}. Must cover: ${brief.analysis.mustCover.join("; ")}. Terms to use: ${brief.brief.terms.join(", ")}. Make it yours: ${brief.brief.makeItYours.join("; ")}.`
+    : ""
+}
+
+The whole draft so far (for context, may be cut short):
+${docText.slice(0, 9000) || "(empty)"}
+
+The section you work on is under the heading "${heading}".
+${guide ? `The guide for this section: ${guide}` : ""}
+What is written under it now:
+${section.trim() || "(nothing yet)"}`;
+  const htmlRules = `Write HTML using only <p>, <h3>, <h4>, <ul>, <ol>, <li>, <strong>, <em>, <a href>, <blockquote>, <table>, <thead>, <tbody>, <tr>, <th>, <td>. No <h1> or <h2>, no classes, no styles, no scripts. Do not repeat the section heading.`;
+
   try {
+    if (task === "write" || task === "custom") {
+      const { text } = await askClaude(
+        `${head}
+
+${context}
+
+Job: ${
+          task === "write"
+            ? `write this section, ready to publish. Follow the guide and the brief. Use the brand's voice. Keep it tight: say only what helps the reader decide. Use lists or a short table where they help. ${section.trim() ? "Keep what the writer wrote and build on it." : ""}`
+            : `do what the writer asks for this section: "${ask}". The result goes straight into the section.`
+        }
+Use [brackets] for facts only the brand knows, like prices or customer names. ${htmlRules}
+Answer: {"html": "...", "note": "one short line on what you did"}`,
+        { maxTokens: 6000 },
+      );
+      const j = parseJson(text);
+      const html = String(j.html ?? "").trim();
+      if (!html) throw new Error("The agent came back empty. Try again.");
+      return Response.json({ task, html, note: str(j.note, 200), replace: task === "write" && !section.trim() });
+    }
+
+    if (task === "widget") {
+      const { text } = await askClaude(
+        `${head}
+
+${context}
+
+Job: code one interactive element that makes this section more useful, like a cost calculator, a quiz that recommends an option, a filterable comparison or a checklist. Pick what fits the section best. Use the brand's colors, fonts and corner style from the guideline. Self-contained: one <div> with a unique id, one <style> scoped to that id, one <script> in plain JavaScript. No outside libraries, fonts or requests. Works on phones. Use [brackets] for numbers only the brand knows.
+Answer: {"embed": "<div ...>...</div><style>...</style><script>...</script>", "note": "one short line on what it does"}`,
+        { maxTokens: 8000 },
+      );
+      const j = parseJson(text);
+      const embed = String(j.embed ?? "").trim();
+      if (!embed) throw new Error("The agent came back empty. Try again.");
+      return Response.json({ task, embed, note: str(j.note, 200) });
+    }
+
     if (task === "table") {
       const { text } = await askClaude(
         `${head}
 
-Brand guideline:
-${guidelineText(site.guideline as BrandGuideline | null)}
+${context}
 
-Section "${heading}":
-${section || "(empty)"}
-
-Job: build one comparison or summary table that makes this section easier to scan. Use only facts in the section or the brief. Put [brackets] where the writer must fill in a value. Use the brand's words for labels. 2 to 6 columns, 2 to 8 rows.
+Job: build one comparison or summary table that makes this section easier to scan. Use facts from the section, the draft or the brief. Put [brackets] where the writer must fill in a value. Use the brand's words for labels. 2 to 6 columns, 2 to 8 rows.
 Answer: {"caption": "...", "head": ["..."], "rows": [["..."]]}`,
         { maxTokens: 2000 },
       );
@@ -66,7 +126,9 @@ Answer: {"caption": "...", "head": ["..."], "rows": [["..."]]}`,
       const headRow = list(j.head).map((x) => str(x, 120));
       const rows = list(j.rows).map((r) => list(r).map((x) => str(x, 300)));
       if (!headRow.length || !rows.length) throw new Error("The agent could not build a table from this section yet.");
-      return Response.json({ task, table: { caption: str(j.caption, 200), head: headRow, rows } });
+      const e = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const html = `<table><thead><tr>${headRow.map((x) => `<th>${e(x)}</th>`).join("")}</tr></thead><tbody>${rows.map((r) => `<tr>${headRow.map((_, k) => `<td>${e(r[k] ?? "")}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+      return Response.json({ task, html, note: str(j.caption, 200) });
     }
 
     if (task === "stats") {
@@ -86,7 +148,10 @@ Answer: {"stats": [{"stat": "one sentence with the number", "source": "publisher
         .map((s) => s as Record<string, unknown>)
         .map((s) => ({ stat: str(s.stat, 400), source: str(s.source, 120), url: str(s.url, 500), year: str(s.year, 10) }))
         .filter((s) => s.stat && /^https?:\/\//.test(s.url));
-      return Response.json({ task, stats });
+      if (!stats.length) throw new Error("No stats with a real source found for this section.");
+      const e = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      const html = `<ul>${stats.map((x) => `<li>${e(x.stat)} (<a href="${e(x.url)}">${e(x.source || "source")}${x.year ? `, ${e(x.year)}` : ""}</a>)</li>`).join("")}</ul>`;
+      return Response.json({ task, html, note: `${stats.length} stats with sources` });
     }
 
     if (task === "faq") {

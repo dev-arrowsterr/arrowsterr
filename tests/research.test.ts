@@ -89,7 +89,7 @@ test("keyword clusters group by core keyword", async () => {
 });
 
 test("writer: brief to draft, markdown, coverage", async () => {
-  const { briefToDoc, mdToHtml, coverage } = await import("../src/lib/writer.ts");
+  const { briefToDoc, briefGuides, guideKey, mdToHtml, coverage } = await import("../src/lib/writer.ts");
   const brief = {
     serp: { pages: [], questions: [], related: [], features: [], aiOverview: { shown: false, text: "", cites: [] } },
     analysis: { intent: "Compare agencies", format: "listicle", formatWhy: "", wordRange: "", mustCover: ["pricing models for agencies"], gaps: [], aiOverview: "", actions: [], pages: [] },
@@ -98,7 +98,10 @@ test("writer: brief to draft, markdown, coverage", async () => {
   };
   const doc = briefToDoc("best seo agencies", [], brief);
   const types = doc.content!.map((n) => `${n.type}${n.attrs?.level ?? ""}`);
-  assert.ok(types.includes("heading1") && types.includes("heading2") && types.includes("heading3") && types.includes("note"));
+  assert.ok(types.includes("heading1") && types.includes("heading2") && types.includes("heading3") && !types.includes("note"));
+  const guides = briefGuides("best seo agencies", [], brief);
+  assert.equal(guides.get(guideKey("How we picked"))?.text, "Explain the method");
+  assert.ok(guides.get(guideKey("Best SEO agencies in 2026"))?.text.includes("best seo agencies"));
   assert.equal(mdToHtml("## Hi\n- a **b**\n\n```html\n<b>x</b>\n```"), '<h3>Hi</h3><ul><li>a <strong>b</strong></li></ul><pre data-lang="html"><code>&lt;b&gt;x&lt;/b&gt;</code></pre>');
   const c = coverage("Agency pricing models vary. A retainer is common. How much does an SEO agency cost? About...", '<a href="https://acme.com/seo">x</a>', brief);
   assert.equal(c.score, 100);

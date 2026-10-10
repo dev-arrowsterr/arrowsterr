@@ -419,29 +419,32 @@ export function TopicBank({ sb, auth, site, canEdit, onSite, onCalendar }: { sb:
 /** What the free Topic Bank is, before a brand has one. */
 function BankIntro({ onStart }: { onStart: () => void }) {
   return (
-    <section className="aw-frame grid gap-6 p-6 md:grid-cols-[minmax(0,1fr)_280px] md:p-8">
+    <section className="aw-frame grid gap-6 p-6 md:grid-cols-[minmax(0,1fr)_240px] md:p-8">
       <div className="flex flex-col gap-3">
         <span className="aw-label">Free, once per brand</span>
         <h2 className="aw-h3 mb-0!">Your Topic Bank, built by an AI agent</h2>
+        <p className="text-[15px] text-body">Our revenue-driven content strategy AI agent can:</p>
+        <ul className="flex flex-col gap-2 text-[15px] text-ink">
+          {[
+            "Learn about your business, deeply",
+            "Cherry-pick the keywords that have the highest revenue potential",
+            "Craft a detailed Topic Bank with every metric you need to make informed decisions",
+            "Find pages you already have that could rank higher with a quick content update",
+          ].map((x) => (
+            <li key={x} className="flex items-start gap-2.5">
+              <span className="mt-0.5 text-brand">
+                <AiIcon />
+              </span>
+              {x}
+            </li>
+          ))}
+        </ul>
         <p className="text-[15px] text-body">
-          The agent reads your website and learns what you sell and who buys it. Then it searches Google data for the keywords your buyers type when they are close to a decision, and works
-          outward to the questions they ask earlier on.
-        </p>
-        <p className="text-[15px] text-body">
-          Every keyword comes back with its monthly searches, ranking difficulty, search intent and cost per click. The agent also finds pages you already have that could rank higher with an
-          update, so you fix what you own before you write something new.
-        </p>
-        <p className="text-[15px] text-body">
-          The result is your store of keywords for the year. Add your own by typing, pasting or uploading a CSV, then move the best ones onto the Editorial Calendar when you are ready to write.
+          You can add your own keywords by typing, pasting or uploading a CSV. Once done, you can import the best ones into the Editorial Calendar when you are ready to write.
         </p>
       </div>
-      <div className="flex flex-col gap-4 border-rule md:border-l md:pl-6">
-        <ul className="flex flex-col gap-2 text-[14px] text-ink">
-          <li>✓ About 120 keywords, buying intent first</li>
-          <li>✓ Grouped by theme, each with a job: new page or update</li>
-          <li>✓ Real Google data on every row</li>
-          <li>✓ Ready in about 10 minutes. You can leave this page.</li>
-        </ul>
+      <div className="flex flex-col justify-center gap-3 border-rule md:border-l md:pl-6">
+        <span className="text-[13px] text-muted">Ready in about 10 minutes. You can leave this page while it works.</span>
         <button type="button" className="aw-btn aw-btn--accent self-start" onClick={onStart}>
           <AiIcon />
           Generate Topic Bank

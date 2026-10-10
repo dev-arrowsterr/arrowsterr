@@ -1274,3 +1274,51 @@
 .aw .aw-wbar .aw-iconbtn svg { width: 18px; height: 18px; }
 .aw .aw-wbar .aw-iconbtn[aria-pressed="true"] { background: var(--aw-brand-pale); color: var(--aw-brand); }
 .aw .aw-editor--rail aside.aw-note { display: none; }
+
+/* Agentic Writer: guide comments beside the draft, like Google Docs. */
+.aw .aw-editor aside.aw-note { display: none; }
+.aw .aw-guide { display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1px solid var(--aw-rule); border-radius: 14px; background: #fff; font-size: 13px; box-shadow: var(--aw-shadow-xs); transition: border-color var(--aw-fast), box-shadow var(--aw-fast), transform var(--aw-fast); }
+.aw .aw-guide.is-active { border-color: var(--aw-brand); box-shadow: 0 6px 20px rgba(9, 67, 176, .12); transform: translateX(-6px); }
+.aw .aw-guide__head { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--aw-ink); text-align: left; }
+.aw .aw-guide__head:hover { color: var(--aw-brand); }
+.aw .aw-guide__lvl { font-family: var(--aw-mono); font-size: 10px; padding: 2px 6px; border-radius: 6px; background: var(--aw-brand-pale); color: var(--aw-brand); flex-shrink: 0; }
+.aw .aw-guide__text { color: var(--aw-body); line-height: 1.55; }
+.aw .aw-guide__points { display: flex; flex-direction: column; gap: 4px; padding-left: 14px; list-style: disc; color: var(--aw-muted); font-size: 12px; line-height: 1.45; }
+.aw .aw-guide__go { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 12px; border-radius: 10px; background: var(--aw-brand); color: #fff; font-size: 13px; font-weight: 500; }
+.aw .aw-guide__go:hover:not(:disabled) { filter: brightness(1.1); }
+.aw .aw-guide__go:disabled { opacity: .6; cursor: progress; }
+.aw .aw-guide__go svg.aw-icon { color: #fff; }
+.aw .aw-guide__more { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--aw-rule); color: var(--aw-ink); background: #fff; flex-shrink: 0; }
+.aw .aw-guide__more:hover:not(:disabled) { border-color: var(--aw-brand); color: var(--aw-brand); }
+.aw .aw-guide__task { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border-radius: 9px; text-align: left; color: var(--aw-brand); }
+.aw .aw-guide__task:hover { background: var(--aw-surface-2); }
+.aw .aw-guide__ask { flex: 1; min-width: 0; height: 34px; padding: 0 10px; border: 1px solid var(--aw-rule); border-radius: 10px; font-size: 12px; outline: none; }
+.aw .aw-guide__ask:focus { border-color: var(--aw-brand); }
+.aw .aw-guide__done { display: flex; flex-direction: column; gap: 4px; padding: 9px 10px; border-radius: 10px; background: #F0FAF3; font-size: 12px; color: var(--aw-ink); }
+.aw .aw-embed { position: relative; margin: 1.2em 0; border: 1px dashed var(--aw-brand); border-radius: 12px; padding: 28px 8px 8px; }
+.aw .aw-embed iframe { width: 100%; height: 360px; border: 0; display: block; }
+.aw .aw-embed__tag { position: absolute; top: 6px; left: 10px; font-family: var(--aw-mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--aw-brand); }
+.aw .aw-editor--draft .ProseMirror h2 { margin-top: 1.6em; }
+
+/* Sidebar: big modules that open to their pages. */
+.aw .aw-mod { display: flex; align-items: center; gap: 11px; width: 100%; padding: 10px 12px; border-radius: 10px; font-size: 15px; font-weight: 500; color: var(--aw-ink); transition: background var(--aw-fast), color var(--aw-fast); }
+.aw .aw-mod:hover { background: var(--aw-surface-2); }
+.aw .aw-mod .aw-nav__icon { width: 19px; height: 19px; }
+.aw .aw-mod.is-on { color: var(--aw-brand); }
+.aw .aw-mod.is-on .aw-nav__icon { color: var(--aw-brand); }
+.aw .aw-mod__chev { color: var(--aw-muted); transition: transform var(--aw-fast); }
+.aw .aw-mod--sm { padding: 8px 12px; font-size: 14px; font-weight: 400; color: var(--aw-body); }
+.aw .aw-mod--sm .aw-nav__icon { width: 17px; height: 17px; }
+.aw .aw-mod--sm.is-on { background: var(--aw-brand-pale); }
+.aw .aw-mod__items { display: flex; flex-direction: column; gap: 1px; margin: 2px 0 8px 21px; padding-left: 12px; border-left: 1.5px solid var(--aw-rule); }
+.aw .aw-mod__item { position: relative; padding: 7px 10px; border-radius: 8px; font-size: 14px; color: var(--aw-body); text-align: left; }
+.aw .aw-mod__item:hover { background: var(--aw-surface-2); color: var(--aw-ink); }
+.aw .aw-mod__item.is-on { background: var(--aw-brand-pale); color: var(--aw-brand); font-weight: 500; }
+.aw .aw-mod__item.is-on::before { content: ""; position: absolute; left: -13.5px; top: 8px; bottom: 8px; width: 1.5px; background: var(--aw-brand); }
+.aw .aw-guide:not(.is-active) { gap: 7px; padding: 10px 12px; box-shadow: none; }
+.aw .aw-guide:not(.is-active) .aw-guide__text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--aw-muted); }
+.aw .aw-guide:not(.is-active) .aw-guide__points { display: none; }
+.aw .aw-guide:not(.is-active) .aw-guide__go { flex: none; padding: 5px 10px; font-size: 12px; border-radius: 8px; background: var(--aw-brand-pale); color: var(--aw-brand); }
+.aw .aw-guide:not(.is-active) .aw-guide__go svg.aw-icon { color: var(--aw-brand); }
+.aw .aw-guide:not(.is-active) .aw-guide__more { width: 28px; height: 28px; border-radius: 8px; }
+.aw .aw-guide:hover:not(.is-active) { border-color: var(--aw-brand-mist, #C9D8F5); }

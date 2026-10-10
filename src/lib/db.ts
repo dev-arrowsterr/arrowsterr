@@ -382,7 +382,9 @@ export async function addCalendarItems(sb: SupabaseClient, workspaceId: string, 
 
 /** The brief for one calendar item, with its status. Loaded only when the item is opened. */
 export async function getBrief(sb: SupabaseClient, id: string) {
-  return check(await sb.from("calendar_items").select("brief, brief_status, brief_error, brief_at").eq("id", id).single()) as {
+  return check(await sb.from("calendar_items").select("keyword, secondary, brief, brief_status, brief_error, brief_at").eq("id", id).single()) as {
+    keyword?: string;
+    secondary?: string[];
     brief: Brief | null;
     brief_status: CalendarItem["brief_status"];
     brief_error: string | null;

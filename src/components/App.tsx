@@ -726,15 +726,18 @@ const ICONS: Record<string, string> = {
   eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   report: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M4.2 6.2l2.1 2.1M17.7 15.7l2.1 2.1M2.5 12h3M18.5 12h3M4.2 17.8l2.1-2.1M17.7 8.3l2.1-2.1"/>',
+  radar: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><path d="M12 12l6-6"/><circle cx="12" cy="12" r="1"/>',
   card: '<rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6.5 15h4"/>',
 };
 function NavIcon({ name }: { name: string }) {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="aw-nav__icon" dangerouslySetInnerHTML={{ __html: ICONS[name] }} />;
 }
 
-const NAV: { group: string; tester?: boolean; items: { id: Page; label: string; icon: string; also?: Page[] }[] }[] = [
+/** The big modules of the app. Each opens to its own pages. */
+const NAV: { group: string; icon: string; tester?: boolean; items: { id: Page; label: string; icon: string; also?: Page[] }[] }[] = [
   {
-    group: "AI visibility",
+    group: "AI Visibility",
+    icon: "radar",
     items: [
       { id: "prompts", label: "Prompts", icon: "prompts" },
       { id: "competitors", label: "Competitors", icon: "competitors" },
@@ -742,7 +745,8 @@ const NAV: { group: string; tester?: boolean; items: { id: Page; label: string; 
     ],
   },
   {
-    group: "SEO research",
+    group: "Organic Research",
+    icon: "search",
     items: [
       { id: "keywords", label: "Keyword Research", icon: "search" },
       { id: "domain", label: "Domain Research", icon: "globe" },
@@ -751,7 +755,8 @@ const NAV: { group: string; tester?: boolean; items: { id: Page; label: string; 
     ],
   },
   {
-    group: "Content",
+    group: "Agentic Content",
+    icon: "pen",
     items: [
       { id: "calendar", label: "Editorial Calendar", icon: "calendar" },
       { id: "writer", label: "Agentic Writer", icon: "pen" },
@@ -759,6 +764,7 @@ const NAV: { group: string; tester?: boolean; items: { id: Page; label: string; 
   },
   {
     group: "Website",
+    icon: "trend",
     tester: true,
     items: [
       { id: "traffic", label: "Traffic", icon: "trend" },
@@ -767,15 +773,13 @@ const NAV: { group: string; tester?: boolean; items: { id: Page; label: string; 
   },
   {
     group: "Reports",
+    icon: "report",
     items: [{ id: "summary", label: "Client report", icon: "report" }],
   },
-  {
-    group: "Settings",
-    items: [
-      { id: "members", label: "Workspace & members", icon: "gear" },
-      { id: "billing", label: "Plan & billing", icon: "card" },
-    ],
-  },
+];
+const SETTINGS: { id: Page; label: string; icon: string }[] = [
+  { id: "members", label: "Workspace & members", icon: "gear" },
+  { id: "billing", label: "Plan & billing", icon: "card" },
 ];
 
 /** The workspace switcher and the page menu. */
@@ -853,27 +857,49 @@ function Sidebar({
         ) : null}
       </div>
 
-      <nav className="flex flex-row flex-wrap gap-x-5 gap-y-3 md:flex-col">
-        {NAV.filter((g) => !g.tester || email.toLowerCase() === WEBSITE_TESTER).map((g) => (
-          <div key={g.group} className="flex flex-col gap-0.5">
-            <span className="aw-label px-3 pb-1">{g.group}</span>
-            {g.items.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => onPage(item.id)}
-                aria-current={page === item.id || item.also?.includes(page) ? "page" : undefined}
-                className={`aw-nav__item ${page === item.id || item.also?.includes(page) ? "is-on" : ""}`}
-              >
-                <NavIcon name={item.icon} />
-                {item.label}
+      <nav className="flex flex-col gap-1" aria-label="Modules">
+        {NAV.filter((g) => !g.tester || email.toLowerCase() === WEBSITE_TESTER).map((g) => {
+          const on = g.items.some((item) => page === item.id || item.also?.includes(page));
+          return (
+            <div key={g.group} className="flex flex-col">
+              <button type="button" onClick={() => !on && onPage(g.items[0].id)} aria-expanded={g.items.length > 1 ? on : undefined} className={`aw-mod ${on ? "is-on" : ""}`}>
+                <NavIcon name={g.icon} />
+                <span className="flex-1 text-left">{g.group}</span>
+                {g.items.length > 1 ? (
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" className={`aw-mod__chev ${on ? "rotate-90" : ""}`}>
+                    <path d="m9 6 6 6-6 6" />
+                  </svg>
+                ) : null}
               </button>
-            ))}
-          </div>
-        ))}
+              {on && g.items.length > 1 ? (
+                <div className="aw-mod__items">
+                  {g.items.map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => onPage(item.id)}
+                      aria-current={page === item.id || item.also?.includes(page) ? "page" : undefined}
+                      className={`aw-mod__item ${page === item.id || item.also?.includes(page) ? "is-on" : ""}`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
       </nav>
 
       <div className="mt-auto flex flex-col gap-2 border-t border-rule-faint px-2 pt-4">
+        <div className="-mx-2 flex flex-col">
+          {SETTINGS.map((item) => (
+            <button key={item.id} type="button" onClick={() => onPage(item.id)} aria-current={page === item.id ? "page" : undefined} className={`aw-mod aw-mod--sm ${page === item.id ? "is-on" : ""}`}>
+              <NavIcon name={item.icon} />
+              {item.label}
+            </button>
+          ))}
+        </div>
         {plan && (plan.plan === "trial" || plan.status !== "active") ? (
           <button type="button" onClick={() => onPage("billing")} className="flex items-center justify-between gap-2 rounded-aw border border-brand-mist bg-brand-pale px-3 py-2 text-left text-[13px] font-medium text-brand">
             <span>{plan.status === "past_due" ? "Payment failed" : plan.trialLeft ? `${plan.trialLeft} days of trial left` : plan.plan === "trial" || plan.status !== "active" ? "Pick a plan" : plan.name}</span>

@@ -4,35 +4,56 @@ import type { Brief } from "./briefTypes.ts";
 type Node = { type: string; attrs?: Record<string, unknown>; content?: Node[]; text?: string; marks?: { type: string; attrs?: Record<string, unknown> }[] };
 const t = (text: string): Node[] => (text ? [{ type: "text", text }] : []);
 const h = (level: number, text: string): Node => ({ type: "heading", attrs: { level }, content: t(text) });
-const note = (text: string): Node => ({ type: "note", content: t(text) });
 const p = (text = ""): Node => ({ type: "paragraph", content: t(text) });
 
-/** Turn a content brief into a draft: formatted headings, each with a short note on what to write. */
-export function briefToDoc(keyword: string, secondary: string[], brief: Brief): Node {
+const FAQ = "Frequently asked questions";
+
+/** Turn a content brief into a draft: just the headings, formatted, with room to write under each. The guide for each heading lives in the comments beside the draft. */
+export function briefToDoc(keyword: string, _secondary: string[], brief: Brief): Node {
   const b = brief.brief;
-  const a = brief.analysis;
-  const content: Node[] = [
-    note(
-      `Target "${keyword}"${secondary.length ? ` (also ${secondary.slice(0, 4).join(", ")})` : ""}. Format: ${a.format}. Aim for ${b.wordCount} words. Title tag: ${b.titles[0] ?? ""}. Meta description: ${b.metaDescription}`,
-    ),
-    h(1, b.h1 || keyword),
-    note(`Intro: say who this is for and answer "${keyword}" in the first 2 to 3 sentences. ${a.intent}`),
-    p(),
-  ];
+  const content: Node[] = [h(1, b.h1 || keyword), p()];
   for (const o of b.outline) {
     content.push(h(2, o.h2));
-    if (o.notes) content.push(note(o.notes));
     if (!o.h3.length) content.push(p());
     for (const sub of o.h3) content.push(h(3, sub), p());
   }
   if (b.questions.length) {
-    content.push(h(2, "Frequently asked questions"), note("Answer each in 2 to 3 sentences. Lead with the direct answer so AI assistants can quote it."));
+    content.push(h(2, FAQ));
     for (const q of b.questions.slice(0, 8)) content.push(h(3, q), p());
   }
-  if (b.makeItYours.length) content.push(note(`Make it yours: ${b.makeItYours.join(" · ")}`));
-  if (b.internalLinks.length) content.push(note(`Link to: ${b.internalLinks.map((l) => `"${l.anchor}" → ${l.url}`).join(" · ")}`));
   return { type: "doc", content };
 }
+
+export type Guide = { title: string; text: string; points?: string[] };
+const key = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+
+/** What to write under each heading of a draft made from a brief, found by the heading's text. */
+export function briefGuides(keyword: string, secondary: string[], brief: Brief): Map<string, Guide> {
+  const b = brief.brief;
+  const a = brief.analysis;
+  const g = new Map<string, Guide>();
+  const tmpl = new Map((brief.template?.outline ?? []).map((o) => [key(o.section), o.guide]));
+  g.set(key(b.h1 || keyword), {
+    title: "Intro",
+    text: `Say who this is for and answer "${keyword}" in the first 2 to 3 sentences. ${a.intent}`,
+    points: [
+      `Format: ${a.format}, about ${b.wordCount} words`,
+      ...(secondary.length ? [`Also covers: ${secondary.slice(0, 4).join(", ")}`] : []),
+      ...b.makeItYours.map((x) => `Make it yours: ${x}`),
+    ],
+  });
+  for (const o of b.outline) {
+    const text = tmpl.get(key(o.h2)) ?? o.notes;
+    const links = b.internalLinks.filter((l) => key(o.h2 + " " + o.notes).includes(key(l.anchor).split(" ")[0] ?? "")).slice(0, 2);
+    g.set(key(o.h2), { title: "Guide", text: text || "Cover this point clearly, with an example.", points: [...(o.h3.length ? [`Sub-points: ${o.h3.join(" · ")}`] : []), ...links.map((l) => `Link "${l.anchor}" to ${l.url}`)] });
+  }
+  if (b.questions.length) {
+    g.set(key(FAQ), { title: "Guide", text: "Answer each question in 2 to 3 sentences. Lead with the direct answer so AI assistants can quote it." });
+    for (const q of b.questions.slice(0, 8)) g.set(key(q), { title: "Answer", text: "Give the direct answer in the first sentence, then one line of detail or an example." });
+  }
+  return g;
+}
+export const guideKey = key;
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const inline = (s: string) =>
