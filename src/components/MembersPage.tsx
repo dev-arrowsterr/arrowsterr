@@ -174,7 +174,7 @@ export function MembersPage({ sb, ws, brandLogo, userId, onChanged, auth }: { sb
                     }, "Picture reset to the first brand's logo.")
                   }
                 >
-                  Use first brand's logo
+                  Use first brand&apos;s logo
                 </button>
               ) : null}
             </>
