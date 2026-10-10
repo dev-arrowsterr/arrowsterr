@@ -1,5 +1,6 @@
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
+import { jsonrepair } from "jsonrepair";
 import { charge, claudeCost } from "./meter";
 import type { Source } from "./sources";
 
@@ -47,5 +48,11 @@ export async function askClaude(
 /** Pull the first JSON object out of a reply. */
 export function parseJson(text: string): Record<string, unknown> {
   const t = text.replace(/```(?:json)?/g, "");
-  return JSON.parse(t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1));
+  const raw = t.slice(t.indexOf("{"), t.lastIndexOf("}") + 1);
+  try {
+    return JSON.parse(raw);
+  } catch {
+    // Replies sometimes come back with small mistakes, like a missing quote or comma. Fix them.
+    return JSON.parse(jsonrepair(raw));
+  }
 }
