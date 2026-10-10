@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { MUSINGS } from "@/lib/musings";
+import { DinoGame } from "./DinoGame";
 import { flatPrompts, type Brand, type BrandCard, type Profile, type RivalCard, type Topic } from "@/lib/db";
 import { ANGLES, BUSINESS_TYPES, COUNTRIES, MAX_PROMPTS, MAX_TOPICS, type Angle, type PickedTopic } from "@/lib/onboarding";
 import type { RunAuth } from "@/lib/runner";
@@ -186,6 +187,7 @@ export function Onboarding({
           <div className="mx-auto w-full max-w-2xl">
             <Thinking text={busy}>
               <Musing />
+              <DinoGame />
               <p className="aw-small">This takes about a minute. Keep this tab open.</p>
             </Thinking>
           </div>
@@ -313,6 +315,13 @@ function SiteStep(p: { seo: boolean; website: string; setWebsite: (v: string) =>
   );
 }
 
+/** Grow a text box to fit its text, so nothing hides behind a scroll bar. */
+const fit = (el: HTMLTextAreaElement | null) => {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight + 2}px`;
+};
+
 /** A titled bullet list. Click the list to edit it as text, one point per line. Click away to save. */
 function Bullets({ label, ask, glyph, items, onChange, className = "" }: { label: string; ask?: string; glyph?: string; items: string[]; onChange: (v: string[]) => void; className?: string }) {
   const [edit, setEdit] = useState(false);
@@ -339,7 +348,11 @@ function Bullets({ label, ask, glyph, items, onChange, className = "" }: { label
           autoFocus
           rows={Math.max(3, items.length + 1)}
           value={draft}
-          onChange={(e) => setDraft(e.target.value)}
+          ref={fit}
+          onChange={(e) => {
+            setDraft(e.target.value);
+            fit(e.target);
+          }}
           onBlur={save}
           onKeyDown={(e) => e.key === "Escape" && setEdit(false)}
           className="aw-textarea text-[14px]!"
@@ -551,9 +564,10 @@ function MarketStep(p: { name: string; logo: string; profile: Profile; setProfil
                   <td>{r.price ? <PriceTag price={r.price} /> : "–"}</td>
                   <td>
                     <textarea
-                      rows={3}
+                      rows={1}
                       value={r.difference}
-                      onChange={(e) => setRivals(rivals.map((x, j) => (j === i ? { ...x, difference: e.target.value } : x)))}
+                      ref={fit}
+                      onChange={(e) => { fit(e.target); setRivals(rivals.map((x, j) => (j === i ? { ...x, difference: e.target.value } : x)))}}
                       placeholder="How they differ from you"
                       aria-label={`How ${r.name} differs`}
                       className="aw-onb__cell resize-none"
