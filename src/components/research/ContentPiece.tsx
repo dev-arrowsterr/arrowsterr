@@ -17,6 +17,7 @@ import { putStash } from "@/lib/stash";
 import { briefToDoc } from "@/lib/writer";
 import type { BrandGuideline } from "@/lib/writerTypes";
 import { AiIcon, Seg } from "../ui";
+import { BriefView } from "./BriefView";
 import { Difficulty, FIELD, fmtNum, post, StageTag } from "./shared";
 
 export const STATUSES: { id: CalendarStatus; label: string }[] = [
@@ -357,6 +358,7 @@ function BriefEditor({
 }) {
   const [state, setState] = useState<"saved" | "saving" | "error">("saved");
   const [copied, setCopied] = useState(false);
+  const [mode, setMode] = useState<"view" | "doc">("view");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editor = useEditor({
     immediatelyRender: false,
@@ -384,7 +386,18 @@ function BriefEditor({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="aw-num mr-auto text-[12px] text-muted">{state === "saving" ? "Saving..." : state === "error" ? "Not saved" : "Saved"}</span>
+        <span className="mr-auto flex items-center gap-3">
+          <Seg
+            label="Brief view"
+            value={mode}
+            onChange={setMode}
+            options={[
+              { id: "view", label: "Overview" },
+              { id: "doc", label: "Document" },
+            ]}
+          />
+          {mode === "doc" ? <span className="aw-num text-[12px] text-muted">{state === "saving" ? "Saving..." : state === "error" ? "Not saved" : "Saved"}</span> : null}
+        </span>
         <button
           type="button"
           className="aw-btn aw-btn--secondary aw-btn--sm"
@@ -421,12 +434,16 @@ function BriefEditor({
           </button>
         ) : null}
       </div>
-      <section className="aw-frame">
-        {editor && canEdit ? <DocToolbar editor={editor} /> : null}
-        <div className="aw-editor aw-doc px-6 py-8 sm:px-12">
-          <EditorContent editor={editor} />
-        </div>
-      </section>
+      {mode === "view" ? (
+        <BriefView brief={brief} keyword={item.keyword} />
+      ) : (
+        <section className="aw-frame">
+          {editor && canEdit ? <DocToolbar editor={editor} /> : null}
+          <div className="aw-editor aw-doc px-6 py-8 sm:px-12">
+            <EditorContent editor={editor} />
+          </div>
+        </section>
+      )}
     </div>
   );
 }

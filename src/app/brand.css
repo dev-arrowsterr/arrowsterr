@@ -1219,5 +1219,58 @@
 .aw svg.aw-icon[fill="currentColor"] { fill: currentColor; stroke: none; }
 .aw .aw-btn--secondary svg.aw-icon[fill="currentColor"] { color: var(--aw-brand); }
 
-/* Agentic Writer: the brief's notes live in the comment rail on wide screens, so the draft stays clean. */
-@media (min-width: 1024px) { .aw .aw-editor--rail aside.aw-note { display: none; } }
+
+/* Interactive content brief: cards that open and close. */
+.aw .aw-bpart { border: 1px solid var(--aw-rule); border-radius: 12px; background: #fff; overflow: hidden; }
+.aw .aw-bpart.is-open { box-shadow: var(--aw-shadow-xs); }
+.aw .aw-bpart__head { display: flex; align-items: center; gap: 12px; width: 100%; padding: 13px 16px; font-size: 15px; font-weight: 500; color: var(--aw-ink); cursor: pointer; }
+.aw .aw-bpart__head:hover { background: var(--aw-surface-2); }
+.aw .aw-bpart__icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9px; background: var(--aw-brand-pale, #EEF3FC); color: var(--aw-brand); flex-shrink: 0; }
+.aw .aw-bpart__count { font-family: var(--aw-mono, ui-monospace); font-size: 12px; color: var(--aw-muted); background: var(--aw-surface-2); border-radius: 999px; padding: 2px 8px; }
+.aw .aw-bpart__chev { color: var(--aw-muted); transition: transform var(--aw-fast); }
+.aw .aw-bpart.is-open .aw-bpart__chev { transform: rotate(180deg); }
+.aw .aw-bpart__body { padding: 4px 16px 16px 60px; font-size: 14px; line-height: 1.55; }
+.aw .aw-brief--compact .aw-bpart__head { padding: 10px 12px; font-size: 14px; gap: 10px; }
+.aw .aw-brief--compact .aw-bpart__icon { width: 28px; height: 28px; }
+.aw .aw-brief--compact .aw-bpart__body { padding: 2px 12px 14px 12px; font-size: 13px; }
+.aw .aw-bfact { display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border-radius: 10px; background: var(--aw-surface-2); }
+.aw .aw-btick { display: inline-flex; align-items: center; justify-content: center; width: 17px; height: 17px; margin-top: 2px; border-radius: 5px; border: 1.5px solid var(--aw-rule); font-size: 11px; color: #fff; flex-shrink: 0; }
+.aw .aw-btick.is-done { background: var(--aw-pos); border-color: var(--aw-pos); }
+.aw .aw-bdot { width: 6px; height: 6px; margin: 8px 5px 0; border-radius: 99px; background: var(--aw-brand); flex-shrink: 0; }
+.aw .aw-bterm { padding: 4px 10px; border-radius: 999px; border: 1px solid var(--aw-rule); font-size: 13px; color: var(--aw-ink); background: #fff; }
+.aw .aw-bterm.is-done { border-color: var(--aw-pos); color: var(--aw-pos); background: #F0FAF3; }
+.aw .aw-boutline { border-radius: 10px; border: 1px solid var(--aw-rule-faint); }
+.aw .aw-boutline.is-open { border-color: var(--aw-rule); background: #fff; }
+.aw .aw-boutline__n { font-family: var(--aw-mono, ui-monospace); font-size: 10px; padding: 2px 5px; border-radius: 5px; background: var(--aw-brand); color: #fff; flex-shrink: 0; }
+.aw .aw-boutline__n--sm { background: var(--aw-surface-2); color: var(--aw-muted); }
+.aw .aw-iconbtn { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; color: var(--aw-muted); }
+.aw .aw-iconbtn:hover { background: var(--aw-surface-2); color: var(--aw-ink); }
+.aw .aw-iconbtn svg { width: 16px; height: 16px; }
+
+/* Writer side panel: section comments. */
+.aw .aw-comment { display: flex; flex-direction: column; gap: 10px; padding: 12px; border: 1px solid var(--aw-rule); border-radius: 12px; background: #fff; font-size: 13px; transition: border-color var(--aw-fast), box-shadow var(--aw-fast); }
+.aw .aw-comment.is-active { border-color: var(--aw-brand); box-shadow: 0 0 0 3px var(--aw-brand-pale); }
+.aw .aw-comment__head { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--aw-ink); text-align: left; cursor: pointer; }
+.aw .aw-comment__head:hover { color: var(--aw-brand); }
+.aw .aw-comment__lvl { font-family: var(--aw-mono); font-size: 10px; padding: 2px 5px; border-radius: 5px; background: var(--aw-surface-2); color: var(--aw-muted); flex-shrink: 0; }
+.aw .aw-comment__badge { font-size: 11px; min-width: 18px; text-align: center; padding: 1px 6px; border-radius: 99px; background: #FFF4D6; color: #8A5A00; }
+.aw .aw-comment__note { padding: 8px 10px; border-left: 3px solid #F2C14E; border-radius: 0 8px 8px 0; background: #FFFAEB; color: var(--aw-body); line-height: 1.5; }
+.aw .aw-comment__agent { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--aw-rule); font-size: 12px; color: var(--aw-ink); background: #fff; }
+.aw .aw-comment__agent:hover { border-color: var(--aw-brand); color: var(--aw-brand); }
+.aw .aw-comment__agent svg.aw-icon { color: var(--aw-brand); }
+.aw .aw-comment__task { display: flex; align-items: center; gap: 10px; width: 100%; padding: 7px 8px; border-radius: 8px; text-align: left; color: var(--aw-brand); }
+.aw .aw-comment__task:hover { background: var(--aw-surface-2); }
+.aw .aw-comment__result { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 10px; background: var(--aw-surface-2); }
+.aw .aw-spin { width: 12px; height: 12px; border-radius: 99px; border: 2px solid var(--aw-rule); border-top-color: var(--aw-brand); animation: aw-spin .8s linear infinite; }
+@keyframes aw-spin { to { transform: rotate(360deg); } }
+
+/* Writer side panel tabs and header icon buttons. */
+.aw .aw-wtabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 2px; padding: 4px; border-radius: 12px; background: var(--aw-surface-2); }
+.aw .aw-wtab { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 7px 4px; border-radius: 9px; font-size: 12px; color: var(--aw-muted); }
+.aw .aw-wtab:hover { color: var(--aw-ink); }
+.aw .aw-wtab.is-on { background: #fff; color: var(--aw-brand); box-shadow: var(--aw-shadow-xs); font-weight: 500; }
+.aw .aw-wbar { display: flex; align-items: center; gap: 4px; }
+.aw .aw-wbar .aw-iconbtn { width: 36px; height: 36px; border-radius: 10px; }
+.aw .aw-wbar .aw-iconbtn svg { width: 18px; height: 18px; }
+.aw .aw-wbar .aw-iconbtn[aria-pressed="true"] { background: var(--aw-brand-pale); color: var(--aw-brand); }
+.aw .aw-editor--rail aside.aw-note { display: none; }

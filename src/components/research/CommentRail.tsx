@@ -2,7 +2,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Editor } from "@tiptap/react";
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { getDocMeta, saveDocMeta } from "@/lib/db";
 import type { RunAuth } from "@/lib/runner";
 import { AGENT_TASKS, type AgentTask, type WriterAgentResult } from "@/lib/writerAgent";
@@ -30,10 +30,8 @@ export function railSections(ed: Editor): RailSection[] {
   return out;
 }
 
-const GAP = 12;
-
-/** The comments beside the draft: one per section, lined up with its heading. The brief's notes are read-only; each comment has agents for jobs around the writing. */
-export function CommentRail({
+/** The comments in the side panel: one per section of the draft. The brief's notes are read-only; each comment has agents for jobs around the writing. */
+export function SectionComments({
   sb,
   auth,
   siteId,
@@ -42,6 +40,7 @@ export function CommentRail({
   sections,
   docText,
   canEdit,
+  cursor,
 }: {
   sb: SupabaseClient;
   auth: RunAuth;
@@ -51,34 +50,16 @@ export function CommentRail({
   sections: RailSection[];
   docText: string;
   canEdit: boolean;
+  cursor: number;
 }) {
-  const rail = useRef<HTMLDivElement | null>(null);
-  const cards = useRef<Map<number, HTMLDivElement>>(new Map());
-  const [tops, setTops] = useState<number[]>([]);
   const [results, setResults] = useState<Record<string, WriterAgentResult | { error: string } | "busy">>({});
+  const refs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const active = sections.findIndex((s) => cursor >= s.pos && cursor < s.end);
 
-  // Line each comment up with its heading, pushed down when the one above runs long.
-  const place = useCallback(() => {
-    const box = rail.current?.getBoundingClientRect();
-    if (!box) return;
-    let floor = 0;
-    const next = sections.map((s, i) => {
-      const dom = (s.heading === "Intro" && i === 0 ? null : editor.view.nodeDOM(s.pos)) as HTMLElement | null;
-      const want = dom?.getBoundingClientRect ? dom.getBoundingClientRect().top - box.top : floor;
-      const top = Math.max(Math.round(want), floor);
-      floor = top + (cards.current.get(i)?.offsetHeight ?? 120) + GAP;
-      return top;
-    });
-    setTops((prev) => (prev.length === next.length && prev.every((t, i) => t === next[i]) ? prev : next));
-  }, [sections, editor]);
-
-  useLayoutEffect(() => {
-    place();
-  });
+  // The comment for the section being written follows the cursor.
   useEffect(() => {
-    window.addEventListener("resize", place);
-    return () => window.removeEventListener("resize", place);
-  }, [place]);
+    if (active >= 0) refs.current.get(active)?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [active]);
 
   async function run(i: number, task: AgentTask) {
     const s = sections[i];
@@ -91,26 +72,31 @@ export function CommentRail({
       setResults((r) => ({ ...r, [key]: { error: e instanceof Error ? e.message : String(e) } }));
     }
   }
+  const jump = (s: RailSection) => {
+    const dom = editor.view.nodeDOM(s.pos) as HTMLElement | null;
+    dom?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    editor.chain().focus().setTextSelection(Math.min(s.pos + 1, editor.state.doc.content.size)).run();
+  };
 
-  const last = tops.length ? tops[tops.length - 1] + (cards.current.get(tops.length - 1)?.offsetHeight ?? 0) : 0;
+  if (!sections.length) return <p className="aw-small p-4">Add a heading to start a section.</p>;
   return (
-    <div ref={rail} className="relative hidden lg:block" style={{ minHeight: last }} aria-label="Comments">
+    <div className="flex flex-col gap-2.5 p-3">
       {sections.map((s, i) => (
         <div
           key={`${i}:${s.heading}`}
           ref={(el) => {
-            if (el) cards.current.set(i, el);
-            else cards.current.delete(i);
+            if (el) refs.current.set(i, el);
+            else refs.current.delete(i);
           }}
-          className="absolute right-0 left-0 transition-[top] duration-150"
-          style={{ top: tops[i] ?? 0 }}
         >
           <Comment
             section={s}
             first={i === 0}
+            active={i === active}
             canEdit={canEdit}
             results={results}
             onRun={(t) => run(i, t)}
+            onJump={() => jump(s)}
             editor={editor}
             onSaveMeta={async (m) => saveDocMeta(sb, docId, { ...(await getDocMeta(sb, docId)), ...m })}
           />
@@ -120,20 +106,37 @@ export function CommentRail({
   );
 }
 
+const TASK_ICON: Record<AgentTask, React.ReactNode> = {
+  table: <path d="M4 5h16v14H4zM4 10h16M10 5v14" />,
+  stats: <path d="M4 20V10M10 20V4M16 20v-7M21 20H3" />,
+  links: <path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1" />,
+  faq: <path d="M8 4 3 12l5 8M16 4l5 8-5 8" />,
+  meta: <path d="M3 12V4h8l10 10-8 8zM7.5 8.5h.01" />,
+};
+const TaskIcon = ({ t }: { t: AgentTask }) => (
+  <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
+    {TASK_ICON[t]}
+  </svg>
+);
+
 function Comment({
   section,
   first,
+  active,
   canEdit,
   results,
   onRun,
+  onJump,
   editor,
   onSaveMeta,
 }: {
   section: RailSection;
   first: boolean;
+  active: boolean;
   canEdit: boolean;
   results: Record<string, WriterAgentResult | { error: string } | "busy">;
   onRun: (t: AgentTask) => void;
+  onJump: () => void;
   editor: Editor;
   onSaveMeta: (m: Record<string, string>) => Promise<void>;
 }) {
@@ -141,36 +144,48 @@ function Comment({
   const tasks = AGENT_TASKS.filter((t) => !t.first || first);
   const mine = tasks.map((t) => ({ t, r: results[`${section.heading}:${t.id}`] })).filter((x) => x.r);
   return (
-    <div className="flex flex-col gap-2 rounded-[12px] border border-rule bg-white p-3 text-[13px] shadow-aw-sm">
-      <span className="truncate text-[12px] font-medium text-muted" title={section.heading}>
-        {section.heading || "Untitled section"}
-      </span>
-      {section.notes.map((n, k) => (
-        <p key={k} className="text-body">
-          {n}
-        </p>
-      ))}
+    <div className={`aw-comment ${active ? "is-active" : ""}`}>
+      <button type="button" className="aw-comment__head" onClick={onJump} title="Go to this section">
+        <span className="aw-comment__lvl">{section.heading === "Intro" ? "¶" : `H${section.level}`}</span>
+        <span className="min-w-0 flex-1 truncate">{section.heading || "Untitled section"}</span>
+        {section.notes.length ? <span className="aw-comment__badge">{section.notes.length}</span> : null}
+      </button>
+      {section.notes.length ? (
+        <div className="flex flex-col gap-1.5">
+          {section.notes.map((n, k) => (
+            <p key={k} className="aw-comment__note">
+              {n}
+            </p>
+          ))}
+        </div>
+      ) : null}
       {canEdit ? (
         <div className="relative">
-          <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm px-2.5! py-1! text-[12px]!" onClick={() => setMenu(!menu)} aria-expanded={menu}>
+          <button type="button" className="aw-comment__agent" onClick={() => setMenu(!menu)} aria-expanded={menu}>
             <AiIcon />
             AI agent
+            <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" className={menu ? "rotate-180" : ""}>
+              <path d="m6 9 6 6 6-6" />
+            </svg>
           </button>
           {menu ? (
-            <ul className="absolute top-full right-0 left-0 z-20 mt-1 flex flex-col rounded-[10px] border border-rule bg-white py-1 shadow-aw-sm" role="menu">
+            <ul className="mt-1.5 flex flex-col gap-0.5" role="menu">
               {tasks.map((t) => (
                 <li key={t.id}>
                   <button
                     type="button"
                     role="menuitem"
-                    className="flex w-full flex-col items-start gap-0.5 px-3 py-2 text-left hover:bg-surface-2"
+                    className="aw-comment__task"
                     onClick={() => {
                       setMenu(false);
                       onRun(t.id);
                     }}
                   >
-                    <span className="text-[13px] text-ink">{t.label}</span>
-                    <span className="text-[11px] text-muted">{t.hint}</span>
+                    <TaskIcon t={t.id} />
+                    <span className="flex min-w-0 flex-col items-start">
+                      <span className="text-[13px] text-ink">{t.label}</span>
+                      <span className="text-[11px] text-muted">{t.hint}</span>
+                    </span>
                   </button>
                 </li>
               ))}
@@ -179,12 +194,21 @@ function Comment({
         </div>
       ) : null}
       {mine.map(({ t, r }) => (
-        <div key={t.id} className="flex flex-col gap-2 border-t border-rule-faint pt-2">
+        <div key={t.id} className="aw-comment__result">
           <span className="flex items-center gap-1.5 text-[12px] font-medium text-ink">
-            <AiIcon />
+            <TaskIcon t={t.id} />
             {t.label}
           </span>
-          {r === "busy" ? <span className="text-muted">Working...</span> : "error" in r! ? <span className="text-neg">{r.error}</span> : <Result r={r!} section={section} editor={editor} onSaveMeta={onSaveMeta} />}
+          {r === "busy" ? (
+            <span className="flex items-center gap-2 text-muted">
+              <span className="aw-spin" aria-hidden="true" />
+              Working...
+            </span>
+          ) : "error" in r! ? (
+            <span className="text-neg">{r.error}</span>
+          ) : (
+            <Result r={r!} section={section} editor={editor} onSaveMeta={onSaveMeta} />
+          )}
         </div>
       ))}
     </div>

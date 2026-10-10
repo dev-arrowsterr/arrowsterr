@@ -14,13 +14,32 @@ import type { Brief } from "@/lib/briefTypes";
 import { createDoc, deleteDoc, ensureCalendarItem, getBrief, linkDoc, listCalendar, updateCalendarItem, type CalendarItem, getDoc, getGuideline, listDocs, saveDoc, type Doc, type DocMeta, type Site } from "@/lib/db";
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
-import { briefDocHtml } from "@/lib/briefDoc";
 import { briefToDoc, coverage, mdToHtml, type Section } from "@/lib/writer";
 import type { BrandGuideline, ChatMessage } from "@/lib/writerTypes";
 import { AiIcon, Seg, Thinking } from "../ui";
-import { CommentRail, railSections, type RailSection } from "./CommentRail";
+import { railSections, SectionComments, type RailSection } from "./CommentRail";
+import { BriefView } from "./BriefView";
 import { PublishPanel } from "./PublishPanel";
 import { post } from "./shared";
+
+const wi = (d: React.ReactNode) => (
+  <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {d}
+  </svg>
+);
+/** Icons for the writer's header and side panel. */
+const WI = {
+  code: wi(<path d="m8 8-4 4 4 4M16 8l4 4-4 4M13.5 5l-3 14" />),
+  download: wi(<path d="M12 4v11m-4.5-4.5L12 15l4.5-4.5M5 20h14" />),
+  expand: wi(<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />),
+  shrink: wi(<path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />),
+  panel: wi(<><rect x="3" y="4" width="18" height="16" rx="2.5" /><path d="M15 4v16" /></>),
+  send: wi(<path d="M4 12 20 4l-6 16-3-7z" />),
+  comment: wi(<path d="M5 5h14a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1h-8l-4 3v-3H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1z" />),
+  spark: wi(<path d="M12 3l2 5.5 5.5 2-5.5 2L12 18l-2-5.5-5.5-2 5.5-2z" />),
+  doc: wi(<path d="M7 3h7l5 5v13H7zM14 3v5h5M10 13h6M10 17h6" />),
+  palette: wi(<><path d="M12 3a9 9 0 1 0 0 18c1 0 1.5-.7 1.5-1.5 0-1.2-1-1.5-1-2.5S13.5 15 15 15h2a4 4 0 0 0 4-4c0-4.4-4-8-9-8z" /><circle cx="7.5" cy="11" r="1" /><circle cx="10" cy="7" r="1" /><circle cx="15" cy="7.5" r="1" /></>),
+};
 
 /** A note to the writer. Shown in the editor, left out when the draft is copied or exported. */
 const Note = Node.create({
@@ -74,7 +93,7 @@ export function Writer({ sb, auth, site, canEdit }: { sb: SupabaseClient; auth: 
   const [docs, setDocs] = useStash<DocMeta[] | null>(k("docs"), null);
   const [openId, setOpenId] = useStash<string | null>(k("open"), null);
   const [guideline, setGuideline] = useStash<BrandGuideline | null | undefined>(k("guideline"), undefined);
-  const [tab, setTab] = useStash<"assistant" | "brief" | "brand">(k("tab"), "assistant");
+  const [tab, setTab] = useStash<"comments" | "assistant" | "brief" | "brand">(k("tab"), "comments");
   const [side, setSide] = useStash(k("side"), true);
   const [doc, setDoc] = useState<Doc | null>(null);
   const [error, setError] = useState("");
@@ -375,8 +394,8 @@ function DocEditor({
   canEdit: boolean;
   guideline: BrandGuideline | null;
   onGuideline: (g: BrandGuideline) => void;
-  tab: "assistant" | "brief" | "brand";
-  onTab: (t: "assistant" | "brief" | "brand") => void;
+  tab: "comments" | "assistant" | "brief" | "brand";
+  onTab: (t: "comments" | "assistant" | "brief" | "brand") => void;
   side: boolean;
   onSide: (v: boolean) => void;
   onSaved: (meta: DocMeta) => void;
@@ -390,6 +409,7 @@ function DocEditor({
   const [rail, setRail] = useState<RailSection[]>([]);
   const [full, setFull] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [cursor, setCursor] = useState(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const titleRef = useRef(title);
 
@@ -432,6 +452,7 @@ function DocEditor({
       setText(draftText(ed));
       setHtml(clean(ed.getHTML()));
     },
+    onSelectionUpdate: ({ editor: ed }) => setCursor(ed.state.selection.from),
     onUpdate: ({ editor: ed }) => {
       setRail(railSections(ed));
       setParts(draftParts(ed));
@@ -474,53 +495,59 @@ function DocEditor({
     <div className={full ? "fixed inset-0 z-[70] overflow-y-auto bg-surface-2 p-3 md:p-5" : ""}>
     <div className={`grid items-start gap-4 ${side ? "xl:grid-cols-[minmax(0,1fr)_400px]" : ""}`}>
       <section className="aw-frame flex min-w-0 flex-col">
-        <div className="flex flex-wrap items-center gap-3 border-b border-rule px-5 py-3">
-          <span className="flex min-w-40 flex-1 items-center gap-3 text-[13px] text-muted">
-            <span className="aw-num">
-              {words.toLocaleString()} words{brief ? ` / ${brief.brief.wordCount}` : ""}
-            </span>
+        <div className="flex flex-wrap items-center gap-3 border-b border-rule px-4 py-2.5">
+          <span className="flex min-w-0 flex-1 items-center gap-3 text-[13px] text-muted">
+            <span className="aw-num whitespace-nowrap text-ink">{words.toLocaleString()}</span>
+            <span className="-ml-2 whitespace-nowrap">{brief ? `/ ${brief.brief.wordCount} words` : "words"}</span>
             {target ? (
-              <span className="aw-progress w-32" title={`${Math.round((words / target) * 100)}% of the target length`}>
+              <span className="aw-progress hidden w-24 sm:block" title={`${Math.round((words / target) * 100)}% of the target length`}>
                 <span className="aw-progress__fill block" style={{ width: `${Math.min(100, (words / target) * 100)}%` }} />
               </span>
             ) : null}
-            <span>{state === "saving" ? "Saving..." : state === "error" ? "Not saved" : "Saved"}</span>
+            <span className="flex items-center gap-1.5 whitespace-nowrap" title={state === "saving" ? "Saving" : state === "error" ? "Not saved" : "Saved"}>
+              <i className={`inline-block h-1.5 w-1.5 rounded-full ${state === "error" ? "bg-neg" : state === "saving" ? "bg-warn" : "bg-pos"}`} aria-hidden="true" />
+              {state === "saving" ? "Saving" : state === "error" ? "Not saved" : "Saved"}
+            </span>
           </span>
-          <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => navigator.clipboard.writeText(exportHtml())}>
-            Copy HTML
-          </button>
-          <button
-            type="button"
-            className="aw-btn aw-btn--secondary aw-btn--sm"
-            onClick={() => {
-              const a = document.createElement("a");
-              a.href = URL.createObjectURL(new Blob([`<!doctype html><meta charset="utf-8"><title>${title}</title>\n${exportHtml()}`], { type: "text/html" }));
-              a.download = `${(title || "draft").replace(/\W+/g, "-")}.html`;
-              a.click();
-              URL.revokeObjectURL(a.href);
-            }}
-          >
-            Download
-          </button>
-          {canEdit ? (
-            <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={() => setPublishing(true)}>
-              Publish
+          <span className="aw-wbar">
+            <button type="button" className="aw-iconbtn" title="Copy HTML" aria-label="Copy HTML" onClick={() => navigator.clipboard.writeText(exportHtml())}>
+              {WI.code}
             </button>
-          ) : null}
-          <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => setFull(!full)} aria-pressed={full} title={full ? "Exit full screen (Esc)" : "Full screen"}>
-            {full ? "Exit full screen" : "Full screen"}
-          </button>
-          <button type="button" className={`aw-btn aw-btn--sm ${side ? "aw-btn--primary" : "aw-btn--secondary"}`} onClick={() => onSide(!side)} aria-pressed={side}>
-            {side ? "Hide panel" : `Assistant${cov ? ` · Brief ${cov.score}%` : ""}`}
-          </button>
+            <button
+              type="button"
+              className="aw-iconbtn"
+              title="Download HTML"
+              aria-label="Download HTML"
+              onClick={() => {
+                const a = document.createElement("a");
+                a.href = URL.createObjectURL(new Blob([`<!doctype html><meta charset="utf-8"><title>${title}</title>\n${exportHtml()}`], { type: "text/html" }));
+                a.download = `${(title || "draft").replace(/\W+/g, "-")}.html`;
+                a.click();
+                URL.revokeObjectURL(a.href);
+              }}
+            >
+              {WI.download}
+            </button>
+            <button type="button" className="aw-iconbtn" onClick={() => setFull(!full)} aria-pressed={full} title={full ? "Exit full screen (Esc)" : "Full screen"} aria-label="Full screen">
+              {full ? WI.shrink : WI.expand}
+            </button>
+            <button type="button" className="aw-iconbtn" onClick={() => onSide(!side)} aria-pressed={side} title={side ? "Hide side panel" : "Show side panel"} aria-label="Side panel">
+              {WI.panel}
+            </button>
+            {canEdit ? (
+              <button type="button" className="aw-btn aw-btn--primary aw-btn--sm ml-1" onClick={() => setPublishing(true)}>
+                {WI.send}
+                Publish
+              </button>
+            ) : null}
+          </span>
         </div>
         {editor && canEdit ? (
           <div className={`sticky z-10 rounded-none bg-white ${full ? "top-0" : "top-[57px]"}`}>
             <Toolbar editor={editor} />
           </div>
         ) : null}
-        <div className="grid flex-1 gap-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:pr-5">
-        <div className="aw-editor aw-editor--rail min-h-[75vh] px-6 py-10 sm:px-16">
+        <div className={`aw-editor min-h-[75vh] flex-1 px-6 py-10 sm:px-16 ${side ? "aw-editor--rail" : ""}`}>
           <input
             value={title}
             disabled={!canEdit}
@@ -535,30 +562,31 @@ function DocEditor({
           />
           <EditorContent editor={editor} />
         </div>
-        {editor ? (
-          <div className="py-10">
-            <CommentRail sb={sb} auth={auth} siteId={site.id} docId={doc.id} editor={editor} sections={rail} docText={text} canEdit={canEdit} />
-          </div>
-        ) : null}
-        </div>
       </section>
 
       {side ? (
       <aside className={`aw-frame flex min-w-0 flex-col xl:sticky ${full ? "max-h-[calc(100vh-40px)] xl:top-0" : "max-h-[calc(100vh-110px)] xl:top-[72px]"}`}>
-        <div className="border-b border-rule px-3 py-2.5">
-          <Seg
-            label="Side panel"
-            value={tab}
-            onChange={onTab}
-            options={[
-              { id: "assistant", label: "Assistant" },
-              { id: "brief", label: cov ? `Brief ${cov.score}%` : "Brief +" },
-              { id: "brand", label: "Brand" },
-            ]}
-          />
+        <div className="border-b border-rule p-2.5">
+          <div className="aw-wtabs" role="tablist" aria-label="Side panel">
+            {(
+              [
+                { id: "comments", label: "Comments", icon: WI.comment, n: rail.reduce((n, r) => n + r.notes.length, 0) },
+                { id: "assistant", label: "Assistant", icon: WI.spark },
+                { id: "brief", label: cov ? `Brief ${cov.score}%` : "Brief", icon: WI.doc },
+                { id: "brand", label: "Brand", icon: WI.palette },
+              ] as const
+            ).map((t) => (
+              <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} className={`aw-wtab ${tab === t.id ? "is-on" : ""}`} onClick={() => onTab(t.id)}>
+                {t.icon}
+                {t.label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="min-h-0 flex-1 overflow-auto">
-          {tab === "assistant" ? (
+          {tab === "comments" ? (
+            editor ? <SectionComments sb={sb} auth={auth} siteId={site.id} docId={doc.id} editor={editor} sections={rail} docText={text} canEdit={canEdit} cursor={cursor} /> : null
+          ) : tab === "assistant" ? (
             <Assistant auth={auth} site={site} docId={doc.id} editor={editor} text={text} canEdit={canEdit} />
           ) : tab === "brief" ? (
             <BriefTab sb={sb} auth={auth} site={site} docId={doc.id} title={title} itemId={itemId} brief={brief} cov={cov} canEdit={canEdit} onLinked={setItemId} onBrief={setBrief} />
@@ -721,7 +749,7 @@ function BriefTab({
   const [keyword, setKeyword] = useState(title.toLowerCase().replace(/[^\p{L}\p{N}\s-]/gu, "").trim());
   const [state, setState] = useState<"idle" | "running" | "failed">("idle");
   const [error, setError] = useState("");
-  const [view, setView] = useState<"check" | "brief">("check");
+  const [view, setView] = useState<"check" | "brief">("brief");
 
   // While the brief is being written, check on it every 4 seconds.
   useEffect(() => {
@@ -799,8 +827,7 @@ function BriefTab({
         ]}
       />
       {view === "brief" ? (
-        // The brief is built from escaped text, or saved from the brief editor, which only keeps its own nodes.
-        <div className="aw-editor aw-doc aw-doc--side" dangerouslySetInnerHTML={{ __html: brief.doc ?? briefDocHtml({ keyword, secondary: [], action: "new", current_url: null }, brief, { name: site.name, country: site.profile.country }, null) }} />
+        <BriefView brief={brief} keyword={keyword} compact done={(l) => cov.items.some((i) => i.label === l && i.done)} />
       ) : (
         <>
           <div className="flex items-center gap-3">
