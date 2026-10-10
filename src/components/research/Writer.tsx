@@ -19,6 +19,7 @@ import { briefToDoc, coverage, mdToHtml, type Section } from "@/lib/writer";
 import type { BrandGuideline, ChatMessage } from "@/lib/writerTypes";
 import { AiIcon, Seg, Thinking } from "../ui";
 import { CommentRail, railSections, type RailSection } from "./CommentRail";
+import { PublishPanel } from "./PublishPanel";
 import { post } from "./shared";
 
 /** A note to the writer. Shown in the editor, left out when the draft is copied or exported. */
@@ -388,6 +389,7 @@ function DocEditor({
   const [brief, setBrief] = useState<Brief | null>(null);
   const [rail, setRail] = useState<RailSection[]>([]);
   const [full, setFull] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const titleRef = useRef(title);
 
@@ -500,6 +502,11 @@ function DocEditor({
           >
             Download
           </button>
+          {canEdit ? (
+            <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={() => setPublishing(true)}>
+              Publish
+            </button>
+          ) : null}
           <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => setFull(!full)} aria-pressed={full} title={full ? "Exit full screen (Esc)" : "Full screen"}>
             {full ? "Exit full screen" : "Full screen"}
           </button>
@@ -562,6 +569,7 @@ function DocEditor({
       </aside>
       ) : null}
     </div>
+    {publishing ? <PublishPanel sb={sb} auth={auth} docId={doc.id} title={title} html={exportHtml} onClose={() => setPublishing(false)} /> : null}
     </div>
   );
 }

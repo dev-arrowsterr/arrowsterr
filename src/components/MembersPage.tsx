@@ -1,5 +1,7 @@
 "use client";
 
+import { CmsSettings } from "./CmsSettings";
+import type { RunAuth } from "@/lib/runner";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useState } from "react";
 import { Meter } from "./ui";
@@ -51,7 +53,7 @@ function CopyButton({ text }: { text: string }) {
 }
 
 /** Workspace name, members and their roles, and invites. */
-export function MembersPage({ sb, ws, userId, onChanged }: { sb: SupabaseClient; ws: Workspace; userId: string; onChanged: () => Promise<void> }) {
+export function MembersPage({ sb, ws, userId, onChanged, auth }: { sb: SupabaseClient; ws: Workspace; userId: string; onChanged: () => Promise<void>; auth: RunAuth }) {
   const isAdmin = atLeast(ws.role, "admin");
   const [members, setMembers] = useState<Member[] | null>(null);
   const [invites, setInvites] = useState<Invite[]>([]);
@@ -311,6 +313,8 @@ export function MembersPage({ sb, ws, userId, onChanged }: { sb: SupabaseClient;
           ) : null}
         </section>
       ) : null}
+
+      <CmsSettings auth={auth} isAdmin={isAdmin} />
 
       <section className="flex flex-col gap-3">
         <h2 className="aw-h4">Roles</h2>

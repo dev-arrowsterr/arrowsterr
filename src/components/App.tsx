@@ -571,7 +571,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             </div>
           ) : null}
           {page === "members" ? (
-            <MembersPage key={ws.id} sb={sb} ws={ws} userId={userId} onChanged={loadWorkspaces} />
+            <MembersPage key={ws.id} sb={sb} ws={ws} userId={userId} onChanged={loadWorkspaces} auth={auth} />
           ) : page === "billing" ? (
             <BillingPage key={ws.id} sb={sb} ws={ws} auth={auth} onPlan={loadPlan} />
           ) : !view ? (
