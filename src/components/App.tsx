@@ -28,7 +28,6 @@ import {
 } from "@/lib/db";
 import { PLANS, promptAllowance, type PlanId, type Track } from "@/lib/plans";
 import { Glimpse } from "./Glimpse";
-import { post } from "./research/shared";
 import { splitPeriods, type Filter } from "@/lib/metrics";
 import type { View } from "@/lib/view";
 import { runAll, type RunAuth } from "@/lib/runner";
@@ -358,15 +357,13 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
     setBrands((list) => [...(list ?? []), brand]);
     setRuns((r) => ({ ...r, [brand.id]: [] }));
     setActiveId(brand.id);
-    // Starter on Organic Research lands on the Topic Bank it just started; everyone else on their prompts.
+    // Starter on Organic Research lands on the Topic Bank; everyone else on their prompts.
     go(plan && !plan.open.visibility ? "topics" : "prompts");
     setAdding(false);
     // The first check runs right away. After that the daily job keeps it fresh.
     void runBrand(brand);
-    // Every brand gets its free Topic Bank, started as soon as the brand exists.
-    void siteForBrand(sb, brand, true)
-      .then((site) => site && post({ workspaceId: ws.id, token }, "/api/research/agentic", { siteId: site.id }))
-      .catch(() => {});
+    // Make the brand's site now. The Topic Bank waits until someone clicks Generate.
+    void siteForBrand(sb, brand, true).catch(() => {});
   }
 
   async function update(brand: Brand) {

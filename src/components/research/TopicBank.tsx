@@ -14,6 +14,22 @@ import type { KeywordRun } from "@/lib/db";
 import { PlanWizard } from "./PlanWizard";
 import { Difficulty, fmtCpc, post, STAGE_LABEL, StageTag } from "./shared";
 
+/** A made-up Topic Bank for Acme, shown before a brand has its own. */
+const SAMPLE: Row[] = (
+  [
+    ["best accounting software for small business", "bofu", 9900, 62, "commercial", 18.4, "new", "Software comparisons", "Compare 8 tools on price, payroll and bank sync."],
+    ["acme vs quickbooks", "bofu", 1300, 28, "commercial", 12.1, "new", "Competitor comparisons", "Honest side-by-side. Win on ease of use."],
+    ["quickbooks alternatives", "bofu", 4400, 41, "commercial", 15.6, "update", "Competitor comparisons", "Our page ranks #14. Add pricing table and FAQs."],
+    ["invoice software for freelancers", "bofu", 2900, 35, "transactional", 9.8, "new", "Invoicing", "Lead with the free plan."],
+    ["how to do bookkeeping for a small business", "mofu", 6600, 47, "informational", 4.2, "new", "Bookkeeping basics", "Step-by-step guide with a free template."],
+    ["cash basis vs accrual accounting", "mofu", 5400, 38, "informational", 3.1, "update", "Bookkeeping basics", "Refresh the 2023 post. Add examples."],
+    ["how to reconcile a bank statement", "mofu", 3600, 30, "informational", 2.7, "new", "Bookkeeping basics", "Show it done in Acme with screenshots."],
+    ["small business tax deductions", "tofu", 14800, 58, "informational", 6.5, "new", "Taxes", "Checklist post. Good for links."],
+    ["what is a balance sheet", "tofu", 22200, 66, "informational", 1.9, "new", "Finance 101", "Short explainer with a sample sheet."],
+    ["quarterly estimated taxes due dates", "tofu", 8100, 33, "informational", 2.2, "new", "Taxes", "Update every year. Easy win."],
+  ] as const
+).map(([keyword, stage, volume, kd, intent, cpc, action, theme, notes], i) => ({ id: `sample-${i}`, keyword, stage, volume, kd, intent, cpc, action, theme, notes, source: "sample", added: "", enriched: true }));
+
 const BLANKS = 8; // empty rows always waiting at the bottom of the sheet
 type Row = BankRow & { blank?: boolean };
 const newId = () => `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
@@ -336,6 +352,11 @@ export function TopicBank({ sb, auth, site, canEdit, onSite, onCalendar }: { sb:
   return (
     <div className="flex flex-col gap-5">
       {canEdit && runs && !hasPlan ? <BankIntro onStart={() => setWizard(true)} /> : null}
+      {runs && !hasPlan && !bank.length ? (
+        <Card title="Sample: a Topic Bank for Acme" action={<span className="aw-chip">Example only</span>}>
+          <Sheet<Row> id="bank:sample" label="Sample Topic Bank" rows={SAMPLE} cols={cols.map((c) => ({ ...c, edit: undefined }))} rowKey={(r) => r.id} sort={{ key: "stage", desc: false }} height="40vh" />
+        </Card>
+      ) : null}
       {error ? <p className="aw-error">{error}</p> : null}
       {notice ? (
         <div className="aw-callout flex flex-wrap items-center justify-between gap-3">
