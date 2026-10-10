@@ -9,6 +9,7 @@ import { answerRows, saveAnswers, type Profile } from "../db";
 import { askEngine, availableEngines, viaDfs, WEEKLY_ENGINES, type Engine } from "../engines";
 import { entitlement } from "../entitlements";
 import { enqueue, enqueueMany, finish, rateOk, retry, type Job } from "../jobs";
+import { afterDaily, dispatch } from "../integrations";
 import { checkDue, promptAllowance } from "../plans";
 import type { PlanBrief } from "../research";
 
@@ -181,6 +182,8 @@ export async function rollup(db: SupabaseClient, job: Job) {
     const { error } = await db.from("daily_metrics").upsert(list.slice(i, i + 500), { onConflict: "brand_id,day,engine,named" });
     if (error) throw new Error(error.message);
   }
+  // Slack alerts and webhooks (Zapier) for the day's result. Never blocks the numbers.
+  await afterDaily(db, run.workspace_id, run.brand_id, day).catch((e) => console.error("Daily alerts failed:", e instanceof Error ? e.message : e));
   await finish(job.id);
 }
 
@@ -193,7 +196,10 @@ export async function brief(db: SupabaseClient, job: Job) {
   const { itemId, period, tasks, fromPack } = job.payload as { itemId: string; period?: string; tasks?: number; fromPack?: number };
   await runBrief(db, itemId);
   // A brief that failed hands its tasks back.
-  const { data } = await db.from("calendar_items").select("brief_status").eq("id", itemId).maybeSingle();
+  const { data } = await db.from("calendar_items").select("brief_status, keyword").eq("id", itemId).maybeSingle();
+  if (data?.brief_status === "done" && job.workspace_id) {
+    await dispatch(db, job.workspace_id, "brief.ready", { keyword: data.keyword, item_id: itemId, url: `${process.env.APP_URL?.trim() || "https://app.arrowsterr.com"}/editorial-calendar` }).catch(() => {});
+  }
   if (data?.brief_status === "failed" && job.workspace_id && period) {
     const n = tasks ?? 75;
     const { error } = await db.rpc("give_back_tasks", { p_ws: job.workspace_id, p_period: period, p_plan_n: n - (fromPack ?? 0), p_pack_n: fromPack ?? 0 });

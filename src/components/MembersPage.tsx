@@ -1,6 +1,7 @@
 "use client";
 
 import { CmsSettings } from "./CmsSettings";
+import { IntegrationsSettings } from "./IntegrationsSettings";
 import type { RunAuth } from "@/lib/runner";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useState } from "react";
@@ -315,6 +316,8 @@ export function MembersPage({ sb, ws, userId, onChanged, auth }: { sb: SupabaseC
       ) : null}
 
       <CmsSettings auth={auth} isAdmin={isAdmin} />
+
+      <IntegrationsSettings auth={auth} isAdmin={isAdmin} />
 
       <section className="flex flex-col gap-3">
         <h2 className="aw-h4">Roles</h2>

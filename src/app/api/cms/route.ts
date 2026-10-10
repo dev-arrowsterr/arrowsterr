@@ -2,6 +2,7 @@ import { CMS_API } from "@/lib/cms";
 import { CMS, type CmsKind, type Published, type PublishInput } from "@/lib/cmsTypes";
 import { adminClient, requireRole } from "@/lib/serverAuth";
 import { requireWriter } from "@/lib/entitlements";
+import { dispatch } from "@/lib/integrations";
 import type { DocPublishMeta } from "@/lib/writerAgent";
 
 const str = (v: unknown, n: number) => String(v ?? "").trim().slice(0, n);
@@ -83,6 +84,7 @@ export async function POST(request: Request) {
       const next = { ...meta, title: input.title, slug: input.slug, description: input.description, image: input.image, schema: input.schema, published: [...(meta.published ?? []).filter((p) => p.connectionId !== conn.id), rec] };
       await auth.sb.from("docs").update({ meta: next }).eq("id", doc.id);
       if (input.live && doc.calendar_item_id) await auth.sb.from("calendar_items").update({ status: "published", ...(out.url ? { url: out.url } : {}) }).eq("id", doc.calendar_item_id);
+      if (input.live) await dispatch(db, ws, "post.published", { title: input.title, url: out.url, cms: conn.kind }).catch(() => {});
       return Response.json({ published: rec });
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
