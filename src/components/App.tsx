@@ -11,6 +11,7 @@ import {
   atLeast,
   createWorkspace,
   deleteBrand,
+  setWorkspaceAvatar,
   listBrands,
   listRuns,
   listWorkspaces,
@@ -473,6 +474,15 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
         email={email}
         workspaces={workspaces}
         ws={ws}
+        brandLogo={brands?.[0]?.logo ?? null}
+        onAvatar={async (avatar) => {
+          try {
+            await setWorkspaceAvatar(sb, ws.id, avatar);
+            await loadWorkspaces();
+          } catch (e) {
+            setError(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
+          }
+        }}
         onWorkspace={(id) => {
           setWsId(id);
           setBrands(null);
@@ -505,6 +515,9 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
               setTopic("All");
             }}
             onAdd={() => setAdding(true)}
+            onRemove={(b) => {
+              if (confirm(`Stop tracking ${b.name}? Its results will be deleted.`)) remove(b.id);
+            }}
             days={days}
             onDays={setDays}
             topics={allTopics.map((t) => t.name)}
@@ -691,7 +704,6 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
               paused={paused}
               readOnly={!canEdit}
               onChange={update}
-              onRemove={() => remove(view.brand.id)}
               onCompetitor={(name) => {
                 setFocus(name);
                 go("competitors");
@@ -810,6 +822,8 @@ function Sidebar({
   email,
   workspaces,
   ws,
+  brandLogo,
+  onAvatar,
   onWorkspace,
   onNewWorkspace,
   page,
@@ -820,6 +834,8 @@ function Sidebar({
   email: string;
   workspaces: Workspace[];
   ws: Workspace;
+  brandLogo: string | null;
+  onAvatar: (avatar: string | null) => Promise<void>;
   onWorkspace: (id: string) => void;
   onNewWorkspace: (name: string) => Promise<void>;
   page: Page;
@@ -833,13 +849,14 @@ function Sidebar({
         <Logo size="sm" />
       </div>
       <div className="relative" ref={ref}>
+        <div className="flex w-full items-center gap-2 rounded-aw border border-rule bg-white pl-3 shadow-aw-sm hover:border-brand-mist">
+        <WorkspaceAvatar ws={ws} brandLogo={brandLogo} onAvatar={onAvatar} />
         <button
           type="button"
           onClick={() => setOpen(!open)}
           aria-expanded={open}
-          className="flex w-full items-center gap-2 rounded-aw border border-rule bg-white px-3 py-2 text-left shadow-aw-sm hover:border-brand-mist"
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-none py-2 pr-3 text-left"
         >
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] bg-ink text-[12px] font-medium text-white">{ws.name.slice(0, 1).toUpperCase()}</span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[14px] font-medium text-ink">{ws.name}</span>
             <span className="block text-[11px] text-muted">{ROLE_LABEL[ws.role]}</span>
@@ -848,6 +865,7 @@ function Sidebar({
             ▾
           </span>
         </button>
+        </div>
         {open ? (
           <div className="absolute z-30 mt-2 w-full overflow-hidden rounded-aw border border-rule bg-white shadow-aw-lg">
             {workspaces.map((w) => (
@@ -947,6 +965,68 @@ function Sidebar({
   );
 }
 
+/** Shrink a picked image to a small square PNG data URL. */
+function avatarFromFile(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const size = 96;
+      const c = document.createElement("canvas");
+      c.width = c.height = size;
+      const side = Math.min(img.width, img.height);
+      c.getContext("2d")!.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
+      URL.revokeObjectURL(url);
+      resolve(c.toDataURL("image/png"));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("That file is not an image."));
+    };
+    img.src = url;
+  });
+}
+
+/** The workspace picture. It starts as the first brand's logo; admins can pick their own. */
+function WorkspaceAvatar({ ws, brandLogo, onAvatar }: { ws: Workspace; brandLogo: string | null; onAvatar: (avatar: string | null) => Promise<void> }) {
+  const input = useRef<HTMLInputElement>(null);
+  const src = ws.avatar || brandLogo;
+  const pic = src ? <BrandLogo src={src} name={ws.name} size={24} /> : <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] bg-ink text-[12px] font-medium text-white">{ws.name.slice(0, 1).toUpperCase()}</span>;
+  if (!atLeast(ws.role, "admin")) return pic;
+  return (
+    <>
+      <button
+        type="button"
+        title={ws.avatar ? "Change picture (Shift-click to reset)" : "Change picture"}
+        aria-label="Change workspace picture"
+        className="shrink-0 rounded-[6px] p-0 hover:opacity-80"
+        onClick={(e) => {
+          if (e.shiftKey && ws.avatar) onAvatar(null);
+          else input.current?.click();
+        }}
+      >
+        {pic}
+      </button>
+      <input
+        ref={input}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (!file) return;
+          try {
+            await onAvatar(await avatarFromFile(file));
+          } catch (err) {
+            alert(err instanceof Error ? err.message : String(err));
+          }
+        }}
+      />
+    </>
+  );
+}
+
 // ─────────────────────────────── top bar ───────────────────────────────
 
 const TIMEFRAMES = [7, 30, 60, 90];
@@ -959,6 +1039,7 @@ function TopBar(p: {
   canEdit: boolean;
   onSwitch: (id: string) => void;
   onAdd: () => void;
+  onRemove: (b: Brand) => void;
   days: number;
   onDays: (d: number) => void;
   topics: string[];
@@ -986,19 +1067,34 @@ function TopBar(p: {
         {open ? (
           <div className="absolute z-30 mt-2 w-64 overflow-hidden rounded-aw border border-rule bg-white shadow-aw-lg">
             {p.brands.map((b) => (
-              <button
-                key={b.id}
-                type="button"
-                onClick={() => {
-                  p.onSwitch(b.id);
-                  setOpen(false);
-                }}
-                className={`flex w-full items-center gap-2.5 rounded-none px-3 py-2 text-left text-[14px] hover:bg-surface-2 ${b.id === p.active?.id ? "text-brand" : "text-ink"}`}
-              >
-                <BrandLogo src={b.logo} name={b.name} size={18} />
-                <span className="truncate">{b.name}</span>
-                <span className="ml-auto text-[12px] text-muted">{b.domain}</span>
-              </button>
+              <div key={b.id} className="group flex items-center hover:bg-surface-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    p.onSwitch(b.id);
+                    setOpen(false);
+                  }}
+                  className={`flex min-w-0 flex-1 items-center gap-2.5 rounded-none px-3 py-2 text-left text-[14px] ${b.id === p.active?.id ? "text-brand" : "text-ink"}`}
+                >
+                  <BrandLogo src={b.logo} name={b.name} size={18} />
+                  <span className="truncate">{b.name}</span>
+                  <span className="ml-auto truncate text-[12px] text-muted">{b.domain}</span>
+                </button>
+                {p.canEdit ? (
+                  <button
+                    type="button"
+                    aria-label={`Remove ${b.name}`}
+                    title={`Remove ${b.name}`}
+                    onClick={() => {
+                      setOpen(false);
+                      p.onRemove(b);
+                    }}
+                    className="mr-1.5 rounded-none px-1.5 text-[15px] leading-none text-muted hover:text-neg"
+                  >
+                    ×
+                  </button>
+                ) : null}
+              </div>
             ))}
             {p.canEdit ? (
               <button

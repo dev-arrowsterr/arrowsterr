@@ -24,7 +24,6 @@ type Props = {
   focusTopic?: string | null;
   paused?: Set<string>;
   onChange: (b: Brand) => void;
-  onRemove: () => void;
   onCompetitor: (name: string) => void;
 };
 
@@ -126,17 +125,6 @@ export function PromptsPage(p: Props) {
       ) : null}
       <Scores view={view} />
       <Results sb={p.sb} view={view} engines={shown} edit={edit} focusTopic={p.focusTopic} paused={p.paused} onCompetitor={p.onCompetitor} />
-      {!readOnly ? (
-        <button
-          type="button"
-          className="aw-text-link self-start text-[13px] text-neg! print:hidden"
-          onClick={() => {
-            if (confirm(`Stop tracking ${brand.name}? Its results will be deleted.`)) p.onRemove();
-          }}
-        >
-          Remove this brand
-        </button>
-      ) : null}
     </div>
   );
 }
