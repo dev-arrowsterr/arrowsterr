@@ -6,7 +6,7 @@ import { runBrief } from "../brief";
 import type { Chat } from "../chats";
 import { getTask, postTasks, type DfsAnswer, type DfsEngine } from "../dataforseo";
 import { answerRows, saveAnswers, type Profile } from "../db";
-import { askEngine, availableEngines, viaDfs, type Engine } from "../engines";
+import { askEngine, availableEngines, viaDfs, WEEKLY_ENGINES, type Engine } from "../engines";
 import { entitlement } from "../entitlements";
 import { enqueue, enqueueMany, finish, rateOk, retry, type Job } from "../jobs";
 import { checkDue, promptAllowance } from "../plans";
@@ -56,7 +56,8 @@ export async function schedule(db: SupabaseClient, job: Job) {
     if (!prompts.length) continue;
     // Weekly plans check each brand on its own day of the week, so the load stays even.
     if (!checkDue(seed(b.id), e.limits.checkEvery)) continue;
-    const list = engines;
+    // Claude and Perplexity answer through their own paid APIs, so they are checked once a week, on the brand's own day.
+    const list = engines.filter((e) => !WEEKLY_ENGINES.includes(e) || checkDue(seed(b.id), 7));
     const { data: run, error: err } = await db
       .from("runs")
       .insert({ workspace_id: b.workspace_id, brand_id: b.id, source: "daily", status: "running", engines: list, prompts, chats: [], expected: list.length * prompts.length })

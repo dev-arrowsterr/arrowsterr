@@ -357,7 +357,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
     setBrands((list) => [...(list ?? []), brand]);
     setRuns((r) => ({ ...r, [brand.id]: [] }));
     setActiveId(brand.id);
-    go("prompts");
+    // Starter on Organic Research lands on the Topic Bank it just started; everyone else on their prompts.
+    go(plan && !plan.open.visibility ? "topics" : "prompts");
     setAdding(false);
     // The first check runs right away. After that the daily job keeps it fresh.
     void runBrand(brand);
@@ -444,6 +445,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
         importCount={!brands.length ? legacyCount : 0}
         onImport={importLocal}
         promptRoom={promptRoom}
+        seo={Boolean(plan && !plan.open.visibility)}
       />
     );
   }

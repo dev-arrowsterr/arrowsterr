@@ -6,6 +6,7 @@ import { answerRows, saveAnswers } from "@/lib/db";
 import { availableEngines, viaDfs, WEEKLY_ENGINES, type Engine } from "@/lib/engines";
 import { allowed } from "@/lib/cronAuth";
 import { entitlement } from "@/lib/entitlements";
+import { sendNudges } from "@/lib/nudges";
 import { queueReady } from "@/lib/jobs";
 import { checkDue, promptAllowance } from "@/lib/plans";
 import { metered } from "@/lib/meter";
@@ -73,6 +74,8 @@ export async function POST(request: Request) {
   if (!allowed(request)) return Response.json({ error: "Wrong or missing CRON_SECRET." }, { status: 401 });
   const sb = adminClient();
   if (!sb) return Response.json({ error: "Add SUPABASE_SECRET_KEY on Render." }, { status: 500 });
+  // About once an hour: emails for tasks running low and trials ending.
+  if (Math.floor(Date.now() / 600_000) % 6 === 0) await sendNudges(sb).catch((e) => console.error("Nudges failed:", e instanceof Error ? e.message : e));
   if (await queueReady()) return Response.json({ done: true, message: "The job queue runs daily checks now." });
   const engines = availableEngines();
   if (!engines.length) return Response.json({ done: true, message: "No engine keys are set." });

@@ -33,7 +33,9 @@ export function Onboarding({
   importCount,
   onImport,
   promptRoom = MAX_PROMPTS,
+  seo = false,
 }: {
+  seo?: boolean; // Starter on Organic Research: no prompts to set up, the Topic Bank starts instead
   promptRoom?: number; // prompts the workspace's plan still has room for
   auth: RunAuth;
   onDone: (b: NewBrand) => Promise<void>;
@@ -107,7 +109,7 @@ export function Onboarding({
       setStep("prompts");
     });
   const finish = () =>
-    run("Setting up your brand...", async () => {
+    run(seo ? "Setting up your brand and starting your Topic Bank..." : "Setting up your brand...", async () => {
       const final: Topic[] = plan.map((t) => ({ name: t.name, prompts: t.prompts.filter((p) => p.on).map((p) => p.text) })).filter((t) => t.prompts.length);
       const site = domain.replace(/^https?:\/\//, "").replace(/\/.*$/, "").toLowerCase();
       await onDone({
@@ -122,11 +124,13 @@ export function Onboarding({
       });
     });
 
-  const crumbs: { id: Step; label: string }[] = [
-    { id: "details", label: name || "Your brand" },
-    { id: "topics", label: "Add topics" },
-    { id: "prompts", label: "Generate prompts" },
-  ];
+  const crumbs: { id: Step; label: string }[] = seo
+    ? [{ id: "details", label: name || "Your brand" }]
+    : [
+        { id: "details", label: name || "Your brand" },
+        { id: "topics", label: "Add topics" },
+        { id: "prompts", label: "Generate prompts" },
+      ];
   const back: Record<Step, Step | null> = { site: null, details: "site", topics: "details", prompts: "topics" };
 
   return (
@@ -192,7 +196,7 @@ export function Onboarding({
             ) : null}
             <form onSubmit={readSite} className="aw-frame">
               <div className="aw-frame__body flex flex-col gap-5">
-                <h1 className="aw-h2">Track your brand in AI search</h1>
+                <h1 className="aw-h2">{seo ? "Find the keywords that bring you buyers" : "Track your brand in AI search"}</h1>
                 <div>
                   <label className="aw-label" htmlFor="website">
                     Your website
@@ -217,7 +221,8 @@ export function Onboarding({
             className="aw-frame"
             onSubmit={(e) => {
               e.preventDefault();
-              makeTopics();
+              if (seo) finish();
+              else makeTopics();
             }}
           >
             <div className="aw-frame__body flex flex-col gap-6">
@@ -279,7 +284,7 @@ export function Onboarding({
                   </select>
                 </div>
                 <button type="submit" className="aw-btn aw-btn--accent aw-btn--lg" disabled={Boolean(busy)}>
-                  Next ↗
+                  {seo ? "Build my Topic Bank ↗" : "Next ↗"}
                 </button>
               </div>
             </div>

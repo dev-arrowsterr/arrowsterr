@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { allowed } from "@/lib/cronAuth";
 import { claim, enqueue, prune, queueReady, retry, type Job, type JobKind } from "@/lib/jobs";
 import { metered } from "@/lib/meter";
+import { sendNudges } from "@/lib/nudges";
 import { adminClient } from "@/lib/serverAuth";
 import { brief, check, plan, rollup, schedule } from "@/lib/worker/handlers";
 
@@ -35,6 +36,8 @@ export async function POST(request: Request) {
     const window = Math.floor(Date.now() / 600_000);
     await enqueue("schedule", {}, { key: `schedule:${window}`, maxAttempts: 2 });
     if (window % 36 === 0) await prune();
+    // About once an hour: emails for tasks running low and trials ending.
+    if (window % 6 === 0) await sendNudges(db).catch((e) => console.error("Nudges failed:", e instanceof Error ? e.message : e));
 
     const jobs = await claim(WORKER, limit);
     const done: Record<string, number> = {};
