@@ -3,6 +3,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { addCalendarItems, type Site } from "@/lib/db";
+import { KeywordPanel } from "./KeywordPanel";
+import { addToBank } from "./TopicBank";
 import { MARKETS, stageFromIntent, type KeywordReport, type KwList, type KwSummary } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
 import { peek, putStash, useStash } from "@/lib/stash";
@@ -20,8 +22,8 @@ export const flag = (country: string) => {
   const c = ISO[country];
   return c ? String.fromCodePoint(...[...c].map((ch) => 127397 + ch.charCodeAt(0))) : "🌐";
 };
-const kdWord = (kd: number) => (kd < 15 ? "Very easy" : kd < 30 ? "Easy" : kd < 50 ? "Possible" : kd < 70 ? "Difficult" : kd < 85 ? "Hard" : "Very hard");
-const kdColor = (kd: number) => (kd < 30 ? "var(--aw-pos)" : kd < 50 ? "#F5B70A" : kd < 70 ? "#EA580C" : "var(--aw-neg)");
+export const kdWord = (kd: number) => (kd < 15 ? "Very easy" : kd < 30 ? "Easy" : kd < 50 ? "Possible" : kd < 70 ? "Difficult" : kd < 85 ? "Hard" : "Very hard");
+export const kdColor = (kd: number) => (kd < 30 ? "var(--aw-pos)" : kd < 50 ? "#F5B70A" : kd < 70 ? "#EA580C" : "var(--aw-neg)");
 export const short = (n: number | null | undefined) =>
   n === null || n === undefined ? "–" : n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${(n / 1e3).toFixed(1).replace(/\.0$/, "")}K` : String(n);
 
@@ -36,7 +38,8 @@ export const KdDot = ({ kd }: { kd: number | null }) =>
   );
 
 /** One keyword at a glance: its numbers, ideas around it and who ranks. Paste several to compare them. */
-export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClient; auth: RunAuth; site: Site; canEdit: boolean }) {
+export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: SupabaseClient; auth: RunAuth; site: Site; canEdit: boolean; onSite: (s: Site) => void }) {
+  const [open, setOpen] = useState<KwSummary | null>(null);
   const k = (name: string) => `kw:${site.id}:${name}`;
   const [query, setQuery] = useStash(k("q"), "");
   const [country, setCountry] = useStash(k("country"), site.profile.country && MARKETS[site.profile.country] ? site.profile.country : "United States");
@@ -115,6 +118,12 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
     }
   }
 
+  function toBank(rows: KwSummary[]) {
+    const n = addToBank(sb, site, onSite, rows.map((r) => ({ keyword: r.keyword, volume: r.volume, kd: r.kd, intent: r.intent, cpc: r.cpc })), "keyword research");
+    setNotice(n ? `${n} added to the Topic Bank.` : "Already in the Topic Bank.");
+    setPicked(new Set());
+  }
+
   const sheet = (rows: KwSummary[], label: string) => (
     <>
       {picked.size && canEdit ? (
@@ -122,6 +131,9 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
           <span className="text-[13px] font-medium text-ink">{picked.size} selected</span>
           <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={() => addToCalendar(rows.filter((r) => picked.has(r.keyword)))}>
             Add to calendar
+          </button>
+          <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => toBank(rows.filter((r) => picked.has(r.keyword)))}>
+            Add to Topic Bank
           </button>
           <button type="button" className="aw-text-link text-[13px]" onClick={() => setPicked(new Set())}>
             Clear
@@ -135,7 +147,7 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
         sort={{ key: "volume", desc: true }}
         selected={canEdit ? picked : undefined}
         onSelect={canEdit ? setPicked : undefined}
-        onOpen={(r) => analyze(r.keyword)}
+        onOpen={(r) => setOpen(r)}
         height="60vh"
         cols={[
           { id: "keyword", label: "Keyword", type: "text", value: (r) => r.keyword, width: 240 },
@@ -217,9 +229,14 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
               </span>
             </div>
             {canEdit && o ? (
-              <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => addToCalendar([o])}>
-                Add to calendar
-              </button>
+              <span className="flex flex-wrap gap-2">
+                <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => toBank([o])}>
+                  Add to Topic Bank
+                </button>
+                <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => addToCalendar([o])}>
+                  Add to calendar
+                </button>
+              </span>
             ) : null}
           </div>
 
@@ -259,7 +276,7 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
               </div>
             </div>
           ) : (
-            <div className="aw-callout">Google has no search data for this keyword in {report.country}. Try simpler wording or another country.</div>
+            <div className="aw-callout">No search data in {report.country}.</div>
           )}
 
           <div className="grid gap-5 xl:grid-cols-2">
@@ -305,7 +322,7 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
                       {list.rows.slice(0, 10).map((r) => (
                         <tr key={r.keyword}>
                           <td>
-                            <button type="button" className="aw-text-link text-left" onClick={() => analyze(r.keyword)}>
+                            <button type="button" className="aw-text-link text-left" onClick={() => setOpen(r)}>
                               {r.keyword}
                             </button>
                           </td>
@@ -437,6 +454,7 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
           ]}
         />
       ) : null}
+      {open ? <KeywordPanel sb={sb} auth={auth} site={site} keyword={open.keyword} seed={open} canEdit={canEdit} onSite={onSite} onClose={() => setOpen(null)} /> : null}
     </div>
   );
 }

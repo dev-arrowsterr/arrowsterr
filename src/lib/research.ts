@@ -60,7 +60,8 @@ export function stageCounts(b: PlanBrief | undefined): Record<Stage, number> {
     mofu: [1, 2, 1],
     tofu: [1, 1, 2],
   };
-  const [w1, w2, w3] = weights[b?.funnel ?? "balanced"];
+  // Ready-to-buy keywords come first: without a choice, half the plan is BOFU.
+  const [w1, w2, w3] = weights[b?.funnel ?? "bofu"];
   const sum = w1 + w2 + w3;
   const bofu = Math.round((total * w1) / sum);
   const mofu = Math.round((total * w2) / sum);

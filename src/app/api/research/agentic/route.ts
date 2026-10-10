@@ -5,7 +5,7 @@ import type { Profile } from "@/lib/db";
 import type { PlanBrief } from "@/lib/research";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
 import { metered, meteredRoute } from "@/lib/meter";
-import { entitlement, take } from "@/lib/entitlements";
+import { entitlement } from "@/lib/entitlements";
 import { enqueue, queueReady } from "@/lib/jobs";
 
 // Agentic Keyword Research: start a run, answer right away, and keep working on the job queue
@@ -15,8 +15,9 @@ async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
-  const took = await take(body.workspaceId, "plans", 1, { refundIfFree: false });
-  if (!took.ok) return took.response;
+  // The Topic Bank is free on every plan: each website gets one content plan, kept for good.
+  const e = await entitlement(body.workspaceId);
+  if (e.readOnly) return Response.json({ error: "This workspace is read-only." }, { status: 402 });
   if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });
   if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
 
@@ -28,6 +29,9 @@ async function handle(request: Request) {
     .maybeSingle();
   if (error) return Response.json({ error: error.message + (/sites/.test(error.message) ? " Run supabase/006_research.sql in Supabase." : "") }, { status: 500 });
   if (!site) return Response.json({ error: "Website not found." }, { status: 404 });
+
+  const { data: done } = await auth.sb.from("keyword_runs").select("id").eq("site_id", site.id).eq("status", "done").limit(1);
+  if (done?.length) return Response.json({ error: "This website already has its Topic Bank.", id: done[0].id }, { status: 409 });
 
   // One research run at a time per website.
   const since = new Date(Date.now() - 20 * 60_000).toISOString();
@@ -44,19 +48,15 @@ async function handle(request: Request) {
     .single();
   if (err || !run) return Response.json({ error: err?.message ?? "Could not start." }, { status: 500 });
 
-  // A plan can be no bigger than the workspace's plan allows.
-  const max = (await entitlement(body.workspaceId)).limits.planMaxKeywords;
+  // Every website gets the full-size plan, bottom of the funnel first.
   const asked = cleanBrief(body.brief);
-  const brief = asked ? { ...asked, size: Math.min(asked.size ?? max, max) as 30 | 60 | 120 } : { size: max };
+  const brief: PlanBrief = { funnel: "bofu", ...asked, size: 120 };
   if (await queueReady()) {
-    await enqueue("plan", { runId: run.id, site: { ...site, brief }, period: took.period }, { workspaceId: body.workspaceId, key: `plan:${run.id}`, maxAttempts: 2 });
+    await enqueue("plan", { runId: run.id, site: { ...site, brief } }, { workspaceId: body.workspaceId, key: `plan:${run.id}`, maxAttempts: 2 });
     return Response.json({ id: run.id });
   }
   after(async () => {
     await metered(body.workspaceId, "content plan", () => runAgent(auth.sb, run.id, { ...(site as { id: string; domain: string; name: string; profile: Profile }), brief }));
-    // A plan that failed does not count against the month's plans.
-    const { data: done } = await auth.sb.from("keyword_runs").select("status").eq("id", run.id).maybeSingle();
-    if (done?.status === "failed") await took.giveBack();
   });
   return Response.json({ id: run.id });
 }

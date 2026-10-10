@@ -156,6 +156,7 @@ export function Sheet<T>({
   onSelect,
   canSelect = () => true,
   onOpen,
+  canOpen = () => true,
   onAddColumn,
   height = "72vh",
   label,
@@ -170,6 +171,7 @@ export function Sheet<T>({
   onSelect?: (keys: Set<string>) => void;
   canSelect?: (row: T) => boolean;
   onOpen?: (row: T) => void;
+  canOpen?: (row: T) => boolean;
   onAddColumn?: () => void;
   height?: string;
   label: string;
@@ -421,7 +423,7 @@ export function Sheet<T>({
                       <td key={c.id} style={sized(c)} className={`${c.type === "number" ? "is-num" : ""} ${widthOf(c) ? "overflow-hidden text-ellipsis whitespace-nowrap" : ""} ${stickyCls(c)}`}>
                         {editing === cellId && c.edit ? (
                           <CellEditor row={r} col={c} onDone={() => setEditing(null)} />
-                        ) : j === 0 && onOpen ? (
+                        ) : j === 0 && onOpen && canOpen(r) ? (
                           <span className="flex items-center gap-2">
                             <button type="button" className="aw-sheet__open" onClick={() => onOpen(r)} title="Open">
                               {content}

@@ -40,7 +40,7 @@ export function groups(p: Plan): Group[] {
       items: [
         { text: p.researchPerMonth ? `Keyword & Website Research · ${n(p.researchPerMonth)} a month` : "Keyword & Website Research", on: p.researchPerMonth > 0 },
         { text: p.briefsPerMonth ? `${n(p.briefsPerMonth)} content briefs a month` : "Content briefs", on: p.briefsPerMonth > 0 },
-        { text: p.plansPerMonth ? `${count(p.plansPerMonth, "content plan")} a month` : "Content plans", on: p.plansPerMonth > 0 },
+        { text: "Topic Bank, built once per brand", on: true },
         { text: "Agentic Writer", on: p.writer === "full" },
       ],
     },

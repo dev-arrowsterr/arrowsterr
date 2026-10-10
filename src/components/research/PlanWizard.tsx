@@ -21,8 +21,8 @@ export function PlanWizard({ sb, auth, site, onSite, onStarted, onClose }: { sb:
   const last = site.profile.planBrief ?? {};
   const [b, setB] = useState<PlanBrief>({
     goal: "leads",
-    funnel: "balanced",
-    size: 60,
+    funnel: "bofu",
+    size: 120,
     difficulty: "mixed",
     formats: ["Blog posts", "Comparisons", "How-to guides"],
     focus: site.profile.products ?? "",
@@ -108,8 +108,8 @@ export function PlanWizard({ sb, auth, site, onSite, onStarted, onClose }: { sb:
               choice(
                 b.funnel,
                 [
-                  { id: "balanced", label: "Balanced", sub: "Even mix of every stage" },
                   { id: "bofu", label: "Ready to buy", sub: "Pricing, best-of, alternatives" },
+                  { id: "balanced", label: "Balanced", sub: "Even mix of every stage" },
                   { id: "mofu", label: "Comparing", sub: "Versus, reviews, use cases" },
                   { id: "tofu", label: "Learning", sub: "Guides, how-tos, explainers" },
                 ],
@@ -127,19 +127,6 @@ export function PlanWizard({ sb, auth, site, onSite, onStarted, onClose }: { sb:
           </>
         ) : step === 2 ? (
           <>
-            {q(
-              "How big?",
-              choice(
-                b.size,
-                [
-                  { id: 30, label: "30 keywords", sub: "A focused month" },
-                  { id: 60, label: "60 keywords", sub: "A solid quarter" },
-                  { id: 120, label: "120 keywords", sub: "A full half year" },
-                ],
-                (size) => set({ size }),
-                "Size",
-              ),
-            )}
             {q(
               "How hard should we aim?",
               choice(

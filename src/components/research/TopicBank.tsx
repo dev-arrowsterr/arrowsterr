@@ -8,6 +8,9 @@ import type { RunAuth } from "@/lib/runner";
 import { Sheet, type Col, type Edit } from "../Sheet";
 import { Card } from "../ui";
 import { PlanProgress } from "./AgenticResearch";
+import { KeywordPanel } from "./KeywordPanel";
+import { useStash } from "@/lib/stash";
+import type { KeywordRun } from "@/lib/db";
 import { PlanWizard } from "./PlanWizard";
 import { Difficulty, fmtCpc, post, STAGE_LABEL, StageTag } from "./shared";
 
@@ -45,6 +48,9 @@ export function TopicBank({ sb, auth, site, canEdit, onSite, onCalendar }: { sb:
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [open, setOpen] = useState<BankRow | null>(null);
+  const [runs] = useStash<KeywordRun[] | null>(`agentic:${site.id}:runs`, null);
+  const hasPlan = Boolean(runs?.some((r) => r.status === "done" || r.status === "running"));
   const bank = site.profile.bank ?? [];
   const latestSite = useRef(site);
   useEffect(() => {
@@ -104,7 +110,8 @@ export function TopicBank({ sb, auth, site, canEdit, onSite, onCalendar }: { sb:
   }
 
   async function toCalendar() {
-    const rows = bank.filter((b) => picked.has(b.id));
+    const RANK = { bofu: 0, mofu: 1, tofu: 2 } as const;
+    const rows = bank.filter((b) => picked.has(b.id)).sort((a, b) => (a.stage ? RANK[a.stage] : 3) - (b.stage ? RANK[b.stage] : 3) || (b.volume ?? 0) - (a.volume ?? 0));
     setError("");
     try {
       // Spread the ideas over the calendar at the pace picked for content plans, after what is already planned.
@@ -197,7 +204,7 @@ export function TopicBank({ sb, auth, site, canEdit, onSite, onCalendar }: { sb:
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-start justify-end gap-4">
-        {canEdit ? (
+        {canEdit && runs && !hasPlan ? (
           <button type="button" className="aw-btn aw-btn--accent" onClick={() => setWizard(true)}>
             ✦ Generate content plan
           </button>
@@ -260,7 +267,9 @@ export function TopicBank({ sb, auth, site, canEdit, onSite, onCalendar }: { sb:
           rows={rows}
           cols={cols}
           rowKey={(r) => r.id}
-          sort={{ key: "added", desc: false }}
+          sort={{ key: "stage", desc: false }}
+          onOpen={setOpen}
+          canOpen={(r) => !r.blank}
           selected={canEdit ? picked : undefined}
           onSelect={canEdit ? setPicked : undefined}
           canSelect={(r) => !r.blank}
@@ -280,6 +289,17 @@ export function TopicBank({ sb, auth, site, canEdit, onSite, onCalendar }: { sb:
             setWizard(false);
             setRefresh((n) => n + 1);
           }}
+        />
+      ) : null}
+      {open ? (
+        <KeywordPanel
+          sb={sb}
+          auth={auth}
+          site={site}
+          keyword={open.keyword}
+          seed={{ volume: open.volume, kd: open.kd, intent: open.intent, cpc: open.cpc ?? null }}
+          canEdit={canEdit}
+          onClose={() => setOpen(null)}
         />
       ) : null}
     </div>

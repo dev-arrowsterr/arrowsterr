@@ -37,9 +37,9 @@ const ROWS: { group: string; rows: { label: React.ReactNode; value: (p: Plan) =>
     rows: [
       { label: "Keyword & Website Research a month", value: (p) => (p.researchPerMonth ? n(p.researchPerMonth) : "–") },
       { label: "Content briefs a month", value: (p) => (p.briefsPerMonth ? n(p.briefsPerMonth) : "–") },
-      { label: "Content plans a month", value: (p) => (p.plansPerMonth ? n(p.plansPerMonth) : "–") },
+      { label: "Topic Bank, built once per brand", value: () => yes(true) },
       { label: "Agentic Writer", value: (p) => yes(p.writer === "full") },
-      { label: "Editorial Calendar & Topic Bank", value: (p) => yes(p.briefsPerMonth > 0) },
+      { label: "Editorial Calendar", value: (p) => yes(p.briefsPerMonth > 0) },
     ],
   },
   {

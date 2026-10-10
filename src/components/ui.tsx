@@ -172,7 +172,7 @@ export function Tip({ text }: { text: string }) {
 }
 
 /** A full height panel that slides in from the right, like the prompt deep dive. Escape or a click outside closes it. */
-export function SidePanel({ title, kicker, onClose, children }: { title: React.ReactNode; kicker?: React.ReactNode; onClose: () => void; children: React.ReactNode }) {
+export function SidePanel({ title, kicker, onClose, children, narrow = false }: { title: React.ReactNode; kicker?: React.ReactNode; onClose: () => void; children: React.ReactNode; narrow?: boolean }) {
   useEffect(() => {
     const keys = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", keys);
@@ -189,7 +189,7 @@ export function SidePanel({ title, kicker, onClose, children }: { title: React.R
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
-        className="flex h-full w-full max-w-[1320px] flex-col gap-6 overflow-y-auto bg-white px-6 py-6 shadow-aw-sm md:w-[calc(100%-240px)] md:px-10"
+        className={`flex h-full w-full flex-col gap-6 overflow-y-auto bg-white px-6 py-6 shadow-aw-sm ${narrow ? "max-w-[640px] md:px-8" : "max-w-[1320px] md:w-[calc(100%-240px)] md:px-10"}`}
       >
         <div className="flex items-start justify-between gap-6">
           <div className="flex min-w-0 flex-col gap-1.5">

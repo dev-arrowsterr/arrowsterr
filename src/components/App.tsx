@@ -47,9 +47,9 @@ import { ReportsPage } from "./reports/ReportsPage";
 import { VisitorsPage } from "./VisitorsPage";
 
 export type { Brand } from "@/lib/db";
-type Page = "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "gap" | "aigap" | "calendar" | "topics" | "writer" | "summary" | "members" | "billing";
-const RESEARCH: Page[] = ["keywords", "domain", "gap", "aigap", "calendar", "topics", "writer"];
-const SEO_TOOLS: Page[] = ["keywords", "domain", "gap", "aigap", "topics"];
+type Page = "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "gap" | "calendar" | "topics" | "writer" | "summary" | "members" | "billing";
+const RESEARCH: Page[] = ["keywords", "domain", "gap", "calendar", "topics", "writer"];
+const SEO_TOOLS: Page[] = ["keywords", "domain", "gap"];
 /** Website analytics is still in testing: only this account sees it. */
 const WEBSITE_TESTER = "vincent@perceptric.com";
 const VISIBILITY: Page[] = ["prompts", "competitors", "domains", "urls"]; // the only pages with period, topic and model filters
@@ -64,8 +64,7 @@ const SLUGS: Record<Page, string> = {
   visitors: "/visitors",
   keywords: "/keywords",
   domain: "/domain-research",
-  gap: "/keyword-gap",
-  aigap: "/ai-gap",
+  gap: "/competitive-analysis",
   calendar: "/calendar",
   topics: "/topic-bank",
   writer: "/agentic-writer",
@@ -81,6 +80,8 @@ const ALIASES: Record<string, Page> = {
   "/analytics": "traffic",
   "/keyword-research": "keywords",
   "/agentic-research": "topics",
+  "/keyword-gap": "gap",
+  "/ai-gap": "gap",
   "/planner": "topics",
   "/writer": "writer",
   "/inkwell": "writer",
@@ -569,7 +570,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             <BillingPage key={ws.id} sb={sb} ws={ws} auth={auth} onPlan={loadPlan} />
           ) : !view ? (
             <div className="aw-callout max-w-xl">This workspace has no brands yet. Ask an editor or admin to add one.</div>
-          ) : RESEARCH.includes(page) && plan && (SEO_TOOLS.includes(page) ? plan.limits.researchPerMonth : plan.limits.briefsPerMonth) === 0 ? (
+          ) : RESEARCH.includes(page) && page !== "topics" && plan && (SEO_TOOLS.includes(page) ? plan.limits.researchPerMonth : plan.limits.briefsPerMonth) === 0 ? (
             <Locked
               title={SEO_TOOLS.includes(page) ? "Keyword & Website Research starts on Scale" : "Content starts on Scale"}
               admin={atLeast(ws.role, "admin")}
@@ -654,8 +655,8 @@ function Locked({ title, admin, busy, onBoost, onPlans }: { title: string; admin
       <h1 className="aw-h3 mb-0!">{title}</h1>
       <ul className="flex flex-col gap-2 text-left text-[15px] text-body">
         <li>✓ Keyword & Website Research, {p.researchPerMonth.toLocaleString("en-US")} a month</li>
-        <li>✓ {p.briefsPerMonth} content briefs and {p.plansPerMonth} content plan a month</li>
-        <li>✓ Agentic Writer, Editorial Calendar and Topic Bank</li>
+        <li>✓ {p.briefsPerMonth} content briefs a month</li>
+        <li>✓ Agentic Writer and Editorial Calendar</li>
         <li>✓ {p.prompts} prompts and {p.seats} seats</li>
       </ul>
       <div className="flex flex-wrap justify-center gap-3">
@@ -732,14 +733,8 @@ const NAV: { group: string; tester?: boolean; items: { id: Page; label: string; 
     items: [
       { id: "keywords", label: "Keyword Research", icon: "search" },
       { id: "domain", label: "Domain Research", icon: "globe" },
+      { id: "gap", label: "Competitive Analysis", icon: "gap" },
       { id: "topics", label: "Topic Bank", icon: "bank" },
-    ],
-  },
-  {
-    group: "Competitive analysis",
-    items: [
-      { id: "gap", label: "Keyword Gap", icon: "gap" },
-      { id: "aigap", label: "AI Gap", icon: "spark" },
     ],
   },
   {

@@ -2,13 +2,16 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
+import type { Chat } from "@/lib/chats";
 import type { Site } from "@/lib/db";
+import type { BrandStat } from "@/lib/metrics";
 import type { Gap, GapRow } from "@/lib/gap";
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
 import { Sheet, type Col } from "../Sheet";
 import { Card, favicon, Thinking } from "../ui";
 import { BAR_BUTTON, BAR_INPUT, Difficulty, downloadCsv, fmtNum, post } from "./shared";
+import { KeywordPanel } from "./KeywordPanel";
 import { addToBank } from "./TopicBank";
 
 type Tab = "missing" | "weaker" | "shared" | "only";
@@ -20,8 +23,45 @@ const TABS: { id: Tab; label: string; tone: string }[] = [
 ];
 const rank = (n: number | null) => (n === null ? <span className="text-muted">–</span> : <span className="aw-rank">#{n}</span>);
 
-/** Keyword Gap: what a competitor ranks for that you don't, where they beat you, and what only you have. */
-export function KeywordGap({ sb, auth, site, canEdit, onSite }: { sb: SupabaseClient; auth: RunAuth; site: Site; canEdit: boolean; onSite: (s: Site) => void }) {
+const bare = (d: string | null | undefined) => (d ?? "").toLowerCase().replace(/^www\./, "");
+
+/** Prompts where the rival is named and you are not, with their spot. */
+function wins(chats: Chat[], rival: string, you: string) {
+  const by = new Map<string, { prompt: string; spots: number[]; answers: number }>();
+  for (const c of chats) {
+    const them = c.brands.find((b) => b.name.toLowerCase() === rival.toLowerCase());
+    const mine = c.brands.some((b) => b.name.toLowerCase() === you.toLowerCase());
+    const row = by.get(c.prompt) ?? { prompt: c.prompt, spots: [], answers: 0 };
+    row.answers += 1;
+    if (them && !mine) row.spots.push(them.position);
+    by.set(c.prompt, row);
+  }
+  return [...by.values()].filter((r) => r.spots.length).sort((a, b) => b.spots.length - a.spots.length);
+}
+
+/** Competitive Analysis: rivals from your AI answers and from Google, how they beat you in AI answers, and the keywords they rank for that you don't. */
+export function KeywordGap({
+  sb,
+  auth,
+  site,
+  canEdit,
+  onSite,
+  stats,
+  chats,
+  brand,
+}: {
+  sb: SupabaseClient;
+  auth: RunAuth;
+  site: Site;
+  canEdit: boolean;
+  onSite: (s: Site) => void;
+  stats: BrandStat[];
+  chats: Chat[];
+  brand: string;
+}) {
+  const [open, setOpen] = useState<GapRow | null>(null);
+  const you = stats.find((s) => s.isYou);
+  const aiRivals = stats.filter((s) => !s.isYou && s.domain && bare(s.domain) !== bare(site.domain)).slice(0, 8);
   const [rivals, setRivals] = useStash<string[] | null>(`rivals:${site.id}`, null);
   const [result, setResult] = useStash<{ gap: Gap; them: string } | null>(`gap:${site.id}`, null);
   const [query, setQuery] = useState(result?.them ?? "");
@@ -65,6 +105,8 @@ export function KeywordGap({ sb, auth, site, canEdit, onSite }: { sb: SupabaseCl
   const lists: Record<Tab, GapRow[]> = { missing: gap?.missing ?? [], weaker, shared: gap?.shared ?? [], only: gap?.only ?? [] };
   const counts: Record<Tab, number> = { missing: gap?.totals.missing ?? 0, weaker: weaker.length, shared: gap?.totals.shared ?? 0, only: gap?.totals.only ?? 0 };
   const rows = lists[tab];
+  const rival = result ? stats.find((s) => !s.isYou && bare(s.domain) === bare(result.them)) : undefined;
+  const won = rival ? wins(chats, rival.name, brand) : [];
 
   const cols: Col<GapRow>[] = [
     { id: "keyword", label: "Keyword", type: "text", value: (r) => r.keyword, width: 280 },
@@ -114,14 +156,30 @@ export function KeywordGap({ sb, auth, site, canEdit, onSite }: { sb: SupabaseCl
         <button type="submit" className={BAR_BUTTON} disabled={!canEdit || busy || !query.trim()}>
           Compare
         </button>
-        {rivals?.length ? (
-          <div className="flex w-full flex-wrap gap-2 px-1">
-            {rivals.slice(0, 6).map((d) => (
-              <button key={d} type="button" className="aw-chip" onClick={() => run(d)} disabled={!canEdit || busy}>
-                <img src={favicon(d)} alt="" width={14} height={14} className="rounded-[3px]" />
-                {d}
+        {aiRivals.length ? (
+          <div className="flex w-full flex-wrap items-center gap-2 px-1">
+            <span className="aw-label w-24 shrink-0">In AI answers</span>
+            {aiRivals.map((r) => (
+              <button key={r.name} type="button" className={`aw-chip ${bare(result?.them) === bare(r.domain) ? "aw-chip--brand" : ""}`} onClick={() => run(r.domain!)} disabled={!canEdit || busy}>
+                <img src={favicon(r.domain!)} alt="" width={14} height={14} className="rounded-[3px]" />
+                {r.name}
+                <span className="text-muted">{Math.round(r.visibility)}%</span>
               </button>
             ))}
+          </div>
+        ) : null}
+        {rivals?.length ? (
+          <div className="flex w-full flex-wrap items-center gap-2 px-1">
+            <span className="aw-label w-24 shrink-0">On Google</span>
+            {rivals
+              .filter((d) => !aiRivals.some((r) => bare(r.domain) === bare(d)))
+              .slice(0, 6)
+              .map((d) => (
+                <button key={d} type="button" className={`aw-chip ${bare(result?.them) === bare(d) ? "aw-chip--brand" : ""}`} onClick={() => run(d)} disabled={!canEdit || busy}>
+                  <img src={favicon(d)} alt="" width={14} height={14} className="rounded-[3px]" />
+                  {d}
+                </button>
+              ))}
           </div>
         ) : null}
       </form>
@@ -132,6 +190,51 @@ export function KeywordGap({ sb, auth, site, canEdit, onSite }: { sb: SupabaseCl
 
       {!busy && gap ? (
         <>
+          {rival ? (
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+              <section className="aw-frame flex flex-col">
+                <div className="aw-frame__head">
+                  <h3 className="aw-h4">In AI answers</h3>
+                </div>
+                <div className="grid grid-cols-2 gap-px bg-rule-faint">
+                  {[
+                    { lab: "Visibility", a: you ? `${Math.round(you.visibility)}%` : "–", b: `${Math.round(rival.visibility)}%` },
+                    { lab: "Position", a: you?.position ? `#${you.position.toFixed(1)}` : "–", b: rival.position ? `#${rival.position.toFixed(1)}` : "–" },
+                    { lab: "Sentiment", a: you?.sentiment !== null && you?.sentiment !== undefined ? Math.round(you.sentiment) : "–", b: rival.sentiment !== null ? Math.round(rival.sentiment) : "–" },
+                    { lab: "Mentions", a: you?.mentions ?? 0, b: rival.mentions },
+                  ].map((x) => (
+                    <div key={x.lab} className="flex flex-col gap-1.5 bg-white px-5 py-4">
+                      <span className="aw-label">{x.lab}</span>
+                      <span className="flex items-baseline gap-3 text-[20px] font-medium text-ink">
+                        <span className="text-brand">{x.a}</span>
+                        <span className="text-[13px] text-muted">vs</span>
+                        <span>{x.b}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+              <section className="aw-frame flex flex-col">
+                <div className="aw-frame__head">
+                  <h3 className="aw-h4">Prompts {rival.name} wins</h3>
+                  <span className="aw-label">{won.length}</span>
+                </div>
+                <ul className="max-h-64 divide-y divide-rule-faint overflow-y-auto">
+                  {won.slice(0, 12).map((w) => (
+                    <li key={w.prompt} className="flex items-center justify-between gap-3 px-5 py-2.5 text-[13px]">
+                      <span className="min-w-0 truncate text-ink" title={w.prompt}>
+                        {w.prompt}
+                      </span>
+                      <span className="aw-num shrink-0 text-muted">
+                        {w.spots.length} of {w.answers} · #{(w.spots.reduce((n, x) => n + x, 0) / w.spots.length).toFixed(1)}
+                      </span>
+                    </li>
+                  ))}
+                  {!won.length ? <li className="px-5 py-3 text-[13px] text-muted">–</li> : null}
+                </ul>
+              </section>
+            </div>
+          ) : null}
           <div className="aw-kpis" role="tablist" aria-label="Keyword gap">
             {TABS.map((t) => (
               <button
@@ -178,6 +281,7 @@ export function KeywordGap({ sb, auth, site, canEdit, onSite }: { sb: SupabaseCl
               rows={rows}
               cols={cols}
               rowKey={(r) => r.keyword}
+              onOpen={setOpen}
               sort={{ key: "volume", desc: true }}
               selected={canEdit ? picked : undefined}
               onSelect={canEdit ? setPicked : undefined}
@@ -186,6 +290,7 @@ export function KeywordGap({ sb, auth, site, canEdit, onSite }: { sb: SupabaseCl
           </Card>
         </>
       ) : null}
+      {open ? <KeywordPanel sb={sb} auth={auth} site={site} keyword={open.keyword} seed={{ volume: open.volume, kd: open.kd, intent: open.intent }} canEdit={canEdit} onSite={onSite} onClose={() => setOpen(null)} /> : null}
     </div>
   );
 }
