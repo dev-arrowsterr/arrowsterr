@@ -3,6 +3,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
+import Table from "@tiptap/extension-table";
+import TableCell from "@tiptap/extension-table-cell";
+import TableHeader from "@tiptap/extension-table-header";
+import TableRow from "@tiptap/extension-table-row";
 import { EditorContent, mergeAttributes, Node, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -14,6 +18,7 @@ import { briefDocHtml } from "@/lib/briefDoc";
 import { briefToDoc, coverage, mdToHtml, type Section } from "@/lib/writer";
 import type { BrandGuideline, ChatMessage } from "@/lib/writerTypes";
 import { AiIcon, Seg, Thinking } from "../ui";
+import { CommentRail, railSections, type RailSection } from "./CommentRail";
 import { post } from "./shared";
 
 /** A note to the writer. Shown in the editor, left out when the draft is copied or exported. */
@@ -49,6 +54,14 @@ const draftParts = (ed: Editor) => {
   return { body: body.join("\n"), sections };
 };
 const clean = (html: string) => html.replace(/<aside data-note[^>]*>[\s\S]*?<\/aside>/g, "");
+/** Tables in the brand's style for export: the main brand color on the header row. */
+export const brandTables = (html: string, g: BrandGuideline | null) => {
+  const main = g?.colors.find((c) => /primary|brand|main/i.test(`${c.name} ${c.use}`))?.hex ?? g?.colors[0]?.hex ?? "#0943B0";
+  return html
+    .replace(/<table(?![^>]*style=)/g, '<table style="width:100%;border-collapse:collapse;margin:1.5em 0"')
+    .replace(/<th(?=[\s>])(?![^>]*style=)/g, `<th style="background:${main};color:#fff;text-align:left;padding:10px 12px"`)
+    .replace(/<td(?=[\s>])(?![^>]*style=)/g, '<td style="padding:10px 12px;border-bottom:1px solid #e5e7eb"');
+};
 const ago = (iso: string) => {
   const d = (Date.now() - Date.parse(iso)) / 1000;
   return d < 60 ? "just now" : d < 3600 ? `${Math.round(d / 60)}m ago` : d < 86400 ? `${Math.round(d / 3600)}h ago` : new Date(iso).toLocaleDateString();
@@ -373,6 +386,8 @@ function DocEditor({
   const [html, setHtml] = useState("");
   const [parts, setParts] = useState<{ body: string; sections: Section[] }>({ body: "", sections: [] });
   const [brief, setBrief] = useState<Brief | null>(null);
+  const [rail, setRail] = useState<RailSection[]>([]);
+  const [full, setFull] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const titleRef = useRef(title);
 
@@ -398,14 +413,25 @@ function DocEditor({
   const editor = useEditor({
     immediatelyRender: false,
     editable: canEdit,
-    extensions: [StarterKit.configure({ heading: { levels: [1, 2, 3, 4] } }), Link.configure({ openOnClick: false }), Placeholder.configure({ placeholder: "Start writing..." }), Note],
+    extensions: [
+      StarterKit.configure({ heading: { levels: [1, 2, 3, 4] } }),
+      Link.configure({ openOnClick: false }),
+      Placeholder.configure({ placeholder: "Start writing..." }),
+      Note,
+      Table.configure({ resizable: false }),
+      TableRow,
+      TableHeader,
+      TableCell,
+    ],
     content: doc.content && Object.keys(doc.content).length ? doc.content : undefined,
     onCreate: ({ editor: ed }) => {
+      setRail(railSections(ed));
       setParts(draftParts(ed));
       setText(draftText(ed));
       setHtml(clean(ed.getHTML()));
     },
     onUpdate: ({ editor: ed }) => {
+      setRail(railSections(ed));
       setParts(draftParts(ed));
       setText(draftText(ed));
       setHtml(clean(ed.getHTML()));
@@ -427,10 +453,23 @@ function DocEditor({
 
   const words = text.split(/\s+/).filter(Boolean).length;
   const cov = brief ? coverage(parts.body, html, brief, parts.sections) : null;
-  const exportHtml = () => clean(editor?.getHTML() ?? "");
+  const exportHtml = () => brandTables(clean(editor?.getHTML() ?? ""), guideline);
+
+  // Full screen closes with Escape.
+  useEffect(() => {
+    if (!full) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setFull(false);
+    window.addEventListener("keydown", onKey);
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.body.style.overflow = "";
+    };
+  }, [full]);
 
   const target = brief ? Number((brief.brief.wordCount.match(/[\d,]+/g) ?? []).pop()?.replace(/,/g, "") ?? 0) : 0;
   return (
+    <div className={full ? "fixed inset-0 z-[70] overflow-y-auto bg-surface-2 p-3 md:p-5" : ""}>
     <div className={`grid items-start gap-4 ${side ? "xl:grid-cols-[minmax(0,1fr)_400px]" : ""}`}>
       <section className="aw-frame flex min-w-0 flex-col">
         <div className="flex flex-wrap items-center gap-3 border-b border-rule px-5 py-3">
@@ -461,16 +500,20 @@ function DocEditor({
           >
             Download
           </button>
+          <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => setFull(!full)} aria-pressed={full} title={full ? "Exit full screen (Esc)" : "Full screen"}>
+            {full ? "Exit full screen" : "Full screen"}
+          </button>
           <button type="button" className={`aw-btn aw-btn--sm ${side ? "aw-btn--primary" : "aw-btn--secondary"}`} onClick={() => onSide(!side)} aria-pressed={side}>
             {side ? "Hide panel" : `Assistant${cov ? ` · Brief ${cov.score}%` : ""}`}
           </button>
         </div>
         {editor && canEdit ? (
-          <div className="sticky top-[57px] z-10 rounded-none bg-white">
+          <div className={`sticky z-10 rounded-none bg-white ${full ? "top-0" : "top-[57px]"}`}>
             <Toolbar editor={editor} />
           </div>
         ) : null}
-        <div className="aw-editor min-h-[75vh] flex-1 px-6 py-10 sm:px-16">
+        <div className="grid flex-1 gap-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:pr-5">
+        <div className="aw-editor aw-editor--rail min-h-[75vh] px-6 py-10 sm:px-16">
           <input
             value={title}
             disabled={!canEdit}
@@ -485,10 +528,16 @@ function DocEditor({
           />
           <EditorContent editor={editor} />
         </div>
+        {editor ? (
+          <div className="py-10">
+            <CommentRail sb={sb} auth={auth} siteId={site.id} docId={doc.id} editor={editor} sections={rail} docText={text} canEdit={canEdit} />
+          </div>
+        ) : null}
+        </div>
       </section>
 
       {side ? (
-      <aside className="aw-frame flex max-h-[calc(100vh-110px)] min-w-0 flex-col xl:sticky xl:top-[72px]">
+      <aside className={`aw-frame flex min-w-0 flex-col xl:sticky ${full ? "max-h-[calc(100vh-40px)] xl:top-0" : "max-h-[calc(100vh-110px)] xl:top-[72px]"}`}>
         <div className="border-b border-rule px-3 py-2.5">
           <Seg
             label="Side panel"
@@ -512,6 +561,7 @@ function DocEditor({
         </div>
       </aside>
       ) : null}
+    </div>
     </div>
   );
 }

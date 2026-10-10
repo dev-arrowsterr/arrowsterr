@@ -1,4 +1,5 @@
 // Every read and write the app makes. Row level security in Supabase decides what each person may do.
+import type { DocPublishMeta } from "./writerAgent";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Chat, Run } from "./chats";
 import type { AgentResult, PlanBrief } from "./research";
@@ -451,6 +452,17 @@ export async function createDoc(sb: SupabaseClient, d: { workspace_id: string; s
 
 export async function saveDoc(sb: SupabaseClient, id: string, d: { title: string; content: Record<string, unknown>; words: number }) {
   check(await sb.from("docs").update({ ...d, updated_at: new Date().toISOString() }).eq("id", id));
+}
+
+/** Publishing details of a draft. Empty before supabase/021_doc_meta.sql runs. */
+export async function getDocMeta(sb: SupabaseClient, id: string): Promise<DocPublishMeta> {
+  const { data, error } = await sb.from("docs").select("meta").eq("id", id).maybeSingle();
+  return error ? {} : ((data?.meta as DocPublishMeta | null) ?? {});
+}
+
+export async function saveDocMeta(sb: SupabaseClient, id: string, meta: DocPublishMeta) {
+  const { error } = await sb.from("docs").update({ meta }).eq("id", id);
+  if (error) throw new Error(/meta/.test(error.message) ? "Run supabase/021_doc_meta.sql in Supabase to save publishing details." : error.message);
 }
 
 export async function deleteDoc(sb: SupabaseClient, id: string) {

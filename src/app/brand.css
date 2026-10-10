@@ -1218,3 +1218,6 @@
 .aw .aw-btn:has(> svg.aw-icon) { gap: 7px; }
 .aw svg.aw-icon[fill="currentColor"] { fill: currentColor; stroke: none; }
 .aw .aw-btn--secondary svg.aw-icon[fill="currentColor"] { color: var(--aw-brand); }
+
+/* Agentic Writer: the brief's notes live in the comment rail on wide screens, so the draft stays clean. */
+@media (min-width: 1024px) { .aw .aw-editor--rail aside.aw-note { display: none; } }
