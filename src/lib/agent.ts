@@ -47,6 +47,13 @@ function stagePrompt(s: Site, ctx: Context, stage: Stage, themes: string[] | nul
   const st = STAGES.find((x) => x.id === stage)!;
   return `You are an SEO strategist planning content for a website. Write ${st.label} keywords (${st.long}).
 
+Method: Grow and Convert's Pain Point SEO with Perceptric's revenue-first planning.
+- Start from the buyer's pain and the product that solves it, never from search volume.
+- Rank by buying intent: a keyword someone types right before choosing a product beats a bigger one typed out of curiosity.
+- Every keyword must lead naturally to this business's product or service, so the page can pitch it.
+- Favor comparisons, alternatives, "best X for Y" and use-case searches; they convert even at low volume.
+- The plan is 60% BOFU, 20% MOFU and 20% TOFU. Upper-funnel keywords still need a clear path to the product.
+
 ${about(s, ctx)}
 ${
   ctx.rivals.length

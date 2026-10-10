@@ -809,7 +809,6 @@ const NAV: { group: string; icon: string; tester?: boolean; items: { id: Page; l
     items: [
       { id: "keywords", label: "Keyword Research", icon: "search" },
       { id: "domain", label: "Domain Research", icon: "globe" },
-      { id: "topics", label: "Topic Bank", icon: "bank" },
       { id: "gap", label: "Competitive Analysis", icon: "gap" },
     ],
   },
@@ -817,6 +816,7 @@ const NAV: { group: string; icon: string; tester?: boolean; items: { id: Page; l
     group: "Agentic Content",
     icon: "pen",
     items: [
+      { id: "topics", label: "Topic Bank", icon: "bank" },
       { id: "calendar", label: "Editorial Calendar", icon: "calendar" },
       { id: "writer", label: "Agentic Writer", icon: "pen" },
     ],
@@ -866,6 +866,8 @@ function Sidebar({
   onPage: (p: Page) => void;
 }) {
   const { open, setOpen, ref } = useMenu();
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+  const [closedGroups, setClosedGroups] = useState<Set<string>>(new Set());
   return (
     <aside className="aw-sidebar flex shrink-0 flex-col gap-5 border-b border-rule px-3 py-4 print:hidden md:sticky md:top-0 md:h-screen md:w-60 md:border-r md:border-b-0">
       <div className="px-2">
@@ -921,9 +923,26 @@ function Sidebar({
       <nav className="flex flex-col gap-1" aria-label="Modules">
         {NAV.filter((g) => !g.tester || email.toLowerCase() === WEBSITE_TESTER).map((g) => {
           const on = g.items.some((item) => page === item.id || item.also?.includes(page));
+          const shown = openGroups.has(g.group) || (on && !closedGroups.has(g.group));
           return (
             <div key={g.group} className="flex flex-col">
-              <button type="button" onClick={() => !on && onPage(g.items[0].id)} aria-expanded={g.items.length > 1 ? on : undefined} className={`aw-mod ${on ? "is-on" : ""}`}>
+              <button
+                type="button"
+                onClick={() => {
+                  if (g.items.length === 1) return onPage(g.items[0].id);
+                  // Modules open and close on their own: opening one leaves the others as they are.
+                  if (shown) {
+                    setOpenGroups((x) => new Set([...x].filter((n) => n !== g.group)));
+                    setClosedGroups((x) => new Set(x).add(g.group));
+                  } else {
+                    setOpenGroups((x) => new Set(x).add(g.group));
+                    setClosedGroups((x) => new Set([...x].filter((n) => n !== g.group)));
+                    if (!on) onPage(g.items[0].id);
+                  }
+                }}
+                aria-expanded={g.items.length > 1 ? shown : undefined}
+                className={`aw-mod ${on ? "is-on" : ""}`}
+              >
                 <NavIcon name={g.icon} />
                 <span className="flex-1 text-left">{g.group}</span>
                 {plan && trackOf(g.items[0].id) && !plan.open[trackOf(g.items[0].id)!] ? (
@@ -932,12 +951,12 @@ function Sidebar({
                   </span>
                 ) : null}
                 {g.items.length > 1 ? (
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" className={`aw-mod__chev ${on ? "rotate-90" : ""}`}>
+                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" className={`aw-mod__chev ${shown ? "rotate-90" : ""}`}>
                     <path d="m9 6 6 6-6 6" />
                   </svg>
                 ) : null}
               </button>
-              {on && g.items.length > 1 ? (
+              {shown && g.items.length > 1 ? (
                 <div className="aw-mod__items">
                   {g.items.map((item) => (
                     <button

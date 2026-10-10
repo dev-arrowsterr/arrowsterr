@@ -56,11 +56,11 @@ export function stageCounts(b: PlanBrief | undefined): Record<Stage, number> {
   const total = b?.size ?? PER_STAGE * 3;
   const weights: Record<NonNullable<PlanBrief["funnel"]>, [number, number, number]> = {
     balanced: [1, 1, 1],
-    bofu: [2, 1, 1],
+    bofu: [3, 1, 1], // 60% BOFU, 20% MOFU, 20% TOFU
     mofu: [1, 2, 1],
     tofu: [1, 1, 2],
   };
-  // Ready-to-buy keywords come first: without a choice, half the plan is BOFU.
+  // Ready-to-buy keywords come first: without a choice, 60% of the plan is BOFU.
   const [w1, w2, w3] = weights[b?.funnel ?? "bofu"];
   const sum = w1 + w2 + w3;
   const bofu = Math.round((total * w1) / sum);
