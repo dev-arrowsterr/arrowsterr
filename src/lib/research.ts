@@ -203,6 +203,7 @@ export type KwSummary = {
   serp: string[];
   results: number | null;
   core: string | null;
+  source?: "ads" | "clickstream"; // where the volume came from when Google's keyword data had none
 };
 /** volume adds up the rows loaded (20 in a report, up to 1,000 in "See all"). */
 export type KwList = { total: number; volume: number; rows: KwSummary[] };

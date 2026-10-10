@@ -249,6 +249,7 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
               <div className="aw-stat">
                 <div className="aw-stat__lab">Volume</div>
                 <span className="aw-stat__num">{short(o.volume)}</span>
+                {o.source ? <span className="text-[12px] text-muted">{o.source === "ads" ? "From Google Ads" : "Clickstream estimate"}</span> : null}
               </div>
               <div className="aw-stat">
                 <div className="aw-stat__lab">Difficulty</div>

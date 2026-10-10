@@ -103,7 +103,7 @@ export function KeywordPanel({
       {error ? <p className="aw-error">{error}</p> : null}
 
       <div className="aw-kpis" style={{ ["--cols" as string]: 4 }}>
-        {stat("Volume", short(o.volume ?? null), <span className="text-[12px] text-muted">a month</span>)}
+        {stat("Volume", short(o.volume ?? null), <span className="text-[12px] text-muted">a month{o.source === "clickstream" ? " · clickstream estimate" : o.source === "ads" ? " · Google Ads" : ""}</span>)}
         {stat(
           "Difficulty",
           o.kd === null || o.kd === undefined ? "–" : o.kd,

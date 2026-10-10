@@ -158,6 +158,69 @@ async function adsMany(keywords: string[], m: Market, cost: { total: number }): 
   return out;
 }
 
+type ClickRow = { keyword?: string; search_volume?: number | null; monthly_searches?: { year: number; month: number; search_volume: number | null }[] | null };
+
+/** Clickstream estimates: real searches seen by panels of users, for long searches Google Ads rounds down to zero. Cached 30 days. */
+async function clickstreamMany(keywords: string[], m: Market, cost: { total: number }): Promise<Map<string, KwSummary | null>> {
+  const out = new Map<string, KwSummary | null>();
+  const missing: string[] = [];
+  await Promise.all(
+    keywords.map(async (k) => {
+      const hit = await readCache<KwSummary | null>(`cs:${m.location}:${m.language}:${k}`, 30 * DAY);
+      if (hit !== undefined) out.set(k, hit);
+      else missing.push(k);
+    }),
+  );
+  for (let i = 0; i < missing.length; i += 1000) {
+    const chunk = missing.slice(i, i + 1000);
+    const tasks = await call("keywords_data/clickstream_data/dataforseo_search_volume/live", [{ keywords: chunk, location_code: m.location, language_code: m.language }]);
+    const t = tasks[0];
+    cost.total += Number(t?.cost ?? 0);
+    const items = (t?.status_code === 20000 ? (t.result?.[0]?.items ?? t.result ?? []) : []) as ClickRow[];
+    const found = new Map(items.filter((r) => r.keyword).map((r) => [String(r.keyword).toLowerCase(), r]));
+    await Promise.all(
+      chunk.map(async (k) => {
+        const r = found.get(k);
+        const s = r && r.search_volume ? toSummary({ keyword: k, keyword_info: { search_volume: r.search_volume, cpc: null, competition: null, monthly_searches: r.monthly_searches ?? null } }) : null;
+        out.set(k, s);
+        await writeCache(`cs:${m.location}:${m.language}:${k}`, s);
+      }),
+    );
+  }
+  return out;
+}
+
+/**
+ * Fill in volume for keywords Google's keyword data has no number for: Google Ads first, then clickstream.
+ * Everything else (difficulty, intent) stays from the first source.
+ */
+export async function fillVolume(map: Map<string, KwSummary | null>, m: Market, cost: { total: number }) {
+  const gaps = [...map.entries()].filter(([, s]) => !s?.volume).map(([k]) => k);
+  if (!gaps.length) return map;
+  const ads = await adsMany(gaps, m, cost).catch(() => new Map<string, KwSummary | null>());
+  const still = gaps.filter((k) => !ads.get(k)?.volume);
+  const clicks = still.length ? await clickstreamMany(still, m, cost).catch(() => new Map<string, KwSummary | null>()) : new Map<string, KwSummary | null>();
+  for (const k of gaps) {
+    const base = map.get(k) ?? null;
+    const a = ads.get(k)?.volume ? ads.get(k)! : null;
+    const c = clicks.get(k)?.volume ? clicks.get(k)! : null;
+    const extra = a ?? c;
+    if (!extra) {
+      if (!base && ads.get(k)) map.set(k, ads.get(k)!);
+      continue;
+    }
+    map.set(k, {
+      ...(base ?? extra),
+      volume: extra.volume,
+      trend: base?.trend.length ? base.trend : extra.trend,
+      cpc: base?.cpc ?? a?.cpc ?? null,
+      competition: base?.competition ?? a?.competition ?? null,
+      source: a ? "ads" : "clickstream",
+    });
+  }
+  return map;
+}
+
 /** Variations or questions, widening the search when the exact phrase has none. */
 async function widen(kw: string, first: KwList, m: Market, questions: boolean, cost: { total: number }): Promise<KwList> {
   if (first.rows.length) return first;
@@ -241,7 +304,7 @@ export async function keywordReport(keyword: string, country: string, device: "d
     }),
   ]);
   // Long or new searches are often missing from DataForSEO Labs. Fall back to Google Ads numbers and wider ideas.
-  const overview = main.get(kw) ?? (await adsMany([kw], m, cost).catch(() => new Map<string, KwSummary | null>())).get(kw) ?? null;
+  const overview = (await fillVolume(new Map([[kw, main.get(kw) ?? null]]), m, cost)).get(kw) ?? null;
   const [vars, qs] = await Promise.all([widen(kw, variations, m, false, cost), widen(kw, questions, m, true, cost)]);
   if (google?.rows.length) {
     const t = await traffic(google.rows.map((r) => r.url), m, cost).catch(() => ({}) as Record<string, { etv: number; count: number }>);
@@ -267,12 +330,7 @@ export async function bulkReport(keywords: string[], country: string) {
   const m = MARKETS[country] ?? MARKETS["United States"];
   const cost = { total: 0 };
   const list = [...new Set(keywords.map((k) => k.trim().toLowerCase().replace(/\s+/g, " ").slice(0, 80)).filter(Boolean))].slice(0, 700);
-  const map = await overviewMany(list, m, cost);
-  const gaps = list.filter((k) => !map.get(k));
-  if (gaps.length) {
-    const ads = await adsMany(gaps, m, cost).catch(() => new Map<string, KwSummary | null>());
-    for (const k of gaps) if (ads.get(k)) map.set(k, ads.get(k)!);
-  }
+  const map = await fillVolume(await overviewMany(list, m, cost), m, cost);
   return { rows: list.map((k) => map.get(k) ?? { keyword: k, volume: null, kd: null, cpc: null, competition: null, intent: null, otherIntents: [], trend: [], serp: [], results: null, core: null }), cost: Math.round(cost.total * 10000) / 10000 };
 }
 
