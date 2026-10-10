@@ -30,7 +30,10 @@ const SAMPLE: Row[] = (
   ] as const
 ).map(([keyword, stage, volume, kd, intent, cpc, action, theme, notes], i) => ({ id: `sample-${i}`, keyword, stage, volume, kd, intent, cpc, action, theme, notes, source: "sample", added: "", enriched: true }));
 
-const BLANKS = 8; // empty rows always waiting at the bottom of the sheet
+// Tight columns so the whole sample fits without scrolling sideways.
+const SAMPLE_WIDTH: Record<string, number> = { keyword: 250, stage: 80, volume: 80, kd: 100, intent: 110, cpc: 70, action: 100, theme: 150, notes: 300 };
+
+const BLANKS = 1; // one empty row at the bottom for typing a new keyword
 type Row = BankRow & { blank?: boolean };
 const newId = () => `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const clean = (k: string) => k.trim().replace(/\s+/g, " ").toLowerCase().slice(0, 120);
@@ -351,10 +354,10 @@ export function TopicBank({ sb, auth, site, canEdit, onSite, onCalendar }: { sb:
 
   return (
     <div className="flex flex-col gap-5">
-      {canEdit && runs && !hasPlan ? <BankIntro onStart={() => setWizard(true)} /> : null}
-      {runs && !hasPlan && !bank.length ? (
+      {canEdit && !hasPlan && !bank.length ? <BankIntro onStart={() => setWizard(true)} /> : null}
+      {!hasPlan && !bank.length ? (
         <Card title="Sample: a Topic Bank for Acme" action={<span className="aw-chip">Example only</span>}>
-          <Sheet<Row> id="bank:sample" label="Sample Topic Bank" rows={SAMPLE} cols={cols.map((c) => ({ ...c, edit: undefined }))} rowKey={(r) => r.id} sort={{ key: "stage", desc: false }} height="40vh" />
+          <Sheet<Row> id="bank:sample" label="Sample Topic Bank" rows={SAMPLE} cols={cols.filter((c) => !["data", "url", "source", "added"].includes(c.id)).map((c) => ({ ...c, edit: undefined, width: SAMPLE_WIDTH[c.id] ?? c.width }))} rowKey={(r) => r.id} sort={{ key: "stage", desc: false }} height="none" showFilters={false} />
         </Card>
       ) : null}
       {error ? <p className="aw-error">{error}</p> : null}
@@ -369,43 +372,45 @@ export function TopicBank({ sb, auth, site, canEdit, onSite, onCalendar }: { sb:
         </div>
       ) : null}
 
+      {bank.length ? (
       <Card action={toolbar}>
-        {picked.size && canEdit ? (
-          <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint bg-brand-pale px-5 py-2.5">
-            <span className="text-[13px] font-medium text-ink">{picked.size} selected</span>
-            <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={toCalendar}>
-              Move to calendar
-            </button>
-            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => enrich(bank.filter((b) => picked.has(b.id)))} disabled={Boolean(busy)}>
-              {busy === "enrich" ? "Enriching..." : "Enrich"}
-            </button>
-            <button
-              type="button"
-              className="aw-btn aw-btn--secondary aw-btn--sm"
-              onClick={() => {
-                save(bank.filter((b) => !picked.has(b.id)));
-                setPicked(new Set());
-              }}
-            >
-              Delete
-            </button>
-          </div>
-        ) : null}
-        <Sheet<Row>
-          id={`bank:${site.id}`}
-          label="Topic Bank"
-          rows={rows}
-          cols={cols}
-          rowKey={(r) => r.id}
-          sort={{ key: "stage", desc: false }}
-          onOpen={setOpen}
-          canOpen={(r) => !r.blank}
-          selected={canEdit ? picked : undefined}
-          onSelect={canEdit ? setPicked : undefined}
-          canSelect={(r) => !r.blank}
-          height="60vh"
-        />
-      </Card>
+          {picked.size && canEdit ? (
+            <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint bg-brand-pale px-5 py-2.5">
+              <span className="text-[13px] font-medium text-ink">{picked.size} selected</span>
+              <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={toCalendar}>
+                Move to calendar
+              </button>
+              <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => enrich(bank.filter((b) => picked.has(b.id)))} disabled={Boolean(busy)}>
+                {busy === "enrich" ? "Enriching..." : "Enrich"}
+              </button>
+              <button
+                type="button"
+                className="aw-btn aw-btn--secondary aw-btn--sm"
+                onClick={() => {
+                  save(bank.filter((b) => !picked.has(b.id)));
+                  setPicked(new Set());
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          ) : null}
+          <Sheet<Row>
+            id={`bank:${site.id}`}
+            label="Topic Bank"
+            rows={rows}
+            cols={cols}
+            rowKey={(r) => r.id}
+            sort={{ key: "stage", desc: false }}
+            onOpen={setOpen}
+            canOpen={(r) => !r.blank}
+            selected={canEdit ? picked : undefined}
+            onSelect={canEdit ? setPicked : undefined}
+            canSelect={(r) => !r.blank}
+            height="60vh"
+          />
+        </Card>
+      ) : null}
 
       <PlanProgress sb={sb} site={site} refresh={refresh} onRows={fromPlan} />
       {wizard ? (
@@ -444,7 +449,7 @@ function BankIntro({ onStart }: { onStart: () => void }) {
       <div className="flex flex-col gap-3">
         <span className="aw-label">Free, once per brand</span>
         <h2 className="aw-h3 mb-0!">Your Topic Bank, built by an AI agent</h2>
-        <p className="text-[15px] text-body">Our revenue-driven content strategy AI agent can:</p>
+        <p className="text-[15px] text-ink">Our revenue-driven content strategy AI agent can:</p>
         <ul className="flex flex-col gap-2 text-[15px] text-ink">
           {[
             "Learn about your business, deeply",
@@ -460,8 +465,8 @@ function BankIntro({ onStart }: { onStart: () => void }) {
             </li>
           ))}
         </ul>
-        <p className="text-[15px] text-body">
-          You can add your own keywords by typing, pasting or uploading a CSV. Once done, you can import the best ones into the Editorial Calendar when you are ready to write.
+        <p className="text-[15px] text-ink">
+          Once it is built, edit it freely: add your own keywords by typing, pasting or uploading a CSV, then move the best ones to the Editorial Calendar when you are ready to write.
         </p>
       </div>
       <div className="flex flex-col justify-center gap-3 border-rule md:border-l md:pl-6">

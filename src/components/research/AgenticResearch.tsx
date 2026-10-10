@@ -2,7 +2,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useState } from "react";
-import { listKeywordRuns, saveKeywordRunResult, type BankRow, type KeywordRun, type Site } from "@/lib/db";
+import { keywordRunResult, listKeywordRuns, saveKeywordRunResult, type BankRow, type KeywordRun, type Site } from "@/lib/db";
 import { STAGES, type AgentResult } from "@/lib/research";
 import { useStash } from "@/lib/stash";
 
@@ -109,11 +109,17 @@ export function PlanProgress({ sb, site, refresh, onRows }: { sb: SupabaseClient
 
   // Finished plans that are not in the Topic Bank yet go there, once.
   useEffect(() => {
-    const todo = (runs ?? []).filter((r) => r.status === "done" && !r.result.banked);
+    const todo = (runs ?? []).filter((r) => r.status === "done" && !r.banked);
     if (!todo.length) return;
-    for (const r of todo) onRows(planRows(r.result));
-    setRuns((runs ?? []).map((r) => (todo.includes(r) ? { ...r, result: { ...r.result, banked: true } } : r)));
-    for (const r of todo) saveKeywordRunResult(sb, r.id, { ...r.result, banked: true }).catch(() => {});
+    setRuns((runs ?? []).map((r) => (todo.includes(r) ? { ...r, banked: true } : r)));
+    for (const r of todo)
+      keywordRunResult(sb, r.id)
+        .then((result) => {
+          if (result.banked) return;
+          onRows(planRows(result));
+          return saveKeywordRunResult(sb, r.id, { ...result, banked: true });
+        })
+        .catch(() => {});
   }, [runs, onRows, setRuns, sb]);
 
   if (error) return <p className="aw-error">{error}</p>;

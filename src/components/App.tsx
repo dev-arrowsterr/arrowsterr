@@ -17,6 +17,7 @@ import {
   saveBrand,
   saveRunChats,
   siteForBrand,
+  listKeywordRuns,
   saveAnswers,
   answerRows,
   startRun as startSavedRun,
@@ -32,7 +33,7 @@ import { splitPeriods, type Filter } from "@/lib/metrics";
 import type { View } from "@/lib/view";
 import { runAll, type RunAuth } from "@/lib/runner";
 import { getSupabase, type SupaConfig } from "@/lib/supa";
-import { clearStash } from "@/lib/stash";
+import { clearStash, primeStash } from "@/lib/stash";
 import { AuthScreen, NewPassword } from "./AuthScreen";
 import { WorkspaceAvatar } from "./WorkspaceAvatar";
 import { BrandLogo } from "./BrandLogo";
@@ -310,6 +311,21 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   }, [sb, ws, userId]);
 
   const active = brands?.find((b) => b.id === activeId);
+  // Load the brand's website and its content plans in the background, so research pages open at once.
+  useEffect(() => {
+    if (!active) return;
+    let live = true;
+    siteForBrand(sb, active, canEdit)
+      .then(async (site) => {
+        if (!live || !site) return;
+        primeStash(`site:${active.id}`, site);
+        primeStash(`agentic:${site.id}:runs`, await listKeywordRuns(sb, site.id));
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [sb, active, canEdit]);
   useEffect(() => {
     if (ws && activeId) writeLocal(`arrowsterr.brand.${ws.id}`, activeId);
   }, [ws, activeId]);
@@ -793,8 +809,8 @@ const NAV: { group: string; icon: string; tester?: boolean; items: { id: Page; l
     items: [
       { id: "keywords", label: "Keyword Research", icon: "search" },
       { id: "domain", label: "Domain Research", icon: "globe" },
-      { id: "gap", label: "Competitive Analysis", icon: "gap" },
       { id: "topics", label: "Topic Bank", icon: "bank" },
+      { id: "gap", label: "Competitive Analysis", icon: "gap" },
     ],
   },
   {

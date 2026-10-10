@@ -159,6 +159,7 @@ export function Sheet<T>({
   canOpen = () => true,
   onAddColumn,
   height = "72vh",
+  showFilters = true,
   label,
 }: {
   /** Saves this sheet's column layout in the browser. */
@@ -174,6 +175,8 @@ export function Sheet<T>({
   canOpen?: (row: T) => boolean;
   onAddColumn?: () => void;
   height?: string;
+  /** False hides the filter row, for read-only examples. */
+  showFilters?: boolean;
   label: string;
 }) {
   const [sort, setSort] = useSort(initial.key, initial.desc);
@@ -369,6 +372,7 @@ export function Sheet<T>({
                 );
               })}
             </tr>
+            {showFilters ? (
             <tr className="aw-sheet__filters">
               <th className="aw-sheet__n" />
               {onSelect ? <th className="aw-sheet__pick" /> : null}
@@ -403,6 +407,7 @@ export function Sheet<T>({
                 );
               })}
             </tr>
+            ) : null}
           </thead>
           <tbody>
             {shown.map((r, i) => {

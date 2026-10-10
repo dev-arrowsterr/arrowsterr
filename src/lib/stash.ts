@@ -35,6 +35,11 @@ function write(key: string, v: unknown) {
   }
 }
 
+/** Fill a stash before any page asks for it, so the page opens with data. Never overwrites what is there. */
+export function primeStash(key: string, v: unknown) {
+  if (read(key) === undefined) write(key, v);
+}
+
 /** Like useState, but the value survives page switches and reloads. Use a key that names the tool and the website. */
 export function useStash<T>(key: string, init: T | (() => T)) {
   const [v, setV] = useState<T>(() => {

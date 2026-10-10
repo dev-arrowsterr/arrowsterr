@@ -437,12 +437,18 @@ export async function deleteCalendarItems(sb: SupabaseClient, ids: string[]) {
   check(await sb.from("calendar_items").delete().in("id", ids));
 }
 
-export type KeywordRun = { id: string; status: "running" | "done" | "failed"; step: string; error: string | null; result: AgentResult; created_at: string; finished_at: string | null };
+/** A content plan run. The full result is large, so lists only carry whether it was copied into the Topic Bank. */
+export type KeywordRun = { id: string; status: "running" | "done" | "failed"; step: string; error: string | null; banked: boolean | null; created_at: string; finished_at: string | null };
 
 export async function listKeywordRuns(sb: SupabaseClient, siteId: string): Promise<KeywordRun[]> {
   return check(
-    await sb.from("keyword_runs").select("id, status, step, error, result, created_at, finished_at").eq("site_id", siteId).order("created_at", { ascending: false }).limit(10),
+    await sb.from("keyword_runs").select("id, status, step, error, banked:result->banked, created_at, finished_at").eq("site_id", siteId).order("created_at", { ascending: false }).limit(5),
   ) as KeywordRun[];
+}
+
+/** One plan's full result, fetched only when it is needed. */
+export async function keywordRunResult(sb: SupabaseClient, id: string): Promise<AgentResult> {
+  return (check(await sb.from("keyword_runs").select("result").eq("id", id).single()) as { result: AgentResult }).result;
 }
 
 export async function saveKeywordRunResult(sb: SupabaseClient, id: string, result: AgentResult) {
