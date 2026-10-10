@@ -5,6 +5,27 @@ import { take } from "@/lib/entitlements";
 import { TASK_COST } from "@/lib/plans";
 import { meteredRoute } from "@/lib/meter";
 import { bulkReport } from "@/lib/kwReport";
+import { askEngine, availableEngines, type Engine } from "@/lib/engines";
+import { extractBrands } from "@/lib/extract";
+
+/** Ask one AI engine each topic and list the brands it names, so the user sees who owns each topic today. */
+async function whoIsNamed(name: string, domain: string, topics: string[]) {
+  const ready = availableEngines();
+  const engine = (["ChatGPT", "AI Mode", "Gemini", "Claude"] as Engine[]).find((e) => ready.includes(e));
+  if (!engine) return { engine: null, named: topics.map(() => [] as { name: string; domain: string; you: boolean }[]) };
+  const named = await Promise.all(
+    topics.map(async (t) => {
+      try {
+        const answer = await Promise.race([askEngine(engine, t), new Promise<never>((_, no) => setTimeout(() => no(new Error("timeout")), 60_000))]);
+        const brands = await extractBrands(name, domain, answer.text);
+        return brands.slice(0, 6).map((b) => ({ name: b.name, domain: b.domain ?? "", you: b.name === name }));
+      } catch {
+        return [];
+      }
+    }),
+  );
+  return { engine, named };
+}
 
 // Onboarding step 2: write 50 candidate topics, get Google volume for all of them, and pick the best 5.
 async function handle(request: Request) {
@@ -33,7 +54,8 @@ async function handle(request: Request) {
     const all: Candidate[] = cands.map((c) => ({ ...c, relevance: Math.min(5, Math.max(1, Math.round(c.relevance))), volume: vol.get(c.topic) ?? null }));
     const picked = pickTopics(all);
     if (!picked.length) throw new Error("None of the topics have search volume. Check the brand details and try again.");
-    return Response.json({ topics: picked, candidates: all.length });
+    const { engine, named } = await whoIsNamed(name, domain, picked.map((t) => t.topic));
+    return Response.json({ topics: picked.map((t, i) => ({ ...t, named: named[i] })), candidates: all.length, engine });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("Topics failed:", message);

@@ -1408,10 +1408,6 @@
 .aw .aw-price__bars i.is-on { background: var(--aw-ink); }
 
 /* Topic scoring */
-.aw .aw-formula { display: flex; align-items: stretch; flex-wrap: wrap; gap: 8px; }
-.aw .aw-formula__term { flex: 1 1 160px; display: flex; flex-direction: column; gap: 2px; padding: 12px 16px; background: var(--aw-surface); border: 1px solid var(--aw-rule); border-radius: var(--aw-r-md); font-size: 13px; color: var(--aw-muted); }
-.aw .aw-formula__term b { font-weight: 500; font-size: 16px; color: var(--aw-ink); }
-.aw .aw-formula__op { display: grid; place-items: center; font-size: 18px; color: var(--aw-brand); }
 .aw .aw-topic { display: flex; align-items: center; gap: 18px; padding: 18px 20px; background: var(--aw-surface); border: 1px solid var(--aw-rule); border-radius: var(--aw-r-md); box-shadow: var(--aw-shadow-xs); transition: box-shadow var(--aw-fast), opacity var(--aw-fast); }
 .aw .aw-topic:hover { box-shadow: var(--aw-shadow-md); }
 .aw .aw-topic.is-off { opacity: .55; }
@@ -1419,11 +1415,6 @@
 .aw .aw-topic__rank--sm { width: 28px; height: 28px; border-radius: 8px; font-size: 12px; }
 .aw .aw-topic__name { flex: 1 1 220px; min-width: 0; border: 0; padding: 0; background: transparent; font-size: 18px; font-weight: 500; letter-spacing: -.02em; color: var(--aw-ink); outline: none; }
 .aw .aw-topic__name:focus { box-shadow: 0 2px 0 var(--aw-brand); border-radius: 0; }
-.aw .aw-topic__vol { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; width: 130px; flex-shrink: 0; }
-.aw .aw-topic__num { font-size: 20px; font-weight: 500; letter-spacing: -.02em; color: var(--aw-ink); font-variant-numeric: tabular-nums; }
-.aw .aw-topic__bar { width: 100%; height: 4px; margin-top: 4px; border-radius: 2px; background: var(--aw-surface-3); overflow: hidden; }
-.aw .aw-topic__bar i { display: block; height: 100%; background: var(--aw-brand); border-radius: 2px; }
-@media (max-width: 640px) { .aw .aw-topic { flex-wrap: wrap; } .aw .aw-topic__vol { width: 100%; align-items: flex-start; } }
 .aw .aw-musing { margin: 0; min-height: 1.5em; text-align: center; font-size: 15px; font-style: italic; color: var(--aw-brand); animation: aw-musing-in .4s ease-out; }
 @keyframes aw-musing-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .aw .aw-musing { animation: none; } }
@@ -1452,8 +1443,82 @@
 .aw .aw-topic { padding: 12px 18px; gap: 16px; }
 .aw .aw-topic__rank { width: 34px; height: 34px; font-size: 13px; }
 .aw .aw-topic__name { font-size: 17px; }
-.aw .aw-topic__num { font-size: 18px; }
 .aw .aw-dino { position: relative; width: 100%; max-width: 600px; border-top: 1px solid var(--aw-rule-faint); border-bottom: 1px solid var(--aw-rule-faint); }
 .aw .aw-dino__canvas { display: block; width: 100%; height: auto; aspect-ratio: 4 / 1; cursor: pointer; touch-action: manipulation; }
 .aw .aw-dino__best { position: absolute; top: 6px; left: 8px; font-size: 12px; color: var(--aw-muted); font-variant-numeric: tabular-nums; }
 .aw .aw-think { padding: 40px 24px; }
+
+/* Topics: list beside the volume chart */
+.aw .aw-topics { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(280px, 1fr); gap: 12px; align-items: start; }
+@media (max-width: 900px) { .aw .aw-topics { grid-template-columns: 1fr; } }
+.aw .aw-vchart { margin: 0; padding: 16px 18px 18px; background: var(--aw-surface); border: 1px solid var(--aw-rule); border-radius: var(--aw-r-md); box-shadow: var(--aw-shadow-xs); }
+.aw .aw-vchart__title { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 14px; font-size: 15px; font-weight: 500; color: var(--aw-ink); }
+.aw .aw-vchart__title span { font-size: 12px; font-weight: 400; color: var(--aw-muted); }
+.aw .aw-vchart ol { display: flex; flex-direction: column; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.aw .aw-vchart li { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; outline: none; }
+.aw .aw-vchart li.is-off { opacity: .4; }
+.aw .aw-vchart__label { grid-column: 1 / -1; display: flex; gap: 8px; min-width: 0; font-size: 13px; color: var(--aw-body); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aw .aw-vchart__label b { font-weight: 500; color: var(--aw-muted); font-variant-numeric: tabular-nums; }
+.aw .aw-vchart__track { display: flex; align-items: center; height: 12px; }
+.aw .aw-vchart__track i { display: block; height: 12px; background: var(--aw-brand); border-radius: 0 4px 4px 0; transition: width .5s var(--aw-ease, ease); }
+.aw .aw-vchart__num { font-size: 13px; font-weight: 500; color: var(--aw-ink); font-variant-numeric: tabular-nums; text-align: right; min-width: 48px; }
+.aw .aw-vchart li[data-tip]:hover::after, .aw .aw-vchart li[data-tip]:focus::after {
+  content: attr(data-tip); position: absolute; left: 0; bottom: calc(100% + 6px); z-index: 5; padding: 6px 10px; border-radius: 8px;
+  background: var(--aw-ink); color: #fff; font-size: 12px; white-space: nowrap; box-shadow: var(--aw-shadow-md); pointer-events: none;
+}
+.aw .aw-vchart li:hover .aw-vchart__track i { background: var(--aw-brand-deep); }
+
+/* Who AI names today, inside a topic card */
+.aw .aw-named { display: inline-flex; align-items: center; gap: 10px; margin-top: 2px; }
+.aw .aw-named__you { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: var(--aw-r-pill); border: 1px solid var(--aw-rule); font-size: 12px; color: var(--aw-muted); }
+.aw .aw-named__you::before { content: "○"; font-size: 10px; }
+.aw .aw-named__you.is-yes { color: var(--aw-pos); background: var(--aw-pos-bg); border-color: var(--aw-pos-rule); }
+.aw .aw-named__you.is-yes::before { content: "●"; }
+.aw .aw-named__logos { display: inline-flex; }
+.aw .aw-named__logo { display: grid; place-items: center; width: 24px; height: 24px; border-radius: var(--aw-r-pill); background: #fff; border: 1px solid var(--aw-rule); overflow: hidden; }
+.aw .aw-named__logo + .aw-named__logo { margin-left: -6px; }
+.aw .aw-named__mono { font-size: 11px; font-weight: 500; color: var(--aw-brand); }
+
+/* Prompts: cost line and the short list */
+.aw .aw-cost { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 16px; background: var(--aw-surface); border: 1px solid var(--aw-rule); border-radius: var(--aw-r-md); font-size: 15px; color: var(--aw-muted); }
+.aw .aw-cost b { font-weight: 500; color: var(--aw-ink); }
+.aw .aw-cost b.text-brand { color: var(--aw-brand); }
+.aw .aw-plist { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 12px; }
+.aw .aw-plist__card { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; background: var(--aw-surface); border: 1px solid var(--aw-rule); border-radius: var(--aw-r-md); box-shadow: var(--aw-shadow-xs); }
+.aw .aw-plist__card header { display: flex; align-items: center; gap: 10px; }
+.aw .aw-plist__topic { font-size: 15px; font-weight: 500; color: var(--aw-ink); }
+.aw .aw-plist ul { display: flex; flex-direction: column; gap: 7px; margin: 0; padding: 0; list-style: none; }
+.aw .aw-plist li { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; font-size: 14px; color: var(--aw-ink); }
+.aw .aw-plist li em { flex-shrink: 0; font-style: normal; font-size: 11px; color: var(--aw-muted); }
+
+/* Finish screen */
+.aw .aw-onb__done { display: flex; flex-direction: column; align-items: center; gap: 14px; max-width: 640px; margin: 24px auto 0; padding: 40px 28px; text-align: center; border-radius: var(--aw-r-lg); box-shadow: var(--aw-shadow-md); }
+.aw .aw-onb__seal { display: grid; place-items: center; width: 72px; height: 72px; border-radius: var(--aw-r-pill); background: var(--aw-brand-pale); border: 1px solid var(--aw-brand-bg); box-shadow: 0 0 0 8px var(--aw-paper); font-size: 28px; color: var(--aw-brand); }
+.aw .aw-onb__engines { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin: 6px 0 10px; padding: 0; list-style: none; }
+.aw .aw-onb__engines li { display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px; border: 1px solid var(--aw-rule); border-radius: var(--aw-r-pill); background: #fff; font-size: 13px; color: var(--aw-ink); }
+.aw .aw-onb__engines li span { font-size: 11px; color: var(--aw-muted); }
+.aw .aw-onb__engines li i { width: 7px; height: 7px; border-radius: 50%; background: var(--aw-pos); animation: aw-pulse 1.4s ease-in-out infinite; }
+@keyframes aw-pulse { 50% { opacity: .3; } }
+
+/* Brand Card reveal after the research finishes */
+.aw .aw-board.is-reveal .aw-quad { animation: aw-rise .5s cubic-bezier(.2, .7, .2, 1) both; }
+.aw .aw-board.is-reveal .aw-quads__core { animation: aw-pop .5s cubic-bezier(.2, .7, .2, 1) both; }
+.aw .aw-board.is-reveal .aw-quads .aw-quad:nth-child(1) { animation-delay: .05s; }
+.aw .aw-board.is-reveal .aw-quads .aw-quad:nth-child(2) { animation-delay: .2s; }
+.aw .aw-board.is-reveal .aw-quads .aw-quad:nth-child(3) { animation-delay: .35s; }
+.aw .aw-board.is-reveal .aw-quads .aw-quad:nth-child(4) { animation-delay: .5s; }
+.aw .aw-board.is-reveal .aw-quads__core { animation-delay: .7s; }
+.aw .aw-board.is-reveal .aw-facts .aw-quad:nth-child(1) { animation-delay: .65s; }
+.aw .aw-board.is-reveal .aw-facts .aw-quad:nth-child(2) { animation-delay: .8s; }
+.aw .aw-board.is-reveal .aw-facts .aw-quad:nth-child(3) { animation-delay: .95s; }
+@keyframes aw-pop { from { opacity: 0; transform: translate(-50%, -50%) scale(.6); } to { opacity: 1; transform: translate(-50%, -50%); } }
+@keyframes aw-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .aw .aw-board.is-reveal .aw-quad, .aw .aw-board.is-reveal .aw-quads__core, .aw .aw-onb__engines li i { animation: none; } }
+.aw .aw-topic .aw-topic__name { flex: none; width: 100%; }
+.aw .aw-onb__seal { border-radius: 50% !important; overflow: hidden; }
+@media (max-width: 640px) {
+  .aw .aw-onb__foot > div { flex: 1; justify-content: flex-end; flex-wrap: wrap; gap: 8px 14px; }
+  .aw .aw-onb__foot .aw-small { display: none; }
+  .aw .aw-onb__foot .aw-btn--lg { padding-left: 16px; padding-right: 16px; }
+  .aw .aw-topic .aw-topic__name { font-size: 15px; }
+}

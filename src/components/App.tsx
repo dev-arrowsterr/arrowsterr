@@ -370,9 +370,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
     setBrands((list) => [...(list ?? []), brand]);
     setRuns((r) => ({ ...r, [brand.id]: [] }));
     setActiveId(brand.id);
-    // Starter on Organic Research lands on the Topic Bank; everyone else on their prompts.
-    go(plan && !plan.open.visibility ? "topics" : "prompts");
-    setAdding(false);
+    // Stay on onboarding for its finish screen. Leaving it opens the brand's first page.
+    setAdding(true);
     // The first check runs right away. After that the daily job keeps it fresh.
     void runBrand(brand);
     // Make the brand's site now. The Topic Bank waits until someone clicks Generate.
@@ -452,6 +451,13 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
       <Onboarding
         auth={auth}
         onDone={onboard}
+        onExit={() => {
+          setAdding(false);
+          // Starter on Organic Research lands on the Topic Bank; everyone else on their prompts.
+          go(plan && !plan.open.visibility ? "topics" : "prompts");
+        }}
+        engines={engines ?? []}
+        checkEvery={plan?.limits.checkEvery ?? 1}
         onCancel={brands.length ? () => setAdding(false) : undefined}
         importCount={!brands.length ? legacyCount : 0}
         onImport={importLocal}
