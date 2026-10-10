@@ -28,7 +28,16 @@ export type Brand = {
 
 export type BusinessType = "saas" | "ecommerce" | "service" | "marketplace" | "local" | "other";
 /** What the business sells and to whom, from the onboarding questions. */
+/** The brand on one page: who it serves, the job it does, how, and why. Bullets. */
+export type BrandCard = { who: string[]; whereTo: string[]; howTo: string[]; whySo: string[] };
+/** A close competitor and how it differs from the brand. */
+export type RivalCard = { name: string; domain: string; who: string; howTo: string; price: string; difference: string };
+/** Where the brand sits in its category. */
+export type Position = { price: "budget" | "mid" | "premium"; size: string; region: string; summary: string[] };
 export type Profile = {
+  card?: BrandCard;
+  competitors?: RivalCard[];
+  position?: Position;
   products?: string;
   customers?: string;
   features?: string;

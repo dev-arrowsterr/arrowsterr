@@ -1,11 +1,11 @@
-import { askClaude, parseJson } from "@/lib/claude";
-import { cleanList, cleanProfile, MAX_TOPICS, PROMPTS_PER_TOPIC, PROMPTS_PROMPT } from "@/lib/onboarding";
+import { askJson } from "@/lib/claude";
+import { cleanList, cleanPrompts, cleanProfile, MAX_TOPICS, PROMPTS_PROMPT, PROMPTS_SCHEMA } from "@/lib/onboarding";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
 import { take } from "@/lib/entitlements";
 import { TASK_COST } from "@/lib/plans";
 import { meteredRoute } from "@/lib/meter";
 
-// Onboarding step 3: write the prompts to track for each topic.
+// Onboarding step 3: write 10 prompts per topic, each from a different angle, best fit first.
 async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const name = typeof body.name === "string" ? body.name.trim().slice(0, 100) : "";
@@ -20,20 +20,15 @@ async function handle(request: Request) {
   if (limited) return limited;
 
   try {
-    const { text } = await askClaude(PROMPTS_PROMPT(name, domain, cleanProfile(body.profile), topics), { maxTokens: 4000 });
-    const list = parseJson(text).topics;
-    const byName = new Map<string, string[]>();
-    if (Array.isArray(list)) {
-      for (const t of list as { topic?: unknown; prompts?: unknown }[]) {
-        if (typeof t?.topic === "string") byName.set(t.topic.trim().toLowerCase(), cleanList(t.prompts, PROMPTS_PER_TOPIC));
-      }
-    }
-    // Keep the user's topic order and wording. A topic Claude skipped still tracks its own name.
-    const out = topics.map((topic, i) => {
-      const prompts = byName.get(topic.toLowerCase()) ?? (Array.isArray(list) ? cleanList((list[i] as { prompts?: unknown })?.prompts, PROMPTS_PER_TOPIC) : []);
-      return { name: topic, prompts: prompts.length ? prompts : [topic] };
+    const out = await askJson<{ topics: { topic: string; prompts: { text: string; angle: string }[] }[] }>(PROMPTS_PROMPT(name, domain, cleanProfile(body.profile), topics), PROMPTS_SCHEMA, {
+      maxTokens: 8000,
+      model: process.env.PROMPTS_MODEL || "claude-haiku-5-5",
     });
-    return Response.json({ topics: out });
+    const byName = new Map((out.topics ?? []).map((t) => [t.topic.trim().toLowerCase(), t.prompts ?? []]));
+    // Keep the user's topic order and wording. One shared list catches near duplicates across topics.
+    const seen: Set<string>[] = [];
+    const result = topics.map((topic, i) => ({ name: topic, prompts: cleanPrompts(byName.get(topic.toLowerCase()) ?? out.topics?.[i]?.prompts ?? [], topic, seen, name) }));
+    return Response.json({ topics: result });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("Prompts failed:", message);
