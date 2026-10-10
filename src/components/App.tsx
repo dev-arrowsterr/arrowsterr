@@ -16,6 +16,7 @@ import {
   listWorkspaces,
   saveBrand,
   saveRunChats,
+  siteForBrand,
   saveAnswers,
   answerRows,
   startRun as startSavedRun,
@@ -26,6 +27,7 @@ import {
   type Workspace,
 } from "@/lib/db";
 import { PLANS, promptAllowance, type PlanId } from "@/lib/plans";
+import { post } from "./research/shared";
 import { splitPeriods, type Filter } from "@/lib/metrics";
 import type { View } from "@/lib/view";
 import { runAll, type RunAuth } from "@/lib/runner";
@@ -349,6 +351,10 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
     setAdding(false);
     // The first check runs right away. After that the daily job keeps it fresh.
     void runBrand(brand);
+    // Every brand gets its free Topic Bank, started as soon as the brand exists.
+    void siteForBrand(sb, brand, true)
+      .then((site) => site && post({ workspaceId: ws.id, token }, "/api/research/agentic", { siteId: site.id }))
+      .catch(() => {});
   }
 
   async function update(brand: Brand) {
@@ -592,7 +598,13 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
               onPlans={() => go("billing")}
             />
           ) : RESEARCH.includes(page) ? (
-            <ResearchPage key={view.brand.id} sb={sb} auth={auth} view={view} canEdit={canEdit} tool={page as Tool} onTool={(t) => go(t)} seoStart={seoStart} onSeoStarted={() => setSeoStart(null)} />
+            <ResearchPage key={view.brand.id} sb={sb} auth={auth} view={view} canEdit={canEdit} tool={page as Tool} onTool={(t) => go(t)} seoStart={seoStart}
+              onSeoStarted={() => setSeoStart(null)}
+              onSeo={(target, scope) => {
+                setSeoStart({ target, scope });
+                go("domain");
+              }}
+            />
           ) : page === "competitors" ? (
             <CompetitorsPage
               key={`${view.brand.id}-${focus ?? ""}`}

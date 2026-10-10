@@ -9,7 +9,7 @@ import { useStash } from "@/lib/stash";
 import { BrandLogo } from "../BrandLogo";
 import { Sheet } from "../Sheet";
 import { SampleLine, SampleRows, SampleStats, ToolIntro } from "../ToolIntro";
-import { Card, favicon, Seg, Thinking } from "../ui";
+import { CalendarIcon, Card, favicon, Seg, Thinking } from "../ui";
 import { flag, KdDot, short } from "./KeywordOverview";
 import { BAR_BUTTON, BAR_FIELD, BAR_INPUT, downloadCsv, post } from "./shared";
 
@@ -232,6 +232,7 @@ export function DomainResearch({ sb, auth, site, canEdit, start, onStarted }: { 
                   <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint bg-brand-pale px-5 py-2.5">
                     <span className="text-[13px] font-medium text-ink">{picked.size} selected</span>
                     <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={() => addToCalendar(report.keywords.filter((r) => picked.has(r.keyword)))}>
+                      <CalendarIcon />
                       {own ? "Add to calendar as page updates" : "Add to calendar"}
                     </button>
                     <button type="button" className="aw-text-link text-[13px]" onClick={() => setPicked(new Set())}>
@@ -339,17 +340,17 @@ export function DomainResearch({ sb, auth, site, canEdit, start, onStarted }: { 
 
       {!busy && !report ? (
         <ToolIntro
-          title="See how any website performs on Google"
-          lead="Enter a domain to see how many keywords it ranks for, how much traffic Google sends it, its best pages and its closest competitors. Start with your own site, then size up the competition."
+          title="See how any website wins on Google"
+          lead="Every site that gets traffic from Google has a footprint: the topics it owns and the pages that pull its visits. Read your own site to see where your growth comes from today. Read a competitor's to see the market they built, and the gaps they left open for you."
           examples={[site.domain, "hubspot.com", "notion.so"]}
           onExample={canEdit ? (x) => analyze(x, "domain") : undefined}
           features={[
             { title: "Organic overview", text: "Total keywords on Google, estimated monthly visits, and how many rank in the top 3 and top 10.", visual: <SampleStats items={[["Keywords", "1.2K"], ["Visits", "3.8K"], ["Top 10", "160"]]} /> },
             { title: "Top keywords", text: "Every keyword the site ranks for, with its position, volume and the visits it brings.", visual: <SampleRows rows={[["seo agency", 900, "#2"], ["geo services", 640, "#4"], ["ai seo", 420, "#7"]]} /> },
             { title: "Best pages", text: "The pages that pull the most traffic, and the keyword that drives each one.", visual: <SampleRows rows={[["/services/seo", 1200, "1.2K"], ["/blog/geo-guide", 700, "700"], ["/pricing", 300, "300"]]} /> },
-            { title: "Competitors", text: "Sites that rank for the same keywords. Click one to analyze it next.", visual: <SampleRows rows={[["rival.com", 120], ["agency.io", 90], ["seofirm.co", 60]]} /> },
+            { title: "Competitors", text: "The sites Google sees as your real rivals, based on the keywords you share. Some are names you never thought of as competitors.", visual: <SampleRows rows={[["rival.com", 120], ["agency.io", 90], ["seofirm.co", 60]]} /> },
             { title: "Wins and losses", text: "Keywords the site gained and lost this month, so you can spot momentum fast.", visual: <SampleLine /> },
-            { title: "Straight to your plan", text: "Pick keywords and add them to your calendar. Your own pages go in as updates, a competitor's as new pages." },
+            { title: "Your next moves", text: "A competitor's best keywords become new pages for you. Keywords your own pages almost win become updates that pay off fast." },
           ]}
           steps={["Type a domain, like competitor.com.", "Pick a country and click Analyze.", "Review keywords, pages and competitors, then click a competitor to compare."]}
           faqs={[

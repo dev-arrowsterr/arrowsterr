@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { RunAuth } from "@/lib/runner";
 import { describeOps, type SheetKind, type SheetOp } from "@/lib/sheetAi";
+import { AiIcon } from "../ui";
 import { post } from "./shared";
 
 /** Tell the AI what to do with the sheet. It shows the changes first. Click Apply to make them. */
@@ -82,6 +83,7 @@ export function AiBar({
           className="aw-input min-w-64 flex-1 py-2! text-[14px]!"
         />
         <button type="submit" className="aw-btn aw-btn--accent aw-btn--sm" disabled={Boolean(busy) || !text.trim()}>
+          <AiIcon />
           {busy === "ask" ? "Thinking..." : "Ask AI"}
         </button>
       </form>

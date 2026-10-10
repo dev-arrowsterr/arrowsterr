@@ -1,14 +1,14 @@
 "use client";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { addCalendarItems, type Site } from "@/lib/db";
 import { MARKETS, stageFromIntent, type KeywordReport, type KwSummary } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
-import { favicon, SidePanel, Thinking } from "../ui";
+import { BookmarkIcon, CalendarIcon, ChartIcon, favicon, SidePanel, Thinking } from "../ui";
 import { flag, kdColor, kdWord, short } from "./KeywordOverview";
-import { fmtCpc, post, SerpTags, Sparkline, StageTag } from "./shared";
+import { AnalyzeSeo, fmtCpc, post, SerpTags, Sparkline, StageTag } from "./shared";
 import { addToBank } from "./TopicBank";
 
 /** Everything about one keyword in a side panel: numbers, trend, Google's results and ideas, with buttons to plan it. */
@@ -35,6 +35,7 @@ export function KeywordPanel({
   const [report, setReport] = useStash<KeywordReport | null>(`kwpanel:${country}:${keyword}`, null);
   const [error, setError] = useState("");
   const [done, setDone] = useState<string[]>([]);
+  const analyze = useContext(AnalyzeSeo);
 
   useEffect(() => {
     if (report) return;
@@ -83,10 +84,12 @@ export function KeywordPanel({
       {canEdit ? (
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={toCalendar}>
+            <CalendarIcon />
             Add to Editorial Calendar
           </button>
           {onSite ? (
             <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={toBank} disabled={inBank}>
+              <BookmarkIcon />
               {inBank ? "In the Topic Bank" : "Add to Topic Bank"}
             </button>
           ) : null}
@@ -99,7 +102,7 @@ export function KeywordPanel({
       ) : null}
       {error ? <p className="aw-error">{error}</p> : null}
 
-      <div className="aw-kpis" style={{ ["--cols" as string]: 2 }}>
+      <div className="aw-kpis" style={{ ["--cols" as string]: 4 }}>
         {stat("Volume", short(o.volume ?? null), <span className="text-[12px] text-muted">a month</span>)}
         {stat(
           "Difficulty",
@@ -148,6 +151,20 @@ export function KeywordPanel({
                 </a>
                 {r.aiCited ? <span className="aw-chip text-[11px]!">AI cited</span> : null}
                 <span className="aw-num w-12 text-right text-[12px] text-ink">{short(r.traffic)}</span>
+                {analyze ? (
+                  <button
+                    type="button"
+                    className="aw-btn aw-btn--secondary aw-btn--sm shrink-0 px-2.5! py-1! text-[12px]!"
+                    onClick={() => {
+                      onClose();
+                      analyze(r.url, "url");
+                    }}
+                    title={`Open ${r.url} in Domain Research`}
+                  >
+                    <ChartIcon />
+                    Analyze SEO
+                  </button>
+                ) : null}
               </li>
             ))}
           </ol>

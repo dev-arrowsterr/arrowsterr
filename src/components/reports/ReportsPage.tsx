@@ -14,7 +14,7 @@ import type { RunAuth } from "@/lib/runner";
 import { peek, useStash } from "@/lib/stash";
 import type { View } from "@/lib/view";
 import { citedPathsOf } from "../research/ContentResults";
-import { Seg, Thinking } from "../ui";
+import { AiIcon, Seg, Thinking } from "../ui";
 import { ReportDoc, reportCss } from "./ReportDoc";
 
 type Data = { traffic: TrafficData | null; visitors: Visitor[] | null; items: CalendarItem[] | null; guideline: BrandGuideline | null; at: string };
@@ -334,7 +334,8 @@ export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; a
             <textarea value={ask} onChange={(e) => setAsk(e.target.value)} rows={4} placeholder="Dark and premium, like a luxury brand. Big numbers. Keep our blue." aria-label="What the agent should do" className="aw-textarea text-[14px]!" />
             {canEdit ? (
               <button type="button" className="aw-btn aw-btn--accent" onClick={design} disabled={Boolean(busy)}>
-                {busy === "design" ? "Designing..." : "✦ Design in our brand style"}
+                <AiIcon />
+                {busy === "design" ? "Designing..." : "Design in our brand style"}
               </button>
             ) : null}
             {why ? <p className="text-[13px] text-body">{why}</p> : null}
@@ -413,7 +414,8 @@ export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; a
         <div className="flex flex-wrap items-center gap-2 print:hidden">
           {canEdit ? (
             <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={writeSummary} disabled={Boolean(busy) || stale}>
-              {busy === "summary" ? "Writing..." : summary ? "Rewrite AI summary" : "✦ Add AI summary"}
+              <AiIcon />
+              {busy === "summary" ? "Writing..." : summary ? "Rewrite AI summary" : "Add AI summary"}
             </button>
           ) : null}
           <span className="ml-auto flex flex-wrap gap-2">

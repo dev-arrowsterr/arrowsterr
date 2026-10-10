@@ -9,7 +9,7 @@ import type { Gap, GapRow } from "@/lib/gap";
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
 import { Sheet, type Col } from "../Sheet";
-import { Card, favicon, Thinking } from "../ui";
+import { BookmarkIcon, Card, favicon, Thinking } from "../ui";
 import { BAR_BUTTON, BAR_INPUT, Difficulty, downloadCsv, fmtNum, post } from "./shared";
 import { KeywordPanel } from "./KeywordPanel";
 import { addToBank } from "./TopicBank";
@@ -271,6 +271,7 @@ export function KeywordGap({
               <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint bg-brand-pale px-5 py-2.5">
                 <span className="text-[13px] font-medium text-ink">{picked.size} selected</span>
                 <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={bank}>
+                  <BookmarkIcon />
                   Add to Topic Bank
                 </button>
               </div>

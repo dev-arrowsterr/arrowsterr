@@ -1,6 +1,7 @@
 "use client";
 
 // Small pieces the Research pages share.
+import { createContext } from "react";
 import type { Stage } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
 
@@ -123,3 +124,6 @@ export const BAR_FIELD = "h-12 border border-rule bg-white px-3.5 text-[15px] te
 export const BAR_INPUT = "aw-input h-12! min-w-56 flex-1 py-0!";
 export const BAR_BUTTON = "aw-btn aw-btn--accent h-12! py-0!";
 export const FIELD = "border border-rule bg-white px-2.5 py-1.5 text-[13px] text-ink focus:border-brand focus:outline-none disabled:bg-surface-2 disabled:text-muted";
+
+/** Opens Domain Research on a site or page. Set by the Research page, so any panel can offer "Analyze SEO". */
+export const AnalyzeSeo = createContext<((target: string, scope: "domain" | "subdomain" | "subfolder" | "url") => void) | null>(null);

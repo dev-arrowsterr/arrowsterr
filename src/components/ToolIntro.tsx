@@ -1,15 +1,17 @@
 "use client";
 
-// The empty state of a tool before the first search or setup: a headline, the action and example searches.
-// Callers still pass features, steps and FAQs; they are not shown, since the product explains itself.
+// The empty state of a tool before the first search: what the tool is for, the action, example searches
+// and the big picture of what it shows. Callers may still pass steps and FAQs; they are not shown.
 
 export type Feature = { title: string; text: string; visual?: React.ReactNode };
 
 export function ToolIntro({
   title,
+  lead,
   examples,
   onExample,
   action,
+  features,
 }: {
   title: string;
   lead?: string;
@@ -21,15 +23,30 @@ export function ToolIntro({
   faqs?: { q: string; a: string }[];
 }) {
   return (
-    <section className="flex flex-col gap-4">
-      <h2 className="aw-h3 max-w-3xl">{title}</h2>
+    <section className="flex flex-col gap-6">
+      <div className="flex flex-col gap-3">
+        <h2 className="aw-h3 mb-0! max-w-3xl">{title}</h2>
+        {lead ? <p className="max-w-3xl text-[16px] leading-relaxed text-body">{lead}</p> : null}
+      </div>
       {action ? <div className="flex flex-wrap gap-2">{action}</div> : null}
       {examples?.length ? (
         <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[13px] text-muted">Try</span>
           {examples.map((x) => (
             <button key={x} type="button" className="aw-chip" onClick={() => onExample?.(x)} disabled={!onExample}>
               {x}
             </button>
+          ))}
+        </div>
+      ) : null}
+      {features?.length ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {features.map((f) => (
+            <div key={f.title} className="aw-frame flex flex-col gap-3 p-5">
+              {f.visual ? <div className="flex h-20 items-center">{f.visual}</div> : null}
+              <h3 className="aw-h4 mb-0!">{f.title}</h3>
+              <p className="text-[14px] text-body">{f.text}</p>
+            </div>
           ))}
         </div>
       ) : null}

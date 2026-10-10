@@ -5,7 +5,7 @@ import { useState } from "react";
 import { saveSite, type Site } from "@/lib/db";
 import { FORMATS, GOALS, stageCounts, type PlanBrief } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
-import { SidePanel } from "../ui";
+import { AiIcon, SidePanel } from "../ui";
 import { FIELD, post } from "./shared";
 
 const today = () => {
@@ -233,7 +233,8 @@ export function PlanWizard({ sb, auth, site, onSite, onStarted, onClose }: { sb:
             </button>
           ) : (
             <button type="button" className="aw-btn aw-btn--accent" onClick={build} disabled={busy}>
-              {busy ? "Starting..." : "Build my plan"}
+              <AiIcon />
+              {busy ? "Starting..." : "Build my Topic Bank"}
             </button>
           )}
         </div>

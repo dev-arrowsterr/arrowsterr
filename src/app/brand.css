@@ -1211,3 +1211,10 @@
 .aw .aw-cal-card__st { padding: 1px 7px; border-radius: 999px; font-size: 10px; font-weight: var(--aw-w-medium); color: var(--aw-body); background: var(--aw-surface-2); }
 .aw .aw-cal-card__st--brief, .aw .aw-cal-card__st--writing { color: var(--aw-brand); background: var(--aw-brand-pale); }
 .aw .aw-cal-card__st--published { color: #0E7C57; background: #E2F1EB; }
+
+/* Button icons: kept still on hover, the AI spark filled. */
+.aw .aw-btn svg.aw-icon { stroke-linecap: round; }
+.aw .aw-btn:hover svg.aw-icon { transform: none; }
+.aw .aw-btn:has(> svg.aw-icon) { gap: 7px; }
+.aw svg.aw-icon[fill="currentColor"] { fill: currentColor; stroke: none; }
+.aw .aw-btn--secondary svg.aw-icon[fill="currentColor"] { color: var(--aw-brand); }

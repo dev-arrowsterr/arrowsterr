@@ -16,7 +16,7 @@ import type { RunAuth } from "@/lib/runner";
 import { putStash } from "@/lib/stash";
 import { briefToDoc } from "@/lib/writer";
 import type { BrandGuideline } from "@/lib/writerTypes";
-import { Seg } from "../ui";
+import { AiIcon, Seg } from "../ui";
 import { Difficulty, FIELD, fmtNum, post, StageTag } from "./shared";
 
 export const STATUSES: { id: CalendarStatus; label: string }[] = [
@@ -163,7 +163,8 @@ export function ContentPiece({
             <h3 className="aw-h3">{item.keyword}</h3>
             {canEdit ? (
               <button type="button" className="aw-btn aw-btn--accent" onClick={createBrief}>
-                ✦ Create content brief
+                <AiIcon />
+                Create content brief
               </button>
             ) : null}
           </div>
@@ -203,7 +204,8 @@ export function ContentPiece({
                     </button>
                   ) : (
                     <button type="button" className="aw-btn aw-btn--accent" onClick={createBrief}>
-                      ✦ Create content brief first
+                      <AiIcon />
+                      Create content brief first
                     </button>
                   )}
                   <button type="button" className="aw-btn aw-btn--secondary" onClick={() => toWriter(true)}>

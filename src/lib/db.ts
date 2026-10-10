@@ -39,6 +39,7 @@ export type Profile = {
 };
 /** One idea in the Topic Bank. */
 export type BankRow = {
+  enriched?: boolean; // true once Google data was fetched for this row
   id: string;
   keyword: string;
   stage: "bofu" | "mofu" | "tofu" | null;

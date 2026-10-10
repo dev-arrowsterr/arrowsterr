@@ -13,7 +13,7 @@ import { useStash } from "@/lib/stash";
 import { briefDocHtml } from "@/lib/briefDoc";
 import { briefToDoc, coverage, mdToHtml, type Section } from "@/lib/writer";
 import type { BrandGuideline, ChatMessage } from "@/lib/writerTypes";
-import { Seg, Thinking } from "../ui";
+import { AiIcon, Seg, Thinking } from "../ui";
 import { post } from "./shared";
 
 /** A note to the writer. Shown in the editor, left out when the draft is copied or exported. */
@@ -721,7 +721,8 @@ function BriefTab({
           <>
             <input value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="Main keyword" aria-label="Main keyword" className="aw-input py-2! text-[14px]!" />
             <button type="button" className="aw-btn aw-btn--accent" onClick={create} disabled={!keyword.trim()}>
-              ✦ Create content brief
+              <AiIcon />
+              Create content brief
             </button>
           </>
         ) : null}
@@ -795,6 +796,7 @@ function BrandPanel({ auth, site, guideline, onGuideline, canEdit }: { auth: Run
         </p>
         {canEdit ? (
           <button type="button" className="aw-btn aw-btn--accent aw-btn--sm self-start" onClick={build}>
+            <AiIcon />
             Build brand guideline
           </button>
         ) : null}

@@ -6,6 +6,7 @@ import type { Site } from "@/lib/db";
 import type { Stage } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
+import { AiIcon } from "../ui";
 import { Difficulty, fmtNum, post, StageTag } from "./shared";
 
 /** A keyword idea from AI visibility gaps, checked for search volume. */
@@ -115,7 +116,8 @@ export function IdeaList({ state, canEdit, onAdd, addLabel, compact = false }: {
         <span className="text-[12px] text-muted">{state.loaded ? `${state.list.length} keywords` : null}</span>
         {canEdit ? (
           <button type="button" className={`aw-btn aw-btn--sm ${state.loaded ? "aw-btn--secondary" : "aw-btn--accent"}`} onClick={state.find} disabled={state.busy}>
-            {state.busy ? "Finding..." : state.loaded ? "Refresh" : "✦ Find ideas"}
+            <AiIcon />
+            {state.busy ? "Finding..." : state.loaded ? "Refresh" : "Find ideas"}
           </button>
         ) : null}
       </div>

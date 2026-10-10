@@ -11,7 +11,7 @@ import { peek, putStash, useStash } from "@/lib/stash";
 import { BrandLogo } from "../BrandLogo";
 import { Sheet } from "../Sheet";
 import { SampleBars, SampleChips, SampleRing, SampleRows, SampleStats, ToolIntro } from "../ToolIntro";
-import { Card, favicon, Seg, Thinking } from "../ui";
+import { BookmarkIcon, CalendarIcon, Card, favicon, Seg, Thinking } from "../ui";
 import { BAR_BUTTON, BAR_FIELD, BAR_INPUT, downloadCsv, fmtCpc, post, Sparkline } from "./shared";
 
 export const ISO: Record<string, string> = {
@@ -130,9 +130,11 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
         <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint bg-brand-pale px-5 py-2.5">
           <span className="text-[13px] font-medium text-ink">{picked.size} selected</span>
           <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={() => addToCalendar(rows.filter((r) => picked.has(r.keyword)))}>
+            <CalendarIcon />
             Add to calendar
           </button>
           <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => toBank(rows.filter((r) => picked.has(r.keyword)))}>
+            <BookmarkIcon />
             Add to Topic Bank
           </button>
           <button type="button" className="aw-text-link text-[13px]" onClick={() => setPicked(new Set())}>
@@ -231,9 +233,11 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
             {canEdit && o ? (
               <span className="flex flex-wrap gap-2">
                 <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => toBank([o])}>
+                  <BookmarkIcon />
                   Add to Topic Bank
                 </button>
                 <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => addToCalendar([o])}>
+                  <CalendarIcon />
                   Add to calendar
                 </button>
               </span>
@@ -416,8 +420,8 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
 
       {!busy && !report && !bulk ? (
         <ToolIntro
-          title="Check keyword difficulty, volume, intent and trends in seconds"
-          lead="Enter any word or phrase to see how hard it is to reach Google's top 10, how many people search for it, what they want, and who ranks today. Use it to pick the keywords worth your time."
+          title="Know what your market wants before you write a word"
+          lead="Every search is a person telling Google what they need. Keyword Research shows how many people ask, how hard it is to win the top spots, what the searcher is ready to do and what advertisers pay to reach them. Use it to place your content bets on the topics that bring buyers, and skip the ones that only bring clicks."
           examples={["crm software", "best seo agencies", "how to start a podcast"]}
           onExample={canEdit ? (x) => analyze(x) : undefined}
           features={[
@@ -431,12 +435,12 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
             { title: "CPC", text: "What advertisers pay per click in Google Ads. A high CPC usually means buyers are close to buying.", visual: <SampleStats items={[["CPC", "$30.75"], ["Volume", "3.6K"], ["KD", "43"]]} /> },
             {
               title: "Keyword ideas",
-              text: "Variations, questions and topic groups around your keyword, each with volume and difficulty.",
+              text: "The wider market around one idea: every variation and question people ask, so one keyword grows into a full topic you can own.",
               visual: <SampleRows rows={[["best seo agency", 9900, "9.9K"], ["best local seo agency", 1600, "1.6K"], ["how to choose an seo agency", 70]]} />,
             },
             {
               title: "Google's top 10",
-              text: "Who ranks now, their estimated traffic, and which pages Google's AI Overview cites.",
+              text: "Who owns the topic today and which pages Google's AI Overview cites. This is the bar your page has to clear.",
               visual: <SampleRows rows={[["clutch.co", 12000, "12K"], ["firstpagesage.com", 9300, "9.3K"], ["expertise.com", 6600, "6.6K"]]} />,
             },
           ]}

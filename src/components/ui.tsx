@@ -17,9 +17,9 @@ export const OTHER_COLORS = ["#F5B70A", "#2B3242", "#D08A4E", "#28A745", "#7C869
 export function Card({ title, action, children, className = "" }: { title?: React.ReactNode; action?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (
     <section className={`aw-frame flex min-w-0 flex-col ${className}`}>
-      {title ? (
+      {title || action ? (
         <div className="aw-frame__head justify-between">
-          <h2 className="aw-h4">{title}</h2>
+          {title ? <h2 className="aw-h4">{title}</h2> : null}
           {action}
         </div>
       ) : null}
@@ -189,7 +189,7 @@ export function SidePanel({ title, kicker, onClose, children, narrow = false }: 
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
-        className={`flex h-full w-full flex-col gap-6 overflow-y-auto bg-white px-6 py-6 shadow-aw-sm ${narrow ? "max-w-[640px] md:px-8" : "max-w-[1320px] md:w-[calc(100%-240px)] md:px-10"}`}
+        className={`flex h-full w-full flex-col gap-6 overflow-y-auto bg-white px-6 py-6 shadow-aw-sm ${narrow ? "max-w-[960px] md:px-8" : "max-w-[1320px] md:w-[calc(100%-240px)] md:px-10"}`}
       >
         <div className="flex items-start justify-between gap-6">
           <div className="flex min-w-0 flex-col gap-1.5">
@@ -228,5 +228,56 @@ export function Meter({ label, used, limit }: { label: string; used: number; lim
       </div>
       {full ? <span className="text-[13px] font-medium text-neg">Limit reached</span> : null}
     </div>
+  );
+}
+
+// ─────────────── button icons ───────────────
+
+const ICON = { width: 14, height: 14, viewBox: "0 0 16 16", "aria-hidden": true, className: "aw-icon shrink-0" } as const;
+
+/** The AI spark: marks every button that hands work to an AI agent. */
+export function AiIcon() {
+  return (
+    <svg {...ICON} fill="currentColor">
+      <path d="M8 1l1.6 4.4L14 7l-4.4 1.6L8 13l-1.6-4.4L2 7l4.4-1.6z" />
+      <path d="M13 11l.6 1.4L15 13l-1.4.6L13 15l-.6-1.4L11 13l1.4-.6z" opacity=".7" />
+    </svg>
+  );
+}
+
+/** Save to the Topic Bank. */
+export function BookmarkIcon() {
+  return (
+    <svg {...ICON} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round">
+      <path d="M4 2h8v12l-4-3-4 3z" />
+    </svg>
+  );
+}
+
+/** Put on the Editorial Calendar. */
+export function CalendarIcon() {
+  return (
+    <svg {...ICON} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+      <rect x="2" y="3" width="12" height="11" rx="1.5" />
+      <path d="M2 6.5h12M5 1.5v3M11 1.5v3" />
+    </svg>
+  );
+}
+
+/** Open the SEO view of a page. */
+export function ChartIcon() {
+  return (
+    <svg {...ICON} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+      <path d="M2 14h12M4 11V8M8 11V4M12 11V6" />
+    </svg>
+  );
+}
+
+/** Upload a file. */
+export function UploadIcon() {
+  return (
+    <svg {...ICON} fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 10V2M5 5l3-3 3 3M2 11v3h12v-3" />
+    </svg>
   );
 }
