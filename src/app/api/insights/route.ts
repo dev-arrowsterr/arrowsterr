@@ -1,7 +1,8 @@
 import { askClaude, parseJson } from "@/lib/claude";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
 import { meteredRoute } from "@/lib/meter";
-import { take } from "@/lib/entitlements";
+import { requirePaid, take } from "@/lib/entitlements";
+import { TASK_COST } from "@/lib/plans";
 
 const PROMPT = (brand: string, domain: string, data: string) => `You are an AI search visibility analyst. You help ${brand} (${domain}) show up more often in answers from ChatGPT, Claude, Gemini, Perplexity and Google AI Overviews.
 
@@ -39,7 +40,9 @@ async function handle(request: Request) {
   if (!brand || !domain || data.length > 30000) return Response.json({ error: "Bad request" }, { status: 400 });
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
-  const took = await take(body.workspaceId, "ai");
+  const paid = await requirePaid(body.workspaceId);
+  if (paid) return paid;
+  const took = await take(body.workspaceId, "tasks", TASK_COST.ai);
   if (!took.ok) return took.response;
   const limited = await takeAnswer(auth.sb, body.workspaceId);
   if (limited) return limited;

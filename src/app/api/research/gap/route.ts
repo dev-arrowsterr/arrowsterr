@@ -6,6 +6,7 @@ import { requireRole } from "@/lib/serverAuth";
 import { normalizeSite } from "@/lib/site";
 import { meteredRoute } from "@/lib/meter";
 import { take } from "@/lib/entitlements";
+import { TASK_COST } from "@/lib/plans";
 import type { Gap, GapRow } from "@/lib/gap";
 
 
@@ -85,7 +86,7 @@ async function handle(request: Request) {
     const them = normalizeSite(String(body.competitor ?? ""))?.domain;
     if (!them) return Response.json({ error: "Enter a competitor's domain, like acme.com." }, { status: 400 });
     if (them === you) return Response.json({ error: "Pick a different domain from your own." }, { status: 400 });
-    const took = await take(body.workspaceId, "research");
+    const took = await take(body.workspaceId, "tasks", TASK_COST.gap);
     if (!took.ok) return took.response;
 
     const key = `gap:${m.location}:${m.language}:${you}:${them}`;

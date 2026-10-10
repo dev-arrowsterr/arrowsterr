@@ -2,7 +2,8 @@ import { askClaude, parseJson } from "@/lib/claude";
 import { cleanTheme, FONTS, TEMPLATES } from "@/lib/reportTheme";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
 import { meteredRoute } from "@/lib/meter";
-import { take } from "@/lib/entitlements";
+import { requirePaid, take } from "@/lib/entitlements";
+import { TASK_COST } from "@/lib/plans";
 
 /** Colors used most on a homepage, from its HTML and inline CSS. Used when there is no brand guideline. */
 async function siteColors(domain: string) {
@@ -24,7 +25,9 @@ async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
-  const took = await take(body.workspaceId, "ai");
+  const paid = await requirePaid(body.workspaceId);
+  if (paid) return paid;
+  const took = await take(body.workspaceId, "tasks", TASK_COST.ai);
   if (!took.ok) return took.response;
   if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
   const brand = String(body.brand ?? "").slice(0, 100);

@@ -14,7 +14,7 @@ export async function POST(request: Request) {
   if (!db) return Response.json({ error: "Add SUPABASE_SECRET_KEY on Render." }, { status: 500 });
   const plan = body.plan as PlanId;
   const interval: Interval = body.interval === "year" ? "year" : "month";
-  if (!SELF_SERVE.includes(plan)) return Response.json({ error: "Pick Foundation, Scale, Thrive or Agency." }, { status: 400 });
+  if (!SELF_SERVE.includes(plan)) return Response.json({ error: "Pick Starter, Pro or Agency." }, { status: 400 });
 
   const { data: ws, error } = await db.from("workspaces").select("id, name, plan_status, stripe_customer_id, stripe_subscription_id").eq("id", body.workspaceId).maybeSingle();
   if (error || !ws) return Response.json({ error: error?.message.includes("stripe") ? "Run supabase/015_billing.sql in Supabase." : error?.message ?? "Workspace not found." }, { status: 500 });

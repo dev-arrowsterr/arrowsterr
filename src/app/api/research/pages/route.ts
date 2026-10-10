@@ -5,7 +5,8 @@ import { marketOf, type PagePerf } from "@/lib/research";
 import { requireRole } from "@/lib/serverAuth";
 import { normalizeSite } from "@/lib/site";
 import { meteredRoute } from "@/lib/meter";
-import { take } from "@/lib/entitlements";
+import { requirePaid, take } from "@/lib/entitlements";
+import { TASK_COST } from "@/lib/plans";
 
 const strip = (u: string) => u.toLowerCase().replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
 
@@ -16,6 +17,8 @@ async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
+  const paid = await requirePaid(body.workspaceId);
+  if (paid) return paid;
   if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });
 
   const { data: site, error } = await auth.sb.from("sites").select("domain, profile").eq("id", body.siteId).eq("workspace_id", body.workspaceId).maybeSingle();
@@ -25,7 +28,7 @@ async function handle(request: Request) {
   const target = parseTarget(domain, "domain");
   if (!target) return Response.json({ error: "This website's address is not valid." }, { status: 400 });
   const m = marketOf((site.profile as { country?: string })?.country);
-  const took = await take(body.workspaceId, "research", 1, { refundIfFree: true });
+  const took = await take(body.workspaceId, "tasks", TASK_COST.pages, { refundIfFree: true });
   if (!took.ok) return took.response;
 
   try {

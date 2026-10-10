@@ -189,11 +189,15 @@ async function giveBack(db: SupabaseClient, ws: string | null, metric: string, p
 }
 
 export async function brief(db: SupabaseClient, job: Job) {
-  const { itemId, period } = job.payload as { itemId: string; period?: string };
+  const { itemId, period, tasks, fromPack } = job.payload as { itemId: string; period?: string; tasks?: number; fromPack?: number };
   await runBrief(db, itemId);
-  // A brief that failed does not count against the month's briefs.
+  // A brief that failed hands its tasks back.
   const { data } = await db.from("calendar_items").select("brief_status").eq("id", itemId).maybeSingle();
-  if (data?.brief_status === "failed") await giveBack(db, job.workspace_id, "briefs", period);
+  if (data?.brief_status === "failed" && job.workspace_id && period) {
+    const n = tasks ?? 75;
+    const { error } = await db.rpc("give_back_tasks", { p_ws: job.workspace_id, p_period: period, p_plan_n: n - (fromPack ?? 0), p_pack_n: fromPack ?? 0 });
+    if (error) await giveBack(db, job.workspace_id, "tasks", period);
+  }
   await finish(job.id);
 }
 

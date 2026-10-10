@@ -5,7 +5,7 @@ import type { Profile } from "@/lib/db";
 import type { PlanBrief } from "@/lib/research";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
 import { metered, meteredRoute } from "@/lib/meter";
-import { entitlement } from "@/lib/entitlements";
+import { entitlement, requirePaid } from "@/lib/entitlements";
 import { enqueue, queueReady } from "@/lib/jobs";
 
 // Agentic Keyword Research: start a run, answer right away, and keep working on the job queue
@@ -15,6 +15,8 @@ async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
+  const paid = await requirePaid(body.workspaceId);
+  if (paid) return paid;
   // The Topic Bank is free on every plan: each website gets one content plan, kept for good.
   const e = await entitlement(body.workspaceId);
   if (e.readOnly) return Response.json({ error: "This workspace is read-only." }, { status: 402 });

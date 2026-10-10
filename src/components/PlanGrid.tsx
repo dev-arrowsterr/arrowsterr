@@ -23,31 +23,37 @@ export type Group = { title: string; items: Feature[] };
 
 /** What a plan gives, grouped the way the cards and the table show it. */
 export function groups(p: Plan): Group[] {
+  const free = p.id === "free";
   return [
+    {
+      title: "Tasks",
+      items: [{ text: `${n(p.tasksPerMonth)} tasks a month`, on: true, tag: free ? undefined : "Top up with task packs" }],
+    },
     {
       title: "AI visibility",
       items: [
-        { text: `${n(p.prompts)} prompts`, on: true },
-        { text: p.checkEvery === 1 ? "Checked daily on 6 AIs" : "Checked weekly on 6 AIs", on: true, logos: true },
+        { text: free ? "Prompt tracking" : `${n(p.prompts)} prompts tracked, no tasks used`, on: !free },
+        { text: p.checkEvery === 1 ? "Checked daily on 6 AIs" : "Checked weekly on 6 AIs", on: !free, logos: true },
         { text: count(p.brands, "brand"), on: true },
         { text: count(p.seats, "seat"), on: true },
-        { text: `${n(p.competitors)} competitors per brand`, on: true },
+        { text: `${n(p.competitors)} competitors per brand`, on: !free },
         { text: p.historyDays >= 365 ? `${Math.round(p.historyDays / 365)} ${p.historyDays >= 730 ? "years" : "year"} of history` : `${p.historyDays} days of history`, on: true },
       ],
     },
     {
-      title: "SEO & content",
+      title: "Organic research & content",
       items: [
-        { text: p.researchPerMonth ? `Keyword & Website Research · ${n(p.researchPerMonth)} a month` : "Keyword & Website Research", on: p.researchPerMonth > 0 },
-        { text: p.briefsPerMonth ? `${n(p.briefsPerMonth)} content briefs a month` : "Content briefs", on: p.briefsPerMonth > 0 },
-        { text: "Topic Bank, built once per brand", on: true },
+        { text: "Keyword, Domain & Competitive Research", on: true },
+        { text: "Topic Bank, built once per brand", on: !free },
+        { text: "Content briefs & Editorial Calendar", on: !free },
         { text: "Agentic Writer", on: p.writer === "full" },
+        { text: "Publish to WordPress, Webflow & more", on: !free },
       ],
     },
     {
       title: "Reports & data",
       items: [
-        { text: "Live report links", on: true },
+        { text: "Live report links", on: !free },
         { text: "8 report templates", on: p.reports === "templates" || p.reports === "whitelabel" },
         { text: "White-label reports", on: p.reports === "whitelabel" },
         { text: "CSV export", on: true },
@@ -86,6 +92,15 @@ export function IntervalSwitch({ value, onChange }: { value: Interval; onChange:
 
 function Price({ p, interval }: { p: Plan; interval: Interval }) {
   const price = interval === "year" ? p.annual : p.price;
+  if (p.id === "free")
+    return (
+      <div>
+        <div className="flex items-end gap-1.5">
+          <span className="aw-num text-[44px] leading-none font-medium tracking-tight text-ink">$0</span>
+        </div>
+        <p className="aw-small mt-2">Free forever. No card.</p>
+      </div>
+    );
   return (
     <div>
       <div className="flex items-end gap-1.5">
@@ -118,7 +133,7 @@ export function PlanGrid({ interval, current, action }: { interval: Interval; cu
   return (
     <div className="flex flex-col gap-5">
       <div className="grid items-stretch gap-5 md:grid-cols-2 xl:grid-cols-4">
-        {SELF_SERVE.map((id) => {
+        {(["free", ...SELF_SERVE] as PlanId[]).map((id) => {
           const p = PLANS[id];
           const hot = id === "scale";
           const on = current === id;

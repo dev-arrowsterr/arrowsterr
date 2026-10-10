@@ -5,6 +5,7 @@ import { MARKETS, pagesOf, type DomainReport } from "@/lib/research";
 import { requireRole } from "@/lib/serverAuth";
 import { meteredRoute } from "@/lib/meter";
 import { take } from "@/lib/entitlements";
+import { TASK_COST } from "@/lib/plans";
 
 // Domain research: how big a domain, subdomain, folder or page is on Google, its top keywords and pages, and its competitors.
 // Shared and cached for 30 days, so the same domain again is free.
@@ -12,7 +13,7 @@ async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
-  const took = await take(body.workspaceId, "research");
+  const took = await take(body.workspaceId, "tasks", TASK_COST.domain);
   if (!took.ok) return took.response;
   if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });
   const scope: Scope = ["domain", "subdomain", "subfolder", "url"].includes(body.scope) ? body.scope : "domain";

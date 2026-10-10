@@ -2,6 +2,7 @@ import { askClaude, parseJson } from "@/lib/claude";
 import { cleanProfile, SITE_PROMPT } from "@/lib/onboarding";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
 import { take } from "@/lib/entitlements";
+import { TASK_COST } from "@/lib/plans";
 import { fetchSite, logoFor, normalizeSite } from "@/lib/site";
 import { meteredRoute } from "@/lib/meter";
 
@@ -13,7 +14,7 @@ async function handle(request: Request) {
   // Only editors and up may spend AI credits. Reading a site counts as one answer.
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
-  const took = await take(body.workspaceId, "ai");
+  const took = await take(body.workspaceId, "tasks", TASK_COST.ai);
   if (!took.ok) return took.response;
   const limited = await takeAnswer(auth.sb, body.workspaceId);
   if (limited) return limited;

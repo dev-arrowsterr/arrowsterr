@@ -5,7 +5,8 @@ import { requireRole, takeAnswer } from "@/lib/serverAuth";
 import { findPages } from "@/lib/sitemap";
 import type { BrandGuideline } from "@/lib/writerTypes";
 import { meteredRoute } from "@/lib/meter";
-import { take } from "@/lib/entitlements";
+import { requirePaid, take } from "@/lib/entitlements";
+import { TASK_COST } from "@/lib/plans";
 import { cached, DAY } from "@/lib/cache";
 import { normalizeSite } from "@/lib/site";
 import type { AgentTask } from "@/lib/writerAgent";
@@ -21,9 +22,11 @@ async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
+  const paid = await requirePaid(body.workspaceId);
+  if (paid) return paid;
   const task = body.task as AgentTask;
   if (!TASKS.includes(task)) return Response.json({ error: "Unknown task." }, { status: 400 });
-  const took = await take(body.workspaceId, "ai");
+  const took = await take(body.workspaceId, "tasks", task === "widget" ? TASK_COST.widget : TASK_COST.agent);
   if (!took.ok) return took.response;
   if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
 

@@ -1,12 +1,12 @@
 import "server-only";
-import { cycleEnd, firstWith, limitsFor, METRICS, nextPlan, PLANS, periodOf, type Extras, type Metric, type Plan, type PlanId } from "./plans";
+import { cycleEnd, effectivePlan, firstWith, isFree, limitsFor, METRICS, nextPlan, PLANS, periodOf, type Extras, type Metric, type Plan, type PlanId } from "./plans";
 import { onRefund } from "./meter";
 import { adminClient } from "./serverAuth";
 
 // What a workspace may use right now, and the allowance checks every paid route runs.
 // Counting needs the server's secret key. Without it, or before 015_billing.sql, nothing is blocked.
 
-export type Entitlement = { plan: PlanId; status: string; limits: Plan; readOnly: boolean; trialEndsAt: string | null; periodEnd: string | null; anchor: string | null };
+export type Entitlement = { plan: PlanId; status: string; limits: Plan; readOnly: boolean; trialEndsAt: string | null; periodEnd: string | null; anchor: string | null; credits: number };
 
 const cache = new Map<string, { at: number; e: Entitlement }>();
 
@@ -14,17 +14,19 @@ export async function entitlement(workspaceId: string): Promise<Entitlement> {
   const hit = cache.get(workspaceId);
   if (hit && Date.now() - hit.at < 60_000) return hit.e;
   const db = adminClient();
-  const legacy: Entitlement = { plan: "legacy", status: "active", limits: PLANS.legacy, readOnly: false, trialEndsAt: null, periodEnd: null, anchor: null };
+  const legacy: Entitlement = { plan: "legacy", status: "active", limits: PLANS.legacy, readOnly: false, trialEndsAt: null, periodEnd: null, anchor: null, credits: 0 };
   if (!db) return legacy;
   const { data, error } = await db.from("workspaces").select("*").eq("id", workspaceId).maybeSingle();
   if (error || !data?.plan) return legacy; // before 015_billing.sql
-  const w = data as { plan: PlanId; plan_status: string; trial_ends_at: string | null; period_end: string | null; extras: Extras; billing_anchor?: string | null };
-  const trialOver = w.plan === "trial" && w.trial_ends_at !== null && Date.parse(w.trial_ends_at) < Date.now();
+  const w = data as { plan: PlanId; plan_status: string; trial_ends_at: string | null; period_end: string | null; extras: Extras; billing_anchor?: string | null; task_credits?: number };
+  // A trial that ended, or a canceled plan, drops to Free. Nothing goes read-only for that.
+  const now = effectivePlan(w.plan, w.plan_status, w.trial_ends_at);
   const e: Entitlement = {
-    plan: w.plan,
-    status: trialOver ? "read_only" : w.plan_status,
-    limits: limitsFor(w.plan, w.extras ?? {}),
-    readOnly: trialOver || w.plan_status === "read_only" || w.plan_status === "canceled",
+    plan: now.plan,
+    status: now.status,
+    limits: limitsFor(now.plan, now.plan === w.plan ? (w.extras ?? {}) : {}),
+    readOnly: now.status === "read_only",
+    credits: Number(w.task_credits ?? 0),
     trialEndsAt: w.trial_ends_at,
     periodEnd: w.period_end,
     anchor: w.billing_anchor ?? null, // before 017_stripe.sql, months follow the calendar
@@ -46,6 +48,10 @@ const resetText = (m: Metric, anchor: string | null) => {
 /** A friendly "limit reached" answer, with the plan to boost to. */
 function limitReached(e: Entitlement, m: Metric, limit: number) {
   const label = METRICS[m].label;
+  if (m === "tasks") {
+    const error = `You've used this month's ${limit.toLocaleString("en-US")} tasks on ${e.limits.name}${e.credits ? ` and your ${e.credits.toLocaleString("en-US")} pack tasks don't cover this` : ""}. Buy a task pack to keep going, or ${resetText(m, e.anchor).toLowerCase()}.`;
+    return Response.json({ error, limit: true, metric: m, packs: true, boost: nextPlan(e.plan) }, { status: 429 });
+  }
   // Not on this plan at all: name the plan it starts on.
   if (limit <= 0) {
     const on = firstWith(m);
@@ -55,6 +61,13 @@ function limitReached(e: Entitlement, m: Metric, limit: number) {
   const up = nextPlan(e.plan);
   const error = `You've used ${METRICS[m].period === "day" ? "today's" : "this month's"} ${limit} ${label} on ${e.limits.name}. ${resetText(m, e.anchor)}${up ? `, or boost to ${PLANS[up].name} now` : ""}.`;
   return Response.json({ error, limit: true, metric: m, boost: up }, { status: 429 });
+}
+
+/** Content tools, AI visibility and reports start on Starter. Free opens Organic Research only. */
+export async function requirePaid(workspaceId: string): Promise<Response | null> {
+  const e = await entitlement(workspaceId);
+  if (!isFree(e.plan)) return null;
+  return Response.json({ error: "This starts on Starter. The Free plan includes a little Organic Research each month.", limit: true, boost: "foundation" }, { status: 429 });
 }
 
 function readOnly(e: Entitlement) {
@@ -68,7 +81,7 @@ export async function requireActive(workspaceId: string): Promise<Response | nul
   return e.readOnly ? readOnly(e) : null;
 }
 
-export type Taken = { ok: true; giveBack: () => Promise<void>; used: number; limit: number; period: string } | { ok: false; response: Response };
+export type Taken = { ok: true; giveBack: () => Promise<void>; used: number; limit: number; period: string; fromPack?: number } | { ok: false; response: Response };
 
 /**
  * Use n of a counted allowance. In a metered route it is handed back on its own when the route fails
@@ -83,6 +96,22 @@ export async function take(workspaceId: string, metric: Metric, n = 1, opts: { r
   const db = adminClient();
   const noop = { ok: true as const, giveBack: async () => {}, used: 0, limit, period };
   if (!db) return noop;
+  if (metric === "tasks") {
+    // The month's tasks first, then task packs.
+    const { data, error } = await db.rpc("take_tasks", { p_ws: workspaceId, p_period: period, p_limit: limit, p_n: n });
+    if (!error) {
+      if (data === -1) return { ok: false, response: limitReached(e, metric, limit) };
+      const fromPack = Number(data);
+      const giveBack = async () => {
+        await db.rpc("give_back_tasks", { p_ws: workspaceId, p_period: period, p_plan_n: n - fromPack, p_pack_n: fromPack });
+      };
+      onRefund(giveBack, opts.refundIfFree ?? true);
+      forgetEntitlement(workspaceId);
+      return { ok: true, used: n, limit, giveBack, period, fromPack };
+    }
+    if (!/take_tasks/.test(error.message)) console.error("Task check failed:", error.message);
+    // Before 022_tasks.sql: count tasks like any other allowance.
+  }
   const { data, error } = await db.rpc("take_allowance", { p_ws: workspaceId, p_metric: metric, p_period: period, p_limit: limit, p_n: n });
   if (error) {
     if (!/take_allowance|usage_counters/.test(error.message)) console.error("Allowance check failed:", error.message);
@@ -106,6 +135,7 @@ export async function usageOf(workspaceId: string) {
   const rows = (data ?? []) as { metric: Metric; period: string; used: number }[];
   return {
     plan: e.plan,
+    credits: e.credits,
     name: e.limits.name,
     status: e.status,
     readOnly: e.readOnly,

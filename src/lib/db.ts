@@ -3,7 +3,7 @@ import type { DocPublishMeta } from "./writerAgent";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Chat, Run } from "./chats";
 import type { AgentResult, PlanBrief } from "./research";
-import { limitsFor, METRICS, nextPlan, periodOf as periodFor, type Extras, type Metric, type PlanId } from "./plans";
+import { effectivePlan, limitsFor, METRICS, nextPlan, periodOf as periodFor, type Extras, type Metric, type PlanId } from "./plans";
 import type { Brief } from "./briefTypes";
 import type { BrandGuideline } from "./writerTypes";
 
@@ -245,25 +245,29 @@ export async function getPlanUsage(sb: SupabaseClient, workspaceId: string) {
     billing_interval?: "month" | "year" | null;
     cancel_at?: string | null;
     stripe_customer_id?: string | null;
+    task_credits?: number;
   };
+  const now = effectivePlan(w.plan, w.plan_status, w.trial_ends_at);
   const anchor = w.billing_anchor ?? null;
   const periodOf = (m: Metric) => periodFor(m, new Date(), anchor);
-  const limits = limitsFor(w.plan, w.extras ?? {});
+  const limits = limitsFor(now.plan, now.plan === w.plan ? (w.extras ?? {}) : {});
   const metrics = Object.keys(METRICS) as Metric[];
   const { data: rows } = await sb.from("usage_counters").select("metric, period, used").eq("workspace_id", workspaceId).in("period", [...new Set(metrics.map((m) => periodOf(m)))]);
   const used = (m: Metric) => ((rows ?? []) as { metric: string; period: string; used: number }[]).find((r) => r.metric === m && r.period === periodOf(m))?.used ?? 0;
-  const trialLeft = w.plan === "trial" && w.trial_ends_at ? Math.max(0, Math.ceil((Date.parse(w.trial_ends_at) - Date.now()) / 864e5)) : null;
+  const trialLeft = now.plan === "trial" && w.trial_ends_at ? Math.max(0, Math.ceil((Date.parse(w.trial_ends_at) - Date.now()) / 864e5)) : null;
   return {
-    plan: w.plan,
+    plan: now.plan,
+    credits: Number(w.task_credits ?? 0),
+    trialEnded: w.plan === "trial" && now.plan === "free",
     name: limits.name,
-    status: trialLeft === 0 ? "read_only" : w.plan_status,
+    status: now.status,
     trialLeft,
     periodEnd: w.period_end,
     interval: w.billing_interval ?? null,
     cancelAt: w.cancel_at ?? null,
     customer: Boolean(w.stripe_customer_id),
     limits,
-    boost: nextPlan(w.plan),
+    boost: nextPlan(now.plan),
     allowances: metrics.map((m) => ({ metric: m, label: METRICS[m].label, period: METRICS[m].period, used: used(m), limit: METRICS[m].limit(limits) })),
   };
 }

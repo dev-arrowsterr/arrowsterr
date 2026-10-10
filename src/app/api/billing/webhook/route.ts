@@ -1,4 +1,5 @@
 import { getSubscription, syncSubscription } from "@/lib/billing";
+import { forgetEntitlement } from "@/lib/entitlements";
 import { adminClient } from "@/lib/serverAuth";
 import { readEvent, type Subscription } from "@/lib/stripe";
 
@@ -31,6 +32,16 @@ export async function POST(request: Request) {
   try {
     const o = event.data.object;
     let subId: string | null = null;
+    if (event.type === "checkout.session.completed" && o.mode === "payment") {
+      // A task pack: add its tasks once it is paid.
+      const m = (o.metadata ?? {}) as Record<string, string>;
+      if (m.kind === "task_pack" && o.payment_status === "paid" && m.workspace_id) {
+        const { error } = await db.rpc("add_task_pack", { p_id: o.id, p_ws: m.workspace_id, p_tasks: Number(m.tasks), p_amount: Number(o.amount_total ?? 0) });
+        if (error) throw new Error(error.message);
+        forgetEntitlement(m.workspace_id);
+      }
+      return Response.json({ ok: true });
+    }
     if (event.type === "checkout.session.completed") {
       subId = (o.subscription as string | null) ?? null;
       const ws = (o.client_reference_id as string | null) ?? null;

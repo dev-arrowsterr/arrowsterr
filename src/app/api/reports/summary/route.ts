@@ -1,14 +1,17 @@
 import { askClaude, parseJson } from "@/lib/claude";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
 import { meteredRoute } from "@/lib/meter";
-import { take } from "@/lib/entitlements";
+import { requirePaid, take } from "@/lib/entitlements";
+import { TASK_COST } from "@/lib/plans";
 
 // A short executive summary of the period, written from the numbers on the Summary report. One AI answer.
 async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
-  const took = await take(body.workspaceId, "ai");
+  const paid = await requirePaid(body.workspaceId);
+  if (paid) return paid;
+  const took = await take(body.workspaceId, "tasks", TASK_COST.ai);
   if (!took.ok) return took.response;
   if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
   const limited = await takeAnswer(auth.sb, body.workspaceId);

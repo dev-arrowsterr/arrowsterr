@@ -26,7 +26,7 @@ import {
   type SavedRun,
   type Workspace,
 } from "@/lib/db";
-import { PLANS, promptAllowance, type PlanId } from "@/lib/plans";
+import { isFree, PLANS, promptAllowance, type PlanId } from "@/lib/plans";
 import { post } from "./research/shared";
 import { splitPeriods, type Filter } from "@/lib/metrics";
 import type { View } from "@/lib/view";
@@ -184,7 +184,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   const [seoStart, setSeoStart] = useState<SeoStart | null>(null); // a site or link from Sources to open in Domain Research
   const [error, setError] = useState("");
   const [plan, setPlan] = useState<PlanUsage | null>(null);
-  const [limitHit, setLimitHit] = useState<{ error: string; boost: PlanId | null } | null>(null);
+  const [limitHit, setLimitHit] = useState<{ error: string; boost: PlanId | null; packs?: boolean } | null>(null);
   const [boosting, setBoosting] = useState(false);
 
   // Any API answer that hits a plan limit shows the Boost bar, wherever it came from.
@@ -198,7 +198,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           .clone()
           .json()
           .then((d) => {
-            if (d?.limit || d?.readOnly) setLimitHit({ error: String(d.error ?? ""), boost: (d.boost as PlanId | null) ?? null });
+            if (d?.limit || d?.readOnly) setLimitHit({ error: String(d.error ?? ""), boost: (d.boost as PlanId | null) ?? null, packs: Boolean(d.packs) });
           })
           .catch(() => {});
       }
@@ -307,6 +307,9 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
 
   async function runBrand(brand: Brand) {
     if (!engines?.length || running || !ws) return;
+    // Prompts past the plan (after a downgrade, or on Free) are not checked.
+    const room = plan ? (promptAllowance(brands?.some((b) => b.id === brand.id) ? brands : [...(brands ?? []), brand], plan.limits).get(brand.id) ?? brand.prompts.length) : brand.prompts.length;
+    if (room <= 0) return;
     setRunning(brand.id);
     setError("");
     setProgress({ done: 0, total: engines.length * brand.prompts.length });
@@ -318,8 +321,6 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
     } catch (e) {
       setError(`Could not save this run: ${e instanceof Error ? e.message : String(e)}`);
     }
-    // Prompts past the plan (after a downgrade) are not checked.
-    const room = plan ? (promptAllowance(brands?.some((b) => b.id === brand.id) ? brands : [...(brands ?? []), brand], plan.limits).get(brand.id) ?? brand.prompts.length) : brand.prompts.length;
     const finished = await runAll({ ...brand, prompts: brand.prompts.slice(0, room) }, engines, { workspaceId: ws.id, token }, (run, done, total) => {
       setRuns((r) => ({ ...r, [brand.id]: [...past, { ...run, id: runId ?? "live" }] }));
       setProgress({ done, total });
@@ -507,10 +508,22 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           />
         ) : null}
         <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">
-          {limitHit || (plan && (plan.status === "read_only" || plan.status === "canceled") && page !== "billing") ? (
+          {limitHit || (plan && plan.status === "read_only" && page !== "billing") ? (
             <div className="aw-callout aw-callout--warn mb-5 flex flex-wrap items-center justify-between gap-3">
               <span>{limitHit?.error || (plan?.plan === "trial" ? "Your free trial has ended. Your data is safe." : "This workspace is read-only. Your data is safe.")}</span>
               <span className="flex items-center gap-3">
+                {limitHit?.packs ? (
+                  <button
+                    type="button"
+                    className="aw-btn aw-btn--primary aw-btn--sm"
+                    onClick={() => {
+                      setLimitHit(null);
+                      go("billing");
+                    }}
+                  >
+                    Buy tasks
+                  </button>
+                ) : null}
                 {limitHit?.boost && atLeast(ws.role, "admin") ? (
                   <button
                     type="button"
@@ -576,15 +589,15 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             <BillingPage key={ws.id} sb={sb} ws={ws} auth={auth} onPlan={loadPlan} />
           ) : !view ? (
             <div className="aw-callout max-w-xl">This workspace has no brands yet. Ask an editor or admin to add one.</div>
-          ) : RESEARCH.includes(page) && page !== "topics" && plan && (SEO_TOOLS.includes(page) ? plan.limits.researchPerMonth : plan.limits.briefsPerMonth) === 0 ? (
+          ) : plan && isFree(plan.plan) && !SEO_TOOLS.includes(page) ? (
             <Locked
-              title={SEO_TOOLS.includes(page) ? "Keyword & Website Research starts on Scale" : "Content starts on Scale"}
+              title={RESEARCH.includes(page) ? "Content starts on Starter" : page === "summary" ? "Client reports start on Starter" : "AI visibility tracking starts on Starter"}
               admin={atLeast(ws.role, "admin")}
               busy={boosting}
               onBoost={async () => {
                 setBoosting(true);
                 try {
-                  const done = await choosePlan(auth, "scale", plan.interval ?? "month");
+                  const done = await choosePlan(auth, "foundation", plan.interval ?? "month");
                   if (done) {
                     setNotice(done);
                     loadPlan();
@@ -659,7 +672,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
 
 /** A page the plan does not include, with the way up. */
 function Locked({ title, admin, busy, onBoost, onPlans }: { title: string; admin: boolean; busy: boolean; onBoost: () => void; onPlans: () => void }) {
-  const p = PLANS.scale;
+  const p = PLANS.foundation;
   return (
     <div className="mx-auto mt-10 flex max-w-xl flex-col items-center gap-5 rounded-[20px] border border-rule bg-white px-6 py-12 text-center shadow-aw-sm">
       <span aria-hidden="true" className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-pale text-[22px] text-brand">
@@ -667,15 +680,15 @@ function Locked({ title, admin, busy, onBoost, onPlans }: { title: string; admin
       </span>
       <h1 className="aw-h3 mb-0!">{title}</h1>
       <ul className="flex flex-col gap-2 text-left text-[15px] text-body">
-        <li>✓ Keyword & Website Research, {p.researchPerMonth.toLocaleString("en-US")} a month</li>
-        <li>✓ {p.briefsPerMonth} content briefs a month</li>
-        <li>✓ Agentic Writer and Editorial Calendar</li>
-        <li>✓ {p.prompts} prompts and {p.seats} seats</li>
+        <li>✓ {p.prompts} prompts tracked on 6 AIs, without using tasks</li>
+        <li>✓ {p.tasksPerMonth.toLocaleString("en-US")} tasks a month for research, briefs and the Agentic Writer</li>
+        <li>✓ Topic Bank, Editorial Calendar and CMS publishing</li>
+        <li>✓ Client reports and {p.seats} seats</li>
       </ul>
       <div className="flex flex-wrap justify-center gap-3">
         {admin ? (
           <button type="button" className="aw-btn aw-btn--primary" disabled={busy} onClick={onBoost}>
-            {busy ? "Opening..." : `Boost to Scale · $${p.price}/mo`}
+            {busy ? "Opening..." : `Start ${p.name} · $${p.price}/mo`}
           </button>
         ) : null}
         <button type="button" className="aw-btn aw-btn--secondary" onClick={onPlans}>
@@ -900,9 +913,9 @@ function Sidebar({
             </button>
           ))}
         </div>
-        {plan && (plan.plan === "trial" || plan.status !== "active") ? (
+        {plan && (plan.plan === "trial" || plan.plan === "free" || plan.status !== "active") ? (
           <button type="button" onClick={() => onPage("billing")} className="flex items-center justify-between gap-2 rounded-aw border border-brand-mist bg-brand-pale px-3 py-2 text-left text-[13px] font-medium text-brand">
-            <span>{plan.status === "past_due" ? "Payment failed" : plan.trialLeft ? `${plan.trialLeft} days of trial left` : plan.plan === "trial" || plan.status !== "active" ? "Pick a plan" : plan.name}</span>
+            <span>{plan.status === "past_due" ? "Payment failed" : plan.plan === "free" ? "Free plan · Upgrade" : plan.trialLeft ? `${plan.trialLeft} days of trial left` : plan.plan === "trial" || plan.status !== "active" ? "Pick a plan" : plan.name}</span>
             <span aria-hidden="true">→</span>
           </button>
         ) : null}

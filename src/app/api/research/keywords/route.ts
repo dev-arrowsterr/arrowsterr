@@ -8,6 +8,7 @@ import { requireRole } from "@/lib/serverAuth";
 import { normalizeSite } from "@/lib/site";
 import { meteredRoute } from "@/lib/meter";
 import { take } from "@/lib/entitlements";
+import { TASK_COST } from "@/lib/plans";
 
 const MODES: Mode[] = ["ideas", "phrase", "related", "site", "ranked", "competitors"];
 const BY_DOMAIN: Mode[] = ["site", "ranked", "competitors"];
@@ -17,7 +18,7 @@ async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
-  const took = await take(body.workspaceId, "research");
+  const took = await take(body.workspaceId, "tasks", TASK_COST.keyword);
   if (!took.ok) return took.response;
   if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });
 

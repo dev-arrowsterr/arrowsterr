@@ -2,6 +2,7 @@ import { askClaude, parseJson } from "@/lib/claude";
 import { cleanList, cleanProfile, MAX_TOPICS, TOPICS_PROMPT } from "@/lib/onboarding";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
 import { take } from "@/lib/entitlements";
+import { TASK_COST } from "@/lib/plans";
 import { meteredRoute } from "@/lib/meter";
 
 // Onboarding step 2: suggest bottom-of-funnel topics from the business answers.
@@ -12,7 +13,7 @@ async function handle(request: Request) {
   if (!name || !domain) return Response.json({ error: "Add your brand name and website first." }, { status: 400 });
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
-  const took = await take(body.workspaceId, "ai");
+  const took = await take(body.workspaceId, "tasks", TASK_COST.ai);
   if (!took.ok) return took.response;
   const limited = await takeAnswer(auth.sb, body.workspaceId);
   if (limited) return limited;
