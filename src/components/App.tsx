@@ -11,8 +11,7 @@ import {
   atLeast,
   createWorkspace,
   deleteBrand,
-  setWorkspaceAvatar,
-  listBrands,
+    listBrands,
   listRuns,
   listWorkspaces,
   saveBrand,
@@ -36,6 +35,7 @@ import { runAll, type RunAuth } from "@/lib/runner";
 import { getSupabase, type SupaConfig } from "@/lib/supa";
 import { clearStash } from "@/lib/stash";
 import { AuthScreen, NewPassword } from "./AuthScreen";
+import { WorkspaceAvatar } from "./WorkspaceAvatar";
 import { BrandLogo } from "./BrandLogo";
 import { CompetitorsPage } from "./CompetitorsPage";
 import { Logo } from "./Logo";
@@ -475,15 +475,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
         workspaces={workspaces}
         ws={ws}
         brandLogo={brands?.[0]?.logo ?? null}
-        onAvatar={async (avatar) => {
-          try {
-            await setWorkspaceAvatar(sb, ws.id, avatar);
-            await loadWorkspaces();
-          } catch (e) {
-            setError(`Could not save: ${e instanceof Error ? e.message : String(e)}`);
-          }
-        }}
         onWorkspace={(id) => {
+          if (id === ws.id) return;
           setWsId(id);
           setBrands(null);
           setTopic("All");
@@ -608,7 +601,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             </div>
           ) : null}
           {page === "members" ? (
-            <MembersPage key={ws.id} sb={sb} ws={ws} userId={userId} onChanged={loadWorkspaces} auth={auth} />
+            <MembersPage key={ws.id} sb={sb} ws={ws} brandLogo={brands?.[0]?.logo ?? null} userId={userId} onChanged={loadWorkspaces} auth={auth} />
           ) : page === "billing" ? (
             <BillingPage key={ws.id} sb={sb} ws={ws} auth={auth} onPlan={loadPlan} />
           ) : !view ? (
@@ -823,7 +816,6 @@ function Sidebar({
   workspaces,
   ws,
   brandLogo,
-  onAvatar,
   onWorkspace,
   onNewWorkspace,
   page,
@@ -835,7 +827,6 @@ function Sidebar({
   workspaces: Workspace[];
   ws: Workspace;
   brandLogo: string | null;
-  onAvatar: (avatar: string | null) => Promise<void>;
   onWorkspace: (id: string) => void;
   onNewWorkspace: (name: string) => Promise<void>;
   page: Page;
@@ -849,14 +840,13 @@ function Sidebar({
         <Logo size="sm" />
       </div>
       <div className="relative" ref={ref}>
-        <div className="flex w-full items-center gap-2 rounded-aw border border-rule bg-white pl-3 shadow-aw-sm hover:border-brand-mist">
-        <WorkspaceAvatar ws={ws} brandLogo={brandLogo} onAvatar={onAvatar} />
         <button
           type="button"
           onClick={() => setOpen(!open)}
           aria-expanded={open}
-          className="flex min-w-0 flex-1 items-center gap-2 rounded-none py-2 pr-3 text-left"
+          className="flex w-full items-center gap-2 rounded-aw border border-rule bg-white px-3 py-2 text-left shadow-aw-sm hover:border-brand-mist"
         >
+          <WorkspaceAvatar ws={ws} brandLogo={brandLogo} />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[14px] font-medium text-ink">{ws.name}</span>
             <span className="block text-[11px] text-muted">{ROLE_LABEL[ws.role]}</span>
@@ -865,7 +855,6 @@ function Sidebar({
             ▾
           </span>
         </button>
-        </div>
         {open ? (
           <div className="absolute z-30 mt-2 w-full overflow-hidden rounded-aw border border-rule bg-white shadow-aw-lg">
             {workspaces.map((w) => (
@@ -962,68 +951,6 @@ function Sidebar({
         </button>
       </div>
     </aside>
-  );
-}
-
-/** Shrink a picked image to a small square PNG data URL. */
-function avatarFromFile(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      const size = 96;
-      const c = document.createElement("canvas");
-      c.width = c.height = size;
-      const side = Math.min(img.width, img.height);
-      c.getContext("2d")!.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, size, size);
-      URL.revokeObjectURL(url);
-      resolve(c.toDataURL("image/png"));
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("That file is not an image."));
-    };
-    img.src = url;
-  });
-}
-
-/** The workspace picture. It starts as the first brand's logo; admins can pick their own. */
-function WorkspaceAvatar({ ws, brandLogo, onAvatar }: { ws: Workspace; brandLogo: string | null; onAvatar: (avatar: string | null) => Promise<void> }) {
-  const input = useRef<HTMLInputElement>(null);
-  const src = ws.avatar || brandLogo;
-  const pic = src ? <BrandLogo src={src} name={ws.name} size={24} /> : <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-[6px] bg-ink text-[12px] font-medium text-white">{ws.name.slice(0, 1).toUpperCase()}</span>;
-  if (!atLeast(ws.role, "admin")) return pic;
-  return (
-    <>
-      <button
-        type="button"
-        title={ws.avatar ? "Change picture (Shift-click to reset)" : "Change picture"}
-        aria-label="Change workspace picture"
-        className="shrink-0 rounded-[6px] p-0 hover:opacity-80"
-        onClick={(e) => {
-          if (e.shiftKey && ws.avatar) onAvatar(null);
-          else input.current?.click();
-        }}
-      >
-        {pic}
-      </button>
-      <input
-        ref={input}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={async (e) => {
-          const file = e.target.files?.[0];
-          e.target.value = "";
-          if (!file) return;
-          try {
-            await onAvatar(await avatarFromFile(file));
-          } catch (err) {
-            alert(err instanceof Error ? err.message : String(err));
-          }
-        }}
-      />
-    </>
   );
 }
 

@@ -6,6 +6,7 @@ import type { RunAuth } from "@/lib/runner";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useState } from "react";
 import { Meter } from "./ui";
+import { WorkspaceAvatar, avatarFromFile } from "./WorkspaceAvatar";
 import {
   atLeast,
   createInvite,
@@ -15,6 +16,7 @@ import {
   listMembers,
   removeMember,
   renameWorkspace,
+  setWorkspaceAvatar,
   revokeInvite,
   setMemberRole,
   type Invite,
@@ -54,7 +56,7 @@ function CopyButton({ text }: { text: string }) {
 }
 
 /** Workspace name, members and their roles, and invites. */
-export function MembersPage({ sb, ws, userId, onChanged, auth }: { sb: SupabaseClient; ws: Workspace; userId: string; onChanged: () => Promise<void>; auth: RunAuth }) {
+export function MembersPage({ sb, ws, brandLogo, userId, onChanged, auth }: { sb: SupabaseClient; ws: Workspace; brandLogo: string | null; userId: string; onChanged: () => Promise<void>; auth: RunAuth }) {
   const isAdmin = atLeast(ws.role, "admin");
   const [members, setMembers] = useState<Member[] | null>(null);
   const [invites, setInvites] = useState<Invite[]>([]);
@@ -136,6 +138,48 @@ export function MembersPage({ sb, ws, userId, onChanged, auth }: { sb: SupabaseC
             {ws.name}
           </p>
         )}
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <span className="aw-label mb-0!">Workspace picture</span>
+        <div className="flex items-center gap-4">
+          <WorkspaceAvatar ws={ws} brandLogo={brandLogo} size={56} />
+          {isAdmin ? (
+            <>
+              <label className="aw-btn aw-btn--secondary aw-btn--sm cursor-pointer">
+                Upload picture
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (file)
+                      act(async () => {
+                        await setWorkspaceAvatar(sb, ws.id, await avatarFromFile(file));
+                        await onChanged();
+                      }, "Picture saved.");
+                  }}
+                />
+              </label>
+              {ws.avatar ? (
+                <button
+                  type="button"
+                  className="aw-text-link text-[13px]"
+                  onClick={() =>
+                    act(async () => {
+                      await setWorkspaceAvatar(sb, ws.id, null);
+                      await onChanged();
+                    }, "Picture reset to the first brand's logo.")
+                  }
+                >
+                  Use first brand's logo
+                </button>
+              ) : null}
+            </>
+          ) : null}
+        </div>
       </section>
 
       {usage ? (
