@@ -11,7 +11,7 @@ export type Role = "owner" | "admin" | "editor" | "viewer";
 export const ROLE_RANK: Record<Role, number> = { owner: 4, admin: 3, editor: 2, viewer: 1 };
 export const atLeast = (role: Role | undefined, min: Role) => (role ? ROLE_RANK[role] >= ROLE_RANK[min] : false);
 
-export type Workspace = { id: string; name: string; role: Role };
+export type Workspace = { id: string; name: string; role: Role; avatar: string | null };
 export type Brand = {
   id: string;
   workspace_id: string;
@@ -82,16 +82,21 @@ function check<T>(res: { data: T; error: { message: string } | null }): T {
 
 export async function listWorkspaces(sb: SupabaseClient, userId: string): Promise<Workspace[]> {
   const rows = check(
-    await sb.from("workspace_members").select("role, workspaces(id, name)").eq("user_id", userId),
-  ) as unknown as { role: Role; workspaces: { id: string; name: string } | null }[];
+    await sb.from("workspace_members").select("role, workspaces(id, name, avatar)").eq("user_id", userId),
+  ) as unknown as { role: Role; workspaces: { id: string; name: string; avatar: string | null } | null }[];
   return rows
     .filter((r) => r.workspaces)
-    .map((r) => ({ id: r.workspaces!.id, name: r.workspaces!.name, role: r.role }))
+    .map((r) => ({ id: r.workspaces!.id, name: r.workspaces!.name, avatar: r.workspaces!.avatar ?? null, role: r.role }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function createWorkspace(sb: SupabaseClient, name: string): Promise<string> {
   return check(await sb.rpc("create_workspace", { p_name: name })) as string;
+}
+
+/** Set the workspace picture. Null goes back to the first brand's logo. */
+export async function setWorkspaceAvatar(sb: SupabaseClient, id: string, avatar: string | null) {
+  check(await sb.from("workspaces").update({ avatar }).eq("id", id));
 }
 
 export async function renameWorkspace(sb: SupabaseClient, id: string, name: string) {
