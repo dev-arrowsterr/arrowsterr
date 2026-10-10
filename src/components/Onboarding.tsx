@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { MUSINGS } from "@/lib/musings";
 import { flatPrompts, type Brand, type BrandCard, type Profile, type RivalCard, type Topic } from "@/lib/db";
 import { ANGLES, BUSINESS_TYPES, COUNTRIES, MAX_PROMPTS, MAX_TOPICS, type Angle, type PickedTopic, type TopicRole } from "@/lib/onboarding";
 import type { RunAuth } from "@/lib/runner";
@@ -189,7 +190,8 @@ export function Onboarding({
         {busy ? (
           <div className="mx-auto w-full max-w-2xl">
             <Thinking text={busy} />
-            <p className="aw-small mt-3 text-center">This takes about a minute. Keep this tab open.</p>
+            <Musing />
+            <p className="aw-small mt-1 text-center">This takes about a minute. Keep this tab open.</p>
           </div>
         ) : null}
 
@@ -218,6 +220,21 @@ export function Onboarding({
         {step === "prompts" && !busy ? <PromptsStep plan={plan} setPlan={setPlan} used={used} cap={cap} onBack={() => go("topics")} onNext={finish} /> : null}
       </div>
     </main>
+  );
+}
+
+/** A rotating status line under the loading bar, in random order with no repeats until all have shown. */
+function Musing() {
+  const [order] = useState(() => [...MUSINGS].sort(() => Math.random() - 0.5));
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setI((n) => (n + 1) % order.length), 2400);
+    return () => clearInterval(t);
+  }, [order.length]);
+  return (
+    <p key={i} className="aw-musing" aria-live="off">
+      {order[i]}
+    </p>
   );
 }
 

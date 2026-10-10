@@ -1,0 +1,23 @@
+/** Little status lines that rotate while the AI works, to give the wait some personality. */
+export const MUSINGS = [
+  "Contemplating...", "Pondering your positioning...", "Sniffing out competitors...", "Reading the fine print...", "Squinting at pricing pages...",
+  "Brewing a strategy...", "Consulting the oracle...", "Counting search volumes...", "Untangling your market...", "Mapping the battlefield...",
+  "Sharpening pencils...", "Asking ChatGPT nicely...", "Peeking at the competition...", "Doing the math...", "Connecting the dots...",
+  "Mulling it over...", "Cross-checking facts...", "Rummaging through footers...", "Polishing bullet points...", "Weighing the options...",
+  "Finding your edge...", "Scouting the category...", "Herding keywords...", "Taming the data...", "Sorting signal from noise...",
+  "Thinking like a buyer...", "Walking in your customers' shoes...", "Decoding the market...", "Tasting the secret sauce...", "Spotting the gaps...",
+  "Interrogating the homepage...", "Reading between the lines...", "Calibrating relevance...", "Diversifying the portfolio...", "Measuring twice...",
+  "Cutting once...", "Assembling the dossier...", "Drafting the battle plan...", "Lining up the shortlist...", "Ranking the contenders...",
+  "Scribbling in the margins...", "Following the money...", "Chasing down alternatives...", "Comparing apples to apples...", "Separating apples from oranges...",
+  "Simmering ideas...", "Stirring the pot...", "Kneading the dough...", "Letting it rise...", "Plating the results...",
+  "Tuning the antenna...", "Listening to the market...", "Eavesdropping on buyers...", "Studying the playbook...", "Flipping through case studies...",
+  "Calling in the analysts...", "Tallying the scores...", "Running the numbers...", "Double-checking the math...", "Crunching the crunchy bits...",
+  "Hunting for buyer intent...", "Following the breadcrumbs...", "Tracing the funnel...", "Peeking at the bottom of the funnel...", "Picking the low-hanging fruit...",
+  "Planting the flag...", "Charting the course...", "Plotting coordinates...", "Adjusting the compass...", "Reading the stars...",
+  "Gathering intel...", "Debriefing the scouts...", "Filing the report...", "Stamping it approved...", "Dotting the i's...",
+  "Crossing the t's...", "Fact-finding...", "Hypothesizing...", "Synthesizing...", "Distilling insights...",
+  "Boiling it down...", "Trimming the fat...", "Finding the sweet spot...", "Hitting the bullseye...", "Zeroing in...",
+  "Lining up the angles...", "Asking the tough questions...", "Phrasing it just right...", "Workshopping prompts...", "Wordsmithing...",
+  "Turning the dials...", "Fine-tuning...", "Almost clever...", "Getting warmer...", "Rounding third base...",
+  "Connecting more dots...", "Making it make sense...", "Bringing it together...", "Putting a bow on it...", "Nearly there...",
+];

@@ -1437,3 +1437,6 @@
 .aw .aw-roles div { display: flex; flex-direction: column; gap: 6px; }
 .aw .aw-roles dd { margin: 0; font-size: 13px; color: var(--aw-muted); }
 @media (max-width: 640px) { .aw .aw-roles { grid-template-columns: 1fr; } }
+.aw .aw-musing { margin: 14px 0 0; text-align: center; font-size: 15px; font-style: italic; color: var(--aw-brand); animation: aw-musing-in .4s ease-out; }
+@keyframes aw-musing-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .aw .aw-musing { animation: none; } }
