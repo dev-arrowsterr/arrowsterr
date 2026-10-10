@@ -185,13 +185,14 @@ export function Onboarding({
         </div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6">
+      <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-6 sm:px-6">
         {error ? <p className="aw-error">{error}</p> : null}
         {busy ? (
           <div className="mx-auto w-full max-w-2xl">
-            <Thinking text={busy} />
-            <Musing />
-            <p className="aw-small mt-1 text-center">This takes about a minute. Keep this tab open.</p>
+            <Thinking text={busy}>
+              <Musing />
+              <p className="aw-small">This takes about a minute. Keep this tab open.</p>
+            </Thinking>
           </div>
         ) : null}
 
@@ -242,13 +243,13 @@ function Musing() {
 
 function StepHead({ n, kicker, title, children }: { n?: number; kicker: string; title: string; children?: React.ReactNode }) {
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-1.5">
       <span className="aw-onb__kicker">
         {n ? <b>{String(n).padStart(2, "0")}</b> : null}
         {kicker}
       </span>
-      <h1 className="aw-h2 mb-0!">{title}</h1>
-      {children ? <p className="max-w-2xl text-[16px] text-body">{children}</p> : null}
+      <h1 className="aw-onb__title">{title}</h1>
+      {children ? <p className="max-w-2xl text-[15px] text-body">{children}</p> : null}
     </div>
   );
 }
@@ -317,46 +318,56 @@ function SiteStep(p: { seo: boolean; website: string; setWebsite: (v: string) =>
   );
 }
 
-/** One quadrant of the Brand Card. Click Edit to change the bullets, one per line. */
-function Quadrant({ q, items, onChange }: { q: (typeof QUADRANTS)[number]; items: string[]; onChange: (v: string[]) => void }) {
+function PencilIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M4 20l4-1 11-11a2.1 2.1 0 0 0-3-3L5 16l-1 4z" />
+      <path d="M14 7l3 3" />
+    </svg>
+  );
+}
+
+/** A titled bullet list. The pencil turns it into a text box, one point per line. */
+function Bullets({ label, ask, glyph, items, onChange, className = "" }: { label: string; ask?: string; glyph?: string; items: string[]; onChange: (v: string[]) => void; className?: string }) {
   const [edit, setEdit] = useState(false);
   const [draft, setDraft] = useState("");
+  const toggle = () => {
+    if (edit) onChange(draft.split("\n").map((x) => x.replace(/^[-•*]\s*/, "").trim()).filter(Boolean));
+    else setDraft(items.join("\n"));
+    setEdit(!edit);
+  };
   return (
-    <section className={`aw-quad aw-quad--${q.k}`}>
+    <section className={`aw-quad ${className}`}>
       <header className="flex items-start justify-between gap-3">
-        <div>
+        <div className="min-w-0">
           <span className="aw-quad__label">
-            <i aria-hidden="true">{q.glyph}</i>
-            {q.label}
+            {glyph ? <i aria-hidden="true">{glyph}</i> : null}
+            {label}
           </span>
-          <p className="aw-quad__ask">{q.ask}</p>
+          {ask ? <p className="aw-quad__ask">{ask}</p> : null}
         </div>
-        <button
-          type="button"
-          className="aw-text-link text-[13px]"
-          onClick={() => {
-            if (edit) onChange(draft.split("\n").map((x) => x.replace(/^[-•*]\s*/, "").trim()).filter(Boolean));
-            else setDraft(items.join("\n"));
-            setEdit(!edit);
-          }}
-        >
-          {edit ? "Done" : "Edit"}
+        <button type="button" className={`aw-pencil ${edit ? "is-on" : ""}`} onMouseDown={(e) => e.preventDefault()} onClick={toggle} aria-label={edit ? `Save ${label}` : `Edit ${label}`} title={edit ? "Save" : "Edit"}>
+          {edit ? "✓" : <PencilIcon />}
         </button>
       </header>
       {edit ? (
-        <textarea autoFocus rows={5} value={draft} onChange={(e) => setDraft(e.target.value)} className="aw-textarea text-[14px]!" aria-label={`${q.label}, one point per line`} />
+        <textarea autoFocus rows={Math.max(3, items.length + 1)} value={draft} onChange={(e) => setDraft(e.target.value)} onBlur={toggle} className="aw-textarea text-[14px]!" aria-label={`${label}, one point per line`} />
       ) : items.length ? (
         <ul className="aw-quad__list">
           {items.map((x, i) => (
-            <li key={i}>{x}</li>
+            <li key={i}>{x.charAt(0).toUpperCase() + x.slice(1)}</li>
           ))}
         </ul>
       ) : (
-        <p className="aw-small">Nothing yet. Click Edit to add points.</p>
+        <button type="button" className="aw-text-link self-start text-[13px]" onClick={toggle}>
+          + Add points
+        </button>
       )}
     </section>
   );
 }
+
+const splitList = (v?: string) => (v ?? "").split(/[,\n;]/).map((x) => x.trim()).filter(Boolean);
 
 function BrandStep(p: {
   name: string;
@@ -373,79 +384,63 @@ function BrandStep(p: {
   return (
     <>
       <StepHead n={1} kicker="Brand Card" title="Here is how we read your brand">
-        Four views of your business. Fix anything that is off, since the topics and prompts build on it.
+        Click the pencil on anything that looks off. Topics and prompts build on this.
       </StepHead>
 
       <div className="aw-frame aw-onb__id">
-        {p.logo ? <BrandLogo src={p.logo} name={p.name || "?"} size={44} /> : <span className="aw-onb__mono">{(p.name || "?").slice(0, 1).toUpperCase()}</span>}
-        <div className="grid min-w-0 flex-1 gap-3 sm:grid-cols-2">
-          <label className="flex flex-col gap-1">
-            <span className="aw-label mb-0!">Brand name</span>
-            <input value={p.name} onChange={(e) => p.setName(e.target.value)} placeholder="eg. Poedit" required className="aw-input" />
-          </label>
-          <label className="flex flex-col gap-1">
-            <span className="aw-label mb-0!">Website</span>
-            <input value={p.domain} onChange={(e) => p.setDomain(e.target.value)} placeholder="eg. poedit.net" required className="aw-input" />
-          </label>
-        </div>
-      </div>
-
-      <div className="aw-quads">
-        {QUADRANTS.map((q) => (
-          <Quadrant key={q.k} q={q} items={card[q.k]} onChange={(v) => p.setProfile({ ...p.profile, card: { ...card, [q.k]: v } })} />
-        ))}
-        <span className="aw-quads__core" aria-hidden="true">
-          {p.logo ? <BrandLogo src={p.logo} name={p.name || "?"} size={28} /> : "✦"}
-        </span>
-      </div>
-
-      <details className="aw-frame aw-onb__details" open={!p.profile.card}>
-        <summary>
-          <span>
-            <span className="aw-h4">Business details</span>
-            <span className="aw-small ml-2">Type, market and the words your customers use</span>
-          </span>
-          <span aria-hidden="true">▾</span>
-        </summary>
-        <div className="flex flex-col gap-5 border-t border-rule-faint p-5 sm:p-6">
-          <fieldset>
-            <legend className="aw-label mb-1!">Business type</legend>
-            <div className="grid gap-2 sm:grid-cols-3">
-              {BUSINESS_TYPES.map((t) => (
-                <label
-                  key={t.id}
-                  className={`flex cursor-pointer items-center gap-2.5 rounded-aw border px-3 py-2.5 text-[14px] font-medium ${p.profile.businessType === t.id ? "border-brand bg-brand-pale text-brand" : "border-rule bg-white text-ink hover:border-brand-mist"}`}
-                >
-                  <input type="radio" name="btype" checked={p.profile.businessType === t.id} onChange={() => p.setProfile({ ...p.profile, businessType: t.id })} className="h-4 w-4 accent-[#0943B0]" />
-                  {t.label}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-          <div className="grid gap-4 sm:grid-cols-3">
-            {(
-              [
-                { k: "products", label: "Products and services", ph: "eg. PO editor, translation memory" },
-                { k: "customers", label: "Customers", ph: "eg. developers, translators" },
-                { k: "features", label: "Key features", ph: "eg. pre-translation, QA checks" },
-              ] as const
-            ).map((f) => (
-              <label key={f.k} className="flex flex-col gap-1">
-                <span className="aw-label mb-0!">{f.label}</span>
-                <textarea rows={3} value={p.profile[f.k] ?? ""} onChange={(e) => p.setProfile({ ...p.profile, [f.k]: e.target.value })} placeholder={f.ph} className="aw-textarea" />
-              </label>
+        {p.logo ? <BrandLogo src={p.logo} name={p.name || "?"} size={40} /> : <span className="aw-onb__mono">{(p.name || "?").slice(0, 1).toUpperCase()}</span>}
+        <label className="aw-onb__field">
+          <span>Brand</span>
+          <input value={p.name} onChange={(e) => p.setName(e.target.value)} placeholder="eg. Poedit" required />
+        </label>
+        <label className="aw-onb__field">
+          <span>Website</span>
+          <input value={p.domain} onChange={(e) => p.setDomain(e.target.value)} placeholder="eg. poedit.net" required />
+        </label>
+        <label className="aw-onb__field">
+          <span>Business type</span>
+          <select value={p.profile.businessType ?? ""} onChange={(e) => p.setProfile({ ...p.profile, businessType: e.target.value as Profile["businessType"] })}>
+            <option value="" disabled>
+              Pick one
+            </option>
+            {BUSINESS_TYPES.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label}
+              </option>
             ))}
-          </div>
-          <label className="flex flex-col gap-1">
-            <span className="aw-label mb-0!">Market</span>
-            <select value={p.profile.country ?? "United States"} onChange={(e) => p.setProfile({ ...p.profile, country: e.target.value })} className="aw-select w-56">
-              {COUNTRIES.map((c) => (
-                <option key={c}>{c}</option>
-              ))}
-            </select>
-          </label>
+          </select>
+        </label>
+        <label className="aw-onb__field">
+          <span>Market</span>
+          <select value={p.profile.country ?? "United States"} onChange={(e) => p.setProfile({ ...p.profile, country: e.target.value })}>
+            {COUNTRIES.map((c) => (
+              <option key={c}>{c}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className="aw-board">
+        <div className="aw-quads">
+          {QUADRANTS.map((q) => (
+            <Bullets key={q.k} className={`aw-quad--${q.k}`} label={q.label} ask={q.ask} glyph={q.glyph} items={card[q.k]} onChange={(v) => p.setProfile({ ...p.profile, card: { ...card, [q.k]: v } })} />
+          ))}
+          <span className="aw-quads__core" aria-hidden="true">
+            {p.logo ? <BrandLogo src={p.logo} name={p.name || "?"} size={28} /> : "✦"}
+          </span>
         </div>
-      </details>
+        <aside className="aw-facts">
+          {(
+            [
+              { k: "products", label: "Products", ask: "What you sell" },
+              { k: "customers", label: "Customers", ask: "Who buys it" },
+              { k: "features", label: "Key features", ask: "What sets it apart" },
+            ] as const
+          ).map((f) => (
+            <Bullets key={f.k} label={f.label} ask={f.ask} items={splitList(p.profile[f.k])} onChange={(v) => p.setProfile({ ...p.profile, [f.k]: v.join(", ") })} />
+          ))}
+        </aside>
+      </div>
 
       <Footer next="See my market" onNext={p.onNext} disabled={!ok} note={!p.profile.businessType ? "Pick a business type first" : undefined} />
     </>

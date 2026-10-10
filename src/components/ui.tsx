@@ -80,7 +80,7 @@ export function Empty({ children }: { children: React.ReactNode }) {
 }
 
 /** The AI is working: a pulsing spark, a sweeping line and one short line of text. */
-export function Thinking({ text }: { text: string }) {
+export function Thinking({ text, children }: { text: string; children?: React.ReactNode }) {
   return (
     <div className="aw-frame aw-think" role="status" aria-live="polite">
       <span className="aw-think__icon" aria-hidden="true">
@@ -90,6 +90,7 @@ export function Thinking({ text }: { text: string }) {
       </span>
       <span className="aw-h4">{text}</span>
       <span className="aw-think__bar" aria-hidden="true" />
+      {children}
     </div>
   );
 }

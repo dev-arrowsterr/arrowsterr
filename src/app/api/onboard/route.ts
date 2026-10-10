@@ -29,7 +29,7 @@ async function handle(request: Request) {
     });
     const data = await askJson<Record<string, unknown>>(SITE_PROMPT(site.url, notes, page.text), SITE_SCHEMA, { maxTokens: 6000 });
     const name = (typeof data.name === "string" && data.name.trim()) || page.siteName || site.domain;
-    return Response.json({ url: site.url, domain: site.domain, name, logo: logoFor(site.domain), profile: cleanProfile(data) });
+    return Response.json({ url: site.url, domain: site.domain, name, logo: page.icon || logoFor(site.domain), profile: cleanProfile(data) });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("Reading the website failed:", message);

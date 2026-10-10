@@ -29,15 +29,38 @@ export async function fetchSite(url: string) {
       signal: AbortSignal.timeout(15_000),
     });
     const $ = cheerio.load((await res.text()).slice(0, 2_000_000));
+    const icon = iconOf($, res.url || url);
     $("script, style, noscript, svg").remove();
     return {
+      icon,
       siteName: $('meta[property="og:site_name"]').attr("content")?.trim() ?? "",
       title: $("title").first().text().trim(),
       desc: $('meta[name="description"]').attr("content")?.trim() ?? "",
       text: $("body").text().split(/\s+/).join(" ").trim().slice(0, 8000),
     };
   } catch {
-    return { siteName: "", title: "", desc: "", text: "" };
+    return { icon: "", siteName: "", title: "", desc: "", text: "" };
+  }
+}
+
+/** The site's own icon: the largest apple-touch-icon or icon link it declares. Empty when it has none. */
+function iconOf($: cheerio.CheerioAPI, base: string) {
+  const links = $('link[rel~="icon"], link[rel="apple-touch-icon"], link[rel="apple-touch-icon-precomposed"]')
+    .toArray()
+    .map((el) => {
+      const href = $(el).attr("href") ?? "";
+      const rel = ($(el).attr("rel") ?? "").toLowerCase();
+      const size = Number(($(el).attr("sizes") ?? "").split("x")[0]) || 0;
+      // Apple icons are big and square; SVG scales to any size; then the largest declared size.
+      const rank = (rel.includes("apple") ? 1000 : 0) + (/\.svg(\?|$)/i.test(href) ? 500 : 0) + size;
+      return { href, rank };
+    })
+    .filter((l) => l.href && !l.href.startsWith("data:"))
+    .sort((a, b) => b.rank - a.rank);
+  try {
+    return links[0] ? new URL(links[0].href, base).toString() : "";
+  } catch {
+    return "";
   }
 }
 
