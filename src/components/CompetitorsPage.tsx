@@ -2,27 +2,17 @@
 
 import { useState } from "react";
 import { answered, battle, brandStats, rankOf, topicGrid, trend, type BattleRow, type BrandStat } from "@/lib/metrics";
+import type { DomainReport } from "@/lib/research";
+import type { RunAuth } from "@/lib/runner";
 import type { View } from "@/lib/view";
 import { BrandLogo } from "./BrandLogo";
+import { B_COLOR, Bar, CompetitorPanel } from "./CompetitorPanel";
 import { EngineName } from "./Engines";
 import { TrendChart } from "./TrendChart";
 import { BrandName, Card, Delta, Empty, favicon, guessDomain, pct, pos, score, Seg, sortRows, SidePanel, SortTh, Tip, TIPS, useSort, YOU_COLOR } from "./ui";
 
-const B_COLOR = "#F5B70A";
 const MAX_BRANDS = 50;
 const SHOWN = 10; // brands on the chart at first
-
-/** A value with a thin bar next to it. */
-function Bar({ v, color }: { v: number | null; color: string }) {
-  return (
-    <span className="flex items-center gap-3">
-      <span className="aw-num w-11 text-right text-[14px] text-ink">{pct(v)}</span>
-      <span className="h-2 flex-1 bg-rule-faint">
-        <span className="block h-full" style={{ width: `${v ?? 0}%`, background: color }} />
-      </span>
-    </span>
-  );
-}
 
 type Dot = { name: string; domain: string | null; isYou: boolean; visibility: number; position: number };
 const SHOWN_ROWS = 9; // rows in the table before View all
@@ -167,7 +157,19 @@ function Quadrant({
 }
 
 /** Every brand AI names next to yours on a quadrant, who wins each topic, and a battle card for any two brands. */
-export function CompetitorsPage({ view, initial, limit, onTopic }: { view: View; initial?: string | null; limit?: number; onTopic: (topic: string) => void }) {
+export function CompetitorsPage({
+  view,
+  auth = null,
+  initial,
+  limit,
+  onTopic,
+}: {
+  view: View;
+  auth?: RunAuth | null; // set when the user can edit, for the SEO stats in the deep dive
+  initial?: string | null;
+  limit?: number;
+  onTopic: (topic: string) => void;
+}) {
   const { brand, current, previous, filter, topics, engines, days } = view;
   const you = { name: brand.name, domain: brand.domain };
   const chats = answered(current, filter);
@@ -186,6 +188,8 @@ export function CompetitorsPage({ view, initial, limit, onTopic }: { view: View;
   const [split, setSplit] = useState<"model" | "topic" | "prompt">("model");
   const [h2h, setH2h] = useSort("gap", false);
   const [metric, setMetric] = useState<"visibility" | "sentiment" | "position">("visibility");
+  const [deep, setDeep] = useState<string | null>(null);
+  const [seo, setSeo] = useState<Record<string, DomainReport>>({});
 
   if (!chats.length) return <Empty>No results in the last {days} days yet. They show up after the first check finishes, then update every day.</Empty>;
 
@@ -205,6 +209,13 @@ export function CompetitorsPage({ view, initial, limit, onTopic }: { view: View;
   const A = find(a) ?? stats.find((s) => s.isYou)!;
   const B = find(b) ?? others.find((s) => s.name !== A.name) ?? stats.find((s) => s.name !== A.name);
   const was = (name: string) => before.find((x) => x.name.toLowerCase() === name.toLowerCase());
+  const open = (name: string) => {
+    setB(name);
+    setDeep(name);
+    setFull(false);
+  };
+  const dive = find(deep);
+  const logoOf = (s: BrandStat) => (s.isYou && brand.logo ? brand.logo : favicon(s.domain || guessDomain(s.name)));
   const rankFor = (name: string) => rankOf(stats.map((s) => ({ ...s, isYou: s.name === name })), "visibility");
   const gridBrands = [stats.find((s) => s.isYou)!, ...others.slice(0, 5)];
   const grid = topicGrid(chats, topics, gridBrands.map((s) => s.name));
@@ -249,7 +260,7 @@ export function CompetitorsPage({ view, initial, limit, onTopic }: { view: View;
           return (
             <tr
               key={s.name}
-              onClick={() => !s.isYou && setB(s.name)}
+              onClick={() => !s.isYou && open(s.name)}
               onMouseEnter={() => setHover(s.name)}
               onMouseLeave={() => setHover(null)}
               className={`${s.isYou ? "is-you" : "cursor-pointer"} ${B?.name === s.name || hover === s.name ? "bg-brand-pale" : ""}`}
@@ -287,6 +298,13 @@ export function CompetitorsPage({ view, initial, limit, onTopic }: { view: View;
         ) : null}
       </tbody>
     </table>
+  );
+
+  /** A battle card side: the brand's own logo, framed in its side's color (blue for A, yellow for B). */
+  const side = (s: BrandStat, color: string, size: number) => (
+    <span key={s.name} className="inline-flex shrink-0 rounded-[8px] border-2 bg-white p-0.5" style={{ borderColor: color }} title={s.name}>
+      <BrandLogo src={logoOf(s)} name={s.name} size={size} />
+    </span>
   );
 
   const picker = (value: string, onPick: (v: string) => void, label: string, not?: string) => (
@@ -329,7 +347,7 @@ export function CompetitorsPage({ view, initial, limit, onTopic }: { view: View;
           {/* Right: the quadrant */}
           <div className="flex min-h-[520px] flex-col max-xl:border-t max-xl:border-rule">
             <div className="min-h-0 flex-1">
-              <Quadrant dots={dots} logo={brand.logo} picked={B?.name} hover={hover} onHover={setHover} onPick={setB} crown={best} />
+              <Quadrant dots={dots} logo={brand.logo} picked={B?.name} hover={hover} onHover={setHover} onPick={open} crown={best} />
             </div>
           </div>
         </div>
@@ -341,6 +359,23 @@ export function CompetitorsPage({ view, initial, limit, onTopic }: { view: View;
           <div className="border border-rule">{brandTable(listed)}</div>
           {hidden ? <p className="aw-small mt-3">{hidden} more on a bigger plan</p> : null}
         </SidePanel>
+      ) : null}
+
+      {dive && !dive.isYou ? (
+        <CompetitorPanel
+          key={dive.name}
+          s={dive}
+          stats={stats}
+          prev={before}
+          you={stats.find((s) => s.isYou)!}
+          chats={chats}
+          view={view}
+          hadBefore={hadBefore}
+          auth={auth}
+          report={dive.domain ? seo[dive.domain.toLowerCase()] : undefined}
+          onReport={(r) => setSeo((m) => ({ ...m, [dive.domain!.toLowerCase()]: r }))}
+          onClose={() => setDeep(null)}
+        />
       ) : null}
 
       {topics.length ? (
@@ -396,12 +431,12 @@ export function CompetitorsPage({ view, initial, limit, onTopic }: { view: View;
             <h2 className="aw-h3">Battle card</h2>
             <div className="flex flex-wrap items-center gap-3">
               <span className="flex items-center gap-2">
-                <i className="inline-block h-3 w-3" style={{ background: YOU_COLOR }} />
+                {side(A, YOU_COLOR, 24)}
                 {picker(A.name, setA, "Brand A", B.name)}
               </span>
               <span className="aw-label">vs</span>
               <span className="flex items-center gap-2">
-                <i className="inline-block h-3 w-3" style={{ background: B_COLOR }} />
+                {side(B, B_COLOR, 24)}
                 {picker(B.name, setB, "Brand B", A.name)}
               </span>
             </div>
@@ -437,7 +472,7 @@ export function CompetitorsPage({ view, initial, limit, onTopic }: { view: View;
                   ].map(({ s, color }) => (
                     <span key={s.name} className="flex items-baseline justify-between gap-3">
                       <span className="flex min-w-0 items-center gap-2 text-[13px] text-ink">
-                        <i className="inline-block h-2.5 w-2.5 shrink-0" style={{ background: color }} />
+                        {side(s, color, 18)}
                         <span className="truncate">{s.name}</span>
                       </span>
                       <span className="flex items-baseline gap-2">

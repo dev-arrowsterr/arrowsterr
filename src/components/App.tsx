@@ -597,6 +597,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             <CompetitorsPage
               key={`${view.brand.id}-${focus ?? ""}`}
               view={view}
+              auth={canEdit ? auth : null}
               initial={focus}
               limit={plan?.limits.competitors}
               onTopic={(t) => {
