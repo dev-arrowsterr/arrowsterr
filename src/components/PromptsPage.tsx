@@ -368,7 +368,7 @@ function Results({
   const chats = answered(current, filter);
   const rows = promptRows(current, topics, engines, brand.name, filter, brand.domain);
   const tops = topicRows(chats, topics, engines, brand.name);
-  if (!topics.length) return <div className="aw-callout">No prompts yet. Click Add topic to start.</div>;
+  if (!topics.length) return <div className="aw-callout">No prompts yet.</div>;
   const flip = (set: Set<string>, k: string) => (set.has(k) ? new Set([...set].filter((x) => x !== k)) : new Set([...set, k]));
   const cols = engines.length + 3;
 
@@ -824,7 +824,7 @@ function Detail({
               ) : full ? (
                 <Markdown text={full.text} />
               ) : (
-                <span className="aw-small">Full answers are saved from the next daily check. Run supabase/012_answers.sql in Supabase first if you have not.</span>
+                <span className="aw-small">No full answer saved yet.</span>
               )}
             </div>
           </section>

@@ -143,7 +143,6 @@ export function MembersPage({ sb, ws, userId, onChanged }: { sb: SupabaseClient;
             <Meter label="Prompts" used={usage.prompts} limit={usage.promptLimit} />
             <Meter label="AI answers today" used={usage.answersToday} limit={usage.answerLimit} />
           </div>
-          <p className="aw-small">One AI answer is one prompt on one engine. The count resets at midnight UTC.</p>
         </section>
       ) : null}
 

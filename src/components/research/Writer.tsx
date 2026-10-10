@@ -229,7 +229,6 @@ function FromCalendar({ sb, auth, site, canEdit, onBlank, onOpen }: { sb: Supaba
       <section className="aw-frame flex flex-wrap items-center justify-between gap-4 p-8">
         <span className="flex flex-col gap-1">
           <h2 className="aw-h3">Start writing</h2>
-          <span className="text-[15px] text-body">Pick a brief or a planned piece from your Editorial Calendar, or start on a blank page.</span>
         </span>
         {canEdit ? (
           <button type="button" className="aw-btn aw-btn--secondary" onClick={onBlank}>
@@ -504,7 +503,7 @@ function DocEditor({
         </div>
         <div className="min-h-0 flex-1 overflow-auto">
           {tab === "assistant" ? (
-            <Assistant auth={auth} site={site} docId={doc.id} editor={editor} text={text} canEdit={canEdit} hasGuideline={Boolean(guideline)} />
+            <Assistant auth={auth} site={site} docId={doc.id} editor={editor} text={text} canEdit={canEdit} />
           ) : tab === "brief" ? (
             <BriefTab sb={sb} auth={auth} site={site} docId={doc.id} title={title} itemId={itemId} brief={brief} cov={cov} canEdit={canEdit} onLinked={setItemId} onBrief={setBrief} />
           ) : (
@@ -524,7 +523,7 @@ const QUICK = [
   { label: "On-brand HTML section", text: "Build an on-brand HTML and CSS section for this page: a short comparison table with a call to action button." },
 ];
 
-function Assistant({ auth, site, docId, editor, text, canEdit, hasGuideline }: { auth: RunAuth; site: Site; docId: string; editor: Editor | null; text: string; canEdit: boolean; hasGuideline: boolean }) {
+function Assistant({ auth, site, docId, editor, text, canEdit }: { auth: RunAuth; site: Site; docId: string; editor: Editor | null; text: string; canEdit: boolean }) {
   const [chat, setChat] = useStash<ChatMessage[]>(`writer:chat:${docId}`, []);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
@@ -555,11 +554,9 @@ function Assistant({ auth, site, docId, editor, text, canEdit, hasGuideline }: {
 
   return (
     <div className="flex flex-col">
-      {!hasGuideline ? <p className="border-b border-rule-faint bg-surface-2 px-4 py-2 text-[12px] text-body">Tip: build the Brand guideline first so the assistant writes in your voice.</p> : null}
       <div className="flex flex-col gap-3 p-4">
         {!chat.length ? (
           <div className="flex flex-col gap-2">
-            <p className="text-[13px] text-body">Ask for ideas, edits, checks or on-brand code. Select text in the draft first to work on just that part.</p>
             {QUICK.map((q) => (
               <button key={q.label} type="button" className="aw-btn aw-btn--secondary aw-btn--sm justify-start" onClick={() => send(q.text)} disabled={!canEdit || busy}>
                 {q.label}

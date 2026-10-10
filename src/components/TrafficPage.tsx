@@ -109,7 +109,7 @@ function Ga4Connect({ status, canEdit, call, onDone }: { status: Status; canEdit
           </button>
         </div>
       ) : (
-        <p className="aw-small">This Google account has no GA4 properties. Sign in with the account that owns your site&apos;s analytics.</p>
+        <p className="aw-small">No GA4 properties on this Google account.</p>
       )}
     </section>
   );
@@ -474,7 +474,6 @@ export function TrafficPage({ view, auth, canEdit }: { view: View; auth: RunAuth
           <section className="aw-frame">
             <div className="aw-frame__body flex flex-col gap-3">
               <span className="text-[15px] font-medium text-ink">Not your job? Send it to your web person.</span>
-              <p className="text-[14px] text-body">This private link shows them the same steps and code. They don&apos;t need an Arrowsterr account.</p>
               <div className="flex flex-col gap-3 border border-rule bg-surface-2 p-3 sm:flex-row sm:items-center">
                 <code className="min-w-0 flex-1 truncate font-mono text-[12px] text-ink">{shareUrl}</code>
                 <Copy text={shareUrl} label="Copy link" />
@@ -719,7 +718,6 @@ export function TrafficPage({ view, auth, canEdit }: { view: View; auth: RunAuth
               </li>
             ))}
           </ul>
-          <p className="aw-micro px-5 pb-4">Google AI Overview and AI Mode visits look like normal Google visits, so they count under Google.</p>
         </Card>
       </div>
 

@@ -1152,3 +1152,62 @@
 .aw .aw-progress { height: 4px; border-radius: 999px; }
 .aw .aw-progress__fill { border-radius: 999px; }
 .aw ::selection { background: rgba(9, 67, 176, .16); color: var(--aw-ink); }
+
+/* ───────────────────────────────────────────────────────────────────────
+   v5 · Product surfaces match arrowsterr.com
+   White card heads, sentence-case labels, soft ring cards, line-icon menu.
+   ─────────────────────────────────────────────────────────────────────── */
+.aw .aw-label, .aw .aw-stat__lab {
+  text-transform: none !important; letter-spacing: 0 !important; font-size: 13px !important; font-weight: var(--aw-w-medium) !important;
+}
+.aw .aw-frame__head { background: var(--aw-surface); border-bottom-color: var(--aw-rule-faint); padding: 16px 20px; }
+.aw .aw-frame__head .aw-h4 { font-size: 15px; font-weight: var(--aw-w-medium); letter-spacing: -0.01em; }
+.aw .aw-frame__foot { background: var(--aw-surface); border-top-color: var(--aw-rule-faint); }
+.aw .aw-stat + .aw-stat { border-left-color: var(--aw-rule-faint); }
+.aw .aw-stat__num { font-weight: var(--aw-w-medium) !important; font-size: 34px !important; letter-spacing: -0.04em !important; }
+.aw .aw-sheet thead th { background: #FAFAFA; }
+.aw .aw-callout { background: var(--aw-brand-pale); }
+.aw input[type="checkbox"] { accent-color: var(--aw-brand); }
+
+/* Page menu */
+.aw .aw-sidebar { background: #FCFCFC; }
+.aw .aw-nav__item {
+  display: flex; align-items: center; gap: 10px; padding: 7px 10px; border-radius: var(--aw-r-sm);
+  font-size: 14px; font-weight: var(--aw-w-medium); color: var(--aw-body); text-align: left;
+  transition: background var(--aw-fast), color var(--aw-fast), box-shadow var(--aw-fast);
+}
+.aw .aw-nav__item:hover { background: var(--aw-surface-2); color: var(--aw-ink); }
+.aw .aw-nav__item.is-on { background: var(--aw-surface); color: var(--aw-ink); box-shadow: var(--aw-shadow-sm); }
+.aw .aw-nav__icon { width: 17px; height: 17px; flex: none; color: var(--aw-muted); }
+.aw .aw-nav__item.is-on .aw-nav__icon { color: var(--aw-brand); }
+
+/* Number tiles that switch a view (Keyword Gap, AI Gap) */
+.aw .aw-kpis { display: grid; grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); gap: 12px; }
+.aw .aw-kpi {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding: 16px 18px;
+  border-radius: var(--aw-r-md); background: var(--aw-surface); box-shadow: var(--aw-shadow-sm); text-align: left;
+  transition: box-shadow var(--aw-fast);
+}
+.aw button.aw-kpi:hover { box-shadow: 0 0 0 1px rgba(0, 0, 0, .1), 0 2px 6px rgba(0, 0, 0, .06); }
+.aw .aw-kpi.is-on { box-shadow: 0 0 0 1.5px var(--aw-brand), 0 0 0 4px rgba(9, 67, 176, .1); }
+.aw .aw-kpi__lab { font-size: 13px; font-weight: var(--aw-w-medium); color: var(--aw-muted); }
+.aw .aw-kpi__num { font-size: 28px; font-weight: var(--aw-w-medium); letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+.aw button.aw-chip { cursor: pointer; gap: 6px; }
+.aw button.aw-chip:hover { color: var(--aw-ink) !important; border-color: var(--aw-ink); }
+@media (max-width: 720px) { .aw .aw-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Editorial Calendar cards: keyword, search volume and status, like the site */
+.aw .aw-cal-card {
+  display: flex; width: 100%; flex-direction: column; gap: 6px; padding: 7px 8px 7px 10px; border-radius: var(--aw-r-sm);
+  background: var(--aw-surface); box-shadow: var(--aw-shadow-sm), inset 3px 0 0 var(--stage); text-align: left; cursor: grab;
+  transition: box-shadow var(--aw-fast);
+}
+.aw .aw-cal-card:hover { box-shadow: 0 0 0 1px rgba(0, 0, 0, .14), 0 2px 6px rgba(0, 0, 0, .06), inset 3px 0 0 var(--stage); }
+.aw .aw-cal-card:active { cursor: grabbing; }
+.aw .aw-cal-card__kw { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 12px; font-weight: var(--aw-w-medium); line-height: 1.35; color: var(--aw-ink); }
+.aw .aw-cal-card__kw.is-done { color: var(--aw-muted); text-decoration: line-through; }
+.aw .aw-cal-card__foot { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.aw .aw-cal-card__vol { font-size: 11px; font-weight: var(--aw-w-medium); color: var(--aw-pos, #0E7C57); font-variant-numeric: tabular-nums; }
+.aw .aw-cal-card__st { padding: 1px 7px; border-radius: 999px; font-size: 10px; font-weight: var(--aw-w-medium); color: var(--aw-body); background: var(--aw-surface-2); }
+.aw .aw-cal-card__st--brief, .aw .aw-cal-card__st--writing { color: var(--aw-brand); background: var(--aw-brand-pale); }
+.aw .aw-cal-card__st--published { color: #0E7C57; background: #E2F1EB; }

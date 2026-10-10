@@ -1,94 +1,39 @@
 "use client";
 
-// What a tool does, shown before the first search or setup: a headline, examples to try,
-// what you get (with sample charts), how it works and a few FAQs. All sample data is labeled.
+// The empty state of a tool before the first search or setup: a headline, the action and example searches.
+// Callers still pass features, steps and FAQs; they are not shown, since the product explains itself.
 
 export type Feature = { title: string; text: string; visual?: React.ReactNode };
 
 export function ToolIntro({
   title,
-  lead,
   examples,
   onExample,
   action,
-  features,
-  steps,
-  faqs,
 }: {
   title: string;
-  lead: string;
+  lead?: string;
   examples?: string[];
   onExample?: (x: string) => void;
   action?: React.ReactNode;
-  features: Feature[];
-  steps: string[];
+  features?: Feature[];
+  steps?: string[];
   faqs?: { q: string; a: string }[];
 }) {
   return (
-    <div className="flex flex-col gap-8">
-      <section className="flex flex-col gap-3">
-        <h2 className="aw-h3 max-w-3xl">{title}</h2>
-        <p className="max-w-3xl text-[15px] text-body">{lead}</p>
-        {action ? <div className="flex flex-wrap gap-2">{action}</div> : null}
-        {examples?.length ? (
-          <div className="flex flex-wrap items-center gap-2 text-[13px]">
-            <span className="text-muted">Try:</span>
-            {examples.map((x) => (
-              <button key={x} type="button" className="aw-text-link" onClick={() => onExample?.(x)} disabled={!onExample}>
-                {x}
-              </button>
-            ))}
-          </div>
-        ) : null}
-      </section>
-
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {features.map((f) => (
-          <div key={f.title} className="aw-frame flex flex-col gap-3 p-5">
-            {f.visual ? (
-              <div className="relative flex min-h-24 items-center justify-center border border-rule-faint bg-paper px-3 pb-3 pt-7">
-                {f.visual}
-                <span className="aw-label absolute right-2 top-1.5 text-[9px]">Sample</span>
-              </div>
-            ) : null}
-            <h3 className="text-[15px] font-medium text-ink">{f.title}</h3>
-            <p className="text-[13px] leading-relaxed text-body">{f.text}</p>
-          </div>
-        ))}
-      </section>
-
-      <section className="grid gap-6 lg:grid-cols-2">
-        <div className="flex flex-col gap-3">
-          <h3 className="aw-h4">How it works</h3>
-          <ol className="flex flex-col gap-2.5">
-            {steps.map((s, i) => (
-              <li key={s} className="flex items-start gap-3 text-[14px] text-body">
-                <span className="aw-num flex h-6 w-6 shrink-0 items-center justify-center border border-rule text-[12px] text-ink">{i + 1}</span>
-                <span className="pt-0.5">{s}</span>
-              </li>
-            ))}
-          </ol>
+    <section className="flex flex-col gap-4">
+      <h2 className="aw-h3 max-w-3xl">{title}</h2>
+      {action ? <div className="flex flex-wrap gap-2">{action}</div> : null}
+      {examples?.length ? (
+        <div className="flex flex-wrap items-center gap-2">
+          {examples.map((x) => (
+            <button key={x} type="button" className="aw-chip" onClick={() => onExample?.(x)} disabled={!onExample}>
+              {x}
+            </button>
+          ))}
         </div>
-        {faqs?.length ? (
-          <div className="flex flex-col gap-3">
-            <h3 className="aw-h4">FAQs</h3>
-            <div className="flex flex-col divide-y divide-rule-faint border-y border-rule-faint">
-              {faqs.map((f) => (
-                <details key={f.q} className="group py-3">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-[14px] text-ink">
-                    {f.q}
-                    <span aria-hidden="true" className="text-muted group-open:rotate-45">
-                      +
-                    </span>
-                  </summary>
-                  <p className="mt-2 text-[13px] leading-relaxed text-body">{f.a}</p>
-                </details>
-              ))}
-            </div>
-          </div>
-        ) : null}
-      </section>
-    </div>
+      ) : null}
+    </section>
   );
 }
 

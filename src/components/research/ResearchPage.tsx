@@ -8,16 +8,20 @@ import { answered } from "@/lib/metrics";
 import type { View } from "@/lib/view";
 import type { RunAuth } from "@/lib/runner";
 import { Thinking } from "../ui";
+import { AiGap } from "./AiGap";
 import { ContentCalendar } from "./ContentCalendar";
 import { DomainResearch, type SeoStart } from "./DomainResearch";
+import { KeywordGap } from "./KeywordGap";
 import { KeywordOverview } from "./KeywordOverview";
 import { TopicBank } from "./TopicBank";
 import { Writer } from "./Writer";
 
-export type Tool = "keywords" | "domain" | "calendar" | "topics" | "writer";
+export type Tool = "keywords" | "domain" | "gap" | "aigap" | "calendar" | "topics" | "writer";
 const TITLES: Record<Tool, string> = {
   keywords: "Keyword Research",
   domain: "Domain Research",
+  gap: "Keyword Gap",
+  aigap: "AI Gap",
   calendar: "Editorial Calendar",
   topics: "Topic Bank",
   writer: "Agentic Writer",
@@ -74,6 +78,10 @@ export function ResearchPage({
         <KeywordOverview sb={sb} auth={auth} site={site} canEdit={canEdit} />
       ) : tool === "domain" ? (
         <DomainResearch sb={sb} auth={auth} site={site} canEdit={canEdit} start={seoStart} onStarted={onSeoStarted} />
+      ) : tool === "gap" ? (
+        <KeywordGap sb={sb} auth={auth} site={site} canEdit={canEdit} onSite={setSite} />
+      ) : tool === "aigap" ? (
+        <AiGap sb={sb} auth={auth} site={site} canEdit={canEdit} onSite={setSite} brand={brand.name} chats={answered(view.current, view.filter)} planned={[]} />
       ) : tool === "topics" ? (
         <TopicBank sb={sb} auth={auth} site={site} canEdit={canEdit} onSite={setSite} onCalendar={() => onTool("calendar")} />
       ) : tool === "writer" ? (

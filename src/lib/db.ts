@@ -48,6 +48,13 @@ export type BankRow = {
   notes: string | null;
   source: string;
   added: string;
+  // From a content plan: the page job, its theme and the existing page to improve.
+  action?: "new" | "update";
+  theme?: string | null;
+  cpc?: number | null;
+  url?: string | null;
+  rank?: number | null;
+  others?: string[];
 };
 export type SheetColumn = { id: string; name: string; type: "text" | "number" | "date" };
 /** A buying category the brand wants to win, and the prompts that track it. */

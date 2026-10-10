@@ -112,7 +112,7 @@ export function IdeaList({ state, canEdit, onAdd, addLabel, compact = false }: {
   return (
     <div className="flex min-h-0 flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-[12px] text-muted">{state.loaded ? `${state.list.length} keywords · drag onto a day` : "Keywords from AI gaps, your pages and rankings"}</span>
+        <span className="text-[12px] text-muted">{state.loaded ? `${state.list.length} keywords` : null}</span>
         {canEdit ? (
           <button type="button" className={`aw-btn aw-btn--sm ${state.loaded ? "aw-btn--secondary" : "aw-btn--accent"}`} onClick={state.find} disabled={state.busy}>
             {state.busy ? "Finding..." : state.loaded ? "Refresh" : "✦ Find ideas"}
@@ -120,12 +120,11 @@ export function IdeaList({ state, canEdit, onAdd, addLabel, compact = false }: {
         ) : null}
       </div>
       {state.error ? <p className="aw-error">{state.error}</p> : null}
-      {state.busy ? <p className="aw-small">Reading your AI answers, your pages and their Google rankings, then checking search volume...</p> : null}
       <ul className={`flex flex-col gap-2 ${compact ? "" : ""}`}>
         {state.list.map((i) => (
           <IdeaCard key={i.keyword} idea={i} canEdit={canEdit} onAdd={() => onAdd(i)} addLabel={addLabel} />
         ))}
-        {state.loaded && !state.list.length && !state.busy ? <li className="aw-small">No new keywords with search volume. Try again after the next check.</li> : null}
+        {state.loaded && !state.list.length && !state.busy ? <li className="aw-small">No new keywords.</li> : null}
       </ul>
     </div>
   );

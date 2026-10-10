@@ -257,7 +257,6 @@ export function SourcesPage({ view, auth, reader, onSeo }: { view: View; auth: R
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rule-faint px-5 py-3">
             <span className="aw-label">
               Site map
-              <Tip text="Each box is a site. Bigger boxes are cited in more AI answers. Click one to see its links." />
             </span>
             {focus ? (
               <button type="button" className="aw-text-link text-[13px]" onClick={() => setFocus(null)}>
@@ -441,13 +440,9 @@ export function SourcesPage({ view, auth, reader, onSeo }: { view: View; auth: R
                   </li>
                 ))}
               </ol>
-              <span className="aw-label">Made {new Date(insights.at).toLocaleString()} · notes on your pages show in the Owned tab</span>
+              <span className="aw-label">Made {new Date(insights.at).toLocaleString()}</span>
             </>
-          ) : (
-            <p className="text-[14px] text-body">
-              {auth ? "Get a short read of where you stand, what to fix first, and how each of your cited pages is doing. Uses one AI answer." : "Ask an editor to make a summary. It shows here once made in this browser."}
-            </p>
-          )}
+          ) : null}
         </div>
       </Card>
     </div>

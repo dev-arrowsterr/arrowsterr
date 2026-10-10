@@ -186,7 +186,6 @@ export function VisitorsPage({ view, auth }: { view: View; auth: RunAuth }) {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="aw-h2">Visitors</h1>
-        <span className="aw-small">Each visitor gets a code made from a scrambled IP and browser. No IPs or cookies are stored.</span>
       </div>
       {error ? <p className="aw-error">{error}</p> : null}
 
@@ -204,10 +203,9 @@ export function VisitorsPage({ view, auth }: { view: View; auth: RunAuth }) {
         ))}
       </div>
 
-      <Card title={`Last ${days} days`} action={<span className="aw-label">Click a name to see the journey</span>}>
+      <Card title={`Last ${days} days`}>
         <Sheet label="Visitors" rows={vs} cols={cols} rowKey={(v) => v.id} sort={{ key: "score", desc: true }} onOpen={setOpen} />
       </Card>
-      {data.detail === "recent" ? <p className="aw-small">Actions and scores cover the 150 most recent visitors. Older ones show visits and pages only.</p> : null}
 
       {open ? <Journey v={open} domain={brand.domain} load={(id) => call({ action: "journey", sessionId: id })} onClose={() => setOpen(null)} /> : null}
     </div>

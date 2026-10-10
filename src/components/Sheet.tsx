@@ -286,9 +286,7 @@ export function Sheet<T>({
           <button type="button" className="aw-text-link text-[12px]" onClick={() => setFilters({})}>
             Clear {active.length} {active.length === 1 ? "filter" : "filters"}
           </button>
-        ) : (
-          <span>Click a column name to sort. Use the row under it to filter: =, &gt;, ≥, &lt;, ≤ or ↔ between.{allCols.some((c) => c.edit) ? " Click a cell to edit it." : ""}</span>
-        )}
+        ) : null}
         <span className="ml-auto flex items-center gap-2">
           {onAddColumn ? (
             <button type="button" className="aw-chip aw-chip--btn" onClick={onAddColumn}>

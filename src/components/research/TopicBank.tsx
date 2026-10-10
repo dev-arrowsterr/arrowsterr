@@ -1,20 +1,39 @@
 "use client";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { addCalendarItems, listCalendar, saveSite, type BankRow, type Site } from "@/lib/db";
-import { MARKETS, stageFromIntent, STAGES, type Stage } from "@/lib/research";
+import { MARKETS, slots, stageFromIntent, STAGES, type Stage } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
 import { Sheet, type Col, type Edit } from "../Sheet";
 import { Card } from "../ui";
-import { AgenticResearch } from "./AgenticResearch";
+import { PlanProgress } from "./AgenticResearch";
 import { PlanWizard } from "./PlanWizard";
-import { Difficulty, post, STAGE_LABEL, StageTag } from "./shared";
+import { Difficulty, fmtCpc, post, STAGE_LABEL, StageTag } from "./shared";
 
 const BLANKS = 8; // empty rows always waiting at the bottom of the sheet
 type Row = BankRow & { blank?: boolean };
 const newId = () => `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 const clean = (k: string) => k.trim().replace(/\s+/g, " ").toLowerCase().slice(0, 120);
+
+/** Add ideas to a site's Topic Bank, skipping keywords already there. Returns how many were added. */
+export function addToBank(sb: SupabaseClient, site: Site, onSite: (s: Site) => void, rows: (Partial<BankRow> & { keyword: string })[], source: string): number {
+  const bank = site.profile.bank ?? [];
+  const have = new Set(bank.map((b) => b.keyword));
+  const added = new Date().toISOString().slice(0, 10);
+  const fresh: BankRow[] = [];
+  for (const r of rows) {
+    const keyword = clean(r.keyword);
+    if (!keyword || have.has(keyword)) continue;
+    have.add(keyword);
+    fresh.push({ stage: stageFromIntent(r.intent ?? null), volume: null, kd: null, intent: null, notes: null, ...r, keyword, source: r.source ?? source, id: newId(), added });
+  }
+  if (!fresh.length) return 0;
+  const s2 = { ...site, profile: { ...site.profile, bank: [...bank, ...fresh] } };
+  onSite(s2);
+  saveSite(sb, s2).catch(() => {});
+  return fresh.length;
+}
 
 /** The Topic Bank: a spreadsheet of content ideas, plus every content plan you generate. Approve ideas onto the Editorial Calendar when you are ready. */
 export function TopicBank({ sb, auth, site, canEdit, onSite, onCalendar }: { sb: SupabaseClient; auth: RunAuth; site: Site; canEdit: boolean; onSite: (s: Site) => void; onCalendar: () => void }) {
@@ -27,6 +46,16 @@ export function TopicBank({ sb, auth, site, canEdit, onSite, onCalendar }: { sb:
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const bank = site.profile.bank ?? [];
+  const latestSite = useRef(site);
+  useEffect(() => {
+    latestSite.current = site;
+  }, [site]);
+  const fromPlan = useCallback((rows: Omit<BankRow, "id" | "added">[]) => {
+    addToBank(sb, latestSite.current, (s) => {
+      latestSite.current = s;
+      onSite(s);
+    }, rows, "content plan");
+  }, [sb, onSite]);
 
   // The last date already on the calendar, so approved ideas are scheduled after it.
   useEffect(() => {
@@ -78,10 +107,36 @@ export function TopicBank({ sb, auth, site, canEdit, onSite, onCalendar }: { sb:
     const rows = bank.filter((b) => picked.has(b.id));
     setError("");
     try {
+      // Spread the ideas over the calendar at the pace picked for content plans, after what is already planned.
+      const perWeek = site.profile.planBrief?.perWeek;
+      const from = (() => {
+        const want = site.profile.planBrief?.start ? new Date(`${site.profile.planBrief.start}T00:00:00`) : new Date();
+        if (!latest) return want;
+        const after = new Date(`${latest}T00:00:00`);
+        after.setDate(after.getDate() + 1);
+        return after > want ? after : want;
+      })();
+      const dates = perWeek ? slots(from, perWeek, rows.length) : [];
       const n = await addCalendarItems(
         sb,
         auth.workspaceId,
-        rows.map((r) => ({ site_id: site.id, keyword: r.keyword, secondary: [], stage: r.stage, theme: null, volume: r.volume, difficulty: r.kd, intent: r.intent, cpc: null, source: `topic bank${r.source !== "added by hand" ? `: ${r.source}` : ""}`, notes: r.notes })),
+        rows.map((r, i) => ({
+          site_id: site.id,
+          due_date: dates[i] ?? null,
+          keyword: r.keyword,
+          secondary: r.others ?? [],
+          stage: r.stage,
+          theme: r.theme ?? null,
+          volume: r.volume,
+          difficulty: r.kd,
+          intent: r.intent,
+          cpc: r.cpc ?? null,
+          source: `topic bank${r.source !== "added by hand" ? `: ${r.source}` : ""}`,
+          notes: r.notes,
+          action: r.action ?? "new",
+          current_url: r.url ?? null,
+          current_rank: r.rank ?? null,
+        })),
       );
       save(bank.filter((b) => !picked.has(b.id)));
       setPicked(new Set());
@@ -119,6 +174,21 @@ export function TopicBank({ sb, auth, site, canEdit, onSite, onCalendar }: { sb:
     { id: "volume", label: "Volume", type: "number", value: (r) => r.volume, cell: (r) => (r.blank ? null : r.volume === null ? <span className="text-muted">–</span> : r.volume.toLocaleString("en-US")) },
     { id: "kd", label: "Difficulty", type: "number", value: (r) => r.kd, cell: (r) => (r.blank ? null : <Difficulty kd={r.kd} />) },
     { id: "intent", label: "Intent", type: "list", value: (r) => r.intent, cell: (r) => (r.blank ? null : (r.intent ?? <span className="text-muted">–</span>)) },
+    { id: "cpc", label: "CPC", type: "number", value: (r) => r.cpc ?? null, cell: (r) => (r.blank ? null : fmtCpc(r.cpc ?? null)) },
+    { id: "action", label: "Job", type: "list", value: (r) => (r.blank ? null : r.action === "update" ? "Update page" : "New page"), options: ["New page", "Update page"] },
+    { id: "theme", label: "Theme", type: "list", value: (r) => r.theme ?? null },
+    {
+      id: "url",
+      label: "Existing page",
+      type: "text",
+      value: (r) => r.url ?? null,
+      cell: (r) =>
+        r.url ? (
+          <a href={r.url} target="_blank" rel="noopener noreferrer" className="block max-w-56 truncate" title={r.url}>
+            {r.url.replace(/^https?:\/\/(www\.)?/, "")}
+          </a>
+        ) : null,
+    },
     { id: "notes", label: "Notes", type: "text", value: (r) => r.notes, width: 240, cell: (r) => (r.blank ? null : (r.notes ?? <span className="text-muted">–</span>)), edit: ed(text("notes")) },
     { id: "source", label: "Source", type: "list", value: (r) => r.source || null, cell: (r) => (r.blank ? null : r.source) },
     { id: "added", label: "Added", type: "date", value: (r) => r.added || null, cell: (r) => (r.blank ? null : r.added) },
@@ -126,10 +196,7 @@ export function TopicBank({ sb, auth, site, canEdit, onSite, onCalendar }: { sb:
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <p className="max-w-2xl text-[15px] text-body">
-          Your store of content ideas. Type or paste keywords into the sheet, or generate a content plan. Check their search volume, then move the ones you like onto the Editorial Calendar.
-        </p>
+      <div className="flex flex-wrap items-start justify-end gap-4">
         {canEdit ? (
           <button type="button" className="aw-btn aw-btn--accent" onClick={() => setWizard(true)}>
             ✦ Generate content plan
@@ -201,18 +268,7 @@ export function TopicBank({ sb, auth, site, canEdit, onSite, onCalendar }: { sb:
         />
       </Card>
 
-      <AgenticResearch
-        sb={sb}
-        auth={auth}
-        site={site}
-        canEdit={canEdit}
-        onOpenCalendar={onCalendar}
-        onNew={() => setWizard(true)}
-        onApproved={() => setRefresh((n) => n + 1)}
-        latest={latest}
-        refresh={refresh}
-        quiet
-      />
+      <PlanProgress sb={sb} site={site} refresh={refresh} onRows={fromPlan} />
       {wizard ? (
         <PlanWizard
           sb={sb}

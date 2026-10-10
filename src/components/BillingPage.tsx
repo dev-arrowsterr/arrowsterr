@@ -143,7 +143,7 @@ export function BillingPage({ sb, ws, auth, onPlan }: { sb: SupabaseClient; ws: 
             {plan.cancelAt ? <span className="aw-small">Ends {date(plan.cancelAt)}</span> : plan.periodEnd && paying ? <span className="aw-small">Renews {date(plan.periodEnd)}</span> : null}
           </div>
           <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {plan.allowances.map((a) => (
+            {plan.allowances.filter((a) => a.metric !== "pageviews").map((a) => (
               <Meter key={a.metric} label={`${a.label[0].toUpperCase()}${a.label.slice(1)} ${a.period === "day" ? "today" : "this month"}`} used={a.used} limit={a.limit} />
             ))}
           </div>

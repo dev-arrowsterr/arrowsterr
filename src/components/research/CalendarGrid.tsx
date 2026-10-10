@@ -7,9 +7,10 @@ import { STAGE_COLORS } from "./shared";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-const STATUS_MARK: Record<CalendarItem["status"], string> = { planned: "○", brief: "◐", writing: "◑", published: "●" };
 
-/** One page as a card you can drag to another day. */
+const STATUS_LABEL: Record<CalendarItem["status"], string> = { planned: "Planned", brief: "Brief", writing: "Writing", published: "Published" };
+
+/** One page as a card you can drag to another day: the keyword, its search volume and where it stands. */
 function Chip({ item, onOpen }: { item: CalendarItem; onOpen: () => void }) {
   return (
     <button
@@ -20,14 +21,15 @@ function Chip({ item, onOpen }: { item: CalendarItem; onOpen: () => void }) {
         e.dataTransfer.effectAllowed = "move";
       }}
       onClick={onOpen}
-      title={`${item.keyword} · ${item.status}`}
-      className={`flex w-full cursor-grab items-center gap-1.5 border-l-[3px] bg-white px-1.5 py-1 text-left text-[12px] leading-tight shadow-[0_0_0_1px_var(--aw-rule)] hover:shadow-[0_0_0_1px_var(--aw-ink)] active:cursor-grabbing ${item.status === "published" ? "text-muted line-through" : "text-ink"}`}
-      style={{ borderLeftColor: item.stage ? STAGE_COLORS[item.stage] : "var(--aw-faint)" }}
+      title={item.keyword}
+      className="aw-cal-card"
+      style={{ ["--stage" as string]: item.stage ? STAGE_COLORS[item.stage] : "var(--aw-faint)" }}
     >
-      <span aria-hidden="true" className="shrink-0 text-[10px] text-muted">
-        {STATUS_MARK[item.status]}
+      <span className={`aw-cal-card__kw ${item.status === "published" ? "is-done" : ""}`}>{item.keyword}</span>
+      <span className="aw-cal-card__foot">
+        <span className="aw-cal-card__vol">{item.volume === null || item.volume === undefined ? "–" : `${item.volume.toLocaleString("en-US")}/mo`}</span>
+        <span className={`aw-cal-card__st aw-cal-card__st--${item.status}`}>{STATUS_LABEL[item.status]}</span>
       </span>
-      <span className="truncate">{item.keyword}</span>
     </button>
   );
 }
@@ -129,7 +131,6 @@ export function CalendarGrid({
               >
                 <span className="flex items-center justify-between">
                   <span className={`aw-num text-[12px] ${key === today ? "bg-brand px-1.5 text-white" : inMonth ? "text-ink" : "text-faint"}`}>{d.getDate()}</span>
-                  <span className="text-[13px] leading-none text-faint opacity-0 group-hover:opacity-100">Open ›</span>
                 </span>
                 {list.map((i) => (
                   <span key={i.id} onClick={(e) => e.stopPropagation()}>

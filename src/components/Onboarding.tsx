@@ -241,22 +241,20 @@ export function Onboarding({
               </div>
               {(
                 [
-                  { k: "products", label: "Your products and services", help: "List the ways customers describe what you sell.", ph: "eg. Accounting software, bookkeeping software, invoicing app" },
-                  { k: "customers", label: "Your customers", help: "List your ideal customer types.", ph: "eg. Accountants, bookkeepers, small business owners" },
-                  { k: "features", label: "Key features", help: "List your main features, benefits and what makes you different.", ph: "eg. Send invoices, track receipts, payroll, mileage tracking" },
+                  { k: "products", label: "Your products and services", ph: "eg. Accounting software, bookkeeping software, invoicing app" },
+                  { k: "customers", label: "Your customers", ph: "eg. Accountants, bookkeepers, small business owners" },
+                  { k: "features", label: "Key features", ph: "eg. Send invoices, track receipts, payroll, mileage tracking" },
                 ] as const
               ).map((f) => (
                 <div key={f.k}>
                   <label className="aw-label mb-0.5!" htmlFor={`b-${f.k}`}>
                     {f.label}
                   </label>
-                  <p className="aw-micro mb-2">{f.help}</p>
                   <textarea id={`b-${f.k}`} rows={2} value={profile[f.k] ?? ""} onChange={(e) => setProfile({ ...profile, [f.k]: e.target.value })} placeholder={f.ph} className="aw-textarea" />
                 </div>
               ))}
               <fieldset>
                 <legend className="aw-label mb-0.5!">Business type</legend>
-                <p className="aw-micro mb-2">Which best describes your business? This decides the kind of topics we track.</p>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {BUSINESS_TYPES.map((t) => (
                     <label
@@ -344,7 +342,6 @@ export function Onboarding({
                 +
               </button>
             </form>
-            <p className="aw-micro">You can track up to {MAX_TOPICS} topics.</p>
           </section>
         ) : null}
 
