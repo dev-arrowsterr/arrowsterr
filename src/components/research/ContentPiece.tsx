@@ -144,7 +144,7 @@ export function ContentPiece({
       {error ? <p className="aw-error">{error}</p> : null}
 
       {tab === "overview" ? (
-        <Overview item={item} canEdit={canEdit} onPatch={onPatch} onRemove={onRemove} />
+        <Overview item={item} canEdit={canEdit} onPatch={onPatch} onRemove={onRemove} brief={brief?.brief_status ?? item.brief_status ?? null} onBrief={createBrief} onOpenBrief={() => setTab("brief")} />
       ) : tab === "brief" ? (
         !brief || guideline === undefined ? (
           <p className="aw-small">Loading...</p>
@@ -221,7 +221,23 @@ export function ContentPiece({
   );
 }
 
-function Overview({ item, canEdit, onPatch, onRemove }: { item: CalendarItem; canEdit: boolean; onPatch: (p: Partial<CalendarItem>) => void; onRemove: () => void }) {
+function Overview({
+  item,
+  canEdit,
+  onPatch,
+  onRemove,
+  brief,
+  onBrief,
+  onOpenBrief,
+}: {
+  item: CalendarItem;
+  canEdit: boolean;
+  onPatch: (p: Partial<CalendarItem>) => void;
+  onRemove: () => void;
+  brief: CalendarItem["brief_status"];
+  onBrief: () => void;
+  onOpenBrief: () => void;
+}) {
   const [keyword, setKeyword] = useState(item.keyword);
   const [owner, setOwner] = useState(item.owner ?? "");
   const [notes, setNotes] = useState(item.notes ?? "");
@@ -235,6 +251,22 @@ function Overview({ item, canEdit, onPatch, onRemove }: { item: CalendarItem; ca
   const box = `${FIELD} h-10 w-full text-[14px]!`;
   return (
     <div className="aw-frame grid gap-5 p-6 sm:grid-cols-2">
+      {canEdit ? (
+        <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint pb-5 sm:col-span-2">
+          {brief === "done" ? (
+            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={onOpenBrief}>
+              Open content brief
+            </button>
+          ) : brief === "running" ? (
+            <span className="aw-status aw-status--warn">Writing the brief...</span>
+          ) : (
+            <button type="button" className="aw-btn aw-btn--accent aw-btn--sm" onClick={onBrief}>
+              <AiIcon />
+              Generate brief
+            </button>
+          )}
+        </div>
+      ) : null}
       {field("Keyword", <input value={keyword} disabled={!canEdit} onChange={(e) => setKeyword(e.target.value)} onBlur={() => keyword.trim() && keyword !== item.keyword && onPatch({ keyword: keyword.trim() })} className={box} />)}
       {field(
         "Status",

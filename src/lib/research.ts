@@ -272,3 +272,6 @@ export function pagesOf(rows: Keyword[]) {
     }))
     .sort((a, b) => b.traffic - a.traffic || b.keywords - a.keywords);
 }
+
+/** One page of the brand's website and how it does on Google now. */
+export type PagePerf = { url: string; traffic: number; keywords: number; top3: number; top10: number; topKeyword: string | null; topRank: number | null; topVolume: number | null };

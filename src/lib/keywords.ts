@@ -221,3 +221,21 @@ export async function domainOverview(domain: string, m: Market, spend: Spend) {
     lostKw: n("is_lost"),
   };
 }
+
+/** Every page of a domain that ranks on Google, with its estimated visits and how many keywords it ranks for. */
+export async function relevantPages(domain: string, m: Market, spend: Spend, limit = 1000) {
+  const tasks = await call("dataforseo_labs/google/relevant_pages/live", [
+    { target: domain, location_code: m.location, language_code: m.language, limit, order_by: ["metrics.organic.etv,desc"] },
+  ]);
+  spend.add(tasks);
+  const t = tasks[0];
+  if (t?.status_code !== 20000) throw new Error(`DataForSEO: ${t?.status_message ?? "no result"}`);
+  const items = (t.result?.[0]?.items ?? []) as { page_address?: string; metrics?: { organic?: Record<string, number> } }[];
+  return items
+    .filter((i) => i.page_address)
+    .map((i) => {
+      const o = i.metrics?.organic ?? {};
+      const n = (k: string) => Number(o[k] ?? 0);
+      return { url: i.page_address!, traffic: Math.round(n("etv")), keywords: n("count"), top3: n("pos_1") + n("pos_2_3"), top10: n("pos_1") + n("pos_2_3") + n("pos_4_10") };
+    });
+}

@@ -10,6 +10,7 @@ import { Sheet, type Col, type Edit } from "../Sheet";
 import type { Chat } from "@/lib/chats";
 import { Card, SidePanel, Thinking } from "../ui";
 import { ContentResults } from "./ContentResults";
+import { SitePages } from "./SitePages";
 import { CalendarGrid } from "./CalendarGrid";
 import { ContentPiece, STATUSES } from "./ContentPiece";
 import { useAiIdeas } from "./AiIdeas";
@@ -260,7 +261,7 @@ export function ContentCalendar({
   const views: { id: Tab; label: string; icon: React.ReactNode; n?: number }[] = [
     { id: "calendar", label: "Calendar", icon: <CalendarIcon /> },
     { id: "list", label: "List", icon: <ListIcon />, n: items.length },
-    { id: "results", label: "Performance Report", icon: <ChartIcon />, n: items.filter((i) => i.status === "published" && (i.url || i.current_url)).length },
+    { id: "results", label: "Performance", icon: <ChartIcon /> },
   ];
   const head = (
     <nav className="flex items-center gap-1 border-b border-rule" role="tablist" aria-label="Calendar view">
@@ -287,6 +288,7 @@ export function ContentCalendar({
     return (
       <div className="flex flex-col gap-5">
         {head}
+        <SitePages auth={auth} site={site} items={items} canEdit={canEdit} />
         <ContentResults auth={auth} brandId={results.brandId} domain={site.domain} days={results.days} chats={results.chats} items={items} />
       </div>
     );
