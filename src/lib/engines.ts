@@ -8,6 +8,8 @@ import { cleanSources, linksInText, type Source } from "./sources";
 
 export const ENGINES = ["ChatGPT", "Claude", "Gemini", "Perplexity", "AI Overview", "AI Mode"] as const;
 export type Engine = (typeof ENGINES)[number];
+/** Engines the daily job checks once a week. Their APIs cost far more than DataForSEO. */
+export const WEEKLY_ENGINES: Engine[] = ["Claude", "Perplexity"];
 
 // Settings each engine needs. Google AI Overview comes from DataForSEO, which needs a login and a password.
 const KEYS: Record<Engine, string[]> = {
@@ -115,7 +117,8 @@ Two or three sentences with your overall advice.`;
 function askApi(engine: Engine, prompt: string): Promise<Answer> {
   if (engine === "ChatGPT") return askChatGPT(prompt);
   // Low effort: the answer reads the same, with far fewer thinking tokens to pay for.
-  if (engine === "Claude") return askClaude(prompt, { searches: 1, effort: "low", maxTokens: 4000 });
+  // Haiku answers like the Claude app does for most people, at a fraction of the cost.
+  if (engine === "Claude") return askClaude(prompt, { searches: 1, maxTokens: 4000, model: process.env.CLAUDE_ENGINE_MODEL || "claude-haiku-5-5" });
   if (engine === "Gemini") return askGemini(prompt);
   if (engine === "Perplexity") return askPerplexity(prompt);
   throw new Error(`${engine} needs DFS_LOGIN and DFS_PASSWORD.`);

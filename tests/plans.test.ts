@@ -12,17 +12,22 @@ test("every sold plan costs more and gives more prompts, more often checks or mo
   }
 });
 
-test("Free tracks no prompts and has a little research; every paid plan has more tasks than the one before", async () => {
-  const { TASK_COST, TASK_PACKS, effectivePlan } = await import("../src/lib/plans.ts");
-  assert.equal(PLANS.free.prompts, 0);
-  assert.equal(PLANS.free.price, 0);
-  assert.ok(PLANS.free.tasksPerMonth >= TASK_COST.keyword * 10);
-  const paid = LADDER.filter((id) => id !== "free");
-  for (let i = 1; i < paid.length; i++) assert.ok(PLANS[paid[i]].tasksPerMonth > PLANS[paid[i - 1]].tasksPerMonth, paid[i]);
+test("Starter opens one toolset and Pro opens both; every plan has more tasks than the one before", async () => {
+  const { TASK_PACKS, effectivePlan, access } = await import("../src/lib/plans.ts");
+  assert.ok(!LADDER.includes("free"));
+  assert.deepEqual(access("foundation", "seo"), { visibility: false, seo: true });
+  assert.deepEqual(access("foundation", "visibility"), { visibility: true, seo: false });
+  assert.deepEqual(access("foundation", null), { visibility: true, seo: false });
+  assert.deepEqual(access("scale", null), { visibility: true, seo: true });
+  assert.equal(limitsFor("foundation", { track: "seo" }).prompts, 0);
+  assert.equal(limitsFor("foundation", { track: "visibility" }).prompts, 50);
+  assert.equal(limitsFor("foundation", { track: "visibility" }).checkEvery, 1);
+  assert.ok(limitsFor("foundation", { track: "seo" }).tasksPerMonth > limitsFor("foundation", { track: "visibility" }).tasksPerMonth);
+  for (let i = 1; i < LADDER.length; i++) assert.ok(PLANS[LADDER[i]].tasksPerMonth > PLANS[LADDER[i - 1]].tasksPerMonth, LADDER[i]);
   for (let i = 1; i < TASK_PACKS.length; i++) assert.ok(TASK_PACKS[i].price / TASK_PACKS[i].tasks < TASK_PACKS[i - 1].price / TASK_PACKS[i - 1].tasks);
-  assert.deepEqual(effectivePlan("trial", "trialing", "2020-01-01T00:00:00Z"), { plan: "free", status: "active" });
-  assert.deepEqual(effectivePlan("scale", "canceled", null), { plan: "free", status: "active" });
-  assert.deepEqual(effectivePlan("scale", "past_due", null), { plan: "scale", status: "past_due" });
+  assert.equal(effectivePlan("trial", "trialing", "2020-01-01T00:00:00Z").status, "read_only");
+  assert.equal(effectivePlan("scale", "canceled", null).status, "read_only");
+  assert.equal(effectivePlan("scale", "past_due", null).status, "past_due");
 });
 
 test("weekly plans check each brand once every 7 days", async () => {
@@ -41,7 +46,7 @@ test("extras add to the plan, and the daily extra overrides the schedule", () =>
   assert.equal(l.prompts, 60);
   assert.equal(l.seats, 3);
   assert.equal(l.checkEvery, 1);
-  assert.equal(limitsFor("foundation").checkEvery, 7);
+  assert.equal(limitsFor("trial").checkEvery, 1);
 });
 
 test("daily AI answers cover every prompt on every AI plus on-demand checks", () => {
@@ -50,7 +55,6 @@ test("daily AI answers cover every prompt on every AI plus on-demand checks", ()
 });
 
 test("boost goes one step up and never to Enterprise", () => {
-  assert.equal(nextPlan("free"), "foundation");
   assert.equal(nextPlan("foundation"), "scale");
   assert.equal(nextPlan("trial"), "scale");
   assert.equal(nextPlan("thrive"), "agency");

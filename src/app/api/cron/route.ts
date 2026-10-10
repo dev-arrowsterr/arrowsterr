@@ -3,7 +3,7 @@ import { answerChat, readAnswer } from "@/lib/answer";
 import type { Chat } from "@/lib/chats";
 import { getTask, postTasks, type DfsEngine } from "@/lib/dataforseo";
 import { answerRows, saveAnswers } from "@/lib/db";
-import { availableEngines, viaDfs, type Engine } from "@/lib/engines";
+import { availableEngines, viaDfs, WEEKLY_ENGINES, type Engine } from "@/lib/engines";
 import { allowed } from "@/lib/cronAuth";
 import { entitlement } from "@/lib/entitlements";
 import { queueReady } from "@/lib/jobs";
@@ -59,6 +59,8 @@ async function take(sb: SupabaseClient, ws: string) {
 }
 
 /** Every question this run still needs, minus the ones answered or already queued. */
+const seedOf = (id: string) => [...id].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 100003, 7);
+
 function todo(run: Row, engines: Engine[]) {
   const have = new Set([...run.chats.map((c) => key(c.engine, c.prompt)), ...run.queued.map((q) => key(q.engine, q.prompt))]);
   return run.engines
@@ -94,8 +96,17 @@ export async function POST(request: Request) {
   const fresh = (brands.data ?? [])
     .filter((b) => b.daily && !ran.has(b.id) && b.prompts?.length && !plans.get(b.workspace_id)?.readOnly && room(b) > 0)
     // Weekly plans check each brand on its own day of the week.
-    .filter((b) => checkDue([...b.id].reduce((n, c) => (n * 31 + c.charCodeAt(0)) % 100003, 7), plans.get(b.workspace_id)?.limits.checkEvery ?? 1))
-    .map((b) => ({ workspace_id: b.workspace_id, brand_id: b.id, source: "daily", status: "running", engines, prompts: b.prompts.slice(0, room(b)), chats: [] }));
+    .filter((b) => checkDue(seedOf(b.id), plans.get(b.workspace_id)?.limits.checkEvery ?? 1))
+    // Claude and Perplexity answer through their own paid APIs, so they are checked once a week, on the brand's own day.
+    .map((b) => ({
+      workspace_id: b.workspace_id,
+      brand_id: b.id,
+      source: "daily",
+      status: "running",
+      engines: engines.filter((e) => !WEEKLY_ENGINES.includes(e) || checkDue(seedOf(b.id), 7)),
+      prompts: b.prompts.slice(0, room(b)),
+      chats: [],
+    }));
   if (fresh.length) {
     res = await sb.from("runs").insert(fresh);
     if (res.error) return fail(res.error);

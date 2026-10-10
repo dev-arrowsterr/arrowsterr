@@ -26,7 +26,8 @@ import {
   type SavedRun,
   type Workspace,
 } from "@/lib/db";
-import { isFree, PLANS, promptAllowance, type PlanId } from "@/lib/plans";
+import { PLANS, promptAllowance, type PlanId, type Track } from "@/lib/plans";
+import { Glimpse } from "./Glimpse";
 import { post } from "./research/shared";
 import { splitPeriods, type Filter } from "@/lib/metrics";
 import type { View } from "@/lib/view";
@@ -51,7 +52,6 @@ import { VisitorsPage } from "./VisitorsPage";
 export type { Brand } from "@/lib/db";
 type Page = "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "gap" | "calendar" | "topics" | "writer" | "summary" | "members" | "billing";
 const RESEARCH: Page[] = ["keywords", "domain", "gap", "calendar", "topics", "writer"];
-const SEO_TOOLS: Page[] = ["keywords", "domain", "gap"];
 /** Website analytics is still in testing: only this account sees it. */
 const WEBSITE_TESTER = "vincent@perceptric.com";
 const VISIBILITY: Page[] = ["prompts", "competitors", "domains", "urls"]; // the only pages with period, topic and model filters
@@ -184,6 +184,15 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   const [seoStart, setSeoStart] = useState<SeoStart | null>(null); // a site or link from Sources to open in Domain Research
   const [error, setError] = useState("");
   const [plan, setPlan] = useState<PlanUsage | null>(null);
+  // A Starter on the SEO toolset opens on Keyword Research, the first page it has.
+  const landed = useRef(false);
+  useEffect(() => {
+    if (!plan || landed.current) return;
+    landed.current = true;
+    // Moving to the first open page once the plan is known is the point of this effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!plan.open.visibility && trackOf(page) === "visibility") go("keywords");
+  }, [plan, page, go]);
   const [limitHit, setLimitHit] = useState<{ error: string; boost: PlanId | null; packs?: boolean } | null>(null);
   const [boosting, setBoosting] = useState(false);
 
@@ -589,15 +598,15 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             <BillingPage key={ws.id} sb={sb} ws={ws} auth={auth} onPlan={loadPlan} />
           ) : !view ? (
             <div className="aw-callout max-w-xl">This workspace has no brands yet. Ask an editor or admin to add one.</div>
-          ) : plan && isFree(plan.plan) && !SEO_TOOLS.includes(page) ? (
-            <Locked
-              title={RESEARCH.includes(page) ? "Content starts on Starter" : page === "summary" ? "Client reports start on Starter" : "AI visibility tracking starts on Starter"}
+          ) : plan && trackOf(page) && !plan.open[trackOf(page)!] ? (
+            <Glimpse
+              track={trackOf(page)!}
               admin={atLeast(ws.role, "admin")}
               busy={boosting}
               onBoost={async () => {
                 setBoosting(true);
                 try {
-                  const done = await choosePlan(auth, "foundation", plan.interval ?? "month");
+                  const done = await choosePlan(auth, "scale", plan.interval ?? "month");
                   if (done) {
                     setNotice(done);
                     loadPlan();
@@ -670,35 +679,6 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   );
 }
 
-/** A page the plan does not include, with the way up. */
-function Locked({ title, admin, busy, onBoost, onPlans }: { title: string; admin: boolean; busy: boolean; onBoost: () => void; onPlans: () => void }) {
-  const p = PLANS.foundation;
-  return (
-    <div className="mx-auto mt-10 flex max-w-xl flex-col items-center gap-5 rounded-[20px] border border-rule bg-white px-6 py-12 text-center shadow-aw-sm">
-      <span aria-hidden="true" className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-pale text-[22px] text-brand">
-        ✦
-      </span>
-      <h1 className="aw-h3 mb-0!">{title}</h1>
-      <ul className="flex flex-col gap-2 text-left text-[15px] text-body">
-        <li>✓ {p.prompts} prompts tracked on 6 AIs, without using tasks</li>
-        <li>✓ {p.tasksPerMonth.toLocaleString("en-US")} tasks a month for research, briefs and the Agentic Writer</li>
-        <li>✓ Topic Bank, Editorial Calendar and CMS publishing</li>
-        <li>✓ Client reports and {p.seats} seats</li>
-      </ul>
-      <div className="flex flex-wrap justify-center gap-3">
-        {admin ? (
-          <button type="button" className="aw-btn aw-btn--primary" disabled={busy} onClick={onBoost}>
-            {busy ? "Opening..." : `Start ${p.name} · $${p.price}/mo`}
-          </button>
-        ) : null}
-        <button type="button" className="aw-btn aw-btn--secondary" onClick={onPlans}>
-          See plans
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // ─────────────────────────────── sidebar ───────────────────────────────
 
 /** A menu that closes on a click outside it or on Escape. */
@@ -745,6 +725,10 @@ const ICONS: Record<string, string> = {
 function NavIcon({ name }: { name: string }) {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="aw-nav__icon" dangerouslySetInnerHTML={{ __html: ICONS[name] }} />;
 }
+
+/** The toolset a page belongs to. Starter opens one of them. */
+const trackOf = (page: Page): Track | null =>
+  ["prompts", "competitors", "domains", "urls"].includes(page) ? "visibility" : ["keywords", "domain", "gap", "topics", "calendar", "writer"].includes(page) ? "seo" : null;
 
 /** The big modules of the app. Each opens to its own pages. */
 const NAV: { group: string; icon: string; tester?: boolean; items: { id: Page; label: string; icon: string; also?: Page[] }[] }[] = [
@@ -878,6 +862,11 @@ function Sidebar({
               <button type="button" onClick={() => !on && onPage(g.items[0].id)} aria-expanded={g.items.length > 1 ? on : undefined} className={`aw-mod ${on ? "is-on" : ""}`}>
                 <NavIcon name={g.icon} />
                 <span className="flex-1 text-left">{g.group}</span>
+                {plan && trackOf(g.items[0].id) && !plan.open[trackOf(g.items[0].id)!] ? (
+                  <span className="aw-chip px-1.5! py-0! text-[10px]!" title="On Pro">
+                    Pro
+                  </span>
+                ) : null}
                 {g.items.length > 1 ? (
                   <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" className={`aw-mod__chev ${on ? "rotate-90" : ""}`}>
                     <path d="m9 6 6 6-6 6" />
@@ -913,9 +902,9 @@ function Sidebar({
             </button>
           ))}
         </div>
-        {plan && (plan.plan === "trial" || plan.plan === "free" || plan.status !== "active") ? (
+        {plan && (plan.plan === "trial" || plan.status !== "active") ? (
           <button type="button" onClick={() => onPage("billing")} className="flex items-center justify-between gap-2 rounded-aw border border-brand-mist bg-brand-pale px-3 py-2 text-left text-[13px] font-medium text-brand">
-            <span>{plan.status === "past_due" ? "Payment failed" : plan.plan === "free" ? "Free plan · Upgrade" : plan.trialLeft ? `${plan.trialLeft} days of trial left` : plan.plan === "trial" || plan.status !== "active" ? "Pick a plan" : plan.name}</span>
+            <span>{plan.status === "past_due" ? "Payment failed" : plan.trialLeft ? `${plan.trialLeft} days of trial left` : plan.plan === "trial" || plan.status !== "active" ? "Pick a plan" : plan.name}</span>
             <span aria-hidden="true">→</span>
           </button>
         ) : null}

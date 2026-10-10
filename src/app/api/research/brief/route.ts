@@ -3,7 +3,7 @@ import { runBrief } from "@/lib/brief";
 import { dfsReady } from "@/lib/dataforseo";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
 import { metered, meteredRoute } from "@/lib/meter";
-import { requirePaid, take } from "@/lib/entitlements";
+import { requireTrack, take } from "@/lib/entitlements";
 import { TASK_COST } from "@/lib/plans";
 import { enqueue, queueReady } from "@/lib/jobs";
 
@@ -14,7 +14,7 @@ async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
-  const paid = await requirePaid(body.workspaceId);
+  const paid = await requireTrack(body.workspaceId, "seo");
   if (paid) return paid;
   const took = await take(body.workspaceId, "tasks", TASK_COST.brief, { refundIfFree: false });
   if (!took.ok) return took.response;

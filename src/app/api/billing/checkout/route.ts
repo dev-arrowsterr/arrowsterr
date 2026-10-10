@@ -1,5 +1,5 @@
 import { getSubscription, syncSubscription } from "@/lib/billing";
-import { lookupKey, SELF_SERVE, type Interval, type PlanId } from "@/lib/plans";
+import { lookupKey, SELF_SERVE, TRACKS, type Extras, type Interval, type PlanId, type Track } from "@/lib/plans";
 import { adminClient, requireRole } from "@/lib/serverAuth";
 import { originOf, priceFor, stripe, stripeReady, type Subscription } from "@/lib/stripe";
 
@@ -16,8 +16,15 @@ export async function POST(request: Request) {
   const interval: Interval = body.interval === "year" ? "year" : "month";
   if (!SELF_SERVE.includes(plan)) return Response.json({ error: "Pick Starter, Pro or Agency." }, { status: 400 });
 
-  const { data: ws, error } = await db.from("workspaces").select("id, name, plan_status, stripe_customer_id, stripe_subscription_id").eq("id", body.workspaceId).maybeSingle();
+  const track = body.track as Track | undefined;
+  if (plan === "foundation" && !(track && TRACKS[track])) return Response.json({ error: "Pick the toolset for Starter: AI Visibility or SEO." }, { status: 400 });
+
+  const { data: ws, error } = await db.from("workspaces").select("id, name, plan_status, stripe_customer_id, stripe_subscription_id, extras").eq("id", body.workspaceId).maybeSingle();
   if (error || !ws) return Response.json({ error: error?.message.includes("stripe") ? "Run supabase/015_billing.sql in Supabase." : error?.message ?? "Workspace not found." }, { status: 500 });
+  // Starter's toolset is saved first, so the plan's limits follow it once Stripe confirms.
+  if (plan === "foundation" && track && (ws.extras as Extras | null)?.track !== track) {
+    await db.from("workspaces").update({ extras: { ...((ws.extras as Extras | null) ?? {}), track, trackAt: new Date().toISOString() } }).eq("id", ws.id);
+  }
 
   try {
     const price = await priceFor(lookupKey(plan, interval));

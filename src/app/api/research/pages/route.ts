@@ -5,7 +5,7 @@ import { marketOf, type PagePerf } from "@/lib/research";
 import { requireRole } from "@/lib/serverAuth";
 import { normalizeSite } from "@/lib/site";
 import { meteredRoute } from "@/lib/meter";
-import { requirePaid, take } from "@/lib/entitlements";
+import { requireTrack, take } from "@/lib/entitlements";
 import { TASK_COST } from "@/lib/plans";
 
 const strip = (u: string) => u.toLowerCase().replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
@@ -17,7 +17,7 @@ async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
-  const paid = await requirePaid(body.workspaceId);
+  const paid = await requireTrack(body.workspaceId, "seo");
   if (paid) return paid;
   if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });
 

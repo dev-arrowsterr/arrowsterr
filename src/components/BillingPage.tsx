@@ -3,7 +3,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useState } from "react";
 import { atLeast, getPlanUsage, type PlanUsage, type Workspace } from "@/lib/db";
-import { LADDER, PLANS, TASK_COST, TASK_PACKS, type Interval, type PackId, type PlanId } from "@/lib/plans";
+import { LADDER, PLANS, TASK_COST, TASK_PACKS, TRACKS, type Interval, type PackId, type PlanId, type Track } from "@/lib/plans";
 import type { RunAuth } from "@/lib/runner";
 import { IntervalSwitch, PlanGrid } from "./PlanGrid";
 import { post } from "./research/shared";
@@ -14,10 +14,10 @@ const date = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month:
 const rank = (id: PlanId) => LADDER.indexOf(id);
 
 /** Pick a plan: Checkout for a first plan, an instant switch after that. Returns a message, or opens Stripe. */
-export async function choosePlan(auth: RunAuth, plan: PlanId, interval: Interval) {
-  const r = await post<{ url?: string; changed?: boolean }>(auth, "/api/billing/checkout", { plan, interval });
+export async function choosePlan(auth: RunAuth, plan: PlanId, interval: Interval, track?: Track) {
+  const r = await post<{ url?: string; changed?: boolean }>(auth, "/api/billing/checkout", { plan, interval, track });
   if (r.url) window.location.href = r.url;
-  return r.changed ? `You're on ${PLANS[plan].name} now.` : "";
+  return r.changed ? `You're on ${PLANS[plan].name}${track ? ` with ${TRACKS[track].label}` : ""} now.` : "";
 }
 
 /** Buy a task pack: opens Stripe Checkout. */
@@ -63,7 +63,7 @@ export function BillingPage({ sb, ws, auth, onPlan }: { sb: SupabaseClient; ws: 
     let tries = 0;
     const timer = window.setInterval(async () => {
       const p = await load();
-      if ((p && p.plan !== "trial" && p.plan !== "legacy" && p.plan !== "free" && p.status === "active") || ++tries >= 10) {
+      if ((p && p.plan !== "trial" && p.plan !== "legacy" && p.status === "active") || ++tries >= 10) {
         window.clearInterval(timer);
         if (p) setNotice(`You're on ${p.name} now.`);
         onPlan();
@@ -90,14 +90,43 @@ export function BillingPage({ sb, ws, auth, onPlan }: { sb: SupabaseClient; ws: 
     }
   }
 
-  const paying = Boolean(plan && plan.customer && plan.plan !== "trial" && plan.plan !== "legacy" && plan.plan !== "free" && plan.status !== "canceled");
+  const paying = Boolean(plan && plan.customer && plan.plan !== "trial" && plan.plan !== "legacy" && plan.status !== "read_only");
   const button = (id: PlanId) => {
-    if (id === "free")
+    // Starter: one toolset. Pick it here, or switch it once a month when already on Starter.
+    if (id === "foundation") {
+      const onStarter = paying && plan?.plan === "foundation";
+      const sameCycle = (plan?.interval ?? "month") === cycle;
       return (
-        <button type="button" className="aw-btn aw-btn--secondary aw-btn--block" disabled>
-          {plan?.plan === "free" ? "Current plan" : "Always free"}
-        </button>
+        <div className="flex flex-col gap-2">
+          {(["visibility", "seo"] as Track[]).map((t) => {
+            const current = onStarter && sameCycle && (plan?.track ?? "visibility") === t;
+            return (
+              <button
+                key={t}
+                type="button"
+                className={`aw-btn aw-btn--block ${current ? "aw-btn--secondary" : "aw-btn--primary"}`}
+                disabled={current || !isAdmin || busy !== null}
+                title={isAdmin ? undefined : "Ask an admin"}
+                onClick={() => {
+                  if (onStarter && sameCycle) {
+                    if (!confirm(`Switch Starter to ${TRACKS[t].label}? You can switch once a month.`)) return;
+                    act(`track:${t}`, async () => {
+                      await post(auth, "/api/billing/track", { track: t });
+                      return `Starter now opens ${TRACKS[t].label}.`;
+                    });
+                    return;
+                  }
+                  if (paying && !confirm(`Switch to Starter with ${TRACKS[t].label}? The difference is charged or credited today.`)) return;
+                  act(`foundation:${t}`, () => choosePlan(auth, "foundation", cycle, t));
+                }}
+              >
+                {busy === `foundation:${t}` || busy === `track:${t}` ? "Opening..." : current ? `Current: ${TRACKS[t].short}` : onStarter && sameCycle ? `Switch to ${TRACKS[t].short}` : `Choose ${TRACKS[t].short}`}
+              </button>
+            );
+          })}
+        </div>
       );
+    }
     if (id === "enterprise")
       return (
         <a href={SALES} className="aw-btn aw-btn--block bg-white! text-ink!">
@@ -165,7 +194,11 @@ export function BillingPage({ sb, ws, auth, onPlan }: { sb: SupabaseClient; ws: 
             ) : null}
             {plan.cancelAt ? <span className="aw-small">Ends {date(plan.cancelAt)}</span> : plan.periodEnd && paying ? <span className="aw-small">Renews {date(plan.periodEnd)}</span> : null}
           </div>
-          {plan.trialEnded ? <p className="aw-callout">Your free trial has ended, so this workspace is on Free now. Your data is safe. Pick a plan to track prompts again.</p> : null}
+          {plan.plan === "foundation" ? (
+            <p className="text-[14px] text-body">
+              Your Starter plan opens <strong>{TRACKS[plan.track ?? "visibility"].label}</strong>. Get both toolsets on Pro.
+            </p>
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-3">
             {plan.allowances
               .filter((a) => a.metric === "tasks")
@@ -214,6 +247,7 @@ export function BillingPage({ sb, ws, auth, onPlan }: { sb: SupabaseClient; ws: 
               ["Your pages on Google", TASK_COST.pages],
               ["Content brief", TASK_COST.brief],
               ["Writer agent job", TASK_COST.agent],
+              ["Stats with sources", TASK_COST.stats],
               ["Interactive element", TASK_COST.widget],
               ["Small AI job", TASK_COST.ai],
             ].map(([k, v]) => (
@@ -223,7 +257,7 @@ export function BillingPage({ sb, ws, auth, onPlan }: { sb: SupabaseClient; ws: 
               </li>
             ))}
           </ul>
-          <p className="mt-3 text-[13px] text-muted">Tracking prompts, publishing and your first Topic Bank are free.</p>
+          <p className="mt-3 text-[13px] text-muted">Tracking prompts, publishing and your first Topic Bank use no tasks.</p>
         </details>
       </section>
 

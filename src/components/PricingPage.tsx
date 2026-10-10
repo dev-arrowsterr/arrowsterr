@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Fragment, useState } from "react";
-import { PLANS, SELF_SERVE, UNLIMITED, type Interval, type Plan, type PlanId } from "@/lib/plans";
+import { PLANS, SELF_SERVE, UNLIMITED, type Interval, type Plan } from "@/lib/plans";
 import { SALES } from "./BillingPage";
 import { BrandLogo } from "./BrandLogo";
 import { Logo } from "./Logo";
@@ -13,17 +13,24 @@ const yes = (on: boolean) => (on ? "✓" : "–");
 
 const ROWS: { group: string; rows: { label: React.ReactNode; value: (p: Plan) => string }[] }[] = [
   {
+    group: "Toolsets",
+    rows: [
+      { label: "AI Visibility", value: (p) => (p.id === "foundation" ? "Pick one" : "✓") },
+      { label: "SEO toolset", value: (p) => (p.id === "foundation" ? "Pick one" : "✓") },
+    ],
+  },
+  {
     group: "Tasks",
     rows: [
-      { label: "Tasks a month", value: (p) => n(p.tasksPerMonth) },
+      { label: "Tasks a month", value: (p) => (p.id === "foundation" ? "3,000 on SEO · 300 on AI Visibility" : n(p.tasksPerMonth)) },
       { label: "Task packs to top up", value: () => "✓" },
     ],
   },
   {
     group: "AI visibility",
     rows: [
-      { label: "Prompts tracked (no tasks used)", value: (p) => (p.prompts ? n(p.prompts) : "–") },
-      { label: "Checks", value: (p) => (p.prompts ? (p.checkEvery === 1 ? "Daily" : "Weekly") : "–") },
+      { label: "Prompts checked daily (no tasks used)", value: (p) => (p.id === "foundation" ? `${n(p.prompts)} on AI Visibility` : n(p.prompts)) },
+      { label: "Checks", value: (p) => (p.checkEvery === 1 ? "Daily (Claude & Perplexity weekly)" : "Weekly") },
       {
         label: (
           <span className="flex items-center gap-2">
@@ -43,16 +50,16 @@ const ROWS: { group: string; rows: { label: React.ReactNode; value: (p: Plan) =>
     group: "SEO & content",
     rows: [
       { label: "Keyword, Domain & Competitive Research", value: () => "✓" },
-      { label: "Topic Bank, built once per brand", value: (p) => yes(p.id !== "free") },
-      { label: "Content briefs & Editorial Calendar", value: (p) => yes(p.id !== "free") },
+      { label: "Topic Bank, built once per brand", value: () => "✓" },
+      { label: "Content briefs & Editorial Calendar", value: () => "✓" },
       { label: "Agentic Writer", value: (p) => yes(p.writer === "full") },
-      { label: "Publish to your CMS", value: (p) => yes(p.id !== "free") },
+      { label: "Publish to your CMS", value: () => "✓" },
     ],
   },
   {
     group: "Reports & data",
     rows: [
-      { label: "Live report links", value: (p) => yes(p.id !== "free") },
+      { label: "Live report links", value: () => "✓" },
       { label: "8 report templates", value: (p) => yes(p.reports === "templates" || p.reports === "whitelabel") },
       { label: "White-label reports", value: (p) => yes(p.reports === "whitelabel") },
       { label: "Google Analytics 4", value: () => "✓" },
@@ -67,9 +74,10 @@ const FAQ: { q: string; a: string }[] = [
   { q: "Which AIs do you track?", a: "ChatGPT, Claude, Gemini, Perplexity, Google AI Overviews and Google AI Mode. Every plan tracks all six." },
   { q: "Do my brands share prompts?", a: "Yes. Your prompts are one pool for the whole workspace. Add as many brands as you like and split the prompts between them." },
   { q: "Weekly or daily checks?", a: "AI answers change all the time. Weekly checks show the trend. Daily checks catch a drop the day it happens, which matters when you are shipping content to win a prompt." },
-  { q: "What is a task?", a: "Every action you run costs a few tasks: a keyword lookup is 5, a domain report is 15, a content brief is 75 and a writer agent job is 15. Tracking your prompts never uses tasks." },
+  { q: "What is a task?", a: "Every action you run costs a few tasks: a keyword lookup is 10, a domain report is 10, a content brief is 100 and a writer agent job is 15. Tracking your prompts never uses tasks." },
   { q: "What if I run out of tasks?", a: "Buy a task pack from 1,000 tasks for $15. Pack tasks never expire and are used after your monthly tasks." },
-  { q: "What happens after the free trial?", a: "Your workspace moves to the Free plan. Nothing is deleted. Pick a plan any time to track prompts again. No card is needed to start." },
+  { q: "What does Starter include?", a: "One toolset of your choice: AI Visibility, with 50 prompts checked daily, or the SEO toolset, with 3,000 tasks a month. You get a demo look at the other one. Pro and up include both." },
+  { q: "What happens after the free trial?", a: "The trial includes both toolsets. When it ends, your workspace turns read-only until you pick a plan. Nothing is deleted. No card is needed to start." },
   { q: "Can I change plans later?", a: "Any time. Upgrades start right away and you only pay the difference. Downgrades credit what is left of your month." },
 ];
 
@@ -136,7 +144,7 @@ export function PricingPage() {
             <thead>
               <tr className="border-b border-rule">
                 <th className="w-[34%] p-4 text-left font-medium text-muted" />
-                {(["free", ...SELF_SERVE] as PlanId[]).map((id) => (
+                {SELF_SERVE.map((id) => (
                   <th key={id} className={`p-4 text-center ${id === "scale" ? "bg-brand-pale/50" : ""}`}>
                     <span className="block text-[16px] font-medium text-ink">{PLANS[id].name}</span>
                     <span className="aw-num text-[13px] font-normal text-muted">${cycle === "year" ? PLANS[id].annual : PLANS[id].price}/mo</span>
@@ -148,14 +156,14 @@ export function PricingPage() {
               {ROWS.map((g) => (
                 <Fragment key={g.group}>
                   <tr>
-                    <td colSpan={SELF_SERVE.length + 2} className="bg-surface-2 px-4 py-2.5 text-[12px] font-medium tracking-wide text-muted uppercase">
+                    <td colSpan={SELF_SERVE.length + 1} className="bg-surface-2 px-4 py-2.5 text-[12px] font-medium tracking-wide text-muted uppercase">
                       {g.group}
                     </td>
                   </tr>
                   {g.rows.map((r, i) => (
                     <tr key={i} className="border-t border-rule-faint">
                       <td className="p-4 text-body">{r.label}</td>
-                      {(["free", ...SELF_SERVE] as PlanId[]).map((id) => {
+                      {SELF_SERVE.map((id) => {
                         const v = r.value(PLANS[id]);
                         return (
                           <td key={id} className={`p-4 text-center ${id === "scale" ? "bg-brand-pale/50" : ""} ${v === "✓" ? "text-brand" : v === "–" ? "text-faint" : "aw-num text-ink"}`}>

@@ -6,7 +6,7 @@ import { overview, rankedFor, Spend, type Target } from "@/lib/keywords";
 import { marketOf, pagesOf, type Keyword, type SitePage } from "@/lib/research";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
 import { meteredRoute } from "@/lib/meter";
-import { requirePaid, take } from "@/lib/entitlements";
+import { requireTrack, take } from "@/lib/entitlements";
 import { TASK_COST } from "@/lib/plans";
 
 type Idea = { keyword: string; action: "new" | "update"; url: string | null; stage: "bofu" | "mofu" | "tofu" | null; why: string; prompt: string };
@@ -45,7 +45,7 @@ async function handle(request: Request) {
   if (!brand || JSON.stringify(gaps).length > 30000) return Response.json({ error: "Bad request" }, { status: 400 });
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
-  const paid = await requirePaid(body.workspaceId);
+  const paid = await requireTrack(body.workspaceId, "seo");
   if (paid) return paid;
   const took = await take(body.workspaceId, "tasks", TASK_COST.ai);
   if (!took.ok) return took.response;

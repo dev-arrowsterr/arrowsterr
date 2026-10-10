@@ -3,7 +3,7 @@ import { allSuggestions, bulkReport, keywordReport } from "@/lib/kwReport";
 import { MARKETS } from "@/lib/research";
 import { requireRole } from "@/lib/serverAuth";
 import { meteredRoute } from "@/lib/meter";
-import { take } from "@/lib/entitlements";
+import { requireTrack, take } from "@/lib/entitlements";
 import { TASK_COST } from "@/lib/plans";
 
 // Keyword overview, bulk analysis and the "View all" lists. Editors only, since a first search costs money.
@@ -14,6 +14,8 @@ async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
+  const paid = await requireTrack(body.workspaceId, "seo");
+  if (paid) return paid;
   const took = await take(body.workspaceId, "tasks", body.action === "bulk" ? TASK_COST.bulk(Array.isArray(body.keywords) ? body.keywords.length : 20) : TASK_COST.keyword);
   if (!took.ok) return took.response;
   if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });

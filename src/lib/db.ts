@@ -3,7 +3,7 @@ import type { DocPublishMeta } from "./writerAgent";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Chat, Run } from "./chats";
 import type { AgentResult, PlanBrief } from "./research";
-import { effectivePlan, limitsFor, METRICS, nextPlan, periodOf as periodFor, type Extras, type Metric, type PlanId } from "./plans";
+import { access, effectivePlan, limitsFor, METRICS, nextPlan, periodOf as periodFor, type Extras, type Metric, type PlanId, type Track } from "./plans";
 import type { Brief } from "./briefTypes";
 import type { BrandGuideline } from "./writerTypes";
 
@@ -258,7 +258,9 @@ export async function getPlanUsage(sb: SupabaseClient, workspaceId: string) {
   return {
     plan: now.plan,
     credits: Number(w.task_credits ?? 0),
-    trialEnded: w.plan === "trial" && now.plan === "free",
+    track: (w.extras?.track ?? null) as Track | null,
+    trackAt: (w.extras?.trackAt ?? null) as string | null,
+    open: access(now.plan, w.extras?.track),
     name: limits.name,
     status: now.status,
     trialLeft,

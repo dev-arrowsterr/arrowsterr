@@ -1,12 +1,12 @@
 import "server-only";
-import { cycleEnd, effectivePlan, firstWith, isFree, limitsFor, METRICS, nextPlan, PLANS, periodOf, type Extras, type Metric, type Plan, type PlanId } from "./plans";
+import { access, cycleEnd, effectivePlan, firstWith, limitsFor, TRACKS, METRICS, nextPlan, PLANS, periodOf, type Extras, type Metric, type Plan, type PlanId, type Track } from "./plans";
 import { onRefund } from "./meter";
 import { adminClient } from "./serverAuth";
 
 // What a workspace may use right now, and the allowance checks every paid route runs.
 // Counting needs the server's secret key. Without it, or before 015_billing.sql, nothing is blocked.
 
-export type Entitlement = { plan: PlanId; status: string; limits: Plan; readOnly: boolean; trialEndsAt: string | null; periodEnd: string | null; anchor: string | null; credits: number };
+export type Entitlement = { plan: PlanId; status: string; limits: Plan; readOnly: boolean; trialEndsAt: string | null; periodEnd: string | null; anchor: string | null; credits: number; open: Record<Track, boolean> };
 
 const cache = new Map<string, { at: number; e: Entitlement }>();
 
@@ -14,7 +14,7 @@ export async function entitlement(workspaceId: string): Promise<Entitlement> {
   const hit = cache.get(workspaceId);
   if (hit && Date.now() - hit.at < 60_000) return hit.e;
   const db = adminClient();
-  const legacy: Entitlement = { plan: "legacy", status: "active", limits: PLANS.legacy, readOnly: false, trialEndsAt: null, periodEnd: null, anchor: null, credits: 0 };
+  const legacy: Entitlement = { plan: "legacy", status: "active", limits: PLANS.legacy, readOnly: false, trialEndsAt: null, periodEnd: null, anchor: null, credits: 0, open: { visibility: true, seo: true } };
   if (!db) return legacy;
   const { data, error } = await db.from("workspaces").select("*").eq("id", workspaceId).maybeSingle();
   if (error || !data?.plan) return legacy; // before 015_billing.sql
@@ -27,6 +27,7 @@ export async function entitlement(workspaceId: string): Promise<Entitlement> {
     limits: limitsFor(now.plan, now.plan === w.plan ? (w.extras ?? {}) : {}),
     readOnly: now.status === "read_only",
     credits: Number(w.task_credits ?? 0),
+    open: access(now.plan, w.extras?.track),
     trialEndsAt: w.trial_ends_at,
     periodEnd: w.period_end,
     anchor: w.billing_anchor ?? null, // before 017_stripe.sql, months follow the calendar
@@ -63,11 +64,11 @@ function limitReached(e: Entitlement, m: Metric, limit: number) {
   return Response.json({ error, limit: true, metric: m, boost: up }, { status: 429 });
 }
 
-/** Content tools, AI visibility and reports start on Starter. Free opens Organic Research only. */
-export async function requirePaid(workspaceId: string): Promise<Response | null> {
+/** Starter opens one toolset. A tool from the other one answers with the way up to Pro. */
+export async function requireTrack(workspaceId: string, track: Track): Promise<Response | null> {
   const e = await entitlement(workspaceId);
-  if (!isFree(e.plan)) return null;
-  return Response.json({ error: "This starts on Starter. The Free plan includes a little Organic Research each month.", limit: true, boost: "foundation" }, { status: 429 });
+  if (e.open[track]) return null;
+  return Response.json({ error: `Your Starter plan has ${TRACKS[e.open.seo ? "seo" : "visibility"].label}. Get ${TRACKS[track].label} too on Pro.`, limit: true, boost: "scale" }, { status: 429 });
 }
 
 function readOnly(e: Entitlement) {
