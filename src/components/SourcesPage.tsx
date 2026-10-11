@@ -26,6 +26,7 @@ import { isAnswered, type Run } from "@/lib/chats";
 import type { View } from "@/lib/view";
 import type { Scope } from "./research/DomainResearch";
 import { BrandLogo } from "./BrandLogo";
+import { StopButton, stopped } from "./research/shared";
 import { ENGINE_LOGOS, EngineName } from "./Engines";
 import { Markdown } from "./Markdown";
 import { Card, Empty, favicon, pct, Seg, SidePanel, sortRows, SortTh, Tip, TIPS, useSort } from "./ui";
@@ -129,6 +130,7 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
   const [insights, setInsights] = useState<Insights | null>(() => readCache(cacheKey));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [analyzing, setAnalyzing] = useState<AbortController | null>(null);
 
   const chats = answered(current, filter);
   if (!chats.length) return <Empty>No results in the last {days} days yet. They show up after the first check finishes, then update every day.</Empty>;
@@ -150,6 +152,8 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
 
   async function analyze() {
     if (!auth) return;
+    const ctl = new AbortController();
+    setAnalyzing(ctl);
     setBusy(true);
     setError("");
     try {
@@ -175,6 +179,7 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
       };
       const res = await fetch("/api/insights", {
         method: "POST",
+        signal: ctl.signal,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${await auth.token()}` },
         body: JSON.stringify({ workspaceId: auth.workspaceId, brand: brand.name, domain: brand.domain, data }),
       });
@@ -187,7 +192,7 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
         // Storage blocked. The summary still shows until the page reloads.
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (!stopped(e)) setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
@@ -427,7 +432,10 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
         <div className="flex flex-col gap-4 p-5">
           {error ? <p className="aw-error">{error}</p> : null}
           {busy ? (
-            <span className="text-[14px] text-ink">Reading your sources...</span>
+            <span className="flex items-center gap-3 text-[14px] text-ink">
+              Reading your sources...
+              <StopButton onStop={() => analyzing?.abort()} />
+            </span>
           ) : insights ? (
             <>
               <p className="text-[14px] leading-relaxed text-body">{insights.summary}</p>

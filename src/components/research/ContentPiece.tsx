@@ -18,7 +18,7 @@ import type { BrandGuideline } from "@/lib/writerTypes";
 import { AiIcon, Seg, Thinking } from "../ui";
 import { BriefView } from "./BriefView";
 import { SerpView } from "./SerpView";
-import { Difficulty, FIELD, fmtNum, post, StageTag, statusLabel, Tick } from "./shared";
+import { Difficulty, FIELD, fmtNum, post, StageTag, statusLabel, StopButton, stopped, Tick } from "./shared";
 import { DocsEditor } from "./DocsEditor";
 
 export const STATUSES: { id: CalendarStatus; label: string }[] = [
@@ -63,6 +63,7 @@ export function ContentPiece({
   const [serp, setSerp] = useState<{ serp: Serp | null; serp_at: string | null; missing?: boolean } | null>(null);
   const [serpBusy, setSerpBusy] = useState(false);
   const [doc, setDoc] = useState<Doc | null>(null);
+  const [importNow, setImportNow] = useState(false);
   const [brief, setBrief] = useState<Awaited<ReturnType<typeof getBrief>> | null>(null);
   const [guideline, setGuideline] = useState<BrandGuideline | null | undefined>(undefined);
   const [drafts, setDrafts] = useState<DocMeta[] | null>(null);
@@ -109,17 +110,32 @@ export function ContentPiece({
     }
   }
 
+  /** Stop a brief that is running, or one that got stuck. Its tasks come back when no work was done. */
+  async function stopBrief() {
+    setError("");
+    try {
+      await post(auth, "/api/research/brief", { itemId: item.id, action: "stop" });
+      setBrief((b) => (b ? { ...b, brief_status: "failed", brief_error: "Stopped." } : b));
+      onPatch({ brief_status: "failed" });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   /** Read Google's top 10 for this keyword. A brief already written gets the new results too. */
+  const serpStop = useRef<AbortController | null>(null);
   async function runSerp() {
     setError("");
     setSerpBusy(true);
     setTab("serp");
+    const ctl = new AbortController();
+    serpStop.current = ctl;
     try {
-      const out = await post<{ serp: Serp; at: string; intoBrief: boolean }>(auth, "/api/research/serp", { itemId: item.id });
+      const out = await post<{ serp: Serp; at: string; intoBrief: boolean }>(auth, "/api/research/serp", { itemId: item.id }, ctl.signal);
       setSerp({ serp: out.serp, serp_at: out.at });
       if (out.intoBrief) setBrief((b) => (b?.brief ? { ...b, brief: { ...b.brief, serp: out.serp } } : b));
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (!stopped(e)) setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSerpBusy(false);
     }
@@ -203,6 +219,7 @@ export function ContentPiece({
           onRemove={onRemove}
           brief={brief?.brief_status ?? item.brief_status ?? null}
           onBrief={createBrief}
+          onStopBrief={stopBrief}
           onOpenBrief={() => setTab("brief")}
           hasSerp={Boolean(serp?.serp)}
           serpBusy={serpBusy}
@@ -211,7 +228,10 @@ export function ContentPiece({
         />
       ) : tab === "serp" ? (
         serpBusy ? (
-          <Thinking text={`Reading Google's top 10 for "${item.keyword}"...`} />
+          <div className="flex flex-col items-start gap-3">
+            <Thinking text={`Reading Google's top 10 for "${item.keyword}"...`} />
+            <StopButton onStop={() => serpStop.current?.abort()} />
+          </div>
         ) : serp?.serp ? (
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-3">
@@ -257,6 +277,8 @@ export function ContentPiece({
               </svg>
             </span>
             <span className="aw-h4">{serp?.serp ? "Writing the brief from your SERP analysis..." : "Reading Google's top 10 and writing the brief..."}</span>
+            <BriefClock started={brief.brief_started_at ?? null} />
+            {canEdit ? <StopButton onStop={stopBrief} /> : null}
           </div>
         ) : !brief.brief ? (
           <div className="aw-frame flex flex-col items-start gap-4 p-8">
@@ -279,7 +301,13 @@ export function ContentPiece({
             canEdit={canEdit}
             onSaved={(b) => setBrief({ ...brief, brief: b })}
             onRecreate={createBrief}
-            onWriter={() => (draft ? setTab("draft") : toWriter())}
+            onWriter={() => {
+              // A draft already exists: bring the brief into it. The draft from before can be put back.
+              if (draft) {
+                setImportNow(true);
+                setTab("draft");
+              } else toWriter();
+            }}
           />
         )
       ) : !writer.open ? (
@@ -303,6 +331,8 @@ export function ContentPiece({
             canEdit={canEdit}
             guideline={guideline ?? null}
             onSaved={(meta) => setDrafts((d) => [meta, ...(d ?? []).filter((x) => x.id !== meta.id)])}
+            importBrief={importNow}
+            onImported={() => setImportNow(false)}
           />
         ) : (
           <Thinking text="Opening the draft..." />
@@ -344,6 +374,7 @@ function Overview({
   onRemove,
   brief,
   onBrief,
+  onStopBrief,
   onOpenBrief,
   hasSerp,
   serpBusy,
@@ -356,6 +387,7 @@ function Overview({
   onRemove: () => void;
   brief: CalendarItem["brief_status"];
   onBrief: () => void;
+  onStopBrief: () => void;
   onOpenBrief: () => void;
   hasSerp: boolean;
   serpBusy: boolean;
@@ -393,7 +425,10 @@ function Overview({
               Open content brief
             </button>
           ) : brief === "running" ? (
-            <span className="aw-status aw-status--warn">Writing the brief...</span>
+            <span className="flex items-center gap-2">
+              <span className="aw-status aw-status--warn">Writing the brief...</span>
+              <StopButton onStop={onStopBrief} />
+            </span>
           ) : (
             <button type="button" className="aw-btn aw-btn--accent aw-btn--sm" onClick={onBrief}>
               <AiIcon />
@@ -567,7 +602,7 @@ function BriefEditor({
         ) : null}
         {canEdit ? (
           <button type="button" className="aw-btn aw-btn--accent aw-btn--sm" onClick={onWriter}>
-            Write it in the Agentic Writer →
+            Import into Agentic Writer →
           </button>
         ) : null}
       </div>
@@ -583,4 +618,18 @@ function BriefEditor({
       )}
     </div>
   );
+}
+
+/** How long a brief has run. Past 10 minutes it is stuck: the server gives up on it, and Stop lets you start again now. */
+function BriefClock({ started }: { started: string | null }) {
+  const [now, setNow] = useState(() => Date.now());
+  const [seen] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 15_000);
+    return () => clearInterval(t);
+  }, []);
+  const from = started ? Date.parse(started) : seen;
+  const min = Math.max(0, Math.floor((now - from) / 60_000));
+  if (min >= 10) return <span className="text-[13px] text-neg">This brief looks stuck ({min} min). Stop it and start again.</span>;
+  return <span className="text-[13px] text-muted">{min < 1 ? "Started just now" : `Running for ${min} min`} · most briefs take 2 to 4 minutes</span>;
 }

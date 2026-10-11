@@ -525,7 +525,7 @@ export function ContentCalendar({
       </button>
     </div>
   ) : null;
-  const progress = <PlanProgress sb={sb} site={site} refresh={tick} onRows={onPlan} />;
+  const progress = <PlanProgress sb={sb} site={site} refresh={tick} onRows={onPlan} onStop={canEdit ? (runId) => post(auth, "/api/research/agentic", { action: "stop", runId }).then(() => {}) : undefined} />;
 
   // Before the first plan: what it is, a sample, and one button.
   if (!items.length && !lastDone && !running)

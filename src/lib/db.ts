@@ -421,14 +421,12 @@ export async function getSerp(sb: SupabaseClient, id: string): Promise<{ serp: S
 }
 
 export async function getBrief(sb: SupabaseClient, id: string) {
-  return check(await sb.from("calendar_items").select("keyword, secondary, brief, brief_status, brief_error, brief_at").eq("id", id).single()) as {
-    keyword?: string;
-    secondary?: string[];
-    brief: Brief | null;
-    brief_status: CalendarItem["brief_status"];
-    brief_error: string | null;
-    brief_at: string | null;
-  };
+  type Row = { keyword?: string; secondary?: string[]; brief: Brief | null; brief_status: CalendarItem["brief_status"]; brief_error: string | null; brief_at: string | null; brief_started_at?: string | null };
+  const cols = "keyword, secondary, brief, brief_status, brief_error, brief_at";
+  const res = await sb.from("calendar_items").select(`${cols}, brief_started_at`).eq("id", id).single();
+  // Before supabase/029_brief_started.sql there is no start time. Read without it.
+  if (res.error && /brief_started_at/.test(res.error.message)) return check(await sb.from("calendar_items").select(cols).eq("id", id).single()) as Row;
+  return check(res) as Row;
 }
 
 /** The calendar item for a keyword on a site, made if it is not there yet. Returns its id. */

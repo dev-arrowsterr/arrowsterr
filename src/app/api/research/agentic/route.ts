@@ -3,7 +3,7 @@ import { runAgent } from "@/lib/agent";
 import { dfsReady } from "@/lib/dataforseo";
 import type { Profile } from "@/lib/db";
 import type { PlanBrief } from "@/lib/research";
-import { requireRole, takeAnswer } from "@/lib/serverAuth";
+import { adminClient, requireRole, takeAnswer } from "@/lib/serverAuth";
 import { metered, meteredRoute } from "@/lib/meter";
 import { entitlement, requireTrack } from "@/lib/entitlements";
 import { enqueue, queueReady } from "@/lib/jobs";
@@ -17,6 +17,14 @@ async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
+  if (body.action === "stop") {
+    // Stop a running plan: mark it stopped and drop its queued job. A worker still on it stops saving.
+    const { error } = await auth.sb.from("keyword_runs").update({ status: "failed", error: "Stopped." }).eq("id", String(body.runId ?? "")).eq("workspace_id", body.workspaceId).eq("status", "running");
+    if (error) return Response.json({ error: error.message }, { status: 500 });
+    const db = adminClient();
+    if (db && (await queueReady())) await db.from("jobs").update({ status: "dead", finished_at: new Date().toISOString(), last_error: "Stopped." }).eq("key", `plan:${body.runId}`).in("status", ["queued", "running"]);
+    return Response.json({ ok: true });
+  }
   const paid = await requireTrack(body.workspaceId, "seo");
   if (paid) return paid;
   // The first Content Plan is free on every plan. Paid plans can refresh it once a month.

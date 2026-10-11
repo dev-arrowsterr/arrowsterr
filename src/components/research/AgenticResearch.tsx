@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { keywordRunResult, listKeywordRuns, saveKeywordRunResult, type BankRow, type KeywordRun, type Site } from "@/lib/db";
 import { STAGES, type AgentResult } from "@/lib/research";
 import { useStash } from "@/lib/stash";
+import { StopButton } from "./shared";
 
 const STEPS = [
   "Reading the sitemap",
@@ -78,7 +79,20 @@ export function planRows(res: AgentResult): Omit<BankRow, "id" | "added">[] {
  * A content plan in progress. When it finishes, its rows go into the Content Plan through onRows.
  * `first` is true for the brand's first plan, which gets dates; a monthly refresh only adds ideas.
  */
-export function PlanProgress({ sb, site, refresh, onRows }: { sb: SupabaseClient; site: Site; refresh: number; onRows: (rows: Omit<BankRow, "id" | "added">[], first: boolean) => void }) {
+export function PlanProgress({
+  sb,
+  site,
+  refresh,
+  onRows,
+  onStop,
+}: {
+  sb: SupabaseClient;
+  site: Site;
+  refresh: number;
+  onRows: (rows: Omit<BankRow, "id" | "added">[], first: boolean) => void;
+  /** Stop the running plan. */
+  onStop?: (runId: string) => Promise<void>;
+}) {
   const [runs, setRuns] = useStash<KeywordRun[] | null>(`agentic:${site.id}:runs`, null);
   const [error, setError] = useState("");
   const [now, setNow] = useState(() => Date.now());
@@ -128,6 +142,7 @@ export function PlanProgress({ sb, site, refresh, onRows }: { sb: SupabaseClient
   }, [runs, onRows, setRuns, sb]);
 
   if (error) return <p className="aw-error">{error}</p>;
+  if (run && run.status === "failed" && run.error === "Stopped.") return null;
   if (run && (run.status === "failed" || stale)) return <p className="aw-error">{stale ? "The last content plan stopped before it finished." : `Content plan failed: ${run.error ?? "unknown error"}`}</p>;
   if (!running || !run) return null;
 
@@ -144,6 +159,21 @@ export function PlanProgress({ sb, site, refresh, onRows }: { sb: SupabaseClient
           <span className="aw-h4" role="status" aria-live="polite">
             {run.step || "Starting"}...
           </span>
+          {onStop ? (
+            <span className="ml-auto">
+              <StopButton
+                onStop={async () => {
+                  if (!confirm("Stop building the content plan? You can start it again.")) return;
+                  try {
+                    await onStop(run.id);
+                  } catch (e) {
+                    setError(e instanceof Error ? e.message : String(e));
+                  }
+                  load();
+                }}
+              />
+            </span>
+          ) : null}
         </div>
         <ol className="flex flex-col gap-2">
           {STEPS.map((s, i) => (

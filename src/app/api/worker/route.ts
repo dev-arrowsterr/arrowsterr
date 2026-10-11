@@ -39,7 +39,8 @@ export async function POST(request: Request) {
     // About once an hour: emails for tasks running low and trials ending.
     if (window % 6 === 0) await sendNudges(db).catch((e) => console.error("Nudges failed:", e instanceof Error ? e.message : e));
 
-    const jobs = await claim(WORKER, limit);
+    // A 15-minute lease: a brief or a plan can take several minutes, and must not be picked up twice.
+    const jobs = await claim(WORKER, limit, undefined, 900);
     const done: Record<string, number> = {};
     let failed = 0;
     await pool(jobs, CONCURRENCY, async (job) => {

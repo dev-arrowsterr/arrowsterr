@@ -7,7 +7,7 @@ import type { Stage } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
 import { AiIcon } from "../ui";
-import { Difficulty, fmtNum, post, StageTag } from "./shared";
+import { Difficulty, fmtNum, post, StageTag, StopButton, stopped } from "./shared";
 
 /** A keyword idea from AI visibility gaps, checked for search volume. */
 export type AiIdea = {
@@ -48,7 +48,10 @@ export function useAiIdeas(auth: RunAuth, site: Site, brand: string, chats: Chat
   const [ideas, setIdeas] = useStash<{ list: AiIdea[]; pages: number; at: string } | null>(`ideas:${site.id}`, null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [ctl, setCtl] = useState<AbortController | null>(null);
   async function find() {
+    const c = new AbortController();
+    setCtl(c);
     setBusy(true);
     setError("");
     try {
@@ -63,16 +66,17 @@ export function useAiIdeas(auth: RunAuth, site: Site, brand: string, chats: Chat
           weak: weak.slice(0, 8).map((x) => ({ prompt: x.prompt, position: x.position })),
           planned: planned.slice(0, 200),
         },
-      });
+      }, c.signal);
       setIdeas({ list: out.ideas, pages: out.pages, at: out.at });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (!stopped(e)) setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
     }
   }
+  const stop = () => ctl?.abort();
   const taken = new Set(planned.map((k) => k.toLowerCase()));
-  return { list: (ideas?.list ?? []).filter((i) => !taken.has(i.keyword)), loaded: Boolean(ideas), pages: ideas?.pages ?? 0, busy, error, find };
+  return { list: (ideas?.list ?? []).filter((i) => !taken.has(i.keyword)), loaded: Boolean(ideas), pages: ideas?.pages ?? 0, busy, error, find, stop };
 }
 
 /** One idea as a card you can drag onto a day, or add with the button. */
@@ -114,10 +118,15 @@ export function IdeaList({ state, canEdit, onAdd, addLabel, compact = false }: {
     <div className="flex min-h-0 flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
         <span className="text-[12px] text-muted">{state.loaded ? `${state.list.length} keywords` : null}</span>
-        {canEdit ? (
-          <button type="button" className={`aw-btn aw-btn--sm ${state.loaded ? "aw-btn--secondary" : "aw-btn--accent"}`} onClick={state.find} disabled={state.busy}>
+        {canEdit && state.busy ? (
+          <span className="flex items-center gap-2">
+            <span className="text-[12px] text-muted">Finding...</span>
+            <StopButton onStop={state.stop} />
+          </span>
+        ) : canEdit ? (
+          <button type="button" className={`aw-btn aw-btn--sm ${state.loaded ? "aw-btn--secondary" : "aw-btn--accent"}`} onClick={state.find}>
             <AiIcon />
-            {state.busy ? "Finding..." : state.loaded ? "Refresh" : "Find ideas"}
+            {state.loaded ? "Refresh" : "Find ideas"}
           </button>
         ) : null}
       </div>

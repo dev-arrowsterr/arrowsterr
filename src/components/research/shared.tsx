@@ -128,15 +128,29 @@ export function SerpTags({ serp }: { serp: string[] }) {
 }
 
 /** POST to one of our API routes as the signed-in user. */
-export async function post<T>(auth: RunAuth, path: string, body: Record<string, unknown>): Promise<T> {
+export async function post<T>(auth: RunAuth, path: string, body: Record<string, unknown>, signal?: AbortSignal): Promise<T> {
   const res = await fetch(path, {
     method: "POST",
+    signal,
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${await auth.token()}` },
     body: JSON.stringify({ ...body, workspaceId: auth.workspaceId }),
   });
   const data = await res.json().catch(() => ({ error: `The server returned ${res.status}.` }));
   if (!res.ok) throw new Error(data.error || `Error ${res.status}`);
   return data as T;
+}
+
+/** True when a request failed because someone pressed Stop. */
+export const stopped = (e: unknown) => e instanceof DOMException && e.name === "AbortError";
+
+/** A Stop button for any agent at work. */
+export function StopButton({ onStop, label = "Stop" }: { onStop: () => void; label?: string }) {
+  return (
+    <button type="button" className="aw-stop" onClick={onStop} title="Stop the agent">
+      <span className="aw-stop__sq" aria-hidden="true" />
+      {label}
+    </button>
+  );
 }
 
 /** Save rows as a CSV file. */

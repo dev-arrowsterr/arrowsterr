@@ -15,13 +15,14 @@ import StarterKit from "@tiptap/starter-kit";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { getBrief, getDocMeta, saveDoc, saveDocMeta, saveSite, type Doc, type DocMeta, type Site } from "@/lib/db";
 import type { RunAuth } from "@/lib/runner";
-import { briefGuides, guideKey, type Guide } from "@/lib/writer";
+import type { Brief } from "@/lib/briefTypes";
+import { briefGuides, briefToDoc, guideKey, type Guide } from "@/lib/writer";
 import { AGENT_TASKS, knowledgeText, REWRITES, tasksFor, type AgentTask, type WriterAgentResult } from "@/lib/writerAgent";
 import type { BrandGuideline } from "@/lib/writerTypes";
 import { AiIcon } from "../ui";
 import { bodyOf, railSections, TaskIcon, type RailSection } from "./CommentRail";
 import { PublishPanel } from "./PublishPanel";
-import { post, Tick } from "./shared";
+import { post, StopButton, stopped, Tick } from "./shared";
 import { brandTables, draftText, Toolbar } from "./Writer";
 import { Embed, exportClean, Note } from "./writerNodes";
 
@@ -155,7 +156,8 @@ const SLASH: Slash[] = [
 ];
 
 const countWords = (ed: Editor) => draftText(ed).split(/\s+/).filter(Boolean).length;
-type BriefState = { status: "loading" | "none" | "running" | "done" | "failed"; error?: string; outline?: { h2: string; h3: string[] }[] };
+type BriefState = { status: "loading" | "none" | "running" | "done" | "failed"; error?: string; data?: { keyword: string; secondary: string[]; brief: Brief } };
+const IMPORT_KEY = (docId: string) => `arrowsterr.briefImport.${docId}`;
 
 /** The writer's own draft as a Google Docs-style editor with an agent beside every line. */
 export function DocsEditor({
@@ -166,6 +168,8 @@ export function DocsEditor({
   canEdit,
   guideline,
   onSaved,
+  importBrief = false,
+  onImported,
 }: {
   sb: SupabaseClient;
   auth: RunAuth;
@@ -174,6 +178,9 @@ export function DocsEditor({
   canEdit: boolean;
   guideline: BrandGuideline | null;
   onSaved: (meta: DocMeta) => void;
+  /** Import the brief into this draft as soon as it opens. The draft before it can be put back. */
+  importBrief?: boolean;
+  onImported?: () => void;
 }) {
   const [title, setTitle] = useState(doc.title);
   const [state, setState] = useState<"saved" | "saving" | "error">("saved");
@@ -322,7 +329,7 @@ export function DocsEditor({
       const b = await getBrief(sb, doc.calendar_item_id);
       if (b.brief) {
         setGuides(briefGuides(b.keyword ?? doc.title, b.secondary ?? [], b.brief));
-        setBrief({ status: "done", outline: b.brief.brief.outline.map((o) => ({ h2: o.h2, h3: o.h3 })) });
+        setBrief({ status: "done", data: { keyword: b.keyword ?? doc.title, secondary: b.secondary ?? [], brief: b.brief } });
       } else setBrief({ status: b.brief_status === "running" ? "running" : b.brief_status === "failed" ? "failed" : "none", error: b.brief_error ?? undefined });
     } catch {
       setBrief({ status: "none" });
@@ -347,12 +354,63 @@ export function DocsEditor({
       setBrief({ status: "failed", error: e instanceof Error ? e.message : String(e) });
     }
   }
-  function buildOutline() {
-    if (!editor || !brief.outline?.length) return;
-    const e = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;");
-    const html = brief.outline.map((o) => `<h2>${e(o.h2)}</h2><p></p>${o.h3.map((h) => `<h3>${e(h)}</h3><p></p>`).join("")}`).join("");
-    editor.chain().focus().insertContentAt(editor.state.doc.content.size, html).run();
+  async function stopBrief() {
+    if (!doc.calendar_item_id) return;
+    try {
+      await post(auth, "/api/research/brief", { itemId: doc.calendar_item_id, action: "stop" });
+      setBrief({ status: "failed", error: "Stopped." });
+    } catch (e) {
+      setNote(e instanceof Error ? e.message : String(e));
+    }
   }
+
+  // Import the brief: the draft becomes the brief's outline. The draft from before is kept, in this browser, so it can be put back.
+  const [revertable, setRevertable] = useState(() => {
+    try {
+      return Boolean(localStorage.getItem(IMPORT_KEY(doc.id)));
+    } catch {
+      return false;
+    }
+  });
+  function importTheBrief() {
+    if (!editor || !brief.data) return;
+    try {
+      localStorage.setItem(IMPORT_KEY(doc.id), JSON.stringify({ at: new Date().toISOString(), content: editor.getJSON() }));
+    } catch {
+      // Storage full or blocked. Undo (Ctrl + Z) still brings the draft back in this session.
+    }
+    editor.commands.setContent(briefToDoc(brief.data.keyword, brief.data.secondary, brief.data.brief) as unknown as Record<string, unknown>, true);
+    setRevertable(true);
+    setNote("Brief imported");
+    setTimeout(() => setNote(""), 2500);
+  }
+  function revertImport() {
+    if (!editor) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(IMPORT_KEY(doc.id)) ?? "null") as { content: Record<string, unknown> } | null;
+      if (saved?.content) editor.commands.setContent(saved.content, true);
+      localStorage.removeItem(IMPORT_KEY(doc.id));
+    } catch {
+      editor.commands.undo();
+    }
+    setRevertable(false);
+  }
+  function keepImport() {
+    try {
+      localStorage.removeItem(IMPORT_KEY(doc.id));
+    } catch {}
+    setRevertable(false);
+  }
+  // Asked for from the brief tab: import as soon as both the draft and the brief are ready.
+  const imported = useRef(false);
+  useEffect(() => {
+    if (!importBrief || imported.current || !editor || brief.status !== "done") return;
+    imported.current = true;
+    importTheBrief();
+    onImported?.();
+    // Runs once, when the editor and the brief are both loaded.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [importBrief, editor, brief.status]);
 
   // Full screen closes with Escape; so does the agent card.
   useEffect(() => {
@@ -438,10 +496,14 @@ export function DocsEditor({
     uploadRef.current = upload;
   });
 
-  /** Run one agent job for the open card. */
+  /** Run one agent job for the open card. Stop cancels it and nothing goes into the draft. */
+  const agentStop = useRef<AbortController | null>(null);
   async function run(task: AgentTask, instruction = "") {
     const t = targetRef.current;
     if (!editor || !t) return;
+    agentStop.current?.abort();
+    const ctl = new AbortController();
+    agentStop.current = ctl;
     setCard("busy");
     try {
       if (t.kind === "selection" || (t.kind === "block" && t.type !== "heading" && (task === "rewrite" || task === "paragraph" || task === "custom"))) {
@@ -457,7 +519,7 @@ export function DocsEditor({
           instruction,
           ...textAround(range.from, range.to),
           docText: docText(),
-        });
+        }, ctl.signal);
         setCard({ task: job, html: cleanHtml(out.html), note: out.note, preview: true });
         return;
       }
@@ -467,10 +529,10 @@ export function DocsEditor({
       if (!s) throw new Error("This heading changed. Open it again.");
       const g = guides.get(guideKey(s.heading));
       const guide = [g?.text, ...(g?.points ?? []), ...s.notes, s.subs.length ? `This heading has sub-headings (${s.subs.join("; ")}). Write only the short lead-in that comes before them.` : ""].filter(Boolean).join("\n");
-      const out = await post<WriterAgentResult>(auth, "/api/writer/agent", { siteId: site.id, docId: doc.id, task, heading: s.heading, guide, section: s.text, docText: docText(), instruction });
+      const out = await post<WriterAgentResult>(auth, "/api/writer/agent", { siteId: site.id, docId: doc.id, task, heading: s.heading, guide, section: s.text, docText: docText(), instruction }, ctl.signal);
       setCard({ task, done: await applySection(s, out), note: "note" in out ? out.note : undefined });
     } catch (e) {
-      setCard({ error: e instanceof Error ? e.message : String(e) });
+      setCard(stopped(e) ? "idle" : { error: e instanceof Error ? e.message : String(e) });
     }
   }
 
@@ -564,7 +626,6 @@ export function DocsEditor({
   const sections = layout.sections;
   const canvasH = layout.pages * PITCH - PAGE_GAP;
   const cardTop = targetBlock ? MARGIN + targetBlock.top : MARGIN;
-  const hasOutline = sections.some((s) => s.level === 2);
 
   return (
     <div className={`aw-docs ${full ? "is-full" : ""}`}>
@@ -631,29 +692,49 @@ export function DocsEditor({
         </span>
       </div>
 
-      {canEdit && doc.calendar_item_id && brief.status !== "loading" && !(brief.status === "done" && hasOutline) ? (
+      {canEdit && doc.calendar_item_id && brief.status !== "loading" ? (
         <div className="aw-docs__briefbar">
           {brief.status === "running" ? (
-            <span className="flex items-center gap-2">
-              <span className="aw-spin" aria-hidden="true" />
-              Reading Google&apos;s top 10 and writing the brief. The agent uses it as soon as it is ready.
-            </span>
+            <>
+              <span className="flex items-center gap-2">
+                <span className="aw-spin" aria-hidden="true" />
+                Reading Google&apos;s top 10 and writing the brief. The agent uses it as soon as it is ready.
+              </span>
+              <StopButton onStop={stopBrief} />
+            </>
           ) : brief.status === "done" ? (
             <>
               <span className="flex items-center gap-2">
                 <Tick />
-                The brief is ready. The agent follows it in every section.
+                {revertable ? "The brief is in your draft. Not what you wanted? Put your draft back." : "The brief is ready. The agent follows it in every section."}
               </span>
-              <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={buildOutline}>
-                Build outline from brief
-              </button>
+              <span className="flex items-center gap-2">
+                {revertable ? (
+                  <>
+                    <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={revertImport}>
+                      ↶ Revert import
+                    </button>
+                    <button type="button" className="aw-text-link text-[12px]" onClick={keepImport}>
+                      Keep it
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    className="aw-btn aw-btn--secondary aw-btn--sm"
+                    onClick={() => (!layout.words || confirm("Import the brief? It replaces this draft with the brief's outline. You can revert it.")) && importTheBrief()}
+                  >
+                    Import brief
+                  </button>
+                )}
+              </span>
             </>
           ) : (
             <>
-              <span>{brief.status === "failed" ? `The brief failed: ${brief.error ?? "try again"}` : "No brief yet. With one, the agent knows what Google rewards for this keyword."}</span>
+              <span>{brief.status === "failed" ? (brief.error === "Stopped." ? "The brief was stopped." : `The brief failed: ${brief.error ?? "try again"}`) : "No brief yet. With one, the agent knows what Google rewards for this keyword."}</span>
               <button type="button" className="aw-btn aw-btn--accent aw-btn--sm" onClick={writeBrief}>
                 <AiIcon />
-                Generate brief
+                {brief.status === "failed" ? "Generate brief again" : "Generate brief"}
               </button>
             </>
           )}
@@ -725,6 +806,7 @@ export function DocsEditor({
                 first={target.kind === "block" && target.type === "heading" && sections[0]?.pos === target.pos}
                 state={card}
                 onRun={run}
+                onStop={() => agentStop.current?.abort()}
                 onAccept={accept}
                 onUndo={() => editor?.chain().focus().undo().run()}
                 onClose={close}
@@ -963,6 +1045,7 @@ function AgentCard({
   first,
   state,
   onRun,
+  onStop,
   onAccept,
   onUndo,
   onClose,
@@ -972,6 +1055,7 @@ function AgentCard({
   first: boolean;
   state: CardState;
   onRun: (task: AgentTask, instruction?: string) => void;
+  onStop: () => void;
   onAccept: (mode: "replace" | "below") => void;
   onUndo: () => void;
   onClose: () => void;
@@ -1021,9 +1105,12 @@ function AgentCard({
       ) : null}
 
       {state === "busy" ? (
-        <span className="flex items-center gap-2 py-2 text-[13px] text-muted">
-          <span className="aw-spin" aria-hidden="true" />
-          The agent is writing...
+        <span className="flex items-center justify-between gap-2 py-1 text-[13px] text-muted">
+          <span className="flex items-center gap-2">
+            <span className="aw-spin" aria-hidden="true" />
+            The agent is writing...
+          </span>
+          <StopButton onStop={onStop} />
         </span>
       ) : typeof state === "object" && "error" in state ? (
         <div className="flex flex-col gap-2">

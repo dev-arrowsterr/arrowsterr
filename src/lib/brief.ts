@@ -234,8 +234,24 @@ export async function runSerp(sb: SupabaseClient, itemId: string) {
 
 /** Build the brief for one calendar item and save it. */
 export async function runBrief(sb: SupabaseClient, itemId: string) {
-  const save = (patch: Record<string, unknown>) => sb.from("calendar_items").update(patch).eq("id", itemId);
+  // Only a brief that is still running gets saved, so a brief someone stopped stays stopped.
+  const save = (patch: Record<string, unknown>) => sb.from("calendar_items").update(patch).eq("id", itemId).eq("brief_status", "running");
+  // A brief never runs forever: after 10 minutes it fails and can be started again.
+  let limit: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    limit = setTimeout(() => reject(new Error("The brief took too long. Try again.")), 10 * 60_000);
+  });
   try {
+    await Promise.race([work(), timeout]);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error("Content brief failed:", message);
+    await save({ brief_status: "failed", brief_error: message });
+  } finally {
+    clearTimeout(limit);
+  }
+
+  async function work() {
     const { data: item, error } = await sb.from("calendar_items").select("keyword, secondary, action, current_url, site_id, status").eq("id", itemId).single();
     if (error || !item) throw new Error(error?.message ?? "Item not found.");
     const { data: site, error: e2 } = await sb.from("sites").select("domain, name, profile, pages").eq("id", item.site_id).single();
@@ -256,9 +272,5 @@ export async function runBrief(sb: SupabaseClient, itemId: string) {
     if (!out.analysis || !out.brief) throw new Error("Claude did not return a full brief. Try again.");
     const brief: Brief = { serp, analysis: out.analysis, brief: out.brief, template: out.template, at: new Date().toISOString(), cost: Math.round(g.cost * 1000) / 1000 };
     await save({ ...(had ? {} : { serp, serp_at: brief.at }), brief, brief_status: "done", brief_error: null, brief_at: brief.at, status: item.status === "planned" ? "brief" : item.status });
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    console.error("Content brief failed:", message);
-    await save({ brief_status: "failed", brief_error: message });
   }
 }

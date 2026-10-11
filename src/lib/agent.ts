@@ -184,7 +184,8 @@ Return JSON only: {"articles": [{"url": "...", "keyword": "...", "stage": "bofu"
 
 /** Run the whole research for one site and save progress to keyword_runs as it goes. */
 export async function runAgent(sb: SupabaseClient, runId: string, site: Site) {
-  const save = (patch: Record<string, unknown>) => sb.from("keyword_runs").update(patch).eq("id", runId);
+  // Only a run that is still going gets updated, so a plan someone stopped stays stopped.
+  const save = (patch: Record<string, unknown>) => sb.from("keyword_runs").update(patch).eq("id", runId).eq("status", "running");
   const step = (text: string) => save({ step: text });
   const m: Market = marketOf(site.profile.country);
   const spend = new Spend();
