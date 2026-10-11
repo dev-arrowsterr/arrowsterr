@@ -12,7 +12,7 @@ import { Card, SidePanel, Thinking } from "../ui";
 import { CalendarGrid } from "./CalendarGrid";
 import { ContentPiece, STATUSES, type WriterAccess } from "./ContentPiece";
 import { DayPanel, type NewPiece } from "./DayPanel";
-import { byStage, Difficulty, downloadCsv, FIELD, PLAN_VIEWS, post, STAGE_LABEL, StageTag, statusLabel, ViewSwitch, type PlanView } from "./shared";
+import { byStage, slugify, slugOf, STATUS_PICK, Difficulty, downloadCsv, FIELD, PLAN_VIEWS, post, STAGE_LABEL, StageTag, statusLabel, ViewSwitch, type PlanView } from "./shared";
 import { PlanProgress, planRows } from "./AgenticResearch";
 import { PlanIntro, PlanSample } from "./PlanIntro";
 
@@ -22,21 +22,6 @@ const parse = (s: string) => {
   const [y, m, d] = s.split("-").map(Number);
   return new Date(y, m - 1, d);
 };
-/** Status choices in the sheet. Idea means planned with no day yet. */
-const STATUS_PICK = [
-  { id: "idea", label: "Idea", tone: "aw-status--pending" },
-  { id: "planned", label: "Planned", tone: "aw-status--warn" },
-  { id: "brief", label: "Brief ready", tone: "aw-status--warn", aliases: ["Brief"] },
-  { id: "writing", label: "Writing", tone: "aw-status--warn" },
-  { id: "published", label: "Published", tone: "aw-status--ranked" },
-];
-const slugify = (s: string) => s.toLowerCase().replace(/^\/+/, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-/** The page address this piece should get: one the writer set, or one made from the keyword. */
-const slugOf = (i: CalendarItem) => {
-  const set = i.extra?.slug;
-  return typeof set === "string" && set ? set : `/${slugify(i.keyword)}`;
-};
-
 type Tab = PlanView;
 const VIEW_KEY = "arrowsterr.planView"; // each person's last view, kept in this browser
 const readView = (): Tab => {

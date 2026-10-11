@@ -1,9 +1,44 @@
 "use client";
 
+import { useState } from "react";
 import type { Serp } from "@/lib/briefTypes";
 import { BrandLogo } from "../BrandLogo";
+import { Markdown } from "../Markdown";
 import { favicon } from "../ui";
 import { SerpTags } from "./shared";
+
+const SUP = "⁰¹²³⁴⁵⁶⁷⁸⁹";
+
+/** Google's AI Overview comes back as raw markdown with [[1]](url) citations. Tidy it so it reads like the real thing. */
+function tidy(text: string) {
+  return text
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\[\[(\d+)\]\]\((https?:\/\/[^)\s]+)\)/g, (_, n: string, u: string) => `[${[...n].map((d) => SUP[+d]).join("")}](${u})`)
+    .replace(/\[\[(\d+)\]\]/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function AiOverview({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
+  const clean = tidy(text);
+  if (!clean) return <p className="aw-small">Shown, with no text saved.</p>;
+  const long = clean.length > 900;
+  return (
+    <div className="flex flex-col gap-2">
+      <div className={long && !open ? "relative max-h-[260px] overflow-hidden" : ""}>
+        <Markdown text={clean} />
+        {long && !open ? <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white to-transparent" /> : null}
+      </div>
+      {long ? (
+        <button type="button" className="self-start text-[13px] font-medium text-accent hover:underline" onClick={() => setOpen(!open)}>
+          {open ? "Show less" : "Show more"}
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 const avg = (xs: number[]) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : null);
 
@@ -130,9 +165,10 @@ export function SerpView({ serp, at, country }: { serp: Serp; at: string | null;
             <h3 className="aw-h4">Google&apos;s AI Overview</h3>
           </div>
           <div className="flex flex-col gap-3 p-4">
-            <p className="text-[14px] whitespace-pre-line text-body">{serp.aiOverview.text.slice(0, 1200) || "Shown, with no text saved."}</p>
+            <AiOverview text={serp.aiOverview.text} />
             {serp.aiOverview.cites.length ? (
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap items-center gap-1.5 border-t border-rule-faint pt-3">
+                <span className="aw-small mr-1">Sources</span>
                 {serp.aiOverview.cites.map((c) => (
                   <a key={c.url} href={c.url} target="_blank" rel="noopener noreferrer nofollow" className="aw-chip text-[12px]!">
                     {c.domain}

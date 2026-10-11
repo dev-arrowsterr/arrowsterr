@@ -24,6 +24,21 @@ export function statusLabel(i: { status: "planned" | "brief" | "writing" | "publ
   return i.status === "brief" ? "Brief ready" : i.status === "writing" ? "Writing" : "Published";
 }
 
+/** Status choices for a piece. Idea means planned with no day yet. */
+export const STATUS_PICK = [
+  { id: "idea", label: "Idea", tone: "aw-status--pending" },
+  { id: "planned", label: "Planned", tone: "aw-status--warn" },
+  { id: "brief", label: "Brief ready", tone: "aw-status--warn", aliases: ["Brief"] },
+  { id: "writing", label: "Writing", tone: "aw-status--warn" },
+  { id: "published", label: "Published", tone: "aw-status--ranked" },
+];
+export const slugify = (s: string) => s.toLowerCase().replace(/^\/+/, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+/** The page address a piece should get: one the writer set, or one made from the keyword. */
+export const slugOf = (i: { keyword: string; extra?: Record<string, string | number | null> }) => {
+  const set = i.extra?.slug;
+  return typeof set === "string" && set ? set : `/${slugify(i.keyword)}`;
+};
+
 /** A green tick for something done. */
 export function Tick() {
   return (

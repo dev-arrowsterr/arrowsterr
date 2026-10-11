@@ -11,15 +11,18 @@ import StarterKit from "@tiptap/starter-kit";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Brief, Serp } from "@/lib/briefTypes";
 import { briefDocHtml, wordFile } from "@/lib/briefDoc";
-import { createDoc, getBrief, getDoc, getGuideline, getSerp, listDocs, saveBrief, type CalendarItem, type CalendarStatus, type Doc, type DocMeta, type Site } from "@/lib/db";
+import { createDoc, getBrief, getDoc, getGuideline, getSerp, listDocs, listMembers, saveBrief, type CalendarItem, type CalendarStatus, type Doc, type DocMeta, type Site } from "@/lib/db";
 import type { RunAuth } from "@/lib/runner";
 import { briefToDoc } from "@/lib/writer";
 import type { BrandGuideline } from "@/lib/writerTypes";
 import { AiIcon, Seg, Thinking } from "../ui";
 import { BriefView } from "./BriefView";
 import { SerpView } from "./SerpView";
-import { Difficulty, FIELD, fmtNum, post, StageTag, statusLabel, StopButton, stopped, Tick } from "./shared";
+import { Difficulty, FIELD, fmtCpc, fmtNum, post, slugify, slugOf, STAGE_LABEL, StageTag, STATUS_PICK, statusLabel, StopButton, stopped, Tick } from "./shared";
+import { nextMonday, STAGES } from "@/lib/research";
 import { DocsEditor } from "./DocsEditor";
+
+const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 export const STATUSES: { id: CalendarStatus; label: string }[] = [
   { id: "planned", label: "Planned" },
@@ -64,6 +67,13 @@ export function ContentPiece({
   const [serpBusy, setSerpBusy] = useState(false);
   const [doc, setDoc] = useState<Doc | null>(null);
   const [importNow, setImportNow] = useState(false);
+  // Everyone in the workspace, to pick as the owner.
+  const [members, setMembers] = useState<string[]>([]);
+  useEffect(() => {
+    listMembers(sb, auth.workspaceId)
+      .then((m) => setMembers(m.map((x) => x.email).filter((e): e is string => Boolean(e))))
+      .catch(() => {});
+  }, [sb, auth.workspaceId]);
   const [brief, setBrief] = useState<Awaited<ReturnType<typeof getBrief>> | null>(null);
   const [guideline, setGuideline] = useState<BrandGuideline | null | undefined>(undefined);
   const [drafts, setDrafts] = useState<DocMeta[] | null>(null);
@@ -214,6 +224,8 @@ export function ContentPiece({
       {tab === "overview" ? (
         <Overview
           item={item}
+          site={site}
+          members={members}
           canEdit={canEdit}
           onPatch={onPatch}
           onRemove={onRemove}
@@ -367,8 +379,11 @@ export function ContentPiece({
   );
 }
 
+/** Every detail of a piece, the same as its row in the Content Plan list, editable where the list is. */
 function Overview({
   item,
+  site,
+  members,
   canEdit,
   onPatch,
   onRemove,
@@ -382,6 +397,8 @@ function Overview({
   onWriter,
 }: {
   item: CalendarItem;
+  site: Site;
+  members: string[];
   canEdit: boolean;
   onPatch: (p: Partial<CalendarItem>) => void;
   onRemove: () => void;
@@ -395,20 +412,32 @@ function Overview({
   onWriter: () => void;
 }) {
   const [keyword, setKeyword] = useState(item.keyword);
-  const [owner, setOwner] = useState(item.owner ?? "");
+  const [slug, setSlug] = useState(slugOf(item));
+  const [theme, setTheme] = useState(item.theme ?? "");
+  const [also, setAlso] = useState(item.secondary.join(", "));
   const [notes, setNotes] = useState(item.notes ?? "");
   const [url, setUrl] = useState(item.url ?? "");
-  const field = (label: string, input: React.ReactNode) => (
-    <label className="flex flex-col gap-1.5">
+  const [extra, setExtra] = useState<Record<string, string>>(() => Object.fromEntries((site.profile.columns ?? []).map((c) => [c.id, String(item.extra?.[c.id] ?? "")])));
+  const field = (label: string, input: React.ReactNode, wide = false) => (
+    <label className={`flex flex-col gap-1.5 ${wide ? "sm:col-span-2" : ""}`}>
       <span className="aw-label">{label}</span>
       {input}
     </label>
   );
   const box = `${FIELD} h-10 w-full text-[14px]!`;
+  const status = item.status === "planned" && !item.due_date ? "idea" : item.status;
+  const owners = [...new Set([...(item.owner ? [item.owner] : []), ...members])];
+  const stat = (lab: string, v: React.ReactNode) => (
+    <div className="flex flex-col gap-1 bg-white px-4 py-3">
+      <span className="aw-label">{lab}</span>
+      <span className="text-[15px] text-ink">{v}</span>
+    </div>
+  );
+
   return (
-    <div className="aw-frame grid gap-5 p-6 sm:grid-cols-2">
+    <div className="flex flex-col gap-4">
       {canEdit ? (
-        <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint pb-5 sm:col-span-2">
+        <div className="flex flex-wrap items-center gap-3">
           <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={onSerp} disabled={serpBusy}>
             {hasSerp ? (
               <>
@@ -422,7 +451,7 @@ function Overview({
           </button>
           {brief === "done" ? (
             <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={onOpenBrief}>
-              Open content brief
+              <Tick /> Content brief
             </button>
           ) : brief === "running" ? (
             <span className="flex items-center gap-2">
@@ -440,31 +469,144 @@ function Overview({
           </button>
         </div>
       ) : null}
-      {field("Keyword", <input value={keyword} disabled={!canEdit} onChange={(e) => setKeyword(e.target.value)} onBlur={() => keyword.trim() && keyword !== item.keyword && onPatch({ keyword: keyword.trim() })} className={box} />)}
-      {field(
-        "Status",
-        <select value={item.status} disabled={!canEdit} onChange={(e) => onPatch({ status: e.target.value as CalendarStatus })} className={box}>
-          {STATUSES.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.label}
-            </option>
-          ))}
-        </select>,
-      )}
-      {field("Publish date", <input type="date" value={item.due_date ?? ""} disabled={!canEdit} onChange={(e) => onPatch({ due_date: e.target.value || null })} className={box} />)}
-      {field("Owner", <input value={owner} disabled={!canEdit} onChange={(e) => setOwner(e.target.value)} onBlur={() => owner !== (item.owner ?? "") && onPatch({ owner: owner || null })} placeholder="Who writes it" className={box} />)}
-      {field("Live URL", <input value={url} disabled={!canEdit} onChange={(e) => setUrl(e.target.value)} onBlur={() => url !== (item.url ?? "") && onPatch(url && item.action === "new" ? { url, status: "published" } : { url: url || null })} placeholder="https://" className={box} />)}
-      {field("Also covers", <span className="flex min-h-10 items-center text-[14px] text-body">{item.secondary.join(" · ") || "–"}</span>)}
-      <div className="sm:col-span-2">
-        {field("Notes", <textarea value={notes} disabled={!canEdit} onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== (item.notes ?? "") && onPatch({ notes: notes || null })} rows={4} className="aw-textarea text-[14px]!" />)}
+
+      {/* The numbers from Google, as in the list. */}
+      <div className="grid grid-cols-2 gap-px overflow-hidden rounded-[8px] border border-rule bg-rule sm:grid-cols-3 lg:grid-cols-6">
+        {stat("Volume", <span className="aw-num">{fmtNum(item.volume)} / mo</span>)}
+        {stat("Difficulty", <Difficulty kd={item.difficulty} />)}
+        {stat("CPC", <span className="aw-num">{fmtCpc(item.cpc)}</span>)}
+        {stat("Search intent", <span className="capitalize">{item.intent ?? "–"}</span>)}
+        {stat("Now ranks", item.current_rank ? <span className="aw-rank">#{item.current_rank}</span> : <span className="text-muted">–</span>)}
+        {stat("Source", <span className="capitalize">{item.source ?? "–"}</span>)}
       </div>
-      {canEdit ? (
-        <div className="sm:col-span-2">
-          <button type="button" className="aw-text-link text-[13px] text-neg!" onClick={onRemove}>
-            Remove from calendar
-          </button>
+
+      <div className="aw-frame grid gap-5 p-6 sm:grid-cols-2">
+        {field("Keyword", <input value={keyword} disabled={!canEdit} onChange={(e) => setKeyword(e.target.value)} onBlur={() => keyword.trim() && keyword !== item.keyword && onPatch({ keyword: keyword.trim() })} className={box} />)}
+        {field(
+          "Suggested slug",
+          <input
+            value={slug}
+            disabled={!canEdit}
+            onChange={(e) => setSlug(e.target.value)}
+            onBlur={() => {
+              const next = slug.trim() ? `/${slugify(slug)}` : null;
+              if (next !== slugOf(item)) onPatch({ extra: { ...(item.extra ?? {}), slug: next } });
+              setSlug(next ?? slugOf({ ...item, extra: { ...(item.extra ?? {}), slug: null } }));
+            }}
+            className={`${box} font-mono text-[13px]!`}
+          />,
+        )}
+        {field(
+          "Stage",
+          <select value={item.stage ?? ""} disabled={!canEdit} onChange={(e) => onPatch({ stage: (e.target.value || null) as CalendarItem["stage"] })} className={box}>
+            {STAGES.map((x) => (
+              <option key={x.id} value={x.id}>
+                {STAGE_LABEL[x.id]}
+              </option>
+            ))}
+            <option value="">None</option>
+          </select>,
+        )}
+        {field(
+          "Status",
+          <select
+            value={status}
+            disabled={!canEdit}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === "idea") onPatch({ status: "planned", due_date: null });
+              else onPatch(v === "planned" && !item.due_date ? { status: "planned", due_date: isoDay(nextMonday()) } : { status: v as CalendarStatus });
+            }}
+            className={box}
+          >
+            {STATUS_PICK.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.label}
+              </option>
+            ))}
+          </select>,
+        )}
+        {field("Publish date", <input type="date" value={item.due_date ?? ""} disabled={!canEdit} onChange={(e) => onPatch({ due_date: e.target.value || null })} className={box} />)}
+        {field(
+          "Owner",
+          <select value={item.owner ?? ""} disabled={!canEdit} onChange={(e) => onPatch({ owner: e.target.value || null })} className={box}>
+            <option value="">Unassigned</option>
+            {owners.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>,
+        )}
+        {field(
+          "Job",
+          <select value={item.action} disabled={!canEdit} onChange={(e) => onPatch({ action: e.target.value as CalendarItem["action"] })} className={box}>
+            <option value="new">New page</option>
+            <option value="update">Update page</option>
+          </select>,
+        )}
+        {field("Theme", <input value={theme} disabled={!canEdit} onChange={(e) => setTheme(e.target.value)} onBlur={() => theme !== (item.theme ?? "") && onPatch({ theme: theme.trim() || null })} placeholder="A group of related topics" className={box} />)}
+        {item.action === "update" && item.current_url
+          ? field(
+              "Page to update",
+              <a href={item.current_url} target="_blank" rel="noopener noreferrer" className="flex min-h-10 items-center truncate text-[14px]">
+                {item.current_url.replace(/^https?:\/\/(www\.)?/, "")} ↗
+              </a>,
+            )
+          : null}
+        {field(
+          "Live URL",
+          <input
+            value={url}
+            disabled={!canEdit}
+            onChange={(e) => setUrl(e.target.value)}
+            onBlur={() => url !== (item.url ?? "") && onPatch(url && item.action === "new" ? { url, status: "published" } : { url: url || null })}
+            placeholder="https://"
+            className={box}
+          />,
+        )}
+        {field(
+          "Also covers",
+          <input
+            value={also}
+            disabled={!canEdit}
+            onChange={(e) => setAlso(e.target.value)}
+            onBlur={() => {
+              const list = also.split(",").map((x) => x.trim()).filter(Boolean);
+              if (list.join("|") !== item.secondary.join("|")) onPatch({ secondary: list });
+            }}
+            placeholder="Other keywords this page covers, with commas"
+            className={box}
+          />,
+          true,
+        )}
+        {(site.profile.columns ?? []).map((c) =>
+          field(
+            c.name,
+            <input
+              type={c.type === "date" ? "date" : c.type === "number" ? "number" : "text"}
+              value={extra[c.id] ?? ""}
+              disabled={!canEdit}
+              onChange={(e) => setExtra((x) => ({ ...x, [c.id]: e.target.value }))}
+              onBlur={() => {
+                const v = extra[c.id] ?? "";
+                if (v === String(item.extra?.[c.id] ?? "")) return;
+                onPatch({ extra: { ...(item.extra ?? {}), [c.id]: v === "" ? null : c.type === "number" ? Number(v) : v } });
+              }}
+              className={box}
+            />,
+          ),
+        )}
+        {field("Notes", <textarea value={notes} disabled={!canEdit} onChange={(e) => setNotes(e.target.value)} onBlur={() => notes !== (item.notes ?? "") && onPatch({ notes: notes || null })} rows={4} className="aw-textarea text-[14px]!" />, true)}
+        <div className="flex flex-wrap items-center justify-between gap-3 sm:col-span-2">
+          <span className="text-[12px] text-muted">Added {item.created_at ? new Date(item.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "–"}</span>
+          {canEdit ? (
+            <button type="button" className="aw-text-link text-[13px] text-neg!" onClick={onRemove}>
+              Remove from Content Plan
+            </button>
+          ) : null}
         </div>
-      ) : null}
+      </div>
     </div>
   );
 }
