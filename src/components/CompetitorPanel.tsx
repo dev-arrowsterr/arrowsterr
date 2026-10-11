@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ownMention, type Chat } from "@/lib/chats";
 import { battle, ownsDomain, rankOf, siteOf, type BrandStat } from "@/lib/metrics";
 import { MARKETS, type DomainReport } from "@/lib/research";
@@ -87,6 +87,7 @@ export function CompetitorPanel({
   auth,
   report,
   onReport,
+  seoFirst = false,
   onClose,
 }: {
   s: BrandStat;
@@ -99,6 +100,7 @@ export function CompetitorPanel({
   auth: RunAuth | null;
   report?: DomainReport;
   onReport: (r: DomainReport) => void;
+  seoFirst?: boolean; // open on the SEO deep dive and load it
   onClose: () => void;
 }) {
   const { brand, topics, engines, days } = view;
@@ -122,6 +124,10 @@ export function CompetitorPanel({
   const domain = s.domain?.toLowerCase().replace(/^www\./, "") ?? null;
   const country = brand.profile?.country && MARKETS[brand.profile.country] ? brand.profile.country : "United States";
 
+  const themLogo = favicon(s.domain || guessDomain(s.name));
+  const youLogo = brand.logo || favicon(brand.domain || guessDomain(brand.name));
+  const seoRef = useRef<HTMLElement>(null);
+
   const load = async () => {
     if (!auth || !domain) return;
     setBusy(true);
@@ -135,19 +141,40 @@ export function CompetitorPanel({
     }
   };
 
+  // From All competitors: jump to the SEO deep dive and load it once.
+  const started = useRef(false);
+  useEffect(() => {
+    if (!seoFirst || started.current) return;
+    started.current = true;
+    seoRef.current?.scrollIntoView({ block: "start", behavior: "smooth" });
+    if (!report) queueMicrotask(load);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once on open
+  }, []);
+
+  /** Their value on top, yours under it, each by its logo. */
+  const pair = (v: React.ReactNode, p: string | null) => (
+    <span className="flex flex-col">
+      <span className="aw-num text-[14px] text-ink">{v}</span>
+      {p ? <span className="aw-num text-[12px] text-muted">{p}</span> : null}
+    </span>
+  );
+
   const stat = (lab: string, tip: string | null, v: React.ReactNode, delta: React.ReactNode, mine: string) => (
     <div key={lab} className="aw-stat flex flex-col gap-1.5">
       <div className="aw-stat__lab flex items-center">
         {lab}
         {tip ? <Tip text={tip} /> : null}
       </div>
-      <span className="flex items-baseline gap-2">
+      <span className="flex items-center gap-2">
+        <span title={s.name} className="shrink-0">
+          <BrandLogo src={themLogo} name={s.name} size={20} />
+        </span>
         <span className="aw-stat__num">{v}</span>
         {delta}
       </span>
-      <span className="flex items-center gap-1.5 text-[12px] text-muted">
-        <i className="inline-block h-2 w-2" style={{ background: YOU_COLOR }} aria-hidden="true" />
-        You {mine}
+      <span className="flex items-center gap-2 text-[13px] text-muted" title={brand.name}>
+        <BrandLogo src={youLogo} name={brand.name} size={16} />
+        <span className="aw-num">{mine}</span>
       </span>
     </div>
   );
@@ -161,7 +188,7 @@ export function CompetitorPanel({
       kicker={`Competitor · last ${days} days`}
       title={
         <span className="flex items-center gap-3">
-          <span className="rounded-[10px] border-2 border-ink bg-white p-1 shadow-[3px_3px_0_0_#E8603C]">
+          <span className="rounded-[10px] border-2 border-ink bg-white p-1 shadow-[3px_3px_0_0_#111111]">
             <BrandLogo src={favicon(s.domain || guessDomain(s.name))} name={s.name} size={32} />
           </span>
           <span className="truncate">{s.name}</span>
@@ -181,11 +208,11 @@ export function CompetitorPanel({
           </span>
         ) : null}
         {Math.round(s.visibility) > Math.round(you.visibility) ? (
-          <span className="aw-status aw-status--missed">Ahead of you</span>
+          <span className="aw-status aw-status--missed">Leads you</span>
         ) : Math.round(s.visibility) < Math.round(you.visibility) ? (
-          <span className="aw-status aw-status--ranked">Behind you</span>
+          <span className="aw-status aw-status--ranked">Trails you</span>
         ) : (
-          <span className="aw-status aw-status--pending">Level with you</span>
+          <span className="aw-status aw-status--pending">Tied with you</span>
         )}
       </div>
 
@@ -217,9 +244,18 @@ export function CompetitorPanel({
               <thead className="sticky top-0 z-10">
                 <tr>
                   <th>Prompt</th>
-                  <th className="w-24">Position</th>
-                  <th className="w-24">Them</th>
-                  <th className="w-24">You</th>
+                  <th className="w-36">
+                    <span className="flex min-w-0 items-center gap-1.5 normal-case">
+                      <BrandLogo src={themLogo} name={s.name} size={16} />
+                      <span className="truncate">{s.name}</span>
+                    </span>
+                  </th>
+                  <th className="w-36">
+                    <span className="flex min-w-0 items-center gap-1.5 normal-case">
+                      <BrandLogo src={youLogo} name={brand.name} size={16} />
+                      <span className="truncate">{brand.name}</span>
+                    </span>
+                  </th>
                   <th className="w-24">Won</th>
                   <th className="w-32">Models</th>
                 </tr>
@@ -233,14 +269,8 @@ export function CompetitorPanel({
                         {w.topic ? <span className="text-[12px] text-muted">{w.topic}</span> : null}
                       </span>
                     </td>
-                    <td className="aw-num text-ink">{pos(w.themPos)}</td>
-                    <td className="aw-num">{pct(w.them)}</td>
-                    <td className="aw-num">
-                      <span className="flex flex-col">
-                        <span>{pct(w.you)}</span>
-                        {w.youPos !== null ? <span className="text-[12px] text-muted">{pos(w.youPos)}</span> : null}
-                      </span>
-                    </td>
+                    <td>{pair(pct(w.them), w.themPos !== null ? pos(w.themPos) : null)}</td>
+                    <td>{pair(pct(w.you), w.youPos !== null ? pos(w.youPos) : null)}</td>
                     <td className="aw-num whitespace-nowrap">
                       {w.won} <span className="text-muted">of {w.answers}</span>
                     </td>
@@ -278,11 +308,13 @@ export function CompetitorPanel({
           <span className="flex items-center gap-3 text-[12px] text-muted">
             <span className="flex items-center gap-1.5">
               <i className="inline-block h-2 w-2" style={{ background: B_COLOR }} aria-hidden="true" />
+              <BrandLogo src={themLogo} name={s.name} size={14} />
               {s.name}
             </span>
             <span className="flex items-center gap-1.5">
               <i className="inline-block h-2 w-2" style={{ background: YOU_COLOR }} aria-hidden="true" />
-              You
+              <BrandLogo src={youLogo} name={brand.name} size={14} />
+              {brand.name}
             </span>
           </span>
         </div>
@@ -338,9 +370,9 @@ export function CompetitorPanel({
       </section>
 
       {domain && (auth || report) ? (
-        <section className={SECTION}>
+        <section ref={seoRef} className={`${SECTION} scroll-mt-4`}>
           <div className="aw-frame__head justify-between">
-            <h3 className="aw-h4">SEO performance</h3>
+            <h3 className="aw-h4">SEO performance deep-dive</h3>
             {report ? (
               <span className="aw-micro">
                 {flag(report.country)} {report.country} · {report.domain}

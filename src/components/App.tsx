@@ -714,6 +714,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             <SourcesPage
               key={view.brand.id}
               view={view}
+              sb={sb}
               auth={canEdit ? auth : null}
               reader={auth}
               onSeo={(target, scope) => {

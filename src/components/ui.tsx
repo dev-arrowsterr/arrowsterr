@@ -10,10 +10,10 @@ export const pct = (n: number | null | undefined) => (n === null || n === undefi
 export const pos = (n: number | null | undefined) => (n === null || n === undefined ? "–" : `#${n.toFixed(1)}`);
 export const score = (n: number | null | undefined) => (n === null || n === undefined ? "–" : `${Math.round(n)}`);
 
-// Your brand is the blue series. Competitors use the Perceptric neutrals and gold.
+// Your brand is the blue series. Competitors are black and grays.
 export const YOU_COLOR = "#0943B0";
-export const RIVAL_COLOR = "#E8603C"; // the competitor in any one-on-one view
-export const OTHER_COLORS = ["#F5B70A", "#2B3242", "#D08A4E", "#28A745", "#7C8697", "#B3241A", "#2E6BE0", "#A6AEBB"];
+export const RIVAL_COLOR = "#111111"; // the competitor in any one-on-one view
+export const OTHER_COLORS = ["#111111", "#5C6B89", "#A6AEBB", "#2B3242", "#7C8697", "#3A3A3A", "#8A8A8A", "#C9CED8"];
 
 export function Card({ title, action, children, className = "" }: { title?: React.ReactNode; action?: React.ReactNode; children: React.ReactNode; className?: string }) {
   return (

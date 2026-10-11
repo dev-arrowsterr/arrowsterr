@@ -2,6 +2,7 @@
 import type { DocPublishMeta } from "./writerAgent";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Chat, Run } from "./chats";
+import { isPage } from "./sources";
 import type { AgentResult, PlanBrief } from "./research";
 import { access, effectivePlan, limitsFor, METRICS, nextPlan, periodOf as periodFor, type Extras, type Metric, type PlanId, type Track } from "./plans";
 import type { Brief } from "./briefTypes";
@@ -139,9 +140,9 @@ export async function deleteBrand(sb: SupabaseClient, id: string) {
 /** Runs from the last `days` days, oldest first. */
 export async function listRuns(sb: SupabaseClient, brandId: string, days = 180): Promise<SavedRun[]> {
   const since = new Date(Date.now() - days * 864e5).toISOString();
-  return check(
-    await sb.from("runs").select("id, at, engines, chats").eq("brand_id", brandId).gte("at", since).order("at"),
-  ) as SavedRun[];
+  const runs = check(await sb.from("runs").select("id, at, engines, chats").eq("brand_id", brandId).gte("at", since).order("at")) as SavedRun[];
+  // Older runs saved image links as sources. Drop them here.
+  return runs.map((r) => ({ ...r, chats: (r.chats ?? []).map((c) => ({ ...c, sources: (c.sources ?? []).filter(isPage) })) }));
 }
 
 /** Saved chats drop the long answer text to keep rows small. */
@@ -181,6 +182,16 @@ export async function latestAnswers(sb: SupabaseClient, brandId: string, prompt:
   if (error) return [];
   const seen = new Set<string>();
   return (data as Answer[]).filter((a) => !seen.has(a.engine) && seen.add(a.engine));
+}
+
+/** The latest full answer from each model for each of these prompts. Empty when none are saved. */
+export async function latestAnswersFor(sb: SupabaseClient, brandId: string, prompts: string[], since?: string): Promise<Answer[]> {
+  if (!prompts.length) return [];
+  let q = sb.from("answers").select("engine, prompt, text, at").eq("brand_id", brandId).in("prompt", prompts);
+  if (since) q = q.gte("at", since);
+  const { data, error } = await q.order("at", { ascending: false }).limit(1000);
+  if (error) return [];
+  return data as Answer[];
 }
 
 export async function listMembers(sb: SupabaseClient, workspaceId: string): Promise<Member[]> {

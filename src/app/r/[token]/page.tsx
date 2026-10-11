@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { PrintButton } from "@/components/reports/PrintButton";
+import { CompetitorsDoc } from "@/components/reports/CompetitorsDoc";
 import { PromptsDoc } from "@/components/reports/PromptsDoc";
 import { ReportDoc } from "@/components/reports/ReportDoc";
-import type { PromptsSnapshot, ReportSnapshot } from "@/lib/reportTypes";
+import type { CompetitorsSnapshot, PromptsSnapshot, ReportSnapshot } from "@/lib/reportTypes";
 import { themeOf } from "@/lib/reportTheme";
 import { adminClient } from "@/lib/serverAuth";
 
@@ -22,14 +23,15 @@ export default async function SharedReport({ params }: { params: Promise<{ token
       </main>
     );
   }
-  const isPrompts = (row.data as { kind?: string }).kind === "prompts";
+  const kind = (row.data as { kind?: string }).kind;
+  const isPrompts = kind === "prompts" || kind === "competitors";
   const paper = isPrompts ? undefined : themeOf((row.data as ReportSnapshot).style ?? { color: "" }).paper;
   return (
     <main className="min-h-screen bg-surface-2 py-8 print:bg-white print:py-0" style={paper ? { background: paper } : undefined}>
       <div className="mx-auto mb-4 flex max-w-6xl justify-end px-4 print:hidden">
         <PrintButton />
       </div>
-      {isPrompts ? <PromptsDoc r={row.data as PromptsSnapshot} /> : <ReportDoc r={row.data as ReportSnapshot} />}
+      {kind === "competitors" ? <CompetitorsDoc r={row.data as CompetitorsSnapshot} /> : kind === "prompts" ? <PromptsDoc r={row.data as PromptsSnapshot} /> : <ReportDoc r={row.data as ReportSnapshot} />}
     </main>
   );
 }

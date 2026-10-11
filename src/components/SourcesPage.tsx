@@ -1,6 +1,8 @@
 "use client";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { Fragment, useEffect, useState } from "react";
+import { latestAnswersFor, type Answer } from "@/lib/db";
 import { useStash } from "@/lib/stash";
 import {
   answered,
@@ -24,12 +26,13 @@ import { isAnswered, type Run } from "@/lib/chats";
 import type { View } from "@/lib/view";
 import type { Scope } from "./research/DomainResearch";
 import { BrandLogo } from "./BrandLogo";
-import { ENGINE_LOGOS } from "./Engines";
+import { ENGINE_LOGOS, EngineName } from "./Engines";
+import { Markdown } from "./Markdown";
 import { Card, Empty, favicon, pct, Seg, SidePanel, sortRows, SortTh, Tip, TIPS, useSort } from "./ui";
 
 export const TYPE_COLORS: Record<SourceType, string> = {
   You: "#0943B0",
-  Competitor: "#B3241A",
+  Competitor: "#111111",
   UGC: "#2E6BE0",
   Reviews: "#F5B70A",
   Editorial: "#D08A4E",
@@ -89,7 +92,7 @@ const groupOf = (t: SourceType): Group => (t === "You" ? "owned" : t === "Review
 /** Owned, third-party and review sites the AI answers cite: the share of each, a map of the biggest, and every site and link. */
 type AiPages = { pages: { path: string; visits: number; engines: Record<string, number> }[]; source?: string };
 
-export function SourcesPage({ view, auth, reader, onSeo }: { view: View; auth: RunAuth | null; reader: RunAuth; onSeo: (target: string, scope: Scope) => void }) {
+export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseClient; view: View; auth: RunAuth | null; reader: RunAuth; onSeo: (target: string, scope: Scope) => void }) {
   const { brand, current, filter, days, topics, engines } = view;
   const [group, setGroup] = useState<Group>("third");
   const [list, setList] = useState<"sites" | "links">("sites");
@@ -409,7 +412,7 @@ export function SourcesPage({ view, auth, reader, onSeo }: { view: View; auth: R
         </section>
       ) : null}
 
-      {deep ? <LinkPanel aiVisits={deep.type === "You" ? aiVisitsOf(deep.url) : null} u={deep} runs={current} filter={filter} topics={topics} days={days} onSeo={onSeo} onClose={() => setDeep(null)} /> : null}
+      {deep ? <LinkPanel sb={sb} brandId={brand.id} aiVisits={deep.type === "You" ? aiVisitsOf(deep.url) : null} u={deep} runs={current} filter={filter} topics={topics} days={days} onSeo={onSeo} onClose={() => setDeep(null)} /> : null}
 
       <Card
         title="Executive summary"
@@ -488,6 +491,8 @@ type Cite = { at: string; engine: string; prompt: string };
 
 /** Every answer that cited one link: which prompts and models, how often, and when. */
 function LinkPanel({
+  sb,
+  brandId,
   aiVisits,
   u,
   runs,
@@ -497,6 +502,8 @@ function LinkPanel({
   onSeo,
   onClose,
 }: {
+  sb: SupabaseClient;
+  brandId: string;
   aiVisits: number | null;
   u: UrlRow;
   runs: Run[];
@@ -521,6 +528,34 @@ function LinkPanel({
   const dates = cites.map((c) => c.at).sort();
   const day = (iso?: string) => (iso ? new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "–");
   const most = Math.max(1, ...byEngine.map((e) => e.n));
+
+  // The full answers behind each citation, loaded once the panel opens.
+  const [texts, setTexts] = useState<Answer[] | null>(null);
+  const [shown, setShown] = useState<string | null>(null);
+  const promptKeys = byPrompt.map((p) => p.prompt).join("\n");
+  const since = dates[0];
+  useEffect(() => {
+    let live = true;
+    const list = promptKeys ? promptKeys.split("\n") : [];
+    latestAnswersFor(sb, brandId, list, since ? new Date(Date.parse(since) - 864e5).toISOString() : undefined).then((a) => live && setTexts(a));
+    return () => {
+      live = false;
+    };
+  }, [sb, brandId, promptKeys, since]);
+  /** The latest citing answer from each model for a prompt, with its saved text when there is one. */
+  const answersFor = (prompt: string) =>
+    [...new Set(cites.filter((c) => c.prompt === prompt).map((c) => c.engine))].map((engine) => {
+      const at = cites
+        .filter((c) => c.prompt === prompt && c.engine === engine)
+        .map((c) => c.at)
+        .sort()
+        .pop()!;
+      const t = Date.parse(at);
+      const near = (texts ?? [])
+        .filter((a) => a.prompt === prompt && a.engine === engine)
+        .sort((a, b) => Math.abs(Date.parse(a.at) - t) - Math.abs(Date.parse(b.at) - t))[0];
+      return { engine, at, text: near?.text ?? "" };
+    });
 
   return (
     <SidePanel title={pageTitle(u.title, u.url)} kicker={`Link · ${u.domain} · last ${days} days`} onClose={onClose}>
@@ -552,8 +587,9 @@ function LinkPanel({
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section className="aw-frame">
-          <div className="aw-frame__head">
+          <div className="aw-frame__head justify-between">
             <h3 className="aw-h4">Prompts that cite it</h3>
+            <span className="aw-small">Click a prompt to read the full answers</span>
           </div>
           <table className="aw-table">
             <thead>
@@ -566,10 +602,16 @@ function LinkPanel({
             </thead>
             <tbody>
               {byPrompt.map((p) => (
-                <tr key={p.prompt}>
+                <Fragment key={p.prompt}>
+                <tr className={`cursor-pointer hover:bg-brand-pale ${shown === p.prompt ? "bg-brand-pale" : ""}`} onClick={() => setShown(shown === p.prompt ? null : p.prompt)} aria-expanded={shown === p.prompt}>
                   <td>
                     <span className="flex flex-col gap-0.5">
-                      <span className="text-[14px] text-ink">{p.prompt}</span>
+                      <span className="flex items-start gap-2 text-[14px] text-ink">
+                        <span aria-hidden="true" className="text-muted">
+                          {shown === p.prompt ? "▾" : "▸"}
+                        </span>
+                        {p.prompt}
+                      </span>
                       {topicOf(p.prompt) ? <span className="text-[12px] text-muted">{topicOf(p.prompt)}</span> : null}
                     </span>
                   </td>
@@ -585,6 +627,26 @@ function LinkPanel({
                   </td>
                   <td className="aw-num text-muted">{day(p.last)}</td>
                 </tr>
+                {shown === p.prompt ? (
+                  <tr>
+                    <td colSpan={4} className="bg-paper">
+                      <div className="flex flex-col gap-3 py-2">
+                        {answersFor(p.prompt).map((a) => (
+                          <div key={a.engine} className="aw-frame bg-white">
+                            <div className="flex items-center justify-between gap-3 border-b border-rule-faint px-4 py-2.5">
+                              <EngineName engine={a.engine} size={14} />
+                              <span className="aw-small">Full answer · {day(a.at)}</span>
+                            </div>
+                            <div className="max-h-[480px] overflow-y-auto px-5 py-4">
+                              {texts === null ? <span className="aw-small">Loading...</span> : a.text ? <Markdown text={a.text} /> : <span className="aw-small">No full answer saved for this check.</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </td>
+                  </tr>
+                ) : null}
+                </Fragment>
               ))}
             </tbody>
           </table>

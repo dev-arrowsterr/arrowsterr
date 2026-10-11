@@ -10,6 +10,22 @@ export function domainOf(url: string): string {
   }
 }
 
+// Hosts that serve pictures or files, not pages. ChatGPT links the images it shows in an answer
+// through images.openai.com, so those show up as "sources" though nobody reads them.
+const NOT_PAGES = /(^|\.)(images\.openai\.com|oaiusercontent\.com|encrypted-tbn\d*\.gstatic\.com|gstatic\.com|googleusercontent\.com|ytimg\.com|twimg\.com|fbcdn\.net|cdninstagram\.com|imgur\.com|cloudfront\.net|wp\.com|staticflickr\.com)$/;
+const FILE = /\.(png|jpe?g|gif|webp|svg|avif|ico|bmp|mp4|webm)(\?|#|$)/i;
+
+/** True for real pages a reader could open. False for image hosts and image files. */
+export function isPage(s: { url: string; domain?: string }): boolean {
+  const domain = s.domain || domainOf(s.url);
+  if (NOT_PAGES.test(domain)) return false;
+  try {
+    return !FILE.test(new URL(s.url).pathname);
+  } catch {
+    return false;
+  }
+}
+
 const MD_LINK = /\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/g;
 const BARE_URL = /(?<!\]\()https?:\/\/[^\s)<>\]"']+/g;
 
@@ -35,7 +51,7 @@ export function cleanSources(list: Source[]): Source[] {
       continue;
     }
     const domain = s.domain || domainOf(url);
-    if (!domain || seen.has(url)) continue;
+    if (!domain || seen.has(url) || !isPage({ url, domain })) continue;
     seen.add(url);
     out.push({ url, title: s.title, domain });
   }

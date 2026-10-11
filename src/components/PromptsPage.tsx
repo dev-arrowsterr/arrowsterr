@@ -3,9 +3,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Fragment, useEffect, useRef, useState } from "react";
 import type { Chat } from "@/lib/chats";
-import { flatPrompts, latestAnswers, topicsOf, type Answer, type Brand, type Topic } from "@/lib/db";
+import { flatPrompts, latestAnswers, latestAnswersFor, topicsOf, type Answer, type Brand, type Topic } from "@/lib/db";
 import { answered, brandStats, promptDetail, promptRows, rankOf, stability, topicRows, trend, type EngineCell } from "@/lib/metrics";
-import type { PromptsSnapshot } from "@/lib/reportTypes";
+import type { PromptDetailSnap, PromptsSnapshot } from "@/lib/reportTypes";
 import type { RunAuth } from "@/lib/runner";
 import { MAX_PROMPTS, MAX_TOPICS } from "@/lib/onboarding";
 import type { View } from "@/lib/view";
@@ -13,6 +13,7 @@ import { BrandLogo } from "./BrandLogo";
 import { Gauge } from "./Donut";
 import { ENGINE_LOGOS, EngineName } from "./Engines";
 import { Markdown } from "./Markdown";
+import { ShareIcon, useShare } from "./ShareDialog";
 import { TrendChart } from "./TrendChart";
 import { BrandName, Delta, Empty, favicon, OTHER_COLORS, pct, Seg, Tip, TIPS, YOU_COLOR } from "./ui";
 
@@ -33,9 +34,7 @@ export function PromptsPage(p: Props) {
   const brand = view.brand;
   const all = topicsOf(brand);
   const [newTopic, setNewTopic] = useState<string | null>(null);
-  const [sharing, setSharing] = useState(false);
-  const [link, setLink] = useState("");
-  const [error, setError] = useState("");
+  const { share, dialog, busy: sharing } = useShare(readOnly ? null : p.auth, brand.id);
   const shown = view.engines;
   const total = flatPrompts(all).length;
 
@@ -51,26 +50,6 @@ export function PromptsPage(p: Props) {
         removePrompt: (topic, text) => confirm(`Remove this prompt?\n\n${text}`) && save(all.map((t) => (t.name === topic ? { ...t, prompts: t.prompts.filter((x) => x !== text) } : t))),
       };
 
-  async function share() {
-    setSharing(true);
-    setError("");
-    try {
-      const res = await fetch("/api/reports/share", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${await p.auth.token()}` },
-        body: JSON.stringify({ workspaceId: p.auth.workspaceId, brandId: brand.id, data: promptsSnapshot(view, shown) }),
-      });
-      const out = await res.json().catch(() => ({ error: `The server returned ${res.status}.` }));
-      if (!res.ok) throw new Error(out.error || `Error ${res.status}`);
-      setLink(out.url);
-      navigator.clipboard?.writeText(out.url).catch(() => {});
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSharing(false);
-    }
-  }
-
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -82,27 +61,14 @@ export function PromptsPage(p: Props) {
             </button>
           ) : null}
           {!readOnly ? (
-            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm inline-flex items-center gap-1.5" onClick={share} disabled={sharing}>
+            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm inline-flex items-center gap-1.5" onClick={async () => share("Prompts report", await promptsSnapshot(p.sb, view, shown))} disabled={sharing}>
               <ShareIcon />
               {sharing ? "Creating link..." : "Share"}
             </button>
           ) : null}
         </div>
       </div>
-      {error ? <p className="aw-error">{error}</p> : null}
-      {link ? (
-        <div className="aw-callout flex flex-wrap items-center justify-between gap-3">
-          <span className="break-all">
-            Link copied. Anyone with it can view this report and save it as a PDF:{" "}
-            <a href={link} target="_blank" rel="noopener noreferrer">
-              {link}
-            </a>
-          </span>
-          <button type="button" className="aw-text-link" onClick={() => setLink("")}>
-            Close
-          </button>
-        </div>
-      ) : null}
+      {dialog}
       {newTopic !== null ? (
         <form
           className="aw-frame flex flex-wrap items-center gap-2 p-3"
@@ -129,14 +95,21 @@ export function PromptsPage(p: Props) {
   );
 }
 
-/** A frozen copy of this page for a share link. */
-function promptsSnapshot(view: View, engines: string[]): PromptsSnapshot {
+/** A frozen copy of this page for a share link, with each prompt's deep dive and full answers. */
+async function promptsSnapshot(sb: SupabaseClient, view: View, engines: string[]): Promise<PromptsSnapshot> {
   const { brand, current, filter, topics } = view;
   const chats = answered(current, filter);
   const stats = brandStats(chats, { name: brand.name, domain: brand.domain });
   const me = stats.find((s) => s.isYou);
   const rank = rankOf(stats, "visibility");
   const rows = promptRows(current, topics, engines, brand.name, filter, brand.domain);
+  const since = current.map((r) => r.at).sort()[0];
+  const texts = await latestAnswersFor(sb, brand.id, rows.map((r) => r.prompt), since ? new Date(Date.parse(since) - 864e5).toISOString() : undefined);
+  const textOf = (prompt: string, engine: string) => texts.find((a) => a.prompt === prompt && a.engine === engine)?.text ?? "";
+  const detail = (prompt: string): PromptDetailSnap[] =>
+    promptDetail(current, prompt, engines, { name: brand.name, domain: brand.domain }, filter)
+      .engines.filter((e) => e.answered)
+      .map((e) => ({ engine: e.engine, at: e.at, rank: e.rank, sentiment: e.sentiment, brands: e.brands.slice(0, 15), sources: e.sources.slice(0, 10), text: textOf(prompt, e.engine).slice(0, 8000) }));
   return {
     kind: "prompts",
     brand: { name: brand.name, domain: brand.domain, logo: brand.logo },
@@ -150,7 +123,7 @@ function promptsSnapshot(view: View, engines: string[]): PromptsSnapshot {
       byEngine: t.byEngine,
       prompts: rows
         .filter((r) => r.topic === t.topic)
-        .map((r) => ({ prompt: r.prompt, visibility: r.visibility, at: r.latestAt, ranks: Object.fromEntries(r.latest.map((c) => [c.engine, c.status === "named" ? c.position : null])) })),
+        .map((r) => ({ prompt: r.prompt, visibility: r.visibility, at: r.latestAt, ranks: Object.fromEntries(r.latest.map((c) => [c.engine, c.status === "named" ? c.position : null])), detail: detail(r.prompt) })),
     })),
   };
 }
@@ -286,14 +259,6 @@ function Scores({ view }: { view: View }) {
 }
 
 const GAUGE = { visibility: "var(--aw-brand)", sentiment: "var(--aw-pos)", position: "#7B61C9" } as const;
-
-function ShareIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="square" aria-hidden="true">
-      <path d="M12 3v12M7 8l5-5 5 5M8 11H5v10h14V11h-3" />
-    </svg>
-  );
-}
 
 const ENGINE_SHORT: Record<string, string> = { ChatGPT: "ChatGPT", Claude: "Claude", Gemini: "Gemini", Perplexity: "Perplexity", "AI Overview": "AIO", "AI Mode": "AI Mode" };
 const shortUrl = (u: string) => u.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");

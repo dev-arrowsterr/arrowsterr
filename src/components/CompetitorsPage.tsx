@@ -1,20 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { answered, battle, brandStats, rankOf, topicGrid, trend, type BattleRow, type BrandStat } from "@/lib/metrics";
+import { answered, battle, brandStats, rankOf, rankTrend, topicGrid, trend, type BattleRow, type BrandStat } from "@/lib/metrics";
+import type { CompetitorsSnapshot } from "@/lib/reportTypes";
 import type { DomainReport } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
 import type { View } from "@/lib/view";
 import { BrandLogo } from "./BrandLogo";
 import { B_COLOR, Bar, CompetitorPanel } from "./CompetitorPanel";
 import { EngineName } from "./Engines";
+import { ShareIcon, useShare } from "./ShareDialog";
 import { TrendChart } from "./TrendChart";
 import { BrandName, Card, Delta, Empty, favicon, guessDomain, pct, pos, score, Seg, sortRows, SidePanel, SortTh, Tip, TIPS, useSort, YOU_COLOR } from "./ui";
 
 const MAX_BRANDS = 50;
 const SHOWN = 10; // brands on the chart at first
 
-type Dot = { name: string; domain: string | null; isYou: boolean; visibility: number; position: number };
+export type Dot = { name: string; domain: string | null; isYou: boolean; visibility: number; position: number };
 const SHOWN_ROWS = 9; // rows in the table before View all
 const quadLabel = "text-[12px] font-medium tracking-wide text-ink uppercase";
 
@@ -39,7 +41,7 @@ function RankIcon() {
  * Each brand as its logo, in four quadrants. Up is named more often. Right is named higher in the list.
  * The middle lines are 50% visibility and the middle spot in the list.
  */
-function Quadrant({
+export function Quadrant({
   dots,
   logo,
   picked,
@@ -53,7 +55,7 @@ function Quadrant({
   picked?: string;
   hover: string | null;
   onHover: (n: string | null) => void;
-  onPick: (name: string) => void;
+  onPick?: (name: string) => void;
   crown: string | null;
 }) {
   const worst = Math.max(4, Math.ceil(Math.max(...dots.map((d) => d.position), 1)));
@@ -99,13 +101,13 @@ function Quadrant({
               <button
                 key={d.name}
                 type="button"
-                onClick={() => !d.isYou && onPick(d.name)}
+                onClick={() => !d.isYou && onPick?.(d.name)}
                 onMouseEnter={() => onHover(d.name)}
                 onMouseLeave={() => onHover(null)}
                 onFocus={() => onHover(d.name)}
                 onBlur={() => onHover(null)}
                 aria-label={`${d.name}: visibility ${Math.round(d.visibility)}%, average position #${d.position.toFixed(1)}`}
-                className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-[10px] border-2 bg-white p-1 transition-transform ${d.isYou ? "border-brand shadow-[3px_3px_0_0_var(--aw-brand)]" : picked === d.name ? "border-ink shadow-[3px_3px_0_0_#E8603C]" : "border-ink shadow-[3px_3px_0_0_var(--aw-ink)]"} ${on ? "z-30 -translate-y-[calc(50%+2px)] scale-115" : "z-10 hover:z-30"}`}
+                className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-[10px] border-2 bg-white p-1 transition-transform ${d.isYou ? "border-brand shadow-[3px_3px_0_0_var(--aw-brand)]" : picked === d.name ? "border-ink shadow-[3px_3px_0_0_#111111]" : "border-ink shadow-[3px_3px_0_0_var(--aw-ink)]"} ${on ? "z-30 -translate-y-[calc(50%+2px)] scale-115" : "z-10 hover:z-30"}`}
                 style={{ left: `${x(d.position)}%`, top: `${y(d.visibility)}%` }}
               >
                 {crown === d.name ? (
@@ -187,8 +189,10 @@ export function CompetitorsPage({
   const [b, setB] = useState<string | null>(initial ?? null);
   const [split, setSplit] = useState<"model" | "topic" | "prompt">("model");
   const [h2h, setH2h] = useSort("gap", false);
-  const [metric, setMetric] = useState<"visibility" | "sentiment" | "position">("visibility");
+  const [metric, setMetric] = useState<"visibility" | "sentiment" | "position" | "rank">("visibility");
   const [deep, setDeep] = useState<string | null>(null);
+  const [seoFirst, setSeoFirst] = useState(false);
+  const { share, dialog, busy: sharing } = useShare(auth, brand.id);
   const [seo, setSeo] = useState<Record<string, DomainReport>>({});
 
   if (!chats.length) return <Empty>No results in the last {days} days yet. They show up after the first check finishes, then update every day.</Empty>;
@@ -209,11 +213,19 @@ export function CompetitorsPage({
   const A = find(a) ?? stats.find((s) => s.isYou)!;
   const B = find(b) ?? others.find((s) => s.name !== A.name) ?? stats.find((s) => s.name !== A.name);
   const was = (name: string) => before.find((x) => x.name.toLowerCase() === name.toLowerCase());
-  const open = (name: string) => {
+  const open = (name: string, seo = false) => {
     setB(name);
     setDeep(name);
+    setSeoFirst(seo);
     setFull(false);
   };
+  const snapshot = (): CompetitorsSnapshot => ({
+    kind: "competitors",
+    brand: { name: brand.name, domain: brand.domain, logo: brand.logo },
+    days,
+    at: new Date().toISOString(),
+    rows: top.map((s) => ({ name: s.name, domain: s.domain, isYou: s.isYou, visibility: s.visibility, position: s.position, mentions: s.mentions })),
+  });
   const dive = find(deep);
   const logoOf = (s: BrandStat) => (s.isYou && brand.logo ? brand.logo : favicon(s.domain || guessDomain(s.name)));
   const rankFor = (name: string) => rankOf(stats.map((s) => ({ ...s, isYou: s.name === name })), "visibility");
@@ -227,7 +239,7 @@ export function CompetitorsPage({
     { name: (s) => s.name, visibility: (s) => s.visibility, position: (s) => (s.position === null ? null : -s.position) },
   );
 
-  const brandTable = (rows: typeof listed) => (
+  const brandTable = (rows: typeof listed, seoCol = false) => (
     <table className="aw-table table-fixed">
       <thead className="sticky top-0 z-10">
         <tr>
@@ -252,10 +264,11 @@ export function CompetitorsPage({
             Position
             <Tip text={TIPS.position} />
           </SortTh>
+          {seoCol ? <th className="w-36">SEO</th> : null}
         </tr>
       </thead>
       <tbody>
-        {rows.map((s) => {
+        {rows.map((s, i) => {
           const w = was(s.name);
           return (
             <tr
@@ -269,7 +282,7 @@ export function CompetitorsPage({
               <td onClick={(e) => e.stopPropagation()}>
                 <input type="checkbox" checked={on.has(s.name)} onChange={() => flip(s.name)} aria-label={`Show ${s.name} on the chart`} className="h-4 w-4 accent-[var(--aw-brand)]" />
               </td>
-              <td className="aw-num text-muted">{top.indexOf(s) + 1}</td>
+              <td className="aw-num text-muted">{i + 1}</td>
               <td className="truncate">
                 <span className="flex items-center gap-1">
                   {best === s.name ? (
@@ -286,12 +299,23 @@ export function CompetitorsPage({
               <td className="aw-num whitespace-nowrap">
                 {pos(s.position)} {hadBefore && w ? <Delta now={s.position} before={w.position} lowerIsBetter /> : null}
               </td>
+              {seoCol ? (
+                <td onClick={(e) => e.stopPropagation()}>
+                  {!s.isYou && s.domain && auth ? (
+                    <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm whitespace-nowrap" onClick={() => open(s.name, true)} title={`Research ${s.domain} on Google`}>
+                      SEO deep-dive
+                    </button>
+                  ) : (
+                    <span className="text-muted">–</span>
+                  )}
+                </td>
+              ) : null}
             </tr>
           );
         })}
         {!rows.length ? (
           <tr>
-            <td colSpan={5} className="aw-small">
+            <td colSpan={seoCol ? 6 : 5} className="aw-small">
               No brand matches “{query}”.
             </td>
           </tr>
@@ -325,8 +349,14 @@ export function CompetitorsPage({
       <h1 className="aw-h2">Competitors</h1>
 
       <section className="aw-frame">
-        <div className="aw-frame__head">
+        <div className="aw-frame__head justify-between">
           <h2 className="aw-h4">Competitive analysis</h2>
+          {auth ? (
+            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm inline-flex items-center gap-1.5" onClick={() => share("Competitive analysis", snapshot())} disabled={sharing}>
+              <ShareIcon />
+              Share
+            </button>
+          ) : null}
         </div>
         <div className="grid xl:h-[600px] xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
           {/* Left: every brand, with search and a box to show it on the chart */}
@@ -353,10 +383,12 @@ export function CompetitorsPage({
         </div>
       </section>
 
+      {dialog}
+
       {full ? (
         <SidePanel title="All competitors" kicker={`${listed.length} brands · last ${days} days`} onClose={() => setFull(false)}>
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search brands" aria-label="Search all brands" className="aw-input max-w-md py-1.5! text-[14px]!" />
-          <div className="border border-rule">{brandTable(listed)}</div>
+          <div className="border border-rule">{brandTable(listed, true)}</div>
           {hidden ? <p className="aw-small mt-3">{hidden} more on a bigger plan</p> : null}
         </SidePanel>
       ) : null}
@@ -374,6 +406,7 @@ export function CompetitorsPage({
           auth={auth}
           report={dive.domain ? seo[dive.domain.toLowerCase()] : undefined}
           onReport={(r) => setSeo((m) => ({ ...m, [dive.domain!.toLowerCase()]: r }))}
+          seoFirst={seoFirst}
           onClose={() => setDeep(null)}
         />
       ) : null}
@@ -449,7 +482,7 @@ export function CompetitorsPage({
               { id: "sentiment" as const, lab: "Sentiment", tip: TIPS.sentiment, f: (s: BrandStat) => score(s.sentiment), d: (s: BrandStat) => (hadBefore && was(s.name) ? <Delta now={s.sentiment} before={was(s.name)!.sentiment} digits={0} /> : null) },
               { id: "position" as const, lab: "Position", tip: TIPS.position, f: (s: BrandStat) => pos(s.position), d: (s: BrandStat) => (hadBefore && was(s.name) ? <Delta now={s.position} before={was(s.name)!.position} lowerIsBetter /> : null) },
               {
-                id: null,
+                id: "rank" as const,
                 lab: "Rank by visibility",
                 tip: "Place among all brands named in this period, by visibility.",
                 f: (s: BrandStat) => {
@@ -483,21 +516,17 @@ export function CompetitorsPage({
                   ))}
                 </>
               );
-              return m.id ? (
+              return (
                 <button
                   key={m.lab}
                   type="button"
                   role="tab"
                   aria-selected={active}
-                  onClick={() => setMetric(m.id!)}
+                  onClick={() => setMetric(m.id)}
                   className={`flex cursor-pointer flex-col gap-3 px-6 py-5 text-left transition-colors ${active ? "bg-brand-pale shadow-[inset_0_-3px_0_var(--aw-brand)]" : "bg-white hover:bg-surface-2 hover:shadow-[inset_0_-3px_0_var(--aw-rule)]"}`}
                 >
                   {body}
                 </button>
-              ) : (
-                <div key={m.lab} className="flex flex-col gap-3 bg-white px-6 py-5">
-                  {body}
-                </div>
               );
             })}
           </div>
@@ -505,7 +534,7 @@ export function CompetitorsPage({
           <div className="border-t border-rule-faint px-4 pt-4 pb-2">
             <TrendChart
               wide
-              points={trend(current, [A.name, B.name], metric, filter)}
+              points={metric === "rank" ? rankTrend(current, [A.name, B.name], filter, you) : trend(current, [A.name, B.name], metric, filter)}
               metric={metric}
               mode="line"
               lines={[

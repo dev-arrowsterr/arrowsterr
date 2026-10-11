@@ -16,7 +16,7 @@ const Stat = ({ lab, v, d }: { lab: string; v: string; d?: string }) => (
 function VisibilityDemo() {
   const rivals: [string, number, string][] = [
     ["You", 46, "#0943B0"],
-    ["Rival A", 38, "#E8603C"],
+    ["Rival A", 38, "#111111"],
     ["Rival B", 27, "#2B3242"],
     ["Rival C", 19, "#A6AEBB"],
   ];

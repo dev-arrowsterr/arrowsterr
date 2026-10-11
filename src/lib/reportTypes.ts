@@ -60,6 +60,26 @@ export type PromptsSnapshot = {
     name: string;
     visibility: number | null;
     byEngine: Record<string, number | null>;
-    prompts: { prompt: string; visibility: number | null; ranks: Record<string, number | null>; at: string | null }[];
+    prompts: { prompt: string; visibility: number | null; ranks: Record<string, number | null>; at: string | null; detail?: PromptDetailSnap[] }[];
   }[];
+};
+
+/** One model's latest answer to a prompt, frozen for a share link. */
+export type PromptDetailSnap = {
+  engine: string;
+  at: string | null;
+  rank: number | null;
+  sentiment: number | null;
+  brands: { name: string; domain: string | null; position: number; isYou: boolean }[];
+  sources: { url: string; title: string | null; domain: string; isYou: boolean }[];
+  text: string;
+};
+
+/** The Competitive analysis table and quadrant, frozen for a share link. */
+export type CompetitorsSnapshot = {
+  kind: "competitors";
+  brand: { name: string; domain: string; logo?: string };
+  days: number;
+  at: string;
+  rows: { name: string; domain: string | null; isYou: boolean; visibility: number; position: number | null; mentions: number }[];
 };

@@ -98,6 +98,29 @@ export function trend(runs: Run[], names: string[], m: Metric, filter: Filter): 
     });
 }
 
+/** One point per day: each brand's place among all brands named that day, by visibility. */
+export function rankTrend(runs: Run[], names: string[], filter: Filter, you: { name: string; domain: string }): Point[] {
+  const byDay = new Map<string, Chat[]>();
+  for (const r of runs) {
+    const day = r.at.slice(0, 10);
+    byDay.set(day, [...(byDay.get(day) ?? []), ...r.chats.filter((c) => filter(c) && isAnswered(c))]);
+  }
+  return [...byDay.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .filter(([, chats]) => chats.length)
+    .map(([day, chats]) => {
+      const order = brandStats(chats, you)
+        .filter((b) => b.mentions > 0)
+        .sort((a, b) => b.visibility - a.visibility);
+      const values: Record<string, number | null> = {};
+      for (const n of names) {
+        const i = order.findIndex((b) => same(b.name, n));
+        values[n] = i < 0 ? null : i + 1;
+      }
+      return { label: new Date(`${day}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric" }), at: day, values };
+    });
+}
+
 // ─────────────── sources ───────────────
 
 export type SourceType = "You" | "Competitor" | "UGC" | "Reviews" | "Editorial" | "Reference" | "Corporate";

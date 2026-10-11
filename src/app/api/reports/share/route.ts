@@ -6,7 +6,7 @@ export async function POST(request: Request) {
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
   const data = body.data;
-  if (!data || typeof data !== "object" || JSON.stringify(data).length > 1_000_000) return Response.json({ error: "Nothing to share." }, { status: 400 });
+  if (!data || typeof data !== "object" || JSON.stringify(data).length > 3_000_000) return Response.json({ error: "Nothing to share." }, { status: 400 });
   const { data: row, error } = await auth.sb
     .from("shared_reports")
     .insert({ workspace_id: body.workspaceId, brand_id: body.brandId ?? null, data })
