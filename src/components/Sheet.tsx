@@ -1,18 +1,26 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { sortRows, useSort, type Sort } from "./ui";
 
-// A spreadsheet: click a column name to sort (again to flip), type in the row under it to filter.
-// Numbers and dates filter with =, >, ≥, <, ≤ or between, picked from a menu. Lists filter with a dropdown. Text filters by "contains".
-// Like Google Sheets: show, hide and move columns, drag a column edge to resize, click a cell to edit it.
-// The keyboard works like Sheets too: arrows, Tab, Enter, Home, End, Page Up and Down, Shift to select a range,
-// Ctrl or Cmd with C, X, V, Z and A, Delete to clear, and Shift+Space to pick rows. The layout is saved per sheet in this browser.
+// A spreadsheet that works like Google Sheets.
+// Click a cell to edit it. Lists and dates open a picker in Arrowsterr's style.
+// Click a column name for its menu: sort A to Z or Z to A, filter by condition, filter by values.
+// The keyboard works like Sheets: arrows, Tab, Enter, Home, End, Page Up and Down, Shift to select a range,
+// Ctrl or Cmd with C, X, V, Z and A, Delete to clear, and Shift+Space to pick rows.
+// Show, hide, move and resize columns. The layout is saved per sheet in this browser.
 
 type Value = string | number | null | undefined;
+export type Option = {
+  id: string;
+  label: string;
+  /** Other words that mean this option when pasted. */ aliases?: string[];
+  /** A status class for the chip. */ tone?: string;
+};
 export type Edit<T> = {
   kind: "text" | "number" | "date" | "select";
-  options?: { id: string; label: string }[];
+  options?: Option[];
   /** The value the editor starts with. Defaults to the column value. */
   value?: (row: T) => string;
   save: (row: T, value: string | null) => void;
@@ -31,7 +39,11 @@ export type Col<T> = {
   /** A column the user added, which they can delete. */
   onRemove?: () => void;
 };
-type Layout = { hidden: string[]; order: string[]; widths: Record<string, number> };
+type Layout = {
+  hidden: string[];
+  order: string[];
+  widths: Record<string, number>;
+};
 const EMPTY: Layout = { hidden: [], order: [], widths: {} };
 const KEY = (id: string) => `arrowsterr.sheet.${id}`;
 
@@ -44,77 +56,454 @@ function readLayout(id?: string): Layout {
   }
 }
 
-function numberMatch(v: Value, f: string) {
-  if (typeof v !== "number") return false;
-  const s = f.replace(/[\s,]/g, "");
-  let m: RegExpMatchArray | null;
-  if ((m = s.match(/^(>=|<=|>|<|=)?(-?\d+(?:\.\d+)?)$/))) {
-    const n = Number(m[2]);
-    return m[1] === ">" ? v > n : m[1] === "<" ? v < n : m[1] === ">=" ? v >= n : m[1] === "<=" ? v <= n : v === n;
-  }
-  if ((m = s.match(/^(-?\d+(?:\.\d+)?)-(-?\d+(?:\.\d+)?)$/))) return v >= Number(m[1]) && v <= Number(m[2]);
-  return true;
-}
+const show = (v: Value) => (v === null || v === undefined || v === "" ? <span className="text-muted">–</span> : typeof v === "number" ? v.toLocaleString("en-US") : v);
+const keyOf = (v: Value) => (v === null || v === undefined ? "" : String(v));
+const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-/** Dates filter like numbers, compared as YYYY-MM-DD text. Between is "a..b". */
-function dateMatch(v: Value, f: string) {
-  if (!v) return false;
-  const d = String(v).slice(0, 10);
-  const [op, a, b] = parseCond(f);
-  if (!a) return true;
-  return op === "between" ? d >= a && (!b || d <= b) : op === ">" ? d > a : op === ">=" ? d >= a : op === "<" ? d < a : op === "<=" ? d <= a : d === a;
-}
+// ── Filters, the way Google Sheets does them ──
 
-type Op = "=" | ">" | ">=" | "<" | "<=" | "between";
-const OPS: { id: Op; label: string }[] = [
-  { id: "=", label: "=" },
-  { id: ">", label: ">" },
-  { id: ">=", label: "≥" },
-  { id: "<", label: "<" },
-  { id: "<=", label: "≤" },
-  { id: "between", label: "↔" },
+type CondOp =
+  | "empty"
+  | "notEmpty"
+  | "contains"
+  | "notContains"
+  | "starts"
+  | "ends"
+  | "exactly"
+  | "dateIs"
+  | "dateBefore"
+  | "dateAfter"
+  | "gt"
+  | "gte"
+  | "lt"
+  | "lte"
+  | "eq"
+  | "neq"
+  | "between"
+  | "notBetween";
+const CONDS: { id: CondOp; label: string; args: 0 | 1 | 2 }[] = [
+  { id: "empty", label: "Is empty", args: 0 },
+  { id: "notEmpty", label: "Is not empty", args: 0 },
+  { id: "contains", label: "Text contains", args: 1 },
+  { id: "notContains", label: "Text does not contain", args: 1 },
+  { id: "starts", label: "Text starts with", args: 1 },
+  { id: "ends", label: "Text ends with", args: 1 },
+  { id: "exactly", label: "Text is exactly", args: 1 },
+  { id: "dateIs", label: "Date is", args: 1 },
+  { id: "dateBefore", label: "Date is before", args: 1 },
+  { id: "dateAfter", label: "Date is after", args: 1 },
+  { id: "gt", label: "Greater than", args: 1 },
+  { id: "gte", label: "Greater than or equal to", args: 1 },
+  { id: "lt", label: "Less than", args: 1 },
+  { id: "lte", label: "Less than or equal to", args: 1 },
+  { id: "eq", label: "Is equal to", args: 1 },
+  { id: "neq", label: "Is not equal to", args: 1 },
+  { id: "between", label: "Is between", args: 2 },
+  { id: "notBetween", label: "Is not between", args: 2 },
 ];
-/** "op|a|b" from the filter menu. Older typed filters like ">100" or "10-50" still work in numberMatch. */
-function parseCond(f: string): [Op, string, string] {
-  const [op, a = "", b = ""] = f.split("|");
-  return [(OPS.some((o) => o.id === op) ? op : "=") as Op, a, b];
+type Cond = { op: CondOp; a: string; b: string };
+type Filter = { cond?: Cond; vals?: string[] };
+
+function condMatch(v: Value, c: Cond): boolean {
+  const s = keyOf(v);
+  const t = s.toLowerCase();
+  const a = c.a.trim().toLowerCase();
+  const num = (x: string) => Number(x.replace(/[,\s$%#]/g, ""));
+  const n = typeof v === "number" ? v : num(s);
+  const cmp = (x: string) => (typeof v === "number" || (s !== "" && !Number.isNaN(n) && !/^\d{4}-\d{2}-\d{2}/.test(s)) ? n - num(x) : s.localeCompare(x));
+  switch (c.op) {
+    case "empty":
+      return s === "";
+    case "notEmpty":
+      return s !== "";
+    case "contains":
+      return t.includes(a);
+    case "notContains":
+      return !t.includes(a);
+    case "starts":
+      return t.startsWith(a);
+    case "ends":
+      return t.endsWith(a);
+    case "exactly":
+      return t === a;
+    case "dateIs":
+      return s.slice(0, 10) === c.a;
+    case "dateBefore":
+      return s !== "" && s.slice(0, 10) < c.a;
+    case "dateAfter":
+      return s !== "" && s.slice(0, 10) > c.a;
+    case "gt":
+      return s !== "" && cmp(c.a) > 0;
+    case "gte":
+      return s !== "" && cmp(c.a) >= 0;
+    case "lt":
+      return s !== "" && cmp(c.a) < 0;
+    case "lte":
+      return s !== "" && cmp(c.a) <= 0;
+    case "eq":
+      return s !== "" && cmp(c.a) === 0;
+    case "neq":
+      return s === "" || cmp(c.a) !== 0;
+    case "between":
+      return s !== "" && cmp(c.a) >= 0 && cmp(c.b) <= 0;
+    case "notBetween":
+      return s === "" || cmp(c.a) < 0 || cmp(c.b) > 0;
+  }
 }
-function condToNumber(f: string) {
-  if (!f.includes("|")) return f;
-  const [op, a, b] = parseCond(f);
-  if (!a && !(op === "between" && b)) return "";
-  if (op === "between") return `${a || "-999999999999"}-${b || "999999999999"}`;
-  return op === "=" ? a : `${op}${a}`;
+const condReady = (c?: Cond) => Boolean(c && (CONDS.find((x) => x.id === c.op)?.args === 0 || c.a.trim()));
+const filterOn = (f?: Filter) => Boolean(f && (condReady(f.cond) || f.vals));
+
+/** The root that holds Arrowsterr's styles, so pop-ups opened in a portal look right. */
+const portalRoot = () => (typeof document === "undefined" ? null : ((document.querySelector(".aw") as HTMLElement | null) ?? document.body));
+
+/** A pop-up under a cell or a column name, kept on screen. Closes on a click outside or Escape. */
+function Pop({ anchor, onClose, children, width = 260, label }: { anchor: DOMRect; onClose: () => void; children: React.ReactNode; width?: number; label: string }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [pos, setPos] = useState({ left: anchor.left, top: anchor.bottom + 4 });
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const h = el.offsetHeight;
+    const left = Math.max(8, Math.min(anchor.left, window.innerWidth - width - 8));
+    const below = anchor.bottom + 4;
+    const top = below + h > window.innerHeight - 8 && anchor.top - h - 4 > 8 ? anchor.top - h - 4 : Math.max(8, Math.min(below, window.innerHeight - h - 8));
+    setPos({ left, top });
+  }, [anchor, width]);
+  useEffect(() => {
+    const down = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && onClose();
+    const key = (e: KeyboardEvent) => e.key === "Escape" && (e.stopPropagation(), onClose());
+    const t = setTimeout(() => document.addEventListener("mousedown", down), 0);
+    document.addEventListener("keydown", key, true);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener("mousedown", down);
+      document.removeEventListener("keydown", key, true);
+    };
+  }, [onClose]);
+  const root = portalRoot();
+  if (!root) return null;
+  return createPortal(
+    <div ref={ref} role="dialog" aria-label={label} className="aw-pop" style={{ left: pos.left, top: pos.top, width }} onMouseDown={(e) => e.stopPropagation()}>
+      {children}
+    </div>,
+    root,
+  );
 }
 
-/** The filter under a number or date column: pick a comparison, then type one value, or two for between. */
-function CondFilter({ label, value, type, onChange }: { label: string; value: string; type: "number" | "date"; onChange: (v: string) => void }) {
-  const [op, a, b] = parseCond(value);
-  const set = (o: Op, x: string, y: string) => onChange(x || y ? `${o}|${x}|${y}` : o === "=" ? "" : `${o}||`);
-  const input = (v: string, on: (x: string) => void, ph: string, name: string) => (
-    <input aria-label={`${label} ${name}`} type={type === "date" ? "date" : "text"} inputMode={type === "number" ? "decimal" : undefined} value={v} onChange={(e) => on(e.target.value.replace(type === "number" ? /[^\d.\-]/g : /$^/, ""))} placeholder={ph} className="min-w-0 flex-1" />
+/** Pick one option, in Arrowsterr's style. Type to narrow, arrows to move, Enter to pick. */
+function SelectPop({ anchor, options, value, onPick, onClose, label }: { anchor: DOMRect; options: Option[]; value: string; onPick: (id: string) => void; onClose: () => void; label: string }) {
+  const [q, setQ] = useState("");
+  const list = options.filter((o) => !q || o.label.toLowerCase().includes(q.toLowerCase()));
+  const [i, setI] = useState(
+    Math.max(
+      0,
+      list.findIndex((o) => o.id === value),
+    ),
   );
   return (
-    <span className="aw-cond flex flex-wrap items-center gap-1">
-      <select aria-label={`${label} comparison`} value={op} onChange={(e) => set(e.target.value as Op, a, b)} className="w-11! shrink-0 px-1! text-center">
-        {OPS.map((o) => (
-          <option key={o.id} value={o.id} title={o.id === "between" ? "between" : o.id}>
-            {o.label}
-          </option>
+    <Pop anchor={anchor} onClose={onClose} label={label} width={Math.max(200, anchor.width)}>
+      {options.length > 7 ? (
+        <input
+          autoFocus
+          value={q}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setI(0);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              setI((x) => Math.min(list.length - 1, x + 1));
+            }
+            if (e.key === "ArrowUp") {
+              e.preventDefault();
+              setI((x) => Math.max(0, x - 1));
+            }
+            if (e.key === "Enter" && list[i]) onPick(list[i].id);
+          }}
+          placeholder="Search"
+          aria-label="Search options"
+          className="aw-pop__search"
+        />
+      ) : null}
+      <ul
+        role="listbox"
+        aria-label={label}
+        tabIndex={options.length > 7 ? -1 : 0}
+        ref={(el) => {
+          if (el && options.length <= 7 && document.activeElement !== el) el.focus();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setI((x) => Math.min(list.length - 1, x + 1));
+          }
+          if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setI((x) => Math.max(0, x - 1));
+          }
+          if (e.key === "Enter" && list[i]) {
+            e.preventDefault();
+            onPick(list[i].id);
+          }
+        }}
+        className="aw-pop__list outline-none"
+      >
+        {list.map((o, k) => (
+          <li key={o.id || "none"} role="option" aria-selected={o.id === value}>
+            <button type="button" className={`aw-pop__opt ${k === i ? "is-hot" : ""}`} onMouseEnter={() => setI(k)} onClick={() => onPick(o.id)}>
+              {o.tone ? <span className={`aw-status ${o.tone}`}>{o.label}</span> : <span>{o.label}</span>}
+              {o.id === value ? <span className="aw-pop__check">✓</span> : null}
+            </button>
+          </li>
         ))}
-      </select>
-      {input(a, (x) => set(op, x, b), op === "between" ? "from" : "any", "value")}
-      {op === "between" ? input(b, (y) => set(op, a, y), "to", "to") : null}
-    </span>
+        {!list.length ? <li className="px-3 py-2 text-[12px] text-muted">No match</li> : null}
+      </ul>
+    </Pop>
   );
 }
 
-const show = (v: Value) => (v === null || v === undefined || v === "" ? <span className="text-muted">–</span> : typeof v === "number" ? v.toLocaleString("en-US") : v);
+/** A month to pick a date from, in Arrowsterr's style. */
+function DatePop({ anchor, value, onPick, onClose, label }: { anchor: DOMRect; value: string; onPick: (v: string | null) => void; onClose: () => void; label: string }) {
+  const start = value ? new Date(`${value}T00:00:00`) : new Date();
+  const [month, setMonth] = useState(new Date(start.getFullYear(), start.getMonth(), 1));
+  const first = new Date(month);
+  first.setDate(1 - ((month.getDay() + 6) % 7));
+  const days = Array.from({ length: 42 }, (_, i) => {
+    const d = new Date(first);
+    d.setDate(first.getDate() + i);
+    return d;
+  });
+  const today = iso(new Date());
+  return (
+    <Pop anchor={anchor} onClose={onClose} label={label} width={264}>
+      <div className="flex items-center justify-between px-2 pt-1 pb-2">
+        <button type="button" className="aw-pop__nav" aria-label="Previous month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>
+          ‹
+        </button>
+        <span className="text-[13px] font-medium text-ink">
+          {month.toLocaleDateString("en-US", {
+            month: "long",
+            year: "numeric",
+          })}
+        </span>
+        <button type="button" className="aw-pop__nav" aria-label="Next month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}>
+          ›
+        </button>
+      </div>
+      <div className="grid grid-cols-7 gap-0.5 px-2 text-center">
+        {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
+          <span key={i} className="py-1 text-[11px] text-muted">
+            {d}
+          </span>
+        ))}
+        {days.map((d) => {
+          const k = iso(d);
+          return (
+            <button
+              key={k}
+              type="button"
+              onClick={() => onPick(k)}
+              className={`aw-pop__day ${d.getMonth() === month.getMonth() ? "" : "is-out"} ${k === value ? "is-on" : ""} ${k === today ? "is-today" : ""}`}
+            >
+              {d.getDate()}
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-2 flex justify-between border-t border-rule-faint px-2 pt-2">
+        <button type="button" className="aw-text-link text-[12px]" onClick={() => onPick(today)}>
+          Today
+        </button>
+        <button type="button" className="aw-text-link text-[12px] text-neg!" onClick={() => onPick(null)}>
+          Clear date
+        </button>
+      </div>
+    </Pop>
+  );
+}
 
-/** The editor for one cell. Enter or leaving the cell saves. Tab saves and moves right. Escape cancels. */
-function CellEditor<T>({ row, col, init, onDone }: { row: T; col: Col<T>; init: string | null; onDone: (move?: [number, number]) => void }) {
+/** The column menu: sort, filter by condition, filter by values. Like Google Sheets, without color. */
+function ColumnMenu<T>({
+  anchor,
+  col,
+  rows,
+  filter,
+  canFilter,
+  onSort,
+  onApply,
+  onHide,
+  onClose,
+}: {
+  anchor: DOMRect;
+  col: Col<T>;
+  rows: T[];
+  filter?: Filter;
+  canFilter: boolean;
+  onSort: (desc: boolean) => void;
+  onApply: (f: Filter | undefined) => void;
+  onHide: () => void;
+  onClose: () => void;
+}) {
+  const all = [...new Set(rows.map((r) => keyOf(col.value(r))))].sort((a, b) => (a === "" ? -1 : b === "" ? 1 : a.localeCompare(b, undefined, { numeric: true })));
+  const [cond, setCond] = useState<Cond>(filter?.cond ?? { op: "contains", a: "", b: "" });
+  const [useCond, setUseCond] = useState(Boolean(filter?.cond));
+  const [picked, setPicked] = useState<Set<string>>(new Set(filter?.vals ?? all));
+  const [q, setQ] = useState("");
+  const [open, setOpen] = useState<"cond" | "vals" | null>(filter?.cond ? "cond" : "vals");
+  const listed = all.filter((v) => !q || v.toLowerCase().includes(q.toLowerCase()));
+  const args = CONDS.find((c) => c.id === cond.op)?.args ?? 1;
+  const inputType = col.type === "date" ? "date" : "text";
+  const apply = () => {
+    const f: Filter = {};
+    if (useCond && condReady(cond)) f.cond = cond;
+    if (picked.size < all.length) f.vals = [...picked];
+    onApply(f.cond || f.vals ? f : undefined);
+    onClose();
+  };
+  const az =
+    col.type === "number" ? ["Sort smallest to largest", "Sort largest to smallest"] : col.type === "date" ? ["Sort oldest to newest", "Sort newest to oldest"] : ["Sort A to Z", "Sort Z to A"];
+  return (
+    <Pop anchor={anchor} onClose={onClose} label={`${col.label} menu`} width={300}>
+      <div className="flex flex-col">
+        <button type="button" className="aw-pop__item" onClick={() => (onSort(false), onClose())}>
+          {az[0]}
+        </button>
+        <button type="button" className="aw-pop__item" onClick={() => (onSort(true), onClose())}>
+          {az[1]}
+        </button>
+        {canFilter ? (
+          <>
+            <span className="my-1 border-t border-rule-faint" />
+            <button type="button" className="aw-pop__item" aria-expanded={open === "cond"} onClick={() => setOpen(open === "cond" ? null : "cond")}>
+              <span className="text-[10px] text-muted">{open === "cond" ? "▼" : "▶"}</span>
+              Filter by condition
+              {useCond && condReady(cond) ? <span className="aw-pop__dot" /> : null}
+            </button>
+            {open === "cond" ? (
+              <div className="flex flex-col gap-2 px-3 pb-2">
+                <select
+                  aria-label="Condition"
+                  value={useCond ? cond.op : ""}
+                  onChange={(e) => {
+                    if (!e.target.value) return setUseCond(false);
+                    setUseCond(true);
+                    setCond({ ...cond, op: e.target.value as CondOp });
+                  }}
+                  className="aw-pop__field"
+                >
+                  <option value="">None</option>
+                  {CONDS.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.label}
+                    </option>
+                  ))}
+                </select>
+                {useCond && args >= 1 ? (
+                  <input
+                    autoFocus
+                    type={inputType}
+                    value={cond.a}
+                    onChange={(e) => setCond({ ...cond, a: e.target.value })}
+                    onKeyDown={(e) => e.key === "Enter" && apply()}
+                    placeholder="Value"
+                    aria-label="Value"
+                    className="aw-pop__field"
+                  />
+                ) : null}
+                {useCond && args === 2 ? (
+                  <input
+                    type={inputType}
+                    value={cond.b}
+                    onChange={(e) => setCond({ ...cond, b: e.target.value })}
+                    onKeyDown={(e) => e.key === "Enter" && apply()}
+                    placeholder="And"
+                    aria-label="Second value"
+                    className="aw-pop__field"
+                  />
+                ) : null}
+              </div>
+            ) : null}
+            <button type="button" className="aw-pop__item" aria-expanded={open === "vals"} onClick={() => setOpen(open === "vals" ? null : "vals")}>
+              <span className="text-[10px] text-muted">{open === "vals" ? "▼" : "▶"}</span>
+              Filter by values
+              {picked.size < all.length ? <span className="aw-pop__dot" /> : null}
+            </button>
+            {open === "vals" ? (
+              <div className="flex flex-col gap-2 px-3 pb-2">
+                <div className="flex items-center justify-between text-[12px]">
+                  <span className="flex gap-1">
+                    <button type="button" className="aw-text-link text-[12px]" onClick={() => setPicked(new Set([...picked, ...listed]))}>
+                      Select all {listed.length}
+                    </button>
+                    <span className="text-muted">·</span>
+                    <button type="button" className="aw-text-link text-[12px]" onClick={() => setPicked(new Set([...picked].filter((v) => !listed.includes(v))))}>
+                      Clear
+                    </button>
+                  </span>
+                  <span className="text-muted">Displaying {listed.length}</span>
+                </div>
+                <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search values" aria-label="Search values" className="aw-pop__field" />
+                <ul className="max-h-52 overflow-y-auto">
+                  {listed.map((v) => (
+                    <li key={v || "(blank)"}>
+                      <label className="aw-pop__check-row">
+                        <input
+                          type="checkbox"
+                          checked={picked.has(v)}
+                          onChange={(e) => {
+                            const next = new Set(picked);
+                            if (e.target.checked) next.add(v);
+                            else next.delete(v);
+                            setPicked(next);
+                          }}
+                        />
+                        <span className={`truncate ${v ? "" : "text-muted"}`}>{v || "(Blanks)"}</span>
+                      </label>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+        <span className="my-1 border-t border-rule-faint" />
+        <button type="button" className="aw-pop__item" onClick={() => (onHide(), onClose())}>
+          Hide column
+        </button>
+        {col.onRemove ? (
+          <button type="button" className="aw-pop__item text-neg!" onClick={() => (col.onRemove!(), onClose())}>
+            Delete column
+          </button>
+        ) : null}
+        {canFilter ? (
+          <div className="mt-1 flex items-center justify-between gap-2 border-t border-rule-faint px-3 pt-3 pb-1">
+            {filterOn(filter) ? (
+              <button type="button" className="aw-text-link text-[12px]" onClick={() => (onApply(undefined), onClose())}>
+                Remove filter
+              </button>
+            ) : (
+              <span />
+            )}
+            <span className="flex gap-2">
+              <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={onClose}>
+                Cancel
+              </button>
+              <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={apply} disabled={!picked.size && !useCond}>
+                OK
+              </button>
+            </span>
+          </div>
+        ) : null}
+      </div>
+    </Pop>
+  );
+}
+
+/** The text editor for one cell: the cell itself becomes the input. Enter or Tab saves and moves, Escape cancels. */
+function TextEditor<T>({ row, col, init, onDone }: { row: T; col: Col<T>; init: string | null; onDone: (move?: [number, number]) => void }) {
   const e = col.edit!;
-  const start = e.value ? e.value(row) : String(col.value(row) ?? "");
+  const start = e.value ? e.value(row) : keyOf(col.value(row));
   const [v, setV] = useState(init ?? start);
   const done = useRef(false);
   const save = (next: string, move?: [number, number]) => {
@@ -123,57 +512,59 @@ function CellEditor<T>({ row, col, init, onDone }: { row: T; col: Col<T>; init: 
     if (next !== start) e.save(row, next.trim() === "" ? null : next.trim());
     onDone(move);
   };
-  const cancel = () => {
-    if (done.current) return;
-    done.current = true;
-    onDone();
-  };
-  const keys = (x: React.KeyboardEvent) => {
-    x.stopPropagation();
-    if (x.key === "Enter") {
-      x.preventDefault();
-      save(v, [x.shiftKey ? -1 : 1, 0]);
-    }
-    if (x.key === "Tab") {
-      x.preventDefault();
-      save(v, [0, x.shiftKey ? -1 : 1]);
-    }
-    if (x.key === "Escape") cancel();
-  };
-  if (e.kind === "select")
-    return (
-      <select autoFocus value={v} onChange={(x) => save(x.target.value)} onBlur={cancel} onKeyDown={keys} aria-label={col.label} className="w-full">
-        {e.options!.map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-    );
   return (
     <input
       autoFocus
-      type={e.kind === "date" ? "date" : e.kind === "number" ? "number" : "text"}
+      type={e.kind === "number" ? "number" : "text"}
       value={v}
       aria-label={col.label}
+      onFocus={(x) => {
+        x.target.setSelectionRange(x.target.value.length, x.target.value.length);
+      }}
       onChange={(x) => setV(x.target.value)}
       onBlur={() => save(v)}
-      onKeyDown={keys}
-      className="w-full"
+      onKeyDown={(x) => {
+        x.stopPropagation();
+        if (x.key === "Enter") {
+          x.preventDefault();
+          save(v, [x.shiftKey ? -1 : 1, 0]);
+        }
+        if (x.key === "Tab") {
+          x.preventDefault();
+          save(v, [0, x.shiftKey ? -1 : 1]);
+        }
+        if (x.key === "ArrowDown") {
+          x.preventDefault();
+          save(v, [1, 0]);
+        }
+        if (x.key === "ArrowUp") {
+          x.preventDefault();
+          save(v, [-1, 0]);
+        }
+        if (x.key === "Escape") {
+          done.current = true;
+          onDone();
+        }
+      }}
+      className="aw-sheet__input"
     />
   );
 }
 
-/** A pasted value as what the cell editor saves: a select takes its option id, a number drops commas. */
-function pasteValue<T>(col: Col<T>, raw: string): string | null {
+/** A pasted value as what the cell editor saves. Undefined means it does not fit and the cell is left alone. */
+function pasteValue<T>(col: Col<T>, raw: string): string | null | undefined {
   const t = raw.trim();
   if (!t) return null;
   const e = col.edit!;
-  if (e.kind === "select") return e.options?.find((o) => o.id.toLowerCase() === t.toLowerCase() || o.label.toLowerCase() === t.toLowerCase())?.id ?? null;
-  if (e.kind === "number") return /^-?[\d,]+(\.\d+)?$/.test(t) ? t.replace(/,/g, "") : null;
+  if (e.kind === "select") {
+    const low = t.toLowerCase();
+    return e.options?.find((o) => o.id.toLowerCase() === low || o.label.toLowerCase() === low || o.aliases?.some((a) => a.toLowerCase() === low))?.id;
+  }
+  if (e.kind === "number") return /^-?[\d,]+(\.\d+)?$/.test(t) ? t.replace(/,/g, "") : undefined;
   if (e.kind === "date") {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
     const d = new Date(t);
-    return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : Number.isNaN(d.getTime()) ? null : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    return Number.isNaN(d.getTime()) ? undefined : iso(d);
   }
   return t;
 }
@@ -217,26 +608,32 @@ export function Sheet<T>({
   /** Pasted rows that run past the last row, as column id to text. */
   onAppend?: (rows: Record<string, string>[]) => void;
   height?: string;
-  /** False hides the filter row, for read-only examples. */
+  /** False leaves only sorting in the column menu, for read-only examples. */
   showFilters?: boolean;
   label: string;
   /** Extra controls at the start of the bar above the sheet, like a view switch. */
   toolbar?: React.ReactNode;
 }) {
   const [sort, setSort] = useSort(initial.key, initial.desc);
-  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [filters, setFilters] = useState<Record<string, Filter>>({});
   const [layout, setLayoutState] = useState<Layout>(() => readLayout(id));
   const [menu, setMenu] = useState(false);
-  const [editing, setEditing] = useState<{ cell: string; init: string | null } | null>(null); // "rowKey|colId"
+  const [colMenu, setColMenu] = useState<{ id: string; rect: DOMRect } | null>(null);
+  const [editing, setEditing] = useState<{
+    cell: string;
+    init: string | null;
+    rect?: DOMRect;
+  } | null>(null); // "rowKey|colId"
   const [cur, setCur] = useState<Pos | null>(null);
   const [anchor, setAnchor] = useState<Pos | null>(null);
   const [keysOpen, setKeysOpen] = useState(false);
   const [flash, setFlash] = useState("");
+  const drag = useRef<{ from: Pos; moved: boolean } | null>(null);
   const history = useRef<Change<T>[][]>([]);
   const pasted = useRef(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const active = Object.entries(filters).filter(([, v]) => v.replace(/^[^|]*\|/, "").replace(/\|/g, "").trim());
+  const active = Object.entries(filters).filter(([, f]) => filterOn(f));
 
   const setLayout = (next: Layout) => {
     setLayoutState(next);
@@ -279,7 +676,10 @@ export function Sheet<T>({
     setLayout({ ...layout, order: ids });
   };
   const toggle = (cid: string) =>
-    setLayout({ ...layout, hidden: layout.hidden.includes(cid) ? layout.hidden.filter((x) => x !== cid) : [...layout.hidden, cid] });
+    setLayout({
+      ...layout,
+      hidden: layout.hidden.includes(cid) ? layout.hidden.filter((x) => x !== cid) : [...layout.hidden, cid],
+    });
 
   const resize = (c: Col<T>, e: React.PointerEvent) => {
     e.preventDefault();
@@ -301,18 +701,17 @@ export function Sheet<T>({
     window.addEventListener("pointerup", onUp);
   };
 
+  const passes = (r: T, skip?: string) =>
+    active.every(([cid, f]) => {
+      if (cid === skip) return true;
+      const c = allCols.find((x) => x.id === cid);
+      if (!c) return true;
+      const v = c.value(r);
+      if (f.cond && condReady(f.cond) && !condMatch(v, f.cond)) return false;
+      return !f.vals || f.vals.includes(keyOf(v));
+    });
   const shown = sortRows(
-    rows.filter((r) =>
-      active.every(([cid, f]) => {
-        const c = allCols.find((x) => x.id === cid);
-        if (!c) return true;
-        const v = c.value(r);
-        if (c.type === "number") return numberMatch(v, condToNumber(f));
-        if (c.type === "date") return dateMatch(v, f.includes("|") ? f : `=|${f}|`);
-        if (c.type === "list") return String(v ?? "") === f;
-        return String(v ?? "").toLowerCase().includes(f.trim().toLowerCase());
-      }),
-    ),
+    rows.filter((r) => passes(r)),
     sort,
     Object.fromEntries(allCols.map((c) => [c.id, (r: T) => (c.type === "text" ? String(c.value(r) ?? "").toLowerCase() || null : c.value(r))])),
   );
@@ -337,10 +736,21 @@ export function Sheet<T>({
   // ── Keyboard and selection, the way a spreadsheet works ──
   const lastR = shown.length - 1;
   const lastC = cols.length - 1;
-  const clamp = (p: Pos): Pos => ({ r: Math.max(0, Math.min(lastR, p.r)), c: Math.max(0, Math.min(lastC, p.c)) });
+  const clamp = (p: Pos): Pos => ({
+    r: Math.max(0, Math.min(lastR, p.r)),
+    c: Math.max(0, Math.min(lastC, p.c)),
+  });
   const at = cur && shown.length && cols.length ? clamp(cur) : null;
   const from = at && anchor ? clamp(anchor) : at;
-  const box = at && from ? { r0: Math.min(at.r, from.r), r1: Math.max(at.r, from.r), c0: Math.min(at.c, from.c), c1: Math.max(at.c, from.c) } : null;
+  const box =
+    at && from
+      ? {
+          r0: Math.min(at.r, from.r),
+          r1: Math.max(at.r, from.r),
+          c0: Math.min(at.c, from.c),
+          c1: Math.max(at.c, from.c),
+        }
+      : null;
   const inBox = (r: number, c: number) => Boolean(box && r >= box.r0 && r <= box.r1 && c >= box.c0 && c <= box.c1);
   const cellsInBox = () => {
     const out: { row: T; col: Col<T> }[] = [];
@@ -349,11 +759,12 @@ export function Sheet<T>({
     return out;
   };
   const focusGrid = () => wrapRef.current?.focus({ preventScroll: true });
+  const cellEl = (p: Pos) => wrapRef.current?.querySelector(`[data-cell="${p.r}:${p.c}"]`) as HTMLElement | null;
   const goTo = (p: Pos, extend = false) => {
     const next = clamp(p);
     setCur(next);
     if (!extend) setAnchor(next);
-    requestAnimationFrame(() => wrapRef.current?.querySelector(`[data-cell="${next.r}:${next.c}"]`)?.scrollIntoView({ block: "nearest", inline: "nearest" }));
+    requestAnimationFrame(() => cellEl(next)?.scrollIntoView({ block: "nearest", inline: "nearest" }));
   };
   const say = (t: string) => {
     setFlash(t);
@@ -363,7 +774,12 @@ export function Sheet<T>({
     const c = cols[p.c];
     const r = shown[p.r];
     if (!c?.edit || !r) return false;
-    setEditing({ cell: `${rowKey(r)}|${c.id}`, init: c.edit.kind === "select" ? null : init });
+    const rect = cellEl(p)?.getBoundingClientRect();
+    setEditing({
+      cell: `${rowKey(r)}|${c.id}`,
+      init: c.edit.kind === "select" || c.edit.kind === "date" ? null : init,
+      rect,
+    });
     return true;
   };
   const beforeOf = (row: T, col: Col<T>) => {
@@ -371,10 +787,10 @@ export function Sheet<T>({
     return v === null || v === undefined || v === "" ? null : String(v);
   };
   /** Save many cells at once, kept together for one Undo. */
-  const apply = (list: { row: T; col: Col<T>; value: string | null }[]) => {
+  const apply = (list: { row: T; col: Col<T>; value: string | null | undefined }[]) => {
     const batch: Change<T>[] = [];
     for (const x of list) {
-      if (!x.col.edit) continue;
+      if (!x.col.edit || x.value === undefined) continue;
       const before = beforeOf(x.row, x.col);
       if (before === x.value) continue;
       batch.push({ key: rowKey(x.row), col: x.col, before });
@@ -383,14 +799,17 @@ export function Sheet<T>({
     if (batch.length) history.current.push(batch);
     return batch.length;
   };
-  const textOf = (row: T, col: Col<T>) => {
-    const v = col.value(row);
-    return v === null || v === undefined ? "" : String(v).replace(/[\t\n]+/g, " ");
-  };
+  const textOf = (row: T, col: Col<T>) => keyOf(col.value(row)).replace(/[\t\n]+/g, " ");
   const copy = async (cut: boolean) => {
     if (!box) return;
     const lines: string[] = [];
-    for (let r = box.r0; r <= box.r1; r++) lines.push(cols.slice(box.c0, box.c1 + 1).map((c) => textOf(shown[r], c)).join("\t"));
+    for (let r = box.r0; r <= box.r1; r++)
+      lines.push(
+        cols
+          .slice(box.c0, box.c1 + 1)
+          .map((c) => textOf(shown[r], c))
+          .join("\t"),
+      );
     try {
       await navigator.clipboard.writeText(lines.join("\n"));
     } catch {
@@ -402,9 +821,13 @@ export function Sheet<T>({
   };
   const paste = (text: string) => {
     if (!at) return;
-    const grid = text.replace(/\r/g, "").replace(/\n+$/, "").split("\n").map((l) => l.split("\t"));
+    const grid = text
+      .replace(/\r/g, "")
+      .replace(/\n+$/, "")
+      .split("\n")
+      .map((l) => l.split("\t"));
     if (!grid.length) return;
-    const list: { row: T; col: Col<T>; value: string | null }[] = [];
+    const list: { row: T; col: Col<T>; value: string | null | undefined }[] = [];
     const extra: Record<string, string>[] = [];
     // One value pasted over a range fills the whole range.
     if (grid.length === 1 && grid[0].length === 1 && box && (box.r1 > box.r0 || box.c1 > box.c0)) {
@@ -429,7 +852,7 @@ export function Sheet<T>({
     }
     const n = apply(list);
     if (extra.length && onAppend) onAppend(extra);
-    say(extra.length && onAppend ? `Pasted ${n} cells and added ${extra.length} rows` : n ? `Pasted ${n} ${n === 1 ? "cell" : "cells"}` : "Nothing here can be edited");
+    say(extra.length && onAppend ? `Pasted ${n} cells and added ${extra.length} rows` : n ? `Pasted ${n} ${n === 1 ? "cell" : "cells"}` : "Nothing here can take that value");
     if (grid.length > 1 || grid[0].length > 1) {
       setAnchor(at);
       setCur(clamp({ r: at.r + grid.length - 1, c: at.c + grid[0].length - 1 }));
@@ -446,11 +869,15 @@ export function Sheet<T>({
   };
   const pickRows = () => {
     if (!box || !onSelect || !selected) return;
-    const keys = shown.slice(box.r0, box.r1 + 1).filter(canSelect).map(rowKey);
+    const keys = shown
+      .slice(box.r0, box.r1 + 1)
+      .filter(canSelect)
+      .map(rowKey);
     const allPicked = keys.every((k) => selected.has(k));
     const next = new Set(selected);
-    for (const k of keys) if (allPicked) next.delete(k);
-    else next.add(k);
+    for (const k of keys)
+      if (allPicked) next.delete(k);
+      else next.add(k);
     onSelect(next);
   };
 
@@ -468,7 +895,12 @@ export function Sheet<T>({
     const page = 15;
     const step = (dr: number, dc: number) => {
       e.preventDefault();
-      const to = mod ? { r: dr ? (dr > 0 ? lastR : 0) : at.r, c: dc ? (dc > 0 ? lastC : 0) : at.c } : { r: at.r + dr, c: at.c + dc };
+      const to = mod
+        ? {
+            r: dr ? (dr > 0 ? lastR : 0) : at.r,
+            c: dc ? (dc > 0 ? lastC : 0) : at.c,
+          }
+        : { r: at.r + dr, c: at.c + dc };
       goTo(to, e.shiftKey);
     };
     if (k === "ArrowDown") return step(1, 0);
@@ -477,24 +909,15 @@ export function Sheet<T>({
     if (k === "ArrowLeft") return step(0, -1);
     if (k === "Tab") {
       e.preventDefault();
-      const dc = e.shiftKey ? -1 : 1;
-      const c = at.c + dc;
+      const c = at.c + (e.shiftKey ? -1 : 1);
       return goTo(c > lastC ? { r: at.r + 1, c: 0 } : c < 0 ? { r: at.r - 1, c: lastC } : { r: at.r, c });
     }
-    if (k === "Home") {
-      e.preventDefault();
-      return goTo({ r: mod ? 0 : at.r, c: 0 }, e.shiftKey);
-    }
-    if (k === "End") {
-      e.preventDefault();
-      return goTo({ r: mod ? lastR : at.r, c: lastC }, e.shiftKey);
-    }
-    if (k === "PageDown" || k === "PageUp") {
-      e.preventDefault();
-      return goTo({ r: at.r + (k === "PageDown" ? page : -page), c: at.c }, e.shiftKey);
-    }
+    if (k === "Home") return (e.preventDefault(), goTo({ r: mod ? 0 : at.r, c: 0 }, e.shiftKey));
+    if (k === "End") return (e.preventDefault(), goTo({ r: mod ? lastR : at.r, c: lastC }, e.shiftKey));
+    if (k === "PageDown" || k === "PageUp") return (e.preventDefault(), goTo({ r: at.r + (k === "PageDown" ? page : -page), c: at.c }, e.shiftKey));
     if (k === "Enter" || k === "F2") {
       e.preventDefault();
+      if (mod && at.c === 0 && onOpen && canOpen(shown[at.r])) return onOpen(shown[at.r]);
       if (startEdit(at)) return;
       if (at.c === 0 && onOpen && canOpen(shown[at.r])) return onOpen(shown[at.r]);
       return goTo({ r: at.r + (e.shiftKey ? -1 : 1), c: at.c });
@@ -503,13 +926,9 @@ export function Sheet<T>({
       e.preventDefault();
       if (anchor && (anchor.r !== at.r || anchor.c !== at.c)) return setAnchor(at);
       if (selected?.size && onSelect) return onSelect(new Set());
-      setCur(null);
-      return;
+      return setCur(null);
     }
-    if (k === " " && e.shiftKey) {
-      e.preventDefault();
-      return pickRows();
-    }
+    if (k === " " && e.shiftKey) return (e.preventDefault(), pickRows());
     if (k === "Delete" || k === "Backspace") {
       e.preventDefault();
       if (selected?.size && onDeleteRows) return onDeleteRows([...selected]);
@@ -519,21 +938,11 @@ export function Sheet<T>({
     if (mod && k.toLowerCase() === "a") {
       e.preventDefault();
       setAnchor({ r: 0, c: 0 });
-      setCur({ r: lastR, c: lastC });
-      return;
+      return setCur({ r: lastR, c: lastC });
     }
-    if (mod && k.toLowerCase() === "c") {
-      e.preventDefault();
-      return void copy(false);
-    }
-    if (mod && k.toLowerCase() === "x") {
-      e.preventDefault();
-      return void copy(true);
-    }
-    if (mod && k.toLowerCase() === "z") {
-      e.preventDefault();
-      return undo();
-    }
+    if (mod && k.toLowerCase() === "c") return (e.preventDefault(), void copy(false));
+    if (mod && k.toLowerCase() === "x") return (e.preventDefault(), void copy(true));
+    if (mod && k.toLowerCase() === "z") return (e.preventDefault(), undo());
     if (mod && k.toLowerCase() === "v") {
       // The paste event brings the text. Read the clipboard only if it does not come.
       pasted.current = false;
@@ -546,10 +955,7 @@ export function Sheet<T>({
       }, 120);
       return;
     }
-    if (mod && k === "/") {
-      e.preventDefault();
-      return setKeysOpen((x) => !x);
-    }
+    if (mod && k === "/") return (e.preventDefault(), setKeysOpen((x) => !x));
     // Typing starts editing the cell, like a spreadsheet.
     if (!mod && !e.altKey && k.length === 1 && cols[at.c]?.edit) {
       e.preventDefault();
@@ -557,25 +963,38 @@ export function Sheet<T>({
     }
   };
 
+  // Click a cell to edit it. Drag across cells, or Shift-click, to select a range.
   const onCellDown = (e: React.MouseEvent, p: Pos) => {
+    if (e.button !== 0) return;
+    const t = e.target as HTMLElement;
+    if (t.closest("a, button, input, select, textarea, label")) return;
     if (editing) return;
-    const already = at && at.r === p.r && at.c === p.c && (!from || (from.r === p.r && from.c === p.c));
+    e.preventDefault();
     if (e.shiftKey && at) {
-      e.preventDefault();
       if (!anchor) setAnchor(at);
       setCur(p);
-    } else {
-      setCur(p);
-      setAnchor(p);
+      focusGrid();
+      return;
     }
-    const t = e.target as HTMLElement;
-    const control = t.closest("a, button:not(.aw-sheet__cell), input, select, textarea");
-    if (!control) {
-      // A click on the cell itself keeps the keyboard on the sheet.
-      requestAnimationFrame(focusGrid);
-      if (already && !e.shiftKey) startEdit(p);
-    }
+    setCur(p);
+    setAnchor(p);
+    drag.current = { from: p, moved: false };
+    focusGrid();
   };
+  const onCellEnter = (p: Pos) => {
+    if (!drag.current) return;
+    if (p.r !== drag.current.from.r || p.c !== drag.current.from.c) drag.current.moved = true;
+    setCur(p);
+  };
+  useEffect(() => {
+    const up = () => {
+      const d = drag.current;
+      drag.current = null;
+      if (d && !d.moved) startEdit(d.from);
+    };
+    window.addEventListener("mouseup", up);
+    return () => window.removeEventListener("mouseup", up);
+  });
 
   const rowNumberDown = (e: React.MouseEvent, r: number) => {
     e.preventDefault();
@@ -588,17 +1007,20 @@ export function Sheet<T>({
     }
     focusGrid();
   };
+  const endEdit = (p: Pos, mv?: [number, number]) => {
+    setEditing(null);
+    if (mv) goTo({ r: p.r + mv[0], c: p.c + mv[1] });
+    requestAnimationFrame(focusGrid);
+  };
+
+  const menuCol = colMenu ? allCols.find((c) => c.id === colMenu.id) : null;
 
   return (
     <div className="flex flex-col">
       <div className="flex flex-wrap items-center gap-3 px-4 py-2 text-[12px] text-muted">
         {toolbar}
         <span className="aw-num">{shown.length === rows.length ? `${rows.length} rows` : `${shown.length} of ${rows.length} rows`}</span>
-        {box && (box.r1 > box.r0 || box.c1 > box.c0) ? (
-          <span className="aw-num text-ink">
-            {(box.r1 - box.r0 + 1) * (box.c1 - box.c0 + 1)} cells selected
-          </span>
-        ) : null}
+        {box && (box.r1 > box.r0 || box.c1 > box.c0) ? <span className="aw-num text-ink">{(box.r1 - box.r0 + 1) * (box.c1 - box.c0 + 1)} cells selected</span> : null}
         {active.length ? (
           <button type="button" className="aw-text-link text-[12px]" onClick={() => setFilters({})}>
             Clear {active.length} {active.length === 1 ? "filter" : "filters"}
@@ -618,11 +1040,14 @@ export function Sheet<T>({
               <div className="absolute right-0 z-30 mt-1 w-72 rounded-aw border border-rule bg-white p-3 text-[12px] text-ink shadow-aw" onMouseLeave={() => setKeysOpen(false)}>
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1.5">
                   {[
+                    ["Click", "Edit the cell"],
+                    ["Drag, Shift + click", "Select a range"],
                     ["↑ ↓ ← →", "Move"],
                     ["Shift + arrows", "Select a range"],
                     ["Ctrl + arrows", "Jump to the edge"],
                     ["Tab, Shift + Tab", "Next, previous cell"],
-                    ["Enter, F2, or type", "Edit the cell"],
+                    ["Enter or type", "Edit the cell"],
+                    ["Ctrl + Enter", "Open the keyword"],
                     ["Home, End", "Start, end of the row"],
                     ["Page Up, Down", "Move 15 rows"],
                     ["Ctrl + C, X, V", "Copy, cut, paste"],
@@ -649,20 +1074,27 @@ export function Sheet<T>({
           ) : null}
           <div className="relative" ref={menuRef}>
             <button type="button" className={`aw-chip aw-chip--btn ${menu ? "is-on" : ""}`} onClick={() => setMenu(!menu)} aria-expanded={menu}>
-              Columns{layout.hidden.length ? ` · ${layout.hidden.length} hidden` : ""}
+              Columns
+              {layout.hidden.length ? ` · ${layout.hidden.length} hidden` : ""}
             </button>
             {menu ? (
               <div className="absolute right-0 z-30 mt-1 flex max-h-96 w-64 flex-col overflow-y-auto rounded-aw border border-rule bg-white py-1 shadow-aw">
                 {ordered.map((c, i) => (
                   <div key={c.id} className="flex items-center gap-2 px-3 py-1.5 text-[13px] text-ink hover:bg-surface-2">
                     <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-2">
-                      <input type="checkbox" checked={!layout.hidden.includes(c.id)} onChange={() => toggle(c.id)} className="h-3.5 w-3.5 accent-[var(--aw-pos)]" />
+                      <input type="checkbox" checked={!layout.hidden.includes(c.id)} onChange={() => toggle(c.id)} className="h-3.5 w-3.5" />
                       <span className="truncate">{c.label}</span>
                     </label>
                     <button type="button" aria-label={`Move ${c.label} left`} disabled={!i} onClick={() => move(c.id, -1)} className="px-1 text-muted hover:text-ink disabled:opacity-30">
                       ↑
                     </button>
-                    <button type="button" aria-label={`Move ${c.label} right`} disabled={i === ordered.length - 1} onClick={() => move(c.id, 1)} className="px-1 text-muted hover:text-ink disabled:opacity-30">
+                    <button
+                      type="button"
+                      aria-label={`Move ${c.label} right`}
+                      disabled={i === ordered.length - 1}
+                      onClick={() => move(c.id, 1)}
+                      className="px-1 text-muted hover:text-ink disabled:opacity-30"
+                    >
                       ↓
                     </button>
                     {c.onRemove ? (
@@ -686,8 +1118,9 @@ export function Sheet<T>({
         style={{ maxHeight: height }}
         tabIndex={0}
         role="grid"
-        aria-label={`${label}. Use the arrow keys to move between cells.`}
+        aria-label={`${label}. Click a cell to edit it. Use the arrow keys to move.`}
         onKeyDown={onKey}
+        onScroll={() => colMenu && setColMenu(null)}
         onPaste={(e) => {
           if (editing || e.target !== wrapRef.current) return;
           e.preventDefault();
@@ -721,13 +1154,32 @@ export function Sheet<T>({
               ) : null}
               {cols.map((c, j) => {
                 const on = sort.key === c.id;
-                const text = c.type === "text" || c.type === "list";
+                const filtered = filterOn(filters[c.id]);
                 return (
-                  <th key={c.id} style={sized(c)} className={`relative ${stickyCls(c)} ${box && j >= box.c0 && j <= box.c1 ? "is-col-on" : ""}`} aria-sort={on ? (sort.desc ? "descending" : "ascending") : "none"}>
-                    <button type="button" className={`aw-sort ${on ? "is-on" : ""}`} onClick={() => setSort(on ? { key: c.id, desc: !sort.desc } : { key: c.id, desc: !text && c.type !== "date" })}>
+                  <th
+                    key={c.id}
+                    style={sized(c)}
+                    className={`relative ${stickyCls(c)} ${box && j >= box.c0 && j <= box.c1 ? "is-col-on" : ""}`}
+                    aria-sort={on ? (sort.desc ? "descending" : "ascending") : "none"}
+                  >
+                    <button
+                      type="button"
+                      className={`aw-sort ${on || filtered ? "is-on" : ""}`}
+                      aria-haspopup="dialog"
+                      onClick={(e) => {
+                        const rect = (e.currentTarget.closest("th") as HTMLElement).getBoundingClientRect();
+                        setColMenu(colMenu?.id === c.id ? null : { id: c.id, rect });
+                      }}
+                      title="Sort and filter"
+                    >
                       {c.label}
+                      {filtered ? (
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-label="Filtered" className="text-pos">
+                          <path d="M3 5h18l-7 8v6l-4-2v-4z" />
+                        </svg>
+                      ) : null}
                       <span aria-hidden="true" className="aw-sort__arrow">
-                        {on ? (sort.desc ? "↓" : "↑") : "↕"}
+                        {on ? (sort.desc ? "↓" : "↑") : "▾"}
                       </span>
                     </button>
                     <span role="separator" aria-label={`Resize ${c.label}`} onPointerDown={(e) => resize(c, e)} className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize hover:bg-brand" />
@@ -735,42 +1187,6 @@ export function Sheet<T>({
                 );
               })}
             </tr>
-            {showFilters ? (
-            <tr className="aw-sheet__filters">
-              <th className="aw-sheet__n" />
-              {onSelect ? <th className="aw-sheet__pick" /> : null}
-              {cols.map((c) => {
-                const v = filters[c.id] ?? "";
-                const set = (x: string) => setFilters((f) => ({ ...f, [c.id]: x }));
-                if (c.type === "list") {
-                  const opts = c.options ?? [...new Set(rows.map((r) => String(c.value(r) ?? "")).filter(Boolean))].sort();
-                  return (
-                    <th key={c.id} style={sized(c)} className={stickyCls(c)}>
-                      <select aria-label={`Filter ${c.label}`} value={v} onChange={(e) => set(e.target.value)}>
-                        <option value="">All</option>
-                        {opts.map((o) => (
-                          <option key={o} value={o}>
-                            {o}
-                          </option>
-                        ))}
-                      </select>
-                    </th>
-                  );
-                }
-                if (c.type === "number" || c.type === "date")
-                  return (
-                    <th key={c.id} style={{ ...sized(c), minWidth: Math.max(c.type === "date" ? 180 : 140, widthOf(c) ?? 0) }} className={stickyCls(c)}>
-                      <CondFilter label={`Filter ${c.label}`} value={v} type={c.type} onChange={set} />
-                    </th>
-                  );
-                return (
-                  <th key={c.id} style={sized(c)} className={stickyCls(c)}>
-                    <input aria-label={`Filter ${c.label}`} value={v} onChange={(e) => set(e.target.value)} placeholder="Contains" />
-                  </th>
-                );
-              })}
-            </tr>
-            ) : null}
           </thead>
           <tbody>
             {shown.map((r, i) => {
@@ -791,45 +1207,55 @@ export function Sheet<T>({
                     const cellId = `${key}|${c.id}`;
                     const content = c.cell ? c.cell(r) : show(c.value(r));
                     const isAt = at?.r === i && at?.c === j;
+                    const ed = editing?.cell === cellId && c.edit ? c.edit : null;
+                    const opener = j === 0 && onOpen && canOpen(r);
                     return (
                       <td
                         key={c.id}
                         data-cell={`${i}:${j}`}
                         style={sized(c)}
                         onMouseDown={(e) => onCellDown(e, { r: i, c: j })}
-                        onDoubleClick={() => c.edit && startEdit({ r: i, c: j })}
+                        onMouseEnter={() => onCellEnter({ r: i, c: j })}
                         aria-selected={inBox(i, j)}
-                        className={`${c.type === "number" ? "is-num" : ""} ${widthOf(c) ? "overflow-hidden text-ellipsis whitespace-nowrap" : ""} ${stickyCls(c)} ${inBox(i, j) ? "is-in-range" : ""} ${isAt ? "is-active" : ""}`}
+                        className={`${c.type === "number" ? "is-num" : ""} ${widthOf(c) ? "overflow-hidden text-ellipsis whitespace-nowrap" : ""} ${stickyCls(c)} ${inBox(i, j) ? "is-in-range" : ""} ${isAt ? "is-active" : ""} ${c.edit ? "is-editable" : ""} ${ed && (ed.kind === "text" || ed.kind === "number") ? "is-editing" : ""} ${opener ? "has-open" : ""}`}
                       >
-                        {editing?.cell === cellId && c.edit ? (
-                          <CellEditor
-                            row={r}
-                            col={c}
-                            init={editing.init}
-                            onDone={(mv) => {
-                              setEditing(null);
-                              if (mv) goTo({ r: i + mv[0], c: j + mv[1] });
-                              requestAnimationFrame(focusGrid);
-                            }}
-                          />
-                        ) : j === 0 && onOpen && canOpen(r) ? (
-                          <span className="flex items-center gap-2">
-                            <button type="button" className="aw-sheet__open" onClick={() => onOpen(r)} title="Open">
-                              {content}
-                            </button>
-                            {c.edit ? (
-                              <button type="button" aria-label={`Edit ${c.label}`} title="Edit" className="text-[12px] text-muted hover:text-ink" onClick={() => startEdit({ r: i, c: j })}>
-                                ✎
+                        {ed && (ed.kind === "text" || ed.kind === "number") ? (
+                          <TextEditor row={r} col={c} init={editing!.init} onDone={(mv) => endEdit({ r: i, c: j }, mv)} />
+                        ) : (
+                          <>
+                            <span className="aw-sheet__val">{content}</span>
+                            {opener ? (
+                              <button type="button" className="aw-sheet__openbtn" onClick={() => onOpen!(r)} title="Open (Ctrl + Enter)">
+                                Open ↗
                               </button>
                             ) : null}
-                          </span>
-                        ) : c.edit ? (
-                          <span className="aw-sheet__cell" title="Double-click, Enter or type to edit">
-                            {content}
-                          </span>
-                        ) : (
-                          content
+                          </>
                         )}
+                        {ed && ed.kind === "select" && editing?.rect ? (
+                          <SelectPop
+                            anchor={editing.rect}
+                            label={c.label}
+                            options={ed.options ?? []}
+                            value={ed.value ? ed.value(r) : keyOf(c.value(r))}
+                            onPick={(v) => {
+                              apply([{ row: r, col: c, value: v || null }]);
+                              endEdit({ r: i, c: j });
+                            }}
+                            onClose={() => endEdit({ r: i, c: j })}
+                          />
+                        ) : null}
+                        {ed && ed.kind === "date" && editing?.rect ? (
+                          <DatePop
+                            anchor={editing.rect}
+                            label={c.label}
+                            value={ed.value ? ed.value(r) : keyOf(c.value(r))}
+                            onPick={(v) => {
+                              apply([{ row: r, col: c, value: v }]);
+                              endEdit({ r: i, c: j });
+                            }}
+                            onClose={() => endEdit({ r: i, c: j })}
+                          />
+                        ) : null}
                       </td>
                     );
                   })}
@@ -846,6 +1272,20 @@ export function Sheet<T>({
           </tbody>
         </table>
       </div>
+      {colMenu && menuCol ? (
+        <ColumnMenu
+          key={colMenu.id}
+          anchor={colMenu.rect}
+          col={menuCol}
+          rows={rows.filter((r) => passes(r, colMenu.id))}
+          filter={filters[colMenu.id]}
+          canFilter={showFilters}
+          onSort={(desc) => setSort({ key: colMenu.id, desc })}
+          onApply={(f) => setFilters((x) => ({ ...x, [colMenu.id]: f ?? {} }))}
+          onHide={() => toggle(colMenu.id)}
+          onClose={() => setColMenu(null)}
+        />
+      ) : null}
     </div>
   );
 }

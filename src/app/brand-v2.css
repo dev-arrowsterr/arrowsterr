@@ -200,3 +200,45 @@ html, body { background: #F8F8FF; }
 .aw .aw-sheet__pick input, .aw .aw-sheet input[type=checkbox] { accent-color: #16A34A; }
 .aw .aw-tick { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: #16A34A; color: #fff; font-size: 10px; font-weight: 700; line-height: 1; }
 .aw .aw-cal-card__st--idea { color: var(--aw-muted); background: transparent; box-shadow: inset 0 0 0 1px var(--aw-rule); }
+
+/* Sheet pop-ups: column menu, option picker, date picker. Arrowsterr style, not the browser's. */
+.aw .aw-pop { position: fixed; z-index: 90; display: flex; flex-direction: column; padding: 6px 0; background: #fff; border: 1px solid var(--aw-rule); border-radius: 8px; box-shadow: 0 12px 32px rgba(6,27,68,.14), 0 2px 6px rgba(6,27,68,.06); font-size: 13px; color: var(--aw-ink); }
+.aw .aw-pop__item { display: flex; align-items: center; gap: 8px; width: 100%; padding: 7px 14px; text-align: left; font-size: 13px; color: var(--aw-ink); background: none; border: 0; cursor: pointer; }
+.aw .aw-pop__item:hover { background: var(--aw-surface-2); }
+.aw .aw-pop__dot { margin-left: auto; width: 7px; height: 7px; border-radius: 50%; background: #16A34A; }
+.aw .aw-pop__field { width: 100%; height: 32px; padding: 0 10px; border: 1px solid var(--aw-rule); border-radius: 6px; background: #fff; font-size: 13px; color: var(--aw-ink); outline: none; }
+.aw .aw-pop__field:focus { border-color: var(--aw-brand); box-shadow: 0 0 0 3px rgba(9,67,176,.12); }
+.aw .aw-pop__search { margin: 2px 8px 6px; height: 30px; padding: 0 10px; border: 1px solid var(--aw-rule); border-radius: 6px; font-size: 13px; outline: none; }
+.aw .aw-pop__search:focus { border-color: var(--aw-brand); }
+.aw .aw-pop__list { max-height: 280px; overflow-y: auto; padding: 0 6px; }
+.aw .aw-pop__opt { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; padding: 6px 8px; border: 0; border-radius: 6px; background: none; text-align: left; font-size: 13px; color: var(--aw-ink); cursor: pointer; }
+.aw .aw-pop__opt.is-hot { background: var(--aw-surface-2); }
+.aw .aw-pop__check { color: #16A34A; font-weight: 700; }
+.aw .aw-pop__check-row { display: flex; align-items: center; gap: 8px; padding: 4px 2px; font-size: 13px; cursor: pointer; }
+.aw .aw-pop__check-row input { width: 15px; height: 15px; accent-color: #16A34A; }
+.aw .aw-pop__nav { width: 28px; height: 28px; border: 0; border-radius: 6px; background: none; font-size: 18px; color: var(--aw-body); cursor: pointer; }
+.aw .aw-pop__nav:hover { background: var(--aw-surface-2); }
+.aw .aw-pop__day { height: 30px; border: 0; border-radius: 6px; background: none; font-size: 12px; font-family: var(--aw-mono); color: var(--aw-ink); cursor: pointer; }
+.aw .aw-pop__day:hover { background: var(--aw-surface-2); }
+.aw .aw-pop__day.is-out { color: var(--aw-faint); }
+.aw .aw-pop__day.is-today { box-shadow: inset 0 0 0 1px var(--aw-brand); }
+.aw .aw-pop__day.is-on { background: var(--aw-brand); color: #fff; }
+
+/* Click a cell and it is the editor: same size, no rounded box. */
+.aw .aw-sheet td { position: relative; }
+.aw .aw-sheet td.is-editable { cursor: text; }
+.aw .aw-sheet td.is-editing { padding: 0 !important; box-shadow: inset 0 0 0 2px var(--aw-brand) !important; background: #fff !important; }
+.aw .aw-sheet td input.aw-sheet__input { display: block; width: 100%; height: 100%; min-height: 34px; margin: 0; padding: 0 10px !important; border: 0 !important; border-radius: 0 !important; background: transparent !important; font: inherit; color: var(--aw-ink); outline: none !important; box-shadow: none !important; }
+.aw .aw-sheet td.is-num input.aw-sheet__input { text-align: right; font-family: var(--aw-mono); }
+.aw .aw-sheet__val { display: block; min-height: 20px; overflow: hidden; text-overflow: ellipsis; }
+.aw .aw-sheet td.has-open .aw-sheet__val { padding-right: 52px; }
+.aw .aw-sheet__openbtn { position: absolute; top: 50%; right: 6px; transform: translateY(-50%); padding: 2px 7px; border: 1px solid var(--aw-rule); border-radius: 4px; background: #fff; font-size: 11px; color: var(--aw-brand); opacity: 0; cursor: pointer; }
+.aw .aw-sheet tr:hover .aw-sheet__openbtn, .aw .aw-sheet td.is-active .aw-sheet__openbtn { opacity: 1; }
+.aw .aw-sheet__openbtn:hover { border-color: var(--aw-brand); }
+.aw .aw-sheet .aw-sort { display: inline-flex; align-items: center; gap: 4px; width: 100%; }
+.aw .aw-sheet .aw-sort__arrow { margin-left: auto; }
+.aw .aw-cellpick { display: inline-flex; align-items: center; gap: 6px; }
+.aw .aw-cellpick__caret { color: var(--aw-faint); font-size: 10px; }
+.aw .aw-avatar-xs { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--aw-brand-pale); color: var(--aw-brand); font-size: 10px; font-weight: 600; text-transform: uppercase; }
+.aw .aw-pop { max-height: calc(100vh - 16px); overflow-y: auto; }
+.aw .aw-pop__list:focus, .aw .aw-pop__list:focus-visible { outline: none !important; box-shadow: none !important; }

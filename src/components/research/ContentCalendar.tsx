@@ -2,7 +2,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { addCalendarItems, deleteCalendarItems, keywordRunResult, listCalendar, saveSite, updateCalendarItem, type BankRow, type CalendarItem, type CalendarStatus, type KeywordRun, type NewCalendarItem, type SheetColumn, type Site } from "@/lib/db";
+import { addCalendarItems, deleteCalendarItems, keywordRunResult, listCalendar, listMembers, saveSite, updateCalendarItem, type BankRow, type CalendarItem, type CalendarStatus, type KeywordRun, type NewCalendarItem, type SheetColumn, type Site } from "@/lib/db";
 import { nextMonday, schedulePlan, slots, STAGES, type Stage } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
@@ -23,7 +23,20 @@ const parse = (s: string) => {
   const [y, m, d] = s.split("-").map(Number);
   return new Date(y, m - 1, d);
 };
-const BRIEF_LABEL = { running: "Writing...", done: "Ready", failed: "Failed" } as const;
+/** Status choices in the sheet. Idea means planned with no day yet. */
+const STATUS_PICK = [
+  { id: "idea", label: "Idea", tone: "aw-status--pending" },
+  { id: "planned", label: "Planned", tone: "aw-status--warn" },
+  { id: "brief", label: "Brief ready", tone: "aw-status--warn", aliases: ["Brief"] },
+  { id: "writing", label: "Writing", tone: "aw-status--warn" },
+  { id: "published", label: "Published", tone: "aw-status--ranked" },
+];
+const slugify = (s: string) => s.toLowerCase().replace(/^\/+/, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+/** The page address this piece should get: one the writer set, or one made from the keyword. */
+const slugOf = (i: CalendarItem) => {
+  const set = i.extra?.slug;
+  return typeof set === "string" && set ? set : `/${slugify(i.keyword)}`;
+};
 
 type Tab = PlanView;
 const VIEW_KEY = "arrowsterr.planView"; // each person's last view, kept in this browser
@@ -116,6 +129,13 @@ export function ContentCalendar({
   const [colName, setColName] = useState("");
   const [colType, setColType] = useState<SheetColumn["type"]>("text");
   const custom = site.profile.columns ?? [];
+  // Everyone in the workspace, to pick as a piece's owner.
+  const [members, setMembers] = useState<string[]>([]);
+  useEffect(() => {
+    listMembers(sb, auth.workspaceId)
+      .then((m) => setMembers(m.map((x) => x.email).filter((e): e is string => Boolean(e))))
+      .catch(() => {});
+  }, [sb, auth.workspaceId]);
 
   const load = useCallback(async () => {
     try {
@@ -301,8 +321,94 @@ export function ContentCalendar({
     save: (i, v) => (k === "keyword" ? v && patch(i.id, { keyword: v }) : patch(i.id, { [k]: v })),
   });
   const ed = <E,>(x: E) => (canEdit ? x : undefined);
+  const owners = [{ id: "", label: "Unassigned" }, ...members.map((m) => ({ id: m, label: m }))];
   const cols: Col<CalendarItem>[] = [
-    { id: "keyword", label: "Keyword", type: "text", value: (i) => i.keyword, width: 220, edit: ed(text("keyword")) },
+    { id: "keyword", label: "Keyword", type: "text", value: (i) => i.keyword, width: 240, edit: ed(text("keyword")) },
+    {
+      id: "stage",
+      label: "Stage",
+      type: "list",
+      value: (i) => (i.stage ? STAGE_LABEL[i.stage] : ""),
+      options: ["BOFU", "MOFU", "TOFU"],
+      width: 90,
+      cell: (i) => <StageTag stage={i.stage} />,
+      edit: ed<Edit<CalendarItem>>({
+        kind: "select",
+        options: [...STAGES.map((x) => ({ id: x.id, label: STAGE_LABEL[x.id] })), { id: "", label: "None" }],
+        value: (i) => i.stage ?? "",
+        save: (i, v) => patch(i.id, { stage: (v || null) as Stage | null }),
+      }),
+    },
+    { id: "volume", label: "Volume", type: "number", value: (i) => i.volume, width: 90 },
+    { id: "kd", label: "Difficulty", type: "number", value: (i) => i.difficulty, width: 110, cell: (i) => <Difficulty kd={i.difficulty} /> },
+    {
+      id: "slug",
+      label: "Suggested slug",
+      type: "text",
+      value: (i) => slugOf(i),
+      width: 220,
+      cell: (i) => <span className="font-mono text-[12px] text-body">{slugOf(i)}</span>,
+      edit: ed<Edit<CalendarItem>>({ kind: "text", value: (i) => slugOf(i), save: (i, v) => patch(i.id, { extra: { ...(i.extra ?? {}), slug: v ? `/${slugify(v)}` : null } }) }),
+    },
+    {
+      id: "status",
+      label: "Status",
+      type: "list",
+      value: (i) => statusLabel(i),
+      options: STATUS_PICK.map((s) => s.label),
+      width: 140,
+      cell: (i) => (
+        <span className="aw-cellpick">
+          <span className={`aw-status ${STATUS_PICK.find((s) => s.label === statusLabel(i))?.tone ?? "aw-status--pending"}`}>{statusLabel(i)}</span>
+          {canEdit ? <span className="aw-cellpick__caret">▾</span> : null}
+        </span>
+      ),
+      edit: ed<Edit<CalendarItem>>({
+        kind: "select",
+        options: STATUS_PICK,
+        value: (i) => (i.status === "planned" && !i.due_date ? "idea" : i.status),
+        save: (i, v) => {
+          if (!v) return;
+          if (v === "idea") return patch(i.id, { status: "planned", due_date: null });
+          // Planned means it has a day. An idea picked as Planned gets next Monday until it is moved.
+          patch(i.id, v === "planned" && !i.due_date ? { status: "planned", due_date: iso(nextMonday()) } : { status: v as CalendarStatus });
+        },
+      }),
+    },
+    {
+      id: "due",
+      label: "Due",
+      type: "date",
+      value: (i) => i.due_date,
+      width: 140,
+      cell: (i) => (
+        <span className="aw-cellpick">
+          {i.due_date ? parse(i.due_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : <span className="text-muted">No date</span>}
+          {canEdit ? <span className="aw-cellpick__caret">▾</span> : null}
+        </span>
+      ),
+      edit: ed<Edit<CalendarItem>>({ kind: "date", value: (i) => i.due_date ?? "", save: (i, v) => patch(i.id, { due_date: v }) }),
+    },
+    {
+      id: "owner",
+      label: "Owner",
+      type: "list",
+      value: (i) => i.owner,
+      width: 170,
+      cell: (i) =>
+        i.owner ? (
+          <span className="aw-cellpick">
+            <span className="aw-avatar-xs">{i.owner.slice(0, 1)}</span>
+            <span className="truncate">{i.owner.split("@")[0]}</span>
+            {canEdit ? <span className="aw-cellpick__caret">▾</span> : null}
+          </span>
+        ) : (
+          <span className="aw-cellpick text-muted">
+            Unassigned{canEdit ? <span className="aw-cellpick__caret">▾</span> : null}
+          </span>
+        ),
+      edit: ed<Edit<CalendarItem>>({ kind: "select", options: owners, value: (i) => i.owner ?? "", save: (i, v) => patch(i.id, { owner: v }) }),
+    },
     {
       id: "serp",
       label: "SERP",
@@ -327,53 +433,8 @@ export function ContentCalendar({
         </button>
       ),
     },
-    {
-      id: "brief",
-      label: "Brief",
-      type: "list",
-      value: (i) => (i.brief_status ? BRIEF_LABEL[i.brief_status] : "None"),
-      options: ["Ready", "Writing...", "Failed", "None"],
-      cell: (i) => (
-        <button type="button" className={`aw-status ${i.brief_status === "done" ? "aw-status--ranked" : i.brief_status === "failed" ? "aw-status--missed" : i.brief_status === "running" ? "aw-status--warn" : "aw-status--pending"}`} onClick={() => setPanel({ day: i.due_date, piece: i.id })}>
-          {i.brief_status ? BRIEF_LABEL[i.brief_status] : "Write brief"}
-        </button>
-      ),
-    },
-    {
-      id: "status",
-      label: "Status",
-      type: "list",
-      value: (i) => statusLabel(i),
-      options: ["Idea", ...STATUSES.map((s) => s.label)],
-      edit: ed<Edit<CalendarItem>>({ kind: "select", options: STATUSES, value: (i) => i.status, save: (i, v) => v && patch(i.id, { status: v as CalendarStatus }) }),
-    },
-    {
-      id: "due",
-      label: "Due",
-      type: "date",
-      value: (i) => i.due_date,
-      cell: (i) => (i.due_date ? parse(i.due_date).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }) : <span className="text-muted">–</span>),
-      edit: ed<Edit<CalendarItem>>({ kind: "date", value: (i) => i.due_date ?? "", save: (i, v) => patch(i.id, { due_date: v }) }),
-    },
-    { id: "owner", label: "Owner", type: "text", value: (i) => i.owner, edit: ed(text("owner")) },
     { id: "action", label: "Job", type: "list", value: (i) => (i.action === "update" ? "Update page" : "New page"), options: ["New page", "Update page"] },
-    {
-      id: "stage",
-      label: "Stage",
-      type: "list",
-      value: (i) => (i.stage ? STAGE_LABEL[i.stage] : ""),
-      options: ["BOFU", "MOFU", "TOFU"],
-      cell: (i) => <StageTag stage={i.stage} />,
-      edit: ed<Edit<CalendarItem>>({
-        kind: "select",
-        options: [{ id: "", label: "None" }, ...STAGES.map((x) => ({ id: x.id, label: STAGE_LABEL[x.id] }))],
-        value: (i) => i.stage ?? "",
-        save: (i, v) => patch(i.id, { stage: (v || null) as Stage | null }),
-      }),
-    },
     { id: "theme", label: "Theme", type: "list", value: (i) => i.theme, edit: ed(text("theme")) },
-    { id: "volume", label: "Volume", type: "number", value: (i) => i.volume },
-    { id: "kd", label: "Difficulty", type: "number", value: (i) => i.difficulty, cell: (i) => <Difficulty kd={i.difficulty} /> },
     {
       id: "url",
       label: "Page URL",
@@ -627,7 +688,7 @@ export function ContentCalendar({
           </form>
         ) : null}
         <Sheet
-          id={`cal:${site.id}`}
+          id={`plan:${site.id}`}
           onAddColumn={canEdit ? () => setAdding(true) : undefined}
           label="Content Plan"
           toolbar={toggle}
