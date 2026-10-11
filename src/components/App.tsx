@@ -40,6 +40,7 @@ import { BrandLogo } from "./BrandLogo";
 import { CompetitorsPage } from "./CompetitorsPage";
 import { Logo } from "./Logo";
 import { MembersPage } from "./MembersPage";
+import { SettingsPage, SETTINGS_TABS, type SettingsTab } from "./SettingsPage";
 import { BillingPage, choosePlan } from "./BillingPage";
 import { Onboarding, type NewBrand } from "./Onboarding";
 import { PromptsPage } from "./PromptsPage";
@@ -51,7 +52,7 @@ import { ReportsPage } from "./reports/ReportsPage";
 import { VisitorsPage } from "./VisitorsPage";
 
 export type { Brand } from "@/lib/db";
-type Page = "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "gap" | "calendar" | "intel" | "summary" | "members" | "billing";
+type Page = "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "gap" | "calendar" | "intel" | "summary" | SettingsTab;
 const RESEARCH: Page[] = ["keywords", "domain", "gap", "calendar", "intel"];
 /** Website analytics is still in testing: only this account sees it. */
 const WEBSITE_TESTER = "vincent@perceptric.com";
@@ -71,8 +72,10 @@ const SLUGS: Record<Page, string> = {
   calendar: "/content-plan",
   intel: "/content-intelligence",
   summary: "/reports",
-  members: "/settings",
-  billing: "/billing",
+  settings: "/settings",
+  members: "/settings/members",
+  integrations: "/settings/integrations",
+  billing: "/settings/billing",
 };
 /** Older addresses still open the right page. */
 const ALIASES: Record<string, Page> = {
@@ -94,7 +97,9 @@ const ALIASES: Record<string, Page> = {
   "/content-calendar": "calendar",
   "/reports/content": "calendar",
   "/plan": "billing",
+  "/billing": "billing",
 };
+const isSettings = (p: Page): p is SettingsTab => SETTINGS_TABS.some((t) => t.id === p);
 const pageFromPath = (path: string): Page => {
   const p = path.replace(/\/+$/, "") || "/";
   return (Object.entries(SLUGS).find(([, slug]) => slug === p)?.[0] as Page | undefined) ?? ALIASES[p] ?? "prompts";
@@ -290,8 +295,9 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
     if (ws) getPlanUsage(sb, ws.id).then(setPlan).catch(() => setPlan(null));
   }, [sb, ws]);
   useEffect(() => {
+    // Tasks get spent all over the app, so read the plan again on each page change.
     loadPlan();
-  }, [loadPlan]);
+  }, [loadPlan, page]);
 
   // Load brands whenever the workspace changes.
   useEffect(() => {
@@ -532,7 +538,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
         }}
       />
       <div className="flex min-w-0 flex-1 flex-col">
-        {page !== "members" && page !== "billing" ? (
+        {!isSettings(page) ? (
           <TopBar
             visibility={VISIBILITY.includes(page)}
             brands={brands}
@@ -635,10 +641,23 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
               </button>
             </div>
           ) : null}
-          {page === "members" ? (
-            <MembersPage key={ws.id} sb={sb} ws={ws} brandLogo={brands?.[0]?.logo ?? null} userId={userId} onChanged={loadWorkspaces} auth={auth} />
-          ) : page === "billing" ? (
-            <BillingPage key={ws.id} sb={sb} ws={ws} auth={auth} onPlan={loadPlan} />
+          {isSettings(page) ? (
+            <SettingsPage tab={page} onTab={go}>
+              {page === "billing" ? (
+                <BillingPage key={ws.id} sb={sb} ws={ws} auth={auth} onPlan={loadPlan} />
+              ) : (
+                <MembersPage
+                  key={`${ws.id}-${page}`}
+                  sb={sb}
+                  ws={ws}
+                  brandLogo={brands?.[0]?.logo ?? null}
+                  userId={userId}
+                  onChanged={loadWorkspaces}
+                  auth={auth}
+                  section={page === "settings" ? "workspace" : page}
+                />
+              )}
+            </SettingsPage>
           ) : !view ? (
             <div className="aw-callout max-w-xl">This workspace has no brands yet. Ask an editor or admin to add one.</div>
           ) : plan && trackOf(page) && !plan.open[trackOf(page)!] ? (
@@ -818,10 +837,32 @@ const NAV: { group: string; icon: string; tester?: boolean; items: { id: Page; l
     items: [{ id: "summary", label: "Client report", icon: "report" }],
   },
 ];
-const SETTINGS: { id: Page; label: string; icon: string }[] = [
-  { id: "members", label: "Workspace & members", icon: "gear" },
-  { id: "billing", label: "Plan & billing", icon: "card" },
-];
+/** Tasks left this month, with the reset date. Opens Plans & billing. */
+function TaskBar({ plan, onOpen }: { plan: PlanUsage; onOpen: () => void }) {
+  const tasks = plan.allowances.find((a) => a.metric === "tasks");
+  if (!tasks || tasks.limit <= 0) return null;
+  const left = Math.max(0, tasks.limit - tasks.used);
+  const pct = Math.min(100, Math.round((tasks.used / tasks.limit) * 100));
+  const low = left / tasks.limit < 0.1;
+  const reset = new Date(plan.resetsAt).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  return (
+    <button type="button" onClick={onOpen} className="aw-taskbar" title="See Plans & billing">
+      <span className="flex items-baseline justify-between gap-2">
+        <span className="text-[12px] font-semibold text-ink">Tasks</span>
+        <span className="aw-num text-[11px] text-muted">
+          {tasks.used.toLocaleString("en-US")} / {tasks.limit.toLocaleString("en-US")}
+        </span>
+      </span>
+      <span className="aw-taskbar__track" role="meter" aria-label="Tasks used this month" aria-valuenow={tasks.used} aria-valuemin={0} aria-valuemax={tasks.limit}>
+        <span className={`aw-taskbar__fill ${low ? "is-low" : ""}`} style={{ width: `${pct}%` }} />
+      </span>
+      <span className="text-[11px] text-muted">
+        <span className={low ? "font-semibold text-neg" : ""}>{left.toLocaleString("en-US")} left</span>
+        {plan.credits ? ` + ${plan.credits.toLocaleString("en-US")} in packs` : ""} · resets {reset}
+      </span>
+    </button>
+  );
+}
 
 /** The workspace switcher and the page menu. */
 function Sidebar({
@@ -959,13 +1000,12 @@ function Sidebar({
       </nav>
 
       <div className="mt-auto flex flex-col gap-2 border-t border-rule-faint px-2 pt-4">
+        {plan ? <TaskBar plan={plan} onOpen={() => onPage("billing")} /> : null}
         <div className="-mx-2 flex flex-col">
-          {SETTINGS.map((item) => (
-            <button key={item.id} type="button" onClick={() => onPage(item.id)} aria-current={page === item.id ? "page" : undefined} className={`aw-mod aw-mod--sm ${page === item.id ? "is-on" : ""}`}>
-              <NavIcon name={item.icon} />
-              {item.label}
-            </button>
-          ))}
+          <button type="button" onClick={() => onPage("settings")} aria-current={isSettings(page) ? "page" : undefined} className={`aw-mod aw-mod--sm ${isSettings(page) ? "is-on" : ""}`}>
+            <NavIcon name="gear" />
+            Settings
+          </button>
         </div>
         {plan && (plan.plan === "trial" || plan.status !== "active") ? (
           <button type="button" onClick={() => onPage("billing")} className="flex items-center justify-between gap-2 rounded-aw border border-brand-mist bg-brand-pale px-3 py-2 text-left text-[13px] font-medium text-brand">

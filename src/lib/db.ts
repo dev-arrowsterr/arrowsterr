@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Chat, Run } from "./chats";
 import { isPage } from "./sources";
 import type { AgentResult, PlanBrief } from "./research";
-import { access, effectivePlan, limitsFor, METRICS, nextPlan, periodOf as periodFor, type Extras, type Metric, type PlanId, type Track } from "./plans";
+import { access, cycleEnd, effectivePlan, limitsFor, METRICS, nextPlan, periodOf as periodFor, type Extras, type Metric, type PlanId, type Track } from "./plans";
 import type { Brief, Serp } from "./briefTypes";
 import type { BrandGuideline } from "./writerTypes";
 
@@ -280,6 +280,9 @@ export async function getPlanUsage(sb: SupabaseClient, workspaceId: string) {
   const metrics = Object.keys(METRICS) as Metric[];
   const { data: rows } = await sb.from("usage_counters").select("metric, period, used").eq("workspace_id", workspaceId).in("period", [...new Set(metrics.map((m) => periodOf(m)))]);
   const used = (m: Metric) => ((rows ?? []) as { metric: string; period: string; used: number }[]).find((r) => r.metric === m && r.period === periodOf(m))?.used ?? 0;
+  // Monthly allowances reset on the billing date, or on the 1st when there is none.
+  const today = new Date();
+  const resetsAt = (anchor ? cycleEnd(new Date(anchor), today) : new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 1))).toISOString();
   const trialLeft = now.plan === "trial" && w.trial_ends_at ? Math.max(0, Math.ceil((Date.parse(w.trial_ends_at) - Date.now()) / 864e5)) : null;
   return {
     plan: now.plan,
@@ -290,6 +293,7 @@ export async function getPlanUsage(sb: SupabaseClient, workspaceId: string) {
     name: limits.name,
     status: now.status,
     trialLeft,
+    resetsAt,
     periodEnd: w.period_end,
     interval: w.billing_interval ?? null,
     cancelAt: w.cancel_at ?? null,

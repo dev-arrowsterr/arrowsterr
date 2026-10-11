@@ -153,7 +153,7 @@ export function BillingPage({ sb, ws, auth, onPlan }: { sb: SupabaseClient; ws: 
   return (
     <div className="flex flex-col gap-8">
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <h1 className="aw-h2 mb-0!">Plan & billing</h1>
+        <p className="text-[14px] text-body">Your plan, tasks and invoices.</p>
         {plan?.customer && isAdmin ? (
           <button
             type="button"

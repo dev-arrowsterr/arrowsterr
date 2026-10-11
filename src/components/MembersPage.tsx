@@ -56,7 +56,24 @@ function CopyButton({ text }: { text: string }) {
 }
 
 /** Workspace name, members and their roles, and invites. */
-export function MembersPage({ sb, ws, brandLogo, userId, onChanged, auth }: { sb: SupabaseClient; ws: Workspace; brandLogo: string | null; userId: string; onChanged: () => Promise<void>; auth: RunAuth }) {
+/** One Settings tab: the workspace itself, its members, or its integrations. Plans & billing lives in BillingPage. */
+export function MembersPage({
+  sb,
+  ws,
+  brandLogo,
+  userId,
+  onChanged,
+  auth,
+  section,
+}: {
+  sb: SupabaseClient;
+  ws: Workspace;
+  brandLogo: string | null;
+  userId: string;
+  onChanged: () => Promise<void>;
+  auth: RunAuth;
+  section: "workspace" | "members" | "integrations";
+}) {
   const isAdmin = atLeast(ws.role, "admin");
   const [members, setMembers] = useState<Member[] | null>(null);
   const [invites, setInvites] = useState<Invite[]>([]);
@@ -108,10 +125,11 @@ export function MembersPage({ sb, ws, brandLogo, userId, onChanged, auth }: { sb
 
   return (
     <div className="flex max-w-3xl flex-col gap-8">
-      <h1 className="aw-h2 mb-0!">Workspace & members</h1>
       {error ? <p className="aw-error">{error}</p> : null}
       {saved ? <p className="aw-callout text-[15px]!">{saved}</p> : null}
 
+      {section === "workspace" ? (
+        <>
       <section className="flex flex-col gap-3">
         <label className="aw-label mb-0!" htmlFor="ws-name">
           Workspace name
@@ -192,7 +210,11 @@ export function MembersPage({ sb, ws, brandLogo, userId, onChanged, auth }: { sb
           </div>
         </section>
       ) : null}
+        </>
+      ) : null}
 
+      {section === "members" ? (
+        <>
       <section className="flex flex-col gap-3">
         <h2 className="aw-h4">
           Members
@@ -359,10 +381,6 @@ export function MembersPage({ sb, ws, brandLogo, userId, onChanged, auth }: { sb
         </section>
       ) : null}
 
-      <CmsSettings auth={auth} isAdmin={isAdmin} />
-
-      <IntegrationsSettings auth={auth} isAdmin={isAdmin} />
-
       <section className="flex flex-col gap-3">
         <h2 className="aw-h4">Roles</h2>
         <ul className="aw-list aw-list--tight">
@@ -373,6 +391,15 @@ export function MembersPage({ sb, ws, brandLogo, userId, onChanged, auth }: { sb
           ))}
         </ul>
       </section>
+        </>
+      ) : null}
+
+      {section === "integrations" ? (
+        <>
+          <CmsSettings auth={auth} isAdmin={isAdmin} />
+          <IntegrationsSettings auth={auth} isAdmin={isAdmin} />
+        </>
+      ) : null}
     </div>
   );
 }

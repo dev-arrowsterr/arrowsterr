@@ -330,3 +330,11 @@ html, body { background: #F8F8FF; }
 .aw .aw-bank__filter { display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 10px; border: 1px solid var(--aw-rule); border-radius: 6px; background: #fff; font-size: 13px; color: var(--aw-body); cursor: pointer; white-space: nowrap; }
 .aw .aw-bank__filter:hover { border-color: var(--aw-brand); color: var(--aw-ink); }
 .aw .aw-bank__filter.is-on { border-color: #16A34A; color: #15803D; background: #F0FAF3; }
+
+/* Sidebar task meter */
+.aw .aw-taskbar { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 10px 12px; border: 0; border-radius: var(--aw-r-md); background: #fff; box-shadow: inset 0 0 0 1px var(--aw-rule); text-align: left; cursor: pointer; }
+.aw .aw-taskbar:hover { box-shadow: inset 0 0 0 1px var(--aw-brand-mist); }
+.aw .aw-taskbar__track { display: block; height: 6px; overflow: hidden; border-radius: 3px; background: var(--aw-surface-2); }
+.aw .aw-taskbar__fill { display: block; height: 100%; border-radius: 3px; background: var(--aw-brand); transition: width .3s; }
+.aw .aw-taskbar__fill.is-low { background: var(--aw-neg); }
+
