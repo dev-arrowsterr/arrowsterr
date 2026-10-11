@@ -28,19 +28,17 @@ export const COUNTRIES = [
   "Global",
 ];
 
-export const MAX_TOPICS = 5;
+export const MAX_TOPICS = 8; // topics a brand can track
+export const RECOMMENDED = 5; // the first 5 topics, and the first 5 prompts of each, are highly recommended
 export const PROMPTS_PER_TOPIC = 5;
-export const MAX_PROMPTS = MAX_TOPICS * PROMPTS_PER_TOPIC;
+export const MAX_PROMPTS = 25; // prompts tracked by default, within the trial's limit
+export const TOPIC_COUNT = 8;
+export const PROMPT_COUNT = 8; // prompts written per topic: 5 highly recommended, 3 suggested
 
-export const SUGGESTED_PER_TOPIC = 10; // prompts written per topic: the top 5 are tracked, the rest suggested
-export const CANDIDATE_TOPICS = 50;
+// ── Research, then the 8 topics, in one structured reply ────────────────────────
 
-const PLAIN = `Write in plain, professional English that a busy founder reads in seconds. Short bullets, no filler, no hype words like "seamless", "robust" or "cutting-edge".`;
-
-// ── Step 1: research the brand and its market ──────────────────────────────────
-
-/** First pass, with web search: notes on the brand, its category and its closest competitors. */
-export const RESEARCH_PROMPT = (url: string, title: string, desc: string, text: string) => `You are a B2B market analyst. Research this business and its market before a positioning review.
+/** First pass, with web search: notes on the business, its offering, buyers and competitors. */
+export const RESEARCH_PROMPT = (url: string, title: string, desc: string, text: string) => `You are a B2B market analyst. Research this business before planning its bottom-of-funnel keywords.
 
 Website: ${url}
 Page title: ${title}
@@ -48,16 +46,30 @@ Meta description: ${desc}
 Website text (homepage and key pages):
 ${text}
 
-Search the web to fill gaps. Find:
-1. What the product is, who uses it, the job it does, its key features, and what it believes.
-2. Its category, the way buyers name it.
-3. Its 5 closest competitors: products a buyer would compare it with directly, not giant suites unless buyers really shortlist them. For each: who it serves, how it works, its price level, and how it differs from this business.
-4. Its price level against those competitors, the company size it serves, and where its buyers are.
+Search the web to fill gaps. Write clear research notes on:
+1. Every product and service it sells, in the words customers use, plus common synonyms.
+2. What customers call the seller (software, agency, lawyer, supplier, clinic, and so on).
+3. Its industry, and the area it serves: local (which cities), national or global.
+4. Its target audiences and main use cases.
+5. Its top 3 to 5 competitors, with their websites.
+State every assumption you make.`;
 
-Write clear research notes. Name real competitors with their websites.`;
+export const BUCKETS = [
+  { id: "shortlist", label: "Shortlist", page: "Listicle" },
+  { id: "versus", label: "Head-to-head", page: "Comparison page" },
+  { id: "alternatives", label: "Alternatives", page: "Alternatives page" },
+  { id: "vetting", label: "Brand vetting", page: "Review page" },
+  { id: "cost", label: "Cost", page: "Pricing page" },
+  { id: "action", label: "Action", page: "Landing page" },
+  { id: "deal", label: "Deal", page: "Offer page" },
+  { id: "local", label: "Local and urgent", page: "Location page" },
+  { id: "switching", label: "Switching", page: "Migration page" },
+  { id: "fit", label: "Fit", page: "Use-case page" },
+] as const;
+export type Bucket = (typeof BUCKETS)[number]["id"];
 
-/** Second pass: turn the notes into the Brand Card, the competitor table and the category position. */
-export const SITE_PROMPT = (url: string, notes: string, text: string) => `You turn research notes into a positioning review for the business at ${url}.
+/** Second pass: the business in a few fields, and its 8 best BOFU topics, following the BOFU keyword framework. */
+export const PLAN_PROMPT = (url: string, notes: string, text: string) => `You plan the topics an AI search visibility tool will track for the business at ${url}. A topic is a bottom-of-funnel (BOFU) search: typed by someone ready to buy, hire, book or switch.
 
 Research notes:
 ${notes}
@@ -65,186 +77,109 @@ ${notes}
 Website text:
 ${text.slice(0, 6000)}
 
-Fill in:
+Part 1: the business.
 - name: the brand name as customers say it.
-- businessType: saas (software, apps, platforms), ecommerce (sells products online), service (agencies, firms, consultants), local (serves one city or area), marketplace (connects buyers and sellers, or lists many providers), other.
+- businessType: saas (software, apps, platforms), ecommerce (sells products online), service (agencies, firms, consultants), local (serves one city or area), marketplace (connects buyers and sellers), other.
+- country: the main market, one of: ${COUNTRIES.join(", ")}.
 - products, customers, features: short comma lists in the words customers use.
-- card: the brand on one page, 2 to 4 bullets each, each bullet under 18 words.
-  - who: what it is and who uses it.
-  - whereTo: the outcome it helps them reach.
-  - howTo: how it delivers that, with the key features that matter.
-  - whySo: what it believes, and the problem it fights.
-- competitors: exactly 5 closest competitors, closest first. who and howTo under 14 words each. price is "Budget", "Mid", "Premium" or a range like "Mid–Premium". difference is one sentence on how it differs from this brand, under 22 words.
-- position: price level vs. these competitors, company size served (Solo, SMB, Mid-market, Enterprise, or a range like "Solo–SMB"), region where its buyers are, and a summary of 2 or 3 bullets on where the brand sits in its industry and where it can win.
+- competitors: the top 3 to 5, with their domains.
 
-${PLAIN}`;
+Part 2: the 8 best BOFU topics. Follow this method.
+1. Seeds: every offering noun (each product, service and category, with synonyms), provider nouns (what customers call the seller) and competitor brand names. Never the business's own brand.
+2. Run the seeds through the 10 modifier buckets. Each topic belongs to exactly one bucket:
+${BUCKETS.map((b, i) => `   ${i + 1}. ${b.id}: ${b.label} → ${b.page}`).join("\n")}
+   Patterns: shortlist "best / top [seed]"; versus "[brand] vs [brand]"; alternatives "[competitor] alternatives"; vetting "[competitor] reviews"; cost "[seed] pricing / cost"; action "[seed] free trial / demo / hire / book"; deal "[seed] discount"; local "[seed] in [city] / near me"; switching "switch from [competitor]"; fit "[seed] for [audience / use case / feature]".
+3. Filter out anything with learning intent (how to, what is, guide, examples, template), anything no real buyer would type, and near duplicates.
+4. Favor the buckets that matter most in this industry: B2B and SaaS 2, 3, 4, 9 plus 1 and 10; local services 5, 6, 8; ecommerce 1, 6, 7, 10; healthcare and legal 4, 5, 8.
+5. Pick the 8 best. They must be strictly mutually exclusive and non-overlapping, and together cover the entire product suite and the widest spread of buyers. Be as diverse as possible: different products, audiences, use cases and buckets. Use at most 2 topics from any one bucket.
+6. Rank from most relevant to least. The first 5 are the ones this business must win.
+- topic: 2 to 6 words, lowercase except brand and place names, the way a buyer types it.
+- seed: the seed the topic came from.
+- reason: why a buyer here is ready to choose, and why this business fits, in under 18 words.
 
-const bullets = { type: "array", items: { type: "string" } };
-export const SITE_SCHEMA = {
+Use the words customers use. No internal jargon.`;
+
+export const PLAN_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["name", "businessType", "products", "customers", "features", "card", "competitors", "position"],
+  required: ["name", "businessType", "country", "products", "customers", "features", "competitors", "topics"],
   properties: {
     name: { type: "string" },
     businessType: { type: "string", enum: ["saas", "ecommerce", "service", "local", "marketplace", "other"] },
+    country: { type: "string", enum: COUNTRIES },
     products: { type: "string" },
     customers: { type: "string" },
     features: { type: "string" },
-    card: {
-      type: "object",
-      additionalProperties: false,
-      required: ["who", "whereTo", "howTo", "whySo"],
-      properties: { who: bullets, whereTo: bullets, howTo: bullets, whySo: bullets },
-    },
     competitors: {
+      type: "array",
+      items: { type: "object", additionalProperties: false, required: ["name", "domain"], properties: { name: { type: "string" }, domain: { type: "string" } } },
+    },
+    topics: {
       type: "array",
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["name", "domain", "who", "howTo", "price", "difference"],
-        properties: { name: { type: "string" }, domain: { type: "string" }, who: { type: "string" }, howTo: { type: "string" }, price: { type: "string" }, difference: { type: "string" } },
+        required: ["topic", "bucket", "seed", "reason"],
+        properties: { topic: { type: "string" }, bucket: { type: "string", enum: BUCKETS.map((b) => b.id) }, seed: { type: "string" }, reason: { type: "string" } },
       },
-    },
-    position: {
-      type: "object",
-      additionalProperties: false,
-      required: ["price", "size", "region", "summary"],
-      properties: { price: { type: "string", enum: ["budget", "mid", "premium"] }, size: { type: "string" }, region: { type: "string" }, summary: { type: "array", items: { type: "string" } } },
     },
   },
 };
 
-// ── Step 2: 50 candidate topics, then the 5 best ───────────────────────────────
+export type PickedTopic = { topic: string; bucket: Bucket; seed: string; reason: string; volume: number | null };
 
-// How buyers usually phrase a category, by business type. Examples only: the research decides the topics.
-const TYPE_RULES: Record<BusinessType, string> = {
-  saas: `Buyers usually search like "best [category] software" or "best [category] tool for [use]".`,
-  ecommerce: `Buyers usually search like "best [product]" or "best [product] for [need]".`,
-  service: `Buyers usually search like "best [service] agency" or "[service] company for [industry]".`,
-  local: `Buyers usually search like "best [service] in [city]".`,
-  marketplace: `Buyers usually search like "best [thing] marketplace" or "best sites to [book or find thing]".`,
-  other: `Buyers usually search like "best [category]".`,
-};
+/** The 8 topics, cleaned: no blanks, no duplicates, no brand name, in the AI's order. */
+export function cleanTopics(v: unknown, brand: string): Omit<PickedTopic, "volume">[] {
+  if (!Array.isArray(v)) return [];
+  const seen = new Set<string>();
+  const out: Omit<PickedTopic, "volume">[] = [];
+  for (const t of v as Record<string, unknown>[]) {
+    const topic = String(t?.topic ?? "").trim().replace(/\s+/g, " ").slice(0, 80);
+    const key = topic.toLowerCase();
+    if (!topic || seen.has(key) || (brand && key.includes(brand.toLowerCase()))) continue;
+    seen.add(key);
+    const bucket = (BUCKETS.some((b) => b.id === t.bucket) ? t.bucket : "shortlist") as Bucket;
+    out.push({ topic, bucket, seed: String(t.seed ?? "").slice(0, 80), reason: String(t.reason ?? "").slice(0, 200) });
+  }
+  return out.slice(0, TOPIC_COUNT);
+}
 
-const about = (name: string, site: string, p: Profile) => {
-  const lines = [
+// ── Prompts by angle ───────────────────────────────────────────────────────────
+
+/** Content angles from the BOFU angle framework, plus the topic itself as a plain search. */
+export const ANGLES = [
+  { id: "head", label: "Head search", hint: "the topic itself, as a short search" },
+  { id: "audience", label: "Audience fit", hint: "best for a specific audience, role or use case" },
+  { id: "budget", label: "Budget", hint: "best for a budget or price range" },
+  { id: "feature", label: "Feature", hint: "best for a specific feature or integration" },
+  { id: "outcome", label: "Outcome", hint: "best for a specific business result" },
+  { id: "comparison", label: "Comparison", hint: "named options compared on features, pricing or performance" },
+  { id: "unhappy", label: "Unhappy switch", hint: "an alternative for people dissatisfied with a named tool" },
+  { id: "outgrown", label: "Outgrown", hint: "an alternative for people who outgrew a named tool" },
+  { id: "pros_cons", label: "Pros and cons", hint: "strengths and limits of the top options" },
+  { id: "hidden_costs", label: "Hidden costs", hint: "total cost and pricing traps" },
+  { id: "setup", label: "Easy setup", hint: "fastest or easiest to implement" },
+  { id: "industry", label: "Industry needs", hint: "fits an industry's specific requirements" },
+  { id: "risk", label: "Risk", hint: "avoiding purchase mistakes and objections" },
+  { id: "specialized", label: "Specialized", hint: "specialized versus general-purpose options" },
+  { id: "size", label: "Company size", hint: "fits a company size or stage" },
+] as const;
+export type Angle = (typeof ANGLES)[number]["id"];
+
+export const MOTIVATIONS = ["price", "features", "alternatives", "comparison", "trust", "convenience", "specialization", "risk reduction", "performance", "availability"] as const;
+
+const about = (name: string, site: string, p: Profile) =>
+  [
     `Business: ${name} (${site})`,
     `Type: ${BUSINESS_TYPES.find((t) => t.id === p.businessType)?.label ?? "Not sure"}`,
     `Products and services: ${p.products || "Not given"}`,
     `Customers: ${p.customers || "Not given"}`,
     `Key features: ${p.features || "Not given"}`,
     `Market: ${p.country || "United States"}`,
-  ];
-  if (p.card) lines.push(`Who: ${p.card.who.join(" ")}`, `Where-to: ${p.card.whereTo.join(" ")}`, `How-to: ${p.card.howTo.join(" ")}`, `Why-so: ${p.card.whySo.join(" ")}`);
-  if (p.position) lines.push(`Price level: ${p.position.price}. Company size served: ${p.position.size}. Region: ${p.position.region}.`);
-  if (p.competitors?.length) lines.push(`Closest competitors and how they differ:\n${p.competitors.map((c) => `- ${c.name}: ${c.difference}`).join("\n")}`);
-  return lines.join("\n");
-};
-
-export const TOPICS_PROMPT = (name: string, site: string, p: Profile) => `You pick the buying categories an AI search visibility tool will track for a business. A topic is the category a buyer is in when they ask ChatGPT which option to choose.
-
-${about(name, site, p)}
-
-${TYPE_RULES[p.businessType ?? "other"]}
-
-Write ${CANDIDATE_TOPICS} candidate topics, based on the research above. Let the research decide what fits this business best.
-- Bottom of the funnel: the buyer is ready to compare and choose.
-- 5 words or fewer, lowercase except brand and place names. Simple, precise, real search phrases.
-- Cover the whole market: the main category, then each distinct buyer type, use case, platform or need this business serves.
-- No duplicates. Plurals, synonyms and reworded topics count as the same topic.
-- Never include ${name} itself.
-- group: a 2 to 4 word label for the buyer and need the topic serves, like "solo wordpress developers" or "enterprise localization teams". Topics that serve the same buyer and need share the exact same label.
-- relevance 1 to 5: how likely a buyer in this topic would choose ${name}. Give 5 only when the topic matches how ${name} differs from its competitors.
-- buyer: who searches this, in under 8 words.
-- reason: why it fits, in under 15 words.`;
-
-export const TOPICS_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  required: ["topics"],
-  properties: {
-    topics: {
-      type: "array",
-      items: {
-        type: "object",
-        additionalProperties: false,
-        required: ["topic", "group", "relevance", "buyer", "reason"],
-        properties: {
-          topic: { type: "string" },
-          group: { type: "string" },
-          relevance: { type: "integer", enum: [1, 2, 3, 4, 5] },
-          buyer: { type: "string" },
-          reason: { type: "string" },
-        },
-      },
-    },
-  },
-};
-
-export type Candidate = { topic: string; group: string; relevance: number; buyer: string; reason: string; volume: number | null };
-export type PickedTopic = Candidate & { score: number };
-
-const FILLER = new Set(["best", "top", "software", "tools", "tool", "app", "apps", "platform", "platforms", "services", "service", "agency", "agencies", "for", "the", "a", "an", "and", "of", "in", "to", "with", "near", "company", "companies", "online"]);
-const termsOf = (s: string) => new Set(s.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w && !FILLER.has(w)).map((w) => w.replace(/s$/, "")));
-function overlap(a: Set<string>, b: Set<string>) {
-  if (!a.size || !b.size) return 0;
-  let n = 0;
-  for (const x of a) if (b.has(x)) n++;
-  return n / (a.size + b.size - n);
-}
-
-/**
- * Pick the topics to track. Score = Volume × Relevance × Diversity.
- * Volume is on a log scale so one huge topic cannot win on size alone. Diversity: each buyer
- * group gives at most one topic, and topics that share words with a pick score lower. So the
- * final set spreads across as many different buyers and needs as the candidates allow.
- */
-export function pickTopics(cands: Candidate[], n = MAX_TOPICS): PickedTopic[] {
-  const pool = cands.filter((c) => (c.volume ?? 0) > 0 || c.relevance >= 5);
-  if (!pool.length) return [];
-  const top = Math.log10(Math.max(...pool.map((c) => c.volume ?? 0)) + 10);
-  const base = (c: Candidate) => (Math.log10((c.volume ?? 0) + 10) / top) * Math.pow(c.relevance / 5, 1.5);
-  const terms = new Map(pool.map((c) => [c.topic, termsOf(c.topic)]));
-  const groupOf = (c: Candidate) => c.group.trim().toLowerCase();
-  const out: PickedTopic[] = [];
-  const left = [...pool];
-  while (out.length < n && left.length) {
-    // A new buyer group first. Only reuse a group once every group has a topic.
-    const fresh = left.filter((c) => !out.some((o) => groupOf(o) === groupOf(c)));
-    const choices = fresh.length ? fresh : left;
-    let best: Candidate | null = null;
-    let bestScore = -1;
-    for (const c of choices) {
-      const near = Math.max(0, ...out.map((o) => overlap(terms.get(c.topic)!, terms.get(o.topic)!)));
-      const score = base(c) * (1 - near);
-      if (score > bestScore) [best, bestScore] = [c, score];
-    }
-    if (!best) break;
-    out.push({ ...best, score: Math.round(bestScore * 100) / 100 });
-    left.splice(left.indexOf(best), 1);
-  }
-  return out;
-}
-
-// ── Step 3: prompts by angle ───────────────────────────────────────────────────
-
-export const ANGLES = [
-  { id: "head", label: "Head search", hint: "the topic itself as a short search" },
-  { id: "persona", label: "Persona", hint: "best pick for a specific type of buyer" },
-  { id: "size", label: "Team size", hint: "fit for a company or team size" },
-  { id: "industry", label: "Industry", hint: "fit for a specific industry" },
-  { id: "problem", label: "Problem", hint: "a pain the buyer has, asking which tool fixes it" },
-  { id: "feature", label: "Feature", hint: "must have a specific feature" },
-  { id: "budget", label: "Budget", hint: "free, cheap or premium options" },
-  { id: "platform", label: "Platform", hint: "works on a device or operating system" },
-  { id: "integration", label: "Integration", hint: "works with another tool" },
-  { id: "region", label: "Region", hint: "fit for a country, region or language" },
-  { id: "alternatives", label: "Alternatives", hint: "alternatives to a named competitor" },
-  { id: "versus", label: "Versus", hint: "two named options compared" },
-  { id: "shortlist", label: "Shortlist", hint: "top options to compare" },
-  { id: "switching", label: "Switching", hint: "replacing a current tool or method" },
-] as const;
-export type Angle = (typeof ANGLES)[number]["id"];
+    p.competitors?.length ? `Competitors: ${p.competitors.map((c) => c.name).join(", ")}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 
 export const PROMPTS_PROMPT = (name: string, site: string, p: Profile, topics: string[]) => `You write the prompts an AI visibility tool sends to ChatGPT, Gemini, Perplexity, Claude and Google every day, to see which brands they recommend.
 
@@ -253,17 +188,20 @@ ${about(name, site, p)}
 Topics:
 ${topics.map((t, i) => `${i + 1}. ${t}`).join("\n")}
 
-Angles:
-${ANGLES.map((a) => `- ${a.id}: ${a.hint}`).join("\n")}
+Method, for each topic:
+1. Find why a buyer searches it. Motivations: ${MOTIVATIONS.join(", ")}.
+2. Turn the strongest motivations into angles:
+${ANGLES.map((a) => `   - ${a.id}: ${a.hint}`).join("\n")}
+3. Keep only angles that address a distinct buyer decision. Drop anything generic that could apply to any business, and anything that repeats another angle in other words.
+4. Rank by buying intent, fit with ${name}'s strongest capabilities, and commercial value.
 
-For each topic, write ${SUGGESTED_PER_TOPIC} prompts, each from a different angle. Pick the angles that fit this niche best, best fit first. The first prompt is always "head": exactly the topic text.
-
+Write ${PROMPT_COUNT} prompts per topic, each from a different angle, best first. The first prompt is always "head": exactly the topic text.
 Every prompt must:
-- Make the AI answer with named brands, tools, products or providers. Use words like "best", "top", "which", "recommend", "alternatives to" or "vs".
-- Never be a how-to, what-is or why question. Never ask "what should I look for".
-- Be concise and natural, the way a real buyer types into ChatGPT.
-- Fit ${name}'s price level, company size and region, using their buyers' words.
-- Never include ${name} or ${site}. Competitor names are allowed only in alternatives and versus prompts.
+- Make the AI answer with named brands, tools, products or providers ("best", "top", "which", "recommend", "alternatives to", "vs").
+- Never be a how-to, what-is or why question.
+- Be concise and natural, the way a real buyer types into ChatGPT, in the words customers use.
+- Never include ${name} or ${site}. Competitor names only in comparison, unhappy and outgrown prompts.
+- Never claim features, prices or results you cannot back up.
 - Differ from every other prompt in meaning, across all topics.`;
 
 export const PROMPTS_SCHEMA = {
@@ -284,8 +222,8 @@ export const PROMPTS_SCHEMA = {
             items: {
               type: "object",
               additionalProperties: false,
-              required: ["text", "angle"],
-              properties: { text: { type: "string" }, angle: { type: "string", enum: ANGLES.map((a) => a.id) } },
+              required: ["text", "angle", "motivation"],
+              properties: { text: { type: "string" }, angle: { type: "string", enum: ANGLES.map((a) => a.id) }, motivation: { type: "string", enum: [...MOTIVATIONS] } },
             },
           },
         },
@@ -294,9 +232,18 @@ export const PROMPTS_SCHEMA = {
   },
 };
 
+const FILLER = new Set(["best", "top", "software", "tools", "tool", "app", "apps", "platform", "platforms", "services", "service", "agency", "agencies", "for", "the", "a", "an", "and", "of", "in", "to", "with", "near", "company", "companies", "online", "which", "what", "is", "are"]);
+const termsOf = (s: string) => new Set(s.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w && !FILLER.has(w)).map((w) => w.replace(/s$/, "")));
+function overlap(a: Set<string>, b: Set<string>) {
+  if (!a.size || !b.size) return 0;
+  let n = 0;
+  for (const x of a) if (b.has(x)) n++;
+  return n / (a.size + b.size - n);
+}
+
 // Questions whose answers explain ideas and seldom name brands.
 const NO_BRANDS = /^\s*(how (to|do|does|can|should)|what (is|are|does)|why|when|what should i look for|what to look for|tips?\b|guide to)\b/i;
-/** Prompts the AI will answer with brand names. Drops how-to style prompts and near duplicates. */
+/** Prompts the AI will answer with brand names. Drops how-to style prompts, prompts naming the brand, and near duplicates. */
 export function cleanPrompts(list: { text: string; angle: string }[], topic: string, seen: Set<string>[], brand = "") {
   const out: { text: string; angle: Angle }[] = [];
   const own = termsOf(topic);
@@ -309,10 +256,10 @@ export function cleanPrompts(list: { text: string; angle: string }[], topic: str
     const t = new Set([...termsOf(text)].filter((w) => !own.has(w)));
     if (p.angle !== "head" && (!t.size || seen.some((s) => overlap(s, t) >= 0.5))) continue;
     if (t.size) seen.push(t);
-    out.push({ text, angle: (ANGLES.some((a) => a.id === p.angle) ? p.angle : "shortlist") as Angle });
+    out.push({ text, angle: (ANGLES.some((a) => a.id === p.angle) ? p.angle : "audience") as Angle });
   }
   if (!out.some((p) => p.angle === "head")) out.unshift({ text: topic, angle: "head" });
-  return out.slice(0, SUGGESTED_PER_TOPIC);
+  return out.slice(0, PROMPT_COUNT);
 }
 
 /** Clean a list of strings from Claude: trimmed, no blanks, no repeats. */

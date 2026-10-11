@@ -20,8 +20,8 @@ async function handle(request: Request) {
   if (limited) return limited;
 
   try {
-    const out = await askJson<{ topics: { topic: string; prompts: { text: string; angle: string }[] }[] }>(PROMPTS_PROMPT(name, domain, cleanProfile(body.profile), topics), PROMPTS_SCHEMA, {
-      maxTokens: 8000,
+    const out = await askJson<{ topics: { topic: string; prompts: { text: string; angle: string; motivation: string }[] }[] }>(PROMPTS_PROMPT(name, domain, cleanProfile(body.profile), topics), PROMPTS_SCHEMA, {
+      maxTokens: 10000,
       model: process.env.PROMPTS_MODEL || "claude-haiku-5-5",
     });
     const byName = new Map((out.topics ?? []).map((t) => [t.topic.trim().toLowerCase(), t.prompts ?? []]));

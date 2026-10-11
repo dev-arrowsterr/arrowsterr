@@ -1522,3 +1522,13 @@
   .aw .aw-onb__foot .aw-btn--lg { padding-left: 16px; padding-right: 16px; }
   .aw .aw-topic .aw-topic__name { font-size: 15px; }
 }
+
+/* Onboarding topics: conversion tag, estimated volume, groups */
+.aw .aw-conv { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: var(--aw-r-pill); border: 1px solid var(--aw-pos-rule); background: var(--aw-pos-bg); color: var(--aw-pos); font-size: 12px; font-weight: 500; }
+.aw .aw-conv::before { content: ""; width: 6px; height: 6px; border-radius: 2px; background: currentColor; }
+.aw .aw-topic__est { display: flex; flex-direction: column; align-items: flex-end; flex-shrink: 0; min-width: 96px; }
+.aw .aw-topic__est b { font-size: 18px; font-weight: 500; letter-spacing: -.02em; color: var(--aw-ink); font-variant-numeric: tabular-nums; }
+.aw .aw-topic__est span { font-size: 11px; color: var(--aw-muted); }
+.aw .aw-onb__group { margin: 4px 0 0; font-size: 12px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--aw-muted); }
+.aw .aw-onb__path--3 { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 640px) { .aw .aw-onb__path--3 { grid-template-columns: repeat(3, 1fr); } .aw .aw-onb__path--3 li:nth-child(3) { border-left: 1px solid var(--aw-rule); } .aw .aw-onb__path--3 li { border-top: 0 !important; } .aw .aw-topic__est { align-items: flex-start; } }
