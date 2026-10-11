@@ -235,7 +235,15 @@ export async function runSerp(sb: SupabaseClient, itemId: string) {
 /** Build the brief for one calendar item and save it. */
 export async function runBrief(sb: SupabaseClient, itemId: string) {
   // Only a brief that is still running gets saved, so a brief someone stopped stays stopped.
-  const save = (patch: Record<string, unknown>) => sb.from("calendar_items").update(patch).eq("id", itemId).eq("brief_status", "running");
+  const save = async (patch: Record<string, unknown>) => {
+    let { error } = await sb.from("calendar_items").update(patch).eq("id", itemId).eq("brief_status", "running");
+    // Before supabase/027_serp.sql there is no place for the SERP analysis. Save the brief without it.
+    if (error && /serp/.test(error.message)) {
+      const rest = Object.fromEntries(Object.entries(patch).filter(([k]) => k !== "serp" && k !== "serp_at"));
+      ({ error } = await sb.from("calendar_items").update(rest).eq("id", itemId).eq("brief_status", "running"));
+    }
+    if (error) throw new Error(error.message);
+  };
   // A brief never runs forever: after 10 minutes it fails and can be started again.
   let limit: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
@@ -246,7 +254,7 @@ export async function runBrief(sb: SupabaseClient, itemId: string) {
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("Content brief failed:", message);
-    await save({ brief_status: "failed", brief_error: message });
+    await save({ brief_status: "failed", brief_error: message }).catch((e2) => console.error("Could not save the failed brief:", e2 instanceof Error ? e2.message : e2));
   } finally {
     clearTimeout(limit);
   }
