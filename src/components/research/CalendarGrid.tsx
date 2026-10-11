@@ -3,19 +3,18 @@
 import { useState } from "react";
 import { droppedIdea, IdeaList, type AiIdea, type useAiIdeas } from "./AiIdeas";
 import type { CalendarItem } from "@/lib/db";
-import { STAGE_COLORS } from "./shared";
+import { byStage, STAGE_COLORS, statusLabel } from "./shared";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-const STATUS_LABEL: Record<CalendarItem["status"], string> = { planned: "Planned", brief: "Brief", writing: "Writing", published: "Published" };
 
 /** One page as a card you can drag to another day: the keyword, its search volume and where it stands. */
-function Chip({ item, onOpen }: { item: CalendarItem; onOpen: () => void }) {
+function Chip({ item, onOpen, canDrag = true }: { item: CalendarItem; onOpen: () => void; canDrag?: boolean }) {
   return (
     <button
       type="button"
-      draggable
+      draggable={canDrag}
       onDragStart={(e) => {
         e.dataTransfer.setData("text/plain", item.id);
         e.dataTransfer.effectAllowed = "move";
@@ -28,13 +27,17 @@ function Chip({ item, onOpen }: { item: CalendarItem; onOpen: () => void }) {
       <span className={`aw-cal-card__kw ${item.status === "published" ? "is-done" : ""}`}>{item.keyword}</span>
       <span className="aw-cal-card__foot">
         <span className="aw-cal-card__vol">{item.volume === null || item.volume === undefined ? "–" : `${item.volume.toLocaleString("en-US")}/mo`}</span>
-        <span className={`aw-cal-card__st aw-cal-card__st--${item.status}`}>{STATUS_LABEL[item.status]}</span>
+        <span className={`aw-cal-card__st aw-cal-card__st--${item.status === "planned" && !item.due_date ? "idea" : item.status}`}>{statusLabel(item)}</span>
       </span>
     </button>
   );
 }
 
-/** A month of pages. Drag a page to a day to move it, or from the side list to schedule it. Click a day to open it. */
+/**
+ * The Editorial Calendar: a month of pages, and every unscheduled idea on the side.
+ * Drag an idea onto a day to schedule it (its status turns Planned), drag a page to another day to move it,
+ * or back to the side to make it an idea again. Click a day to open it.
+ */
 export function CalendarGrid({
   items,
   canEdit,
@@ -44,15 +47,18 @@ export function CalendarGrid({
   onIdea,
   onOpen,
   onAutoSchedule,
+  toolbar,
 }: {
   items: CalendarItem[];
   canEdit: boolean;
   onMove: (id: string, date: string | null) => void;
   onDay: (date: string) => void;
-  ideas: ReturnType<typeof useAiIdeas>;
-  onIdea: (idea: AiIdea, date: string | null) => void;
+  ideas?: ReturnType<typeof useAiIdeas>;
+  onIdea?: (idea: AiIdea, date: string | null) => void;
   onOpen: (id: string) => void;
-  onAutoSchedule: () => void;
+  onAutoSchedule?: () => void;
+  /** The List and Calendar switch, at the start of the header. */
+  toolbar?: React.ReactNode;
 }) {
   const [month, setMonth] = useState(() => {
     const d = new Date();
@@ -71,8 +77,8 @@ export function CalendarGrid({
   });
   const today = iso(new Date());
   const byDay = new Map<string, CalendarItem[]>();
-  for (const i of items) if (i.due_date) byDay.set(i.due_date, [...(byDay.get(i.due_date) ?? []), i]);
-  const unscheduled = items.filter((i) => !i.due_date && i.status !== "published");
+  for (const i of [...items].sort(byStage)) if (i.due_date) byDay.set(i.due_date, [...(byDay.get(i.due_date) ?? []), i]);
+  const unscheduled = items.filter((i) => !i.due_date && i.status !== "published").sort(byStage);
   const shift = (n: number) => setMonth(new Date(month.getFullYear(), month.getMonth() + n, 1));
 
   const drop = (date: string | null) => ({
@@ -87,7 +93,7 @@ export function CalendarGrid({
       setOver(null);
       if (!canEdit) return;
       const idea = droppedIdea(e);
-      if (idea) return onIdea(idea, date);
+      if (idea) return onIdea?.(idea, date);
       const id = e.dataTransfer.getData("text/plain");
       if (id) onMove(id, date);
     },
@@ -97,7 +103,10 @@ export function CalendarGrid({
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
       <section className="aw-frame min-w-0">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rule px-4 py-3">
-          <h3 className="aw-h4">{month.toLocaleDateString("en-US", { month: "long", year: "numeric" })}</h3>
+          <span className="flex flex-wrap items-center gap-3">
+            {toolbar}
+            <h3 className="aw-h4">{month.toLocaleDateString("en-US", { month: "long", year: "numeric" })}</h3>
+          </span>
           <span className="flex items-center gap-1">
             <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => shift(-1)} aria-label="Previous month">
               ‹
@@ -134,7 +143,7 @@ export function CalendarGrid({
                 </span>
                 {list.map((i) => (
                   <span key={i.id} onClick={(e) => e.stopPropagation()}>
-                    <Chip item={i} onOpen={() => onOpen(i.id)} />
+                    <Chip item={i} onOpen={() => onOpen(i.id)} canDrag={canEdit} />
                   </span>
                 ))}
               </div>
@@ -147,8 +156,8 @@ export function CalendarGrid({
         <div className="flex items-center gap-1 border-b border-rule px-2 pt-2" role="tablist" aria-label="Side list">
           {(
             [
-              { id: "unscheduled", label: `Unscheduled ${unscheduled.length}` },
-              { id: "ideas", label: "✦ AI ideas" },
+              { id: "unscheduled", label: `Unscheduled ideas ${unscheduled.length}` },
+              ...(ideas ? [{ id: "ideas", label: "✦ AI ideas" } as const] : []),
             ] as const
           ).map((t) => (
             <button
@@ -165,8 +174,9 @@ export function CalendarGrid({
         </div>
         {side === "unscheduled" ? (
           <>
-            {canEdit && unscheduled.length ? (
-              <div className="px-3 pt-3">
+            <p className="px-3 pt-3 text-[12px] text-muted">{unscheduled.length ? "Drag an idea onto a day to schedule it. Drag a page back here to unschedule it." : "Every idea has a date. Drag a page here to unschedule it."}</p>
+            {canEdit && unscheduled.length && onAutoSchedule ? (
+              <div className="px-3 pt-2">
                 <button type="button" className="aw-btn aw-btn--primary aw-btn--sm w-full" onClick={onAutoSchedule}>
                   Schedule all
                 </button>
@@ -174,15 +184,15 @@ export function CalendarGrid({
             ) : null}
             <div className="flex min-h-24 flex-col gap-1.5 overflow-y-auto p-3">
               {unscheduled.map((i) => (
-                <Chip key={i.id} item={i} onOpen={() => onOpen(i.id)} />
+                <Chip key={i.id} item={i} onOpen={() => onOpen(i.id)} canDrag={canEdit} />
               ))}
             </div>
           </>
-        ) : (
+        ) : ideas ? (
           <div className="min-h-24 overflow-y-auto p-3">
-            <IdeaList state={ideas} canEdit={canEdit} onAdd={(i) => onIdea(i, null)} addLabel="+" compact />
+            <IdeaList state={ideas} canEdit={canEdit} onAdd={(i) => onIdea?.(i, null)} addLabel="+" compact />
           </div>
-        )}
+        ) : null}
         <div className="mt-auto flex flex-wrap gap-x-3 gap-y-1 border-t border-rule-faint px-4 py-2.5 text-[12px] text-body">
           {(["bofu", "mofu", "tofu"] as const).map((s) => (
             <span key={s} className="flex items-center gap-1.5">

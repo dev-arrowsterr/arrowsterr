@@ -58,6 +58,7 @@ export const TASK_COST = {
   gap: 25, // a competitive analysis
   pages: 40, // every page of your site on Google
   brief: 100, // a full content brief
+  serp: 20, // Google's top 10 for one keyword, every page read
   agent: 15, // a writer agent job: a section, a table or links
   stats: 30, // a writer agent job that searches the web for stats
   widget: 25, // an interactive element

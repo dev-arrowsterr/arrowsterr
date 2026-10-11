@@ -13,15 +13,16 @@ import { DomainResearch, type SeoStart } from "./DomainResearch";
 import { KeywordGap } from "./KeywordGap";
 import { KeywordOverview } from "./KeywordOverview";
 import { AnalyzeSeo } from "./shared";
-import { Writer } from "./Writer";
+import { ContentIntel } from "./ContentIntel";
+import type { WriterAccess } from "./ContentPiece";
 
-export type Tool = "keywords" | "domain" | "gap" | "calendar" | "writer";
+export type Tool = "keywords" | "domain" | "gap" | "calendar" | "intel";
 const TITLES: Record<Tool, string> = {
   keywords: "Keyword Research",
   domain: "Domain Research",
   gap: "Competitive Analysis",
   calendar: "Content Plan",
-  writer: "Agentic Writer",
+  intel: "Content Intelligence",
 };
 
 /** The Research tools for the website picked in the top bar. */
@@ -36,6 +37,7 @@ export function ResearchPage({
   onSeoStarted,
   onSeo,
   refresh,
+  writer,
 }: {
   sb: SupabaseClient;
   auth: RunAuth;
@@ -47,6 +49,7 @@ export function ResearchPage({
   onSeoStarted?: () => void;
   onSeo?: (target: string, scope: SeoStart["scope"]) => void;
   refresh?: Refresh;
+  writer?: WriterAccess;
 }) {
   const brand = view.brand;
   const [site, setSite] = useStash<Site | null | undefined>(`site:${brand.id}`, undefined);
@@ -90,10 +93,10 @@ export function ResearchPage({
           onSite={setSite}
           stats={brandStats(answered(view.current, view.filter), { name: brand.name, domain: brand.domain })}
         />
-      ) : tool === "writer" ? (
-        <Writer sb={sb} auth={auth} site={site} canEdit={canEdit} />
+      ) : tool === "intel" ? (
+        <ContentIntel sb={sb} auth={auth} site={site} canEdit={canEdit} brandId={brand.id} days={view.days} chats={answered(view.current, view.filter)} onPlan={() => onTool("calendar")} />
       ) : (
-        <ContentCalendar sb={sb} auth={auth} site={site} canEdit={canEdit} refresh={refresh} onWrite={() => onTool("writer")} results={{ brandId: brand.id, brandName: brand.name, days: view.days, chats: answered(view.current, view.filter) }} onSite={setSite} />
+        <ContentCalendar sb={sb} auth={auth} site={site} canEdit={canEdit} refresh={refresh} writer={writer} onImport={() => onTool("keywords")} results={{ brandId: brand.id, brandName: brand.name, days: view.days, chats: answered(view.current, view.filter) }} onSite={setSite} />
       )}
     </div>
     </AnalyzeSeo.Provider>

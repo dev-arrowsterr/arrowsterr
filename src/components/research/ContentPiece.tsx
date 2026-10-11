@@ -9,16 +9,17 @@ import TableRow from "@tiptap/extension-table-row";
 import { EditorContent, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Brief } from "@/lib/briefTypes";
+import type { Brief, Serp } from "@/lib/briefTypes";
 import { briefDocHtml, wordFile } from "@/lib/briefDoc";
-import { createDoc, getBrief, getGuideline, listDocs, saveBrief, type CalendarItem, type CalendarStatus, type DocMeta, type Site } from "@/lib/db";
+import { createDoc, getBrief, getDoc, getGuideline, getSerp, listDocs, saveBrief, type CalendarItem, type CalendarStatus, type Doc, type DocMeta, type Site } from "@/lib/db";
 import type { RunAuth } from "@/lib/runner";
-import { putStash } from "@/lib/stash";
 import { briefToDoc } from "@/lib/writer";
 import type { BrandGuideline } from "@/lib/writerTypes";
-import { AiIcon, Seg } from "../ui";
+import { AiIcon, Seg, Thinking } from "../ui";
 import { BriefView } from "./BriefView";
-import { Difficulty, FIELD, fmtNum, post, StageTag } from "./shared";
+import { SerpView } from "./SerpView";
+import { Difficulty, FIELD, fmtNum, post, StageTag, statusLabel, Tick } from "./shared";
+import { DocEditor } from "./Writer";
 
 export const STATUSES: { id: CalendarStatus; label: string }[] = [
   { id: "planned", label: "Planned" },
@@ -27,9 +28,11 @@ export const STATUSES: { id: CalendarStatus; label: string }[] = [
   { id: "published", label: "Published" },
 ];
 
-type Tab = "overview" | "brief" | "draft";
+type Tab = "overview" | "serp" | "brief" | "draft";
+/** Whether this workspace has the Agentic Writer, and how to get it. */
+export type WriterAccess = { open: boolean; onUpgrade?: () => void };
 
-/** One content piece: its details, its content brief as an editable document, and its draft. */
+/** One content piece: its details, Google's top 10, its content brief as an editable document, and its draft in the Agentic Writer. */
 export function ContentPiece({
   sb,
   auth,
@@ -39,7 +42,9 @@ export function ContentPiece({
   canEdit,
   onPatch,
   onRemove,
-  onWrite,
+  writer = { open: true },
+  startTab,
+  autoSerp = false,
 }: {
   sb: SupabaseClient;
   auth: RunAuth;
@@ -49,9 +54,15 @@ export function ContentPiece({
   canEdit: boolean;
   onPatch: (p: Partial<CalendarItem>) => void;
   onRemove: () => void;
-  onWrite: () => void;
+  writer?: WriterAccess;
+  startTab?: Tab;
+  /** Run the SERP analysis as soon as the piece opens, when it has none yet. */
+  autoSerp?: boolean;
 }) {
-  const [tab, setTab] = useState<Tab>(item.brief_status ? "brief" : "overview");
+  const [tab, setTab] = useState<Tab>(startTab ?? (item.brief_status ? "brief" : "overview"));
+  const [serp, setSerp] = useState<{ serp: Serp | null; serp_at: string | null; missing?: boolean } | null>(null);
+  const [serpBusy, setSerpBusy] = useState(false);
+  const [doc, setDoc] = useState<Doc | null>(null);
   const [brief, setBrief] = useState<Awaited<ReturnType<typeof getBrief>> | null>(null);
   const [guideline, setGuideline] = useState<BrandGuideline | null | undefined>(undefined);
   const [drafts, setDrafts] = useState<DocMeta[] | null>(null);
@@ -75,6 +86,7 @@ export function ContentPiece({
     listDocs(sb, item.site_id)
       .then((d) => setDrafts(d.filter((x) => x.calendar_item_id === item.id)))
       .catch(() => setDrafts([]));
+    getSerp(sb, item.id).then(setSerp).catch(() => setSerp({ serp: null, serp_at: null }));
     // Only when another piece opens.
   }, [item.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -97,22 +109,60 @@ export function ContentPiece({
     }
   }
 
-  // Open (or make) the draft for this piece in Agentic Writer, with the brief's outline in place.
+  /** Read Google's top 10 for this keyword. A brief already written gets the new results too. */
+  async function runSerp() {
+    setError("");
+    setSerpBusy(true);
+    setTab("serp");
+    try {
+      const out = await post<{ serp: Serp; at: string; intoBrief: boolean }>(auth, "/api/research/serp", { itemId: item.id });
+      setSerp({ serp: out.serp, serp_at: out.at });
+      if (out.intoBrief) setBrief((b) => (b?.brief ? { ...b, brief: { ...b.brief, serp: out.serp } } : b));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSerpBusy(false);
+    }
+  }
+
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (!autoSerp || autoRan.current || !serp || serp.serp || serp.missing || !canEdit) return;
+    autoRan.current = true;
+    runSerp();
+    // Runs once, when the saved SERP has loaded and there is none.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSerp, serp]);
+
+  // The draft opens right here, in the Agentic Writer.
+  const draftId = drafts?.[0]?.id ?? null;
+  useEffect(() => {
+    if (!draftId || doc?.id === draftId) return;
+    let live = true;
+    getDoc(sb, draftId)
+      .then((d) => live && setDoc(d))
+      .catch((e) => live && setError(e instanceof Error ? e.message : String(e)));
+    return () => {
+      live = false;
+    };
+  }, [sb, draftId, doc?.id]);
+
+  // Make the draft for this piece, with the brief's outline in place, and open it in the Agentic Writer tab.
   async function toWriter(blank = false) {
     setError("");
     try {
       const b = brief?.brief;
-      const doc = await createDoc(sb, {
+      const made = await createDoc(sb, {
         workspace_id: auth.workspaceId,
         site_id: item.site_id,
         calendar_item_id: item.id,
         title: b?.brief.h1 || item.keyword,
         content: (b && !blank ? briefToDoc(item.keyword, item.secondary, b) : { type: "doc", content: [{ type: "heading", attrs: { level: 1 }, content: [{ type: "text", text: item.keyword }] }, { type: "paragraph" }] }) as unknown as Record<string, unknown>,
       });
-      putStash(`writer:${item.site_id}:open`, doc.id);
-      putStash(`writer:${item.site_id}:docs`, null);
+      setDoc(made);
+      setDrafts([made]);
       if (item.status === "planned" || item.status === "brief") onPatch({ status: "writing" });
-      onWrite();
+      setTab("draft");
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       setError(/docs/.test(message) ? `${message}. Run supabase/010_writer.sql in Supabase.` : message);
@@ -129,7 +179,7 @@ export function ContentPiece({
         <span className="aw-num">{fmtNum(item.volume)} searches / mo</span>
         <Difficulty kd={item.difficulty} />
         <span>{fmtDate(item.due_date)}</span>
-        <span className="aw-status aw-status--pending">{STATUSES.find((s) => s.id === item.status)?.label}</span>
+        <span className="aw-status aw-status--pending">{statusLabel(item)}</span>
       </div>
 
       <Seg
@@ -138,14 +188,64 @@ export function ContentPiece({
         onChange={setTab}
         options={[
           { id: "overview", label: "Overview" },
-          { id: "brief", label: brief?.brief_status === "done" ? "Content Brief ✓" : brief?.brief_status === "running" ? "Content Brief ···" : "Content Brief" },
-          { id: "draft", label: draft ? "Content Draft ✓" : "Content Draft" },
+          { id: "serp", label: serp?.serp ? <>SERP analysis <Tick /></> : serpBusy ? "SERP analysis ···" : "SERP analysis" },
+          { id: "brief", label: brief?.brief_status === "done" ? <>Content Brief <Tick /></> : brief?.brief_status === "running" ? "Content Brief ···" : "Content Brief" },
+          { id: "draft", label: draft ? <>Agentic Writer <Tick /></> : "Agentic Writer" },
         ]}
       />
       {error ? <p className="aw-error">{error}</p> : null}
 
       {tab === "overview" ? (
-        <Overview item={item} canEdit={canEdit} onPatch={onPatch} onRemove={onRemove} brief={brief?.brief_status ?? item.brief_status ?? null} onBrief={createBrief} onOpenBrief={() => setTab("brief")} />
+        <Overview
+          item={item}
+          canEdit={canEdit}
+          onPatch={onPatch}
+          onRemove={onRemove}
+          brief={brief?.brief_status ?? item.brief_status ?? null}
+          onBrief={createBrief}
+          onOpenBrief={() => setTab("brief")}
+          hasSerp={Boolean(serp?.serp)}
+          serpBusy={serpBusy}
+          onSerp={() => (serp?.serp ? setTab("serp") : runSerp())}
+          onWriter={() => setTab("draft")}
+        />
+      ) : tab === "serp" ? (
+        serpBusy ? (
+          <Thinking text={`Reading Google's top 10 for "${item.keyword}"...`} />
+        ) : serp?.serp ? (
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="aw-small mr-auto">{brief?.brief ? "Your brief uses these results." : "When you generate the brief, it uses these results. No second search."}</span>
+              {canEdit ? (
+                <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => confirm("Search Google again for fresh results?") && runSerp()}>
+                  Run again
+                </button>
+              ) : null}
+              {canEdit && !brief?.brief && brief?.brief_status !== "running" ? (
+                <button type="button" className="aw-btn aw-btn--accent aw-btn--sm" onClick={createBrief}>
+                  <AiIcon />
+                  Generate brief from this
+                </button>
+              ) : null}
+            </div>
+            <SerpView serp={serp.serp} at={serp.serp_at} country={site.profile.country ?? "United States"} />
+          </div>
+        ) : (
+          <div className="aw-frame flex flex-col items-start gap-4 p-8">
+            {serp?.missing ? <p className="aw-error">Run supabase/027_serp.sql in Supabase to save SERP analyses.</p> : null}
+            <h3 className="aw-h3">See who ranks for “{item.keyword}”</h3>
+            <p className="max-w-xl text-[15px] text-ink">
+              Read Google&apos;s top 10 in {site.profile.country ?? "the United States"}: how long each page is, how it is built, what Google shows and what people ask.
+              {brief?.brief ? " Your brief gets the new results too." : " The brief uses it later, so Google is searched only once."}
+            </p>
+            {canEdit ? (
+              <button type="button" className="aw-btn aw-btn--accent" onClick={runSerp}>
+                <AiIcon />
+                Run SERP analysis
+              </button>
+            ) : null}
+          </div>
+        )
       ) : tab === "brief" ? (
         !brief || guideline === undefined ? (
           <p className="aw-small">Loading...</p>
@@ -156,7 +256,7 @@ export function ContentPiece({
                 <path d="M12 1.5c.6 4.9 2.9 8.6 10.5 10.5-7.6 1.9-9.9 5.6-10.5 10.5-.6-4.9-2.9-8.6-10.5-10.5C9.1 10.1 11.4 6.4 12 1.5z" />
               </svg>
             </span>
-            <span className="aw-h4">Reading Google&apos;s top 10 and writing the brief...</span>
+            <span className="aw-h4">{serp?.serp ? "Writing the brief from your SERP analysis..." : "Reading Google's top 10 and writing the brief..."}</span>
           </div>
         ) : !brief.brief ? (
           <div className="aw-frame flex flex-col items-start gap-4 p-8">
@@ -179,29 +279,44 @@ export function ContentPiece({
             canEdit={canEdit}
             onSaved={(b) => setBrief({ ...brief, brief: b })}
             onRecreate={createBrief}
-            onWriter={() => toWriter()}
+            onWriter={() => (draft ? setTab("draft") : toWriter())}
           />
+        )
+      ) : !writer.open ? (
+        <div className="aw-frame flex flex-col items-start gap-4 p-8">
+          <h3 className="aw-h3">Write this piece with the Agentic Writer</h3>
+          <p className="max-w-xl text-[15px] text-ink">AI agents write each section from the brief, build tables and interactive elements, add stats and links, then publish to your CMS.</p>
+          {writer.onUpgrade ? (
+            <button type="button" className="aw-btn aw-btn--accent" onClick={writer.onUpgrade}>
+              Add the Agentic Writer with Pro
+            </button>
+          ) : null}
+        </div>
+      ) : draft ? (
+        doc && doc.id === draft.id ? (
+          <DocEditor
+            key={doc.id}
+            sb={sb}
+            auth={auth}
+            site={site}
+            doc={doc}
+            canEdit={canEdit}
+            guideline={guideline ?? null}
+            onSaved={(meta) => setDrafts((d) => [meta, ...(d ?? []).filter((x) => x.id !== meta.id)])}
+          />
+        ) : (
+          <Thinking text="Opening the draft..." />
         )
       ) : (
         <div className="aw-frame flex flex-col items-start gap-4 p-8">
-          {draft ? (
-            <>
-              <h3 className="aw-h3">{draft.title}</h3>
-              <span className="aw-num text-[13px] text-muted">
-                {draft.words} words · updated {new Date(draft.updated_at).toLocaleDateString()}
-              </span>
-              <button type="button" className="aw-btn aw-btn--accent" onClick={() => toWriter()}>
-                Open in Agentic Writer
-              </button>
-            </>
-          ) : (
+          {(
             <>
               <h3 className="aw-h3">{item.keyword}</h3>
               {canEdit ? (
                 <span className="flex flex-wrap gap-2">
                   {brief?.brief ? (
                     <button type="button" className="aw-btn aw-btn--accent" onClick={() => toWriter()}>
-                      Import brief into Agentic Writer
+                      Write it from the brief
                     </button>
                   ) : (
                     <button type="button" className="aw-btn aw-btn--accent" onClick={createBrief}>
@@ -230,6 +345,10 @@ function Overview({
   brief,
   onBrief,
   onOpenBrief,
+  hasSerp,
+  serpBusy,
+  onSerp,
+  onWriter,
 }: {
   item: CalendarItem;
   canEdit: boolean;
@@ -238,6 +357,10 @@ function Overview({
   brief: CalendarItem["brief_status"];
   onBrief: () => void;
   onOpenBrief: () => void;
+  hasSerp: boolean;
+  serpBusy: boolean;
+  onSerp: () => void;
+  onWriter: () => void;
 }) {
   const [keyword, setKeyword] = useState(item.keyword);
   const [owner, setOwner] = useState(item.owner ?? "");
@@ -254,6 +377,17 @@ function Overview({
     <div className="aw-frame grid gap-5 p-6 sm:grid-cols-2">
       {canEdit ? (
         <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint pb-5 sm:col-span-2">
+          <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={onSerp} disabled={serpBusy}>
+            {hasSerp ? (
+              <>
+                <Tick /> SERP analysis
+              </>
+            ) : serpBusy ? (
+              "Reading Google..."
+            ) : (
+              "Run SERP analysis"
+            )}
+          </button>
           {brief === "done" ? (
             <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={onOpenBrief}>
               Open content brief
@@ -266,6 +400,9 @@ function Overview({
               Generate brief
             </button>
           )}
+          <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={onWriter}>
+            Open Agentic Writer →
+          </button>
         </div>
       ) : null}
       {field("Keyword", <input value={keyword} disabled={!canEdit} onChange={(e) => setKeyword(e.target.value)} onBlur={() => keyword.trim() && keyword !== item.keyword && onPatch({ keyword: keyword.trim() })} className={box} />)}
@@ -430,7 +567,7 @@ function BriefEditor({
         ) : null}
         {canEdit ? (
           <button type="button" className="aw-btn aw-btn--accent aw-btn--sm" onClick={onWriter}>
-            Import into Agentic Writer →
+            Write it in the Agentic Writer →
           </button>
         ) : null}
       </div>

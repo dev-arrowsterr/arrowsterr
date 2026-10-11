@@ -183,3 +183,20 @@ html, body { background: #F8F8FF; }
 
 /* Dark ink surfaces keep white text */
 .aw .bg-ink, .aw .bg-dark { color: #fff; }
+
+/* Spreadsheet selection: the active cell, a selected range, and green ticks. */
+.aw .aw-sheet-wrap:focus { outline: none; }
+.aw .aw-sheet-wrap:focus-visible { box-shadow: inset 0 0 0 1px var(--aw-rule); }
+.aw .aw-sheet tbody td { cursor: cell; user-select: none; }
+.aw .aw-sheet tbody td a, .aw .aw-sheet tbody td button { cursor: pointer; }
+.aw .aw-sheet tbody td.is-in-range { background: #E8EEFB !important; }
+.aw .aw-sheet tbody td.is-active { box-shadow: inset 0 0 0 2px var(--aw-brand) !important; background: #fff !important; }
+.aw .aw-sheet-wrap:not(:focus-within) tbody td.is-active { box-shadow: inset 0 0 0 1px var(--aw-brand) !important; }
+.aw .aw-sheet thead th.is-col-on { box-shadow: inset 0 -2px 0 var(--aw-brand); }
+.aw .aw-sheet .aw-sheet__n { cursor: pointer; user-select: none; }
+.aw .aw-sheet td.aw-sheet__n.is-row-on { background: #DCE5F8 !important; color: var(--aw-brand) !important; }
+.aw .aw-sheet__cell { cursor: cell; }
+.aw .aw-sheet__flash { padding: 2px 8px; border-radius: 4px; background: var(--aw-ink); color: #fff; font-size: 12px; }
+.aw .aw-sheet__pick input, .aw .aw-sheet input[type=checkbox] { accent-color: #16A34A; }
+.aw .aw-tick { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: #16A34A; color: #fff; font-size: 10px; font-weight: 700; line-height: 1; }
+.aw .aw-cal-card__st--idea { color: var(--aw-muted); background: transparent; box-shadow: inset 0 0 0 1px var(--aw-rule); }

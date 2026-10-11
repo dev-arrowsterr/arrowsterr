@@ -333,7 +333,7 @@ function Toolbar({ editor }: { editor: Editor }) {
   );
 }
 
-function DocEditor({
+export function DocEditor({
   sb,
   auth,
   site,

@@ -211,6 +211,27 @@ Return JSON only, in exactly this shape:
 }
 Write plainly, for a 9th-grade reader. Use only the internal links listed above.`;
 
+/** Google's top 10 for a keyword, with every page read. */
+export async function readSerp(keyword: string, country: string | undefined): Promise<{ serp: Serp; cost: number }> {
+  const g = await googleTop10(keyword, country);
+  const pages = await Promise.all(g.organic.map(readPage));
+  return { serp: { pages, questions: g.questions, related: g.related, features: g.features, aiOverview: g.aiOverview }, cost: g.cost };
+}
+
+/** The SERP analysis for one calendar item: saved on the item, and copied into its brief when it already has one. */
+export async function runSerp(sb: SupabaseClient, itemId: string) {
+  const { data: item, error } = await sb.from("calendar_items").select("keyword, site_id, brief").eq("id", itemId).single();
+  if (error || !item) throw new Error(error?.message ?? "Item not found.");
+  const { data: site } = await sb.from("sites").select("profile").eq("id", item.site_id).single();
+  const { serp, cost } = await readSerp(item.keyword, (site?.profile as Profile | undefined)?.country);
+  const at = new Date().toISOString();
+  const patch: Record<string, unknown> = { serp, serp_at: at };
+  if (item.brief) patch.brief = { ...(item.brief as Brief), serp };
+  const { error: e2 } = await sb.from("calendar_items").update(patch).eq("id", itemId);
+  if (e2) throw new Error(e2.message + (/serp/.test(e2.message) ? " Run supabase/027_serp.sql in Supabase." : ""));
+  return { serp, at, cost, intoBrief: Boolean(item.brief) };
+}
+
 /** Build the brief for one calendar item and save it. */
 export async function runBrief(sb: SupabaseClient, itemId: string) {
   const save = (patch: Record<string, unknown>) => sb.from("calendar_items").update(patch).eq("id", itemId);
@@ -220,9 +241,12 @@ export async function runBrief(sb: SupabaseClient, itemId: string) {
     const { data: site, error: e2 } = await sb.from("sites").select("domain, name, profile, pages").eq("id", item.site_id).single();
     if (e2 || !site) throw new Error(e2?.message ?? "Website not found.");
 
-    const g = await googleTop10(item.keyword, (site.profile as Profile)?.country);
-    const pages = await Promise.all(g.organic.map(readPage));
-    const serp: Serp = { pages, questions: g.questions, related: g.related, features: g.features, aiOverview: g.aiOverview };
+    // A SERP analysis already run for this piece is reused, so Google is not searched twice.
+    const saved = await sb.from("calendar_items").select("serp").eq("id", itemId).maybeSingle();
+    const had = (saved.data as { serp?: Serp | null } | null)?.serp ?? null;
+    const fresh = had ? null : await readSerp(item.keyword, (site.profile as Profile)?.country);
+    const serp: Serp = had ?? fresh!.serp;
+    const g = { cost: fresh?.cost ?? 0 };
     const links = linkCandidates((site.pages as SitePage[]) ?? [], [item.keyword, ...(item.secondary ?? [])]).filter((u) => u !== item.current_url);
 
     const { text } = await askClaude(PROMPT(item.keyword, item.secondary ?? [], item.action, item.current_url, site as { domain: string; name: string; profile: Profile }, serp, links), {
@@ -231,7 +255,7 @@ export async function runBrief(sb: SupabaseClient, itemId: string) {
     const out = parseJson(text) as { analysis?: Analysis; brief?: BriefDoc; template?: BriefTemplate };
     if (!out.analysis || !out.brief) throw new Error("Claude did not return a full brief. Try again.");
     const brief: Brief = { serp, analysis: out.analysis, brief: out.brief, template: out.template, at: new Date().toISOString(), cost: Math.round(g.cost * 1000) / 1000 };
-    await save({ brief, brief_status: "done", brief_error: null, brief_at: brief.at, status: item.status === "planned" ? "brief" : item.status });
+    await save({ ...(had ? {} : { serp, serp_at: brief.at }), brief, brief_status: "done", brief_error: null, brief_at: brief.at, status: item.status === "planned" ? "brief" : item.status });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("Content brief failed:", message);

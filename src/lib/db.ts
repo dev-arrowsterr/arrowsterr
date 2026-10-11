@@ -5,7 +5,7 @@ import type { Chat, Run } from "./chats";
 import { isPage } from "./sources";
 import type { AgentResult, PlanBrief } from "./research";
 import { access, effectivePlan, limitsFor, METRICS, nextPlan, periodOf as periodFor, type Extras, type Metric, type PlanId, type Track } from "./plans";
-import type { Brief } from "./briefTypes";
+import type { Brief, Serp } from "./briefTypes";
 import type { BrandGuideline } from "./writerTypes";
 
 export type Role = "owner" | "admin" | "editor" | "viewer";
@@ -412,6 +412,13 @@ export async function addCalendarItems(sb: SupabaseClient, workspaceId: string, 
 }
 
 /** The brief for one calendar item, with its status. Loaded only when the item is opened. */
+/** The SERP analysis saved on a Content Plan piece, or null before one is run. */
+export async function getSerp(sb: SupabaseClient, id: string): Promise<{ serp: Serp | null; serp_at: string | null; missing?: boolean }> {
+  const { data, error } = await sb.from("calendar_items").select("serp, serp_at").eq("id", id).single();
+  if (error) return { serp: null, serp_at: null, missing: /serp/.test(error.message) };
+  return data as { serp: Serp | null; serp_at: string | null };
+}
+
 export async function getBrief(sb: SupabaseClient, id: string) {
   return check(await sb.from("calendar_items").select("keyword, secondary, brief, brief_status, brief_error, brief_at").eq("id", id).single()) as {
     keyword?: string;

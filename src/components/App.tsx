@@ -51,8 +51,8 @@ import { ReportsPage } from "./reports/ReportsPage";
 import { VisitorsPage } from "./VisitorsPage";
 
 export type { Brand } from "@/lib/db";
-type Page = "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "gap" | "calendar" | "writer" | "summary" | "members" | "billing";
-const RESEARCH: Page[] = ["keywords", "domain", "gap", "calendar", "writer"];
+type Page = "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "gap" | "calendar" | "intel" | "summary" | "members" | "billing";
+const RESEARCH: Page[] = ["keywords", "domain", "gap", "calendar", "intel"];
 /** Website analytics is still in testing: only this account sees it. */
 const WEBSITE_TESTER = "vincent@perceptric.com";
 const VISIBILITY: Page[] = ["prompts", "competitors", "domains", "urls"]; // the only pages with period, topic and model filters
@@ -69,7 +69,7 @@ const SLUGS: Record<Page, string> = {
   domain: "/domain-research",
   gap: "/competitive-analysis",
   calendar: "/content-plan",
-  writer: "/agentic-writer",
+  intel: "/content-intelligence",
   summary: "/reports",
   members: "/settings",
   billing: "/billing",
@@ -87,8 +87,10 @@ const ALIASES: Record<string, Page> = {
   "/keyword-gap": "gap",
   "/ai-gap": "gap",
   "/planner": "calendar",
-  "/writer": "writer",
-  "/inkwell": "writer",
+  "/writer": "calendar",
+  "/inkwell": "calendar",
+  "/agentic-writer": "calendar",
+  "/performance": "intel",
   "/content-calendar": "calendar",
   "/reports/content": "calendar",
   "/plan": "billing",
@@ -660,32 +662,10 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
               }}
               onPlans={() => go("billing")}
             />
-          ) : page === "writer" && plan && plan.limits.writer !== "full" ? (
-            <Glimpse
-              track="seo"
-              title="Add the Agentic Writer with Pro"
-              pitch="Turn every content brief into a finished, on-brand draft. AI agents write each section, build tables and interactive elements, add stats and links, then publish to your CMS."
-              admin={atLeast(ws.role, "admin")}
-              busy={boosting}
-              onBoost={async () => {
-                setBoosting(true);
-                try {
-                  const done = await choosePlan(auth, "scale", plan.interval ?? "month");
-                  if (done) {
-                    setNotice(done);
-                    loadPlan();
-                  }
-                } catch (e) {
-                  setError(e instanceof Error ? e.message : String(e));
-                } finally {
-                  setBoosting(false);
-                }
-              }}
-              onPlans={() => go("billing")}
-            />
           ) : RESEARCH.includes(page) ? (
             <ResearchPage key={view.brand.id} sb={sb} auth={auth} view={view} canEdit={canEdit} tool={page as Tool} onTool={(t) => go(t)} seoStart={seoStart}
               refresh={{ paid: Boolean(plan && plan.plan !== "free" && plan.plan !== "trial"), onUpgrade: () => go("billing") }}
+              writer={{ open: !plan || plan.limits.writer === "full", onUpgrade: () => go("billing") }}
               onSeoStarted={() => setSeoStart(null)}
               onSeo={(target, scope) => {
                 setSeoStart({ target, scope });
@@ -793,7 +773,7 @@ function NavIcon({ name }: { name: string }) {
 
 /** The toolset a page belongs to. Starter opens one of them. */
 const trackOf = (page: Page): Track | null =>
-  ["prompts", "competitors", "domains", "urls"].includes(page) ? "visibility" : ["keywords", "domain", "gap", "calendar", "writer"].includes(page) ? "seo" : null;
+  ["prompts", "competitors", "domains", "urls"].includes(page) ? "visibility" : ["keywords", "domain", "gap", "calendar", "intel"].includes(page) ? "seo" : null;
 
 /** The big modules of the app. Each opens to its own pages. */
 const NAV: { group: string; icon: string; tester?: boolean; items: { id: Page; label: string; icon: string; also?: Page[] }[] }[] = [
@@ -820,7 +800,7 @@ const NAV: { group: string; icon: string; tester?: boolean; items: { id: Page; l
     icon: "pen",
     items: [
       { id: "calendar", label: "Content Plan", icon: "calendar" },
-      { id: "writer", label: "Agentic Writer", icon: "pen" },
+      { id: "intel", label: "Content Intelligence", icon: "trend" },
     ],
   },
   {

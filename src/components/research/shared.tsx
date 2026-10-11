@@ -8,6 +8,58 @@ import type { RunAuth } from "@/lib/runner";
 export const STAGE_COLORS: Record<Stage, string> = { bofu: "#0943B0", mofu: "#F5B70A", tofu: "#28A745" };
 export const STAGE_LABEL: Record<Stage, string> = { bofu: "BOFU", mofu: "MOFU", tofu: "TOFU" };
 
+const STAGE_RANK: Record<string, number> = { bofu: 0, mofu: 1, tofu: 2 };
+/** Content Plan order: BOFU, then MOFU, then TOFU. Within a stage, by date (ideas last), then by volume. */
+export function byStage<T extends { stage: Stage | null; due_date?: string | null; volume?: number | null }>(a: T, b: T) {
+  return (
+    (STAGE_RANK[a.stage ?? ""] ?? 3) - (STAGE_RANK[b.stage ?? ""] ?? 3) ||
+    (a.due_date ?? "9999").localeCompare(b.due_date ?? "9999") ||
+    (b.volume ?? 0) - (a.volume ?? 0)
+  );
+}
+
+/** A piece with no date is still an idea. It turns Planned once it is on the calendar. */
+export function statusLabel(i: { status: "planned" | "brief" | "writing" | "published"; due_date: string | null }) {
+  if (i.status === "planned") return i.due_date ? "Planned" : "Idea";
+  return i.status === "brief" ? "Brief ready" : i.status === "writing" ? "Writing" : "Published";
+}
+
+/** A green tick for something done. */
+export function Tick() {
+  return (
+    <span className="aw-tick" aria-label="done">
+      ✓
+    </span>
+  );
+}
+
+/** List or Calendar, inside the sheet. */
+export function ViewSwitch<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { id: T; label: string; icon: React.ReactNode }[] }) {
+  return (
+    <div className="aw-seg" role="tablist" aria-label="View">
+      {options.map((v) => (
+        <button key={v.id} type="button" role="tab" aria-selected={value === v.id} onClick={() => onChange(v.id)} className={value === v.id ? "is-on" : ""}>
+          {v.icon}
+          {v.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const icon = (d: React.ReactNode) => (
+  <svg viewBox="0 0 24 24" width={16} height={16} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {d}
+  </svg>
+);
+export const CalendarViewIcon = () => icon(<><rect x={3.5} y={5} width={17} height={15} rx={2.5} /><path d="M3.5 10h17M8 3v4M16 3v4" /></>);
+export const ListViewIcon = () => icon(<path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" />);
+export type PlanView = "list" | "calendar";
+export const PLAN_VIEWS: { id: PlanView; label: string; icon: React.ReactNode }[] = [
+  { id: "list", label: "List", icon: <ListViewIcon /> },
+  { id: "calendar", label: "Calendar", icon: <CalendarViewIcon /> },
+];
+
 /** The funnel stage as a word with a colored mark, so color is never the only signal. */
 export function StageTag({ stage }: { stage: Stage | null }) {
   if (!stage) return <span className="text-muted">–</span>;

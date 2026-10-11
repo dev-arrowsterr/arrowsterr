@@ -14,6 +14,7 @@ import { SampleBars, SampleRows, SampleStats, ToolIntro } from "./ToolIntro";
 import { Card, Delta, favicon, pct, Seg, sortRows, SortTh, Thinking, useSort } from "./ui";
 
 type Ga4 = { email: string; property: string | null; name: string | null };
+export type SiteStatus = Status;
 type Status = {
   connected: boolean;
   source?: "ga4";
@@ -28,7 +29,7 @@ type Status = {
 };
 
 /** Connect Google Analytics 4: sign in with Google, then pick the property for this brand. */
-function Ga4Connect({ status, canEdit, call, onDone }: { status: Status; canEdit: boolean; call: (path: string, body: Record<string, unknown>) => Promise<Record<string, unknown>>; onDone: () => void }) {
+export function Ga4Connect({ status, canEdit, call, onDone }: { status: Status; canEdit: boolean; call: (path: string, body: Record<string, unknown>) => Promise<Record<string, unknown>>; onDone: () => void }) {
   const [props, setProps] = useState<{ id: string; name: string; account: string }[] | null>(null);
   const [pick, setPick] = useState("");
   const [busy, setBusy] = useState(false);

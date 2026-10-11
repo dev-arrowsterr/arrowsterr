@@ -9,15 +9,13 @@ import { useStash } from "@/lib/stash";
 import { Sheet, type Col, type Edit } from "../Sheet";
 import type { Chat } from "@/lib/chats";
 import { Card, SidePanel, Thinking } from "../ui";
-import { ContentResults } from "./ContentResults";
-import { SitePages } from "./SitePages";
 import { CalendarGrid } from "./CalendarGrid";
-import { ContentPiece, STATUSES } from "./ContentPiece";
+import { ContentPiece, STATUSES, type WriterAccess } from "./ContentPiece";
 import { useAiIdeas } from "./AiIdeas";
 import { DayPanel, ideaPiece, type NewPiece } from "./DayPanel";
-import { Difficulty, downloadCsv, FIELD, post, STAGE_LABEL, StageTag } from "./shared";
+import { byStage, Difficulty, downloadCsv, FIELD, PLAN_VIEWS, post, STAGE_LABEL, StageTag, statusLabel, ViewSwitch, type PlanView } from "./shared";
 import { PlanProgress, planRows } from "./AgenticResearch";
-import { PlanIntro } from "./PlanIntro";
+import { PlanIntro, PlanSample } from "./PlanIntro";
 
 const STAGE_ORDER = (s: Stage | null) => (s ? STAGES.findIndex((x) => x.id === s) : 3);
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -27,12 +25,11 @@ const parse = (s: string) => {
 };
 const BRIEF_LABEL = { running: "Writing...", done: "Ready", failed: "Failed" } as const;
 
-type Tab = "calendar" | "list" | "results";
+type Tab = PlanView;
 const VIEW_KEY = "arrowsterr.planView"; // each person's last view, kept in this browser
 const readView = (): Tab => {
   try {
-    const v = localStorage.getItem(VIEW_KEY);
-    return v === "calendar" || v === "results" ? v : "list";
+    return localStorage.getItem(VIEW_KEY) === "calendar" ? "calendar" : "list";
   } catch {
     return "list";
   }
@@ -66,12 +63,11 @@ const icon = (d: React.ReactNode) => (
     {d}
   </svg>
 );
-const CalendarIcon = () => icon(<><rect x={3.5} y={5} width={17} height={15} rx={2.5} /><path d="M3.5 10h17M8 3v4M16 3v4" /></>);
-const ListIcon = () => icon(<path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" />);
 const AiIconSmall = () => icon(<path d="M12 3c.6 4.6 1.9 5.9 6.5 6.5-4.6.6-5.9 1.9-6.5 6.5-.6-4.6-1.9-5.9-6.5-6.5C10.1 8.9 11.4 7.6 12 3Z" />);
 
 /**
- * The Content Plan: every piece of content in one place, as a list or on a calendar.
+ * The Content Plan: every piece of content in one place. The list is the plan, edited like a spreadsheet.
+ * The calendar is the Editorial Calendar, with every unscheduled idea on the side to drag onto a day.
  * The AI agent builds it the Perceptric way, with dates; people edit it from there.
  */
 export function ContentCalendar({
@@ -79,18 +75,21 @@ export function ContentCalendar({
   auth,
   site,
   canEdit,
-  onWrite,
+  writer,
+  onImport,
   results,
   onSite,
   refresh,
 }: {
   refresh?: Refresh;
+  /** Open Keyword Research to add keywords from there. */
+  onImport?: () => void;
   onSite: (s: Site) => void;
   sb: SupabaseClient;
   auth: RunAuth;
   site: Site;
   canEdit: boolean;
-  onWrite: () => void;
+  writer?: WriterAccess;
   results: { brandId: string; brandName: string; days: number; chats: Chat[] };
 }) {
   const [items, setItems] = useStash<CalendarItem[] | null>(`cal:${site.id}:items`, null);
@@ -112,7 +111,7 @@ export function ContentCalendar({
   const [start, setStart] = useState(() => iso(new Date()));
   const [newKw, setNewKw] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  const [panel, setPanel] = useState<{ day: string | null; piece: string | null } | null>(null);
+  const [panel, setPanel] = useState<{ day: string | null; piece: string | null; tab?: "serp" | "draft"; run?: boolean } | null>(null);
   const [adding, setAdding] = useState(false);
   const [colName, setColName] = useState("");
   const [colType, setColType] = useState<SheetColumn["type"]>("text");
@@ -277,6 +276,22 @@ export function ContentCalendar({
     }
   }
 
+  const ordered = [...items].sort(byStage);
+  /** Keywords pasted below the last row become new ideas. */
+  async function appendRows(list: Record<string, string>[]) {
+    const fresh = list.map((r) => (r.keyword ?? Object.values(r)[0] ?? "").trim().replace(/\s+/g, " ")).filter(Boolean);
+    if (!fresh.length) return;
+    try {
+      await addCalendarItems(
+        sb,
+        auth.workspaceId,
+        fresh.map((keyword) => ({ site_id: site.id, keyword, secondary: [], stage: null, theme: null, volume: null, difficulty: null, intent: null, cpc: null, source: "pasted", due_date: null, notes: null })),
+      );
+      load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }
   const undated = items.filter((i) => !i.due_date && i.status !== "published").length;
   const openItem = panel?.piece ? (items.find((i) => i.id === panel.piece) ?? null) : null;
   const dayLabel = (d: string) => new Date(`${d}T00:00:00`).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
@@ -287,7 +302,31 @@ export function ContentCalendar({
   });
   const ed = <E,>(x: E) => (canEdit ? x : undefined);
   const cols: Col<CalendarItem>[] = [
-    { id: "keyword", label: "Keyword", type: "text", value: (i) => i.keyword, width: 220 },
+    { id: "keyword", label: "Keyword", type: "text", value: (i) => i.keyword, width: 220, edit: ed(text("keyword")) },
+    {
+      id: "serp",
+      label: "SERP",
+      type: "list",
+      value: () => null,
+      width: 110,
+      cell: (i) => (
+        <button type="button" className="aw-chip aw-chip--btn whitespace-nowrap" onClick={() => setPanel({ day: null, piece: i.id, tab: "serp", run: canEdit })} title={`Read Google's top 10 for "${i.keyword}"`}>
+          ⌕ Analyze
+        </button>
+      ),
+    },
+    {
+      id: "write",
+      label: "Writer",
+      type: "list",
+      value: () => null,
+      width: 100,
+      cell: (i) => (
+        <button type="button" className="aw-chip aw-chip--btn whitespace-nowrap" onClick={() => setPanel({ day: null, piece: i.id, tab: "draft" })} title="Open in the Agentic Writer">
+          ✎ Write
+        </button>
+      ),
+    },
     {
       id: "brief",
       label: "Brief",
@@ -304,8 +343,8 @@ export function ContentCalendar({
       id: "status",
       label: "Status",
       type: "list",
-      value: (i) => STATUSES.find((s) => s.id === i.status)?.label,
-      options: STATUSES.map((s) => s.label),
+      value: (i) => statusLabel(i),
+      options: ["Idea", ...STATUSES.map((s) => s.label)],
       edit: ed<Edit<CalendarItem>>({ kind: "select", options: STATUSES, value: (i) => i.status, save: (i, v) => v && patch(i.id, { status: v as CalendarStatus }) }),
     },
     {
@@ -389,10 +428,9 @@ export function ContentCalendar({
   const canRefresh = Boolean(refresh?.paid && nextRefresh && nextRefresh <= new Date());
   const short = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
-  const views: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: "list", label: "List", icon: <ListIcon /> },
-    { id: "calendar", label: "Calendar", icon: <CalendarIcon /> },
-  ];
+  const toggle = <ViewSwitch value={view} onChange={setTab} options={PLAN_VIEWS} />;
+  const built = Boolean(items.length || lastDone);
+  const intro = <PlanIntro canEdit={canEdit} busy={building || running} built={built} onBuild={build} />;
   const head = (
     <header className="flex flex-wrap items-center justify-between gap-3">
       <h1 className="aw-h2 mb-0!">Content Plan</h1>
@@ -415,17 +453,6 @@ export function ContentCalendar({
             </button>
           )
         ) : null}
-        <div className="aw-seg" role="tablist" aria-label="View">
-          {views.map((v) => (
-            <button key={v.id} type="button" role="tab" aria-selected={view === v.id} onClick={() => setTab(v.id)} className={view === v.id ? "is-on" : ""}>
-              {v.icon}
-              {v.label}
-            </button>
-          ))}
-        </div>
-        <button type="button" className={`aw-text-link text-[14px] ${view === "results" ? "text-brand!" : ""}`} onClick={() => setTab(view === "results" ? "list" : "results")}>
-          {view === "results" ? "← Back to plan" : "Performance"}
-        </button>
       </div>
     </header>
   );
@@ -445,19 +472,10 @@ export function ContentCalendar({
       <div className="flex flex-col gap-5">
         {error ? <p className="aw-error">{error}</p> : null}
         {head}
+        {intro}
         {progress}
-        <PlanIntro canEdit={canEdit} busy={building} onBuild={build} />
+        <PlanSample />
         {undoBar}
-      </div>
-    );
-
-  if (view === "results")
-    return (
-      <div className="flex flex-col gap-5">
-        {head}
-        <SitePages auth={auth} site={site} items={items} canEdit={canEdit} />
-        <ContentResults auth={auth} brandId={results.brandId} domain={site.domain} days={results.days} chats={results.chats} items={items} />
-        {progress}
       </div>
     );
 
@@ -465,6 +483,7 @@ export function ContentCalendar({
     <div className="flex flex-col gap-5">
       {error ? <p className="aw-error">{error}</p> : null}
       {head}
+      {intro}
       {progress}
       {!items.length && lastDone && !running ? (
         <section className="aw-frame flex flex-col items-center gap-3 px-6 py-12 text-center">
@@ -506,6 +525,7 @@ export function ContentCalendar({
 
       {view === "calendar" ? (
         <CalendarGrid
+          toolbar={toggle}
           items={items}
           canEdit={canEdit}
           onMove={(id, date) => patch(id, { due_date: date })}
@@ -520,6 +540,11 @@ export function ContentCalendar({
         title={`${items.length} ${items.length === 1 ? "piece" : "pieces"}`}
         action={
           <span className="flex flex-wrap items-center gap-2">
+            {canEdit && onImport ? (
+              <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={onImport} title="Find keywords in Keyword Research, then click Add to Content Plan">
+                Import from Keyword Research
+              </button>
+            ) : null}
             {canEdit ? (
               <form onSubmit={add} className="flex gap-2">
                 <input value={newKw} onChange={(e) => setNewKw(e.target.value)} placeholder="Add a keyword" aria-label="Add a keyword" className={`${FIELD} w-40`} />
@@ -604,11 +629,14 @@ export function ContentCalendar({
         <Sheet
           id={`cal:${site.id}`}
           onAddColumn={canEdit ? () => setAdding(true) : undefined}
-          label="Editorial calendar"
-          rows={items}
+          label="Content Plan"
+          toolbar={toggle}
+          rows={ordered}
           cols={cols}
           rowKey={(i) => i.id}
-          sort={{ key: "due", desc: false }}
+          sort={{ key: "stage", desc: false }}
+          onDeleteRows={canEdit ? remove : undefined}
+          onAppend={canEdit ? appendRows : undefined}
           selected={canEdit ? picked : undefined}
           onSelect={canEdit ? setPicked : undefined}
           onOpen={(i) => setPanel({ day: null, piece: i.id })}
@@ -643,7 +671,9 @@ export function ContentCalendar({
               remove([openItem.id]);
               setPanel(panel?.day ? { day: panel.day, piece: null } : null);
             }}
-            onWrite={onWrite}
+            writer={writer}
+            startTab={panel?.tab}
+            autoSerp={panel?.run}
           />
         </SidePanel>
       ) : panel?.day ? (
