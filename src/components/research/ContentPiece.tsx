@@ -19,7 +19,7 @@ import { AiIcon, Seg, Thinking } from "../ui";
 import { BriefView } from "./BriefView";
 import { SerpView } from "./SerpView";
 import { Difficulty, FIELD, fmtNum, post, StageTag, statusLabel, Tick } from "./shared";
-import { DocEditor } from "./Writer";
+import { DocsEditor } from "./DocsEditor";
 
 export const STATUSES: { id: CalendarStatus; label: string }[] = [
   { id: "planned", label: "Planned" },
@@ -294,7 +294,7 @@ export function ContentPiece({
         </div>
       ) : draft ? (
         doc && doc.id === draft.id ? (
-          <DocEditor
+          <DocsEditor
             key={doc.id}
             sb={sb}
             auth={auth}

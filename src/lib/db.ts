@@ -47,6 +47,7 @@ export type Profile = {
   columns?: SheetColumn[]; // custom columns in the Content calendar
   planBrief?: PlanBrief; // last answers to the content plan questionnaire
   bank?: BankRow[]; // ideas typed into the Topic Bank, not on the calendar yet
+  knowledge?: string; // product facts the writing agent may use: pricing, features, customers, proof
 };
 /** One idea in the Topic Bank. */
 export type BankRow = {

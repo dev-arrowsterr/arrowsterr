@@ -35,7 +35,7 @@ const WI = {
 };
 
 /** The writer's own text, without the notes. */
-const draftText = (ed: Editor) => {
+export const draftText = (ed: Editor) => {
   const parts: string[] = [];
   ed.state.doc.forEach((n) => {
     if (n.type.name !== "note") parts.push(n.textContent);
@@ -301,7 +301,7 @@ function DraftMenu({ docs, openId, canEdit, onOpen, onRemove, onClose }: { docs:
   );
 }
 
-function Toolbar({ editor }: { editor: Editor }) {
+export function Toolbar({ editor }: { editor: Editor }) {
   const b = (label: string, on: boolean, run: () => void, title: string) => (
     <button type="button" title={title} aria-label={title} aria-pressed={on} onMouseDown={(e) => e.preventDefault()} onClick={run} className={`aw-tool ${on ? "is-on" : ""}`}>
       {label}

@@ -9,15 +9,17 @@ import { requireWriter, take } from "@/lib/entitlements";
 import { TASK_COST } from "@/lib/plans";
 import { cached, DAY } from "@/lib/cache";
 import { normalizeSite } from "@/lib/site";
-import type { AgentTask } from "@/lib/writerAgent";
+import { knowledgeText, type AgentTask } from "@/lib/writerAgent";
+import type { Profile } from "@/lib/db";
 
-const TASKS: AgentTask[] = ["write", "table", "widget", "stats", "links", "faq", "meta", "custom"];
+const TASKS: AgentTask[] = ["write", "table", "widget", "stats", "links", "faq", "meta", "custom", "rewrite", "paragraph"];
 const str = (v: unknown, n: number) => String(v ?? "").slice(0, n);
 const list = (v: unknown) => (Array.isArray(v) ? v : []);
 
-// Agents beside each section of a draft. They do jobs around the writing, never the writing itself:
-// a table in the brand's style, stats from sources, FAQ schema, meta tags and internal links.
-//   { siteId, docId, task, heading, section, docText }
+// The agents inside a draft. They write a section or a paragraph, rewrite a passage the writer picked,
+// and do jobs around the writing: a table in the brand's style, stats from sources, FAQ schema, meta tags and internal links.
+// Every job knows the brand guideline, the product knowledge and the content brief.
+//   { siteId, docId, task, heading, section, docText, instruction, passage, before, after }
 async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
@@ -30,11 +32,11 @@ async function handle(request: Request) {
   if (!took.ok) return took.response;
   if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
 
-  const { data: site } = await auth.sb.from("sites").select("id, name, domain, guideline").eq("id", body.siteId).eq("workspace_id", body.workspaceId).maybeSingle();
+  const { data: site } = await auth.sb.from("sites").select("id, name, domain, guideline, profile").eq("id", body.siteId).eq("workspace_id", body.workspaceId).maybeSingle();
   if (!site) return Response.json({ error: "Website not found." }, { status: 404 });
   // Writing and design jobs follow the brand. The first time, the agent reads the site and saves its guideline.
   let guideline = site.guideline as BrandGuideline | null;
-  if (!guideline && ["write", "table", "widget", "custom"].includes(task)) {
+  if (!guideline && ["write", "table", "widget", "custom", "rewrite", "paragraph"].includes(task)) {
     guideline = await buildGuideline(site.domain, site.name).catch(() => null);
     if (guideline) await auth.sb.from("sites").update({ guideline, guideline_at: guideline.at }).eq("id", site.id);
   }
@@ -59,9 +61,11 @@ async function handle(request: Request) {
   const head = `You are an agent inside Arrowsterr working on a draft for ${site.name} (${site.domain})${keyword ? `, target keyword "${keyword}"` : ""}. A human writes the article. You do one job around it and answer with JSON only, no other text. Never invent facts, numbers, customers or quotes.`;
 
   const brand = guidelineText(guideline);
+  const know = knowledgeText(site.profile as Profile | null);
   const context = `Brand guideline:
 ${brand}
 
+${know ? `What we know about ${site.name} (use it, never contradict it):\n${know}\n` : ""}
 ${
   brief
     ? `Content brief: intent: ${brief.analysis.intent}. Format: ${brief.analysis.format}. Must cover: ${brief.analysis.mustCover.join("; ")}. Terms to use: ${brief.brief.terms.join(", ")}. Make it yours: ${brief.brief.makeItYours.join("; ")}.`
@@ -78,6 +82,39 @@ ${section.trim() || "(nothing yet)"}`;
   const htmlRules = `Write HTML using only <p>, <h3>, <h4>, <ul>, <ol>, <li>, <strong>, <em>, <a href>, <blockquote>, <table>, <thead>, <tbody>, <tr>, <th>, <td>. No <h1> or <h2>, no classes, no styles, no scripts. Do not repeat the section heading.`;
 
   try {
+    if (task === "rewrite" || task === "paragraph") {
+      const passage = str(body.passage, 6000);
+      const before = str(body.before, 2500);
+      const after = str(body.after, 1500);
+      const { text } = await askClaude(
+        `${head}
+
+${context}
+
+${
+          task === "rewrite"
+            ? `The writer picked this passage:
+"""${passage}"""
+
+Job: ${ask || "rewrite it to read better. Keep the meaning and the facts."}
+Keep what is true in it. The result replaces the passage, so do not add text around it.`
+            : `Text just before the spot (may be cut short):
+"""${before || "(start of the article)"}"""
+Text just after the spot:
+"""${after || "(end of the article)"}"""
+
+Job: write ${ask ? `what the writer asks: "${ask}"` : "the paragraph that belongs at this spot"}. It must flow from the text before into the text after. One to three short paragraphs at most.`
+        }
+Use the brand's voice. Use [brackets] for facts only the brand knows that are not in the knowledge above. ${htmlRules}
+Answer: {"html": "...", "note": "one short line on what you changed"}`,
+        { maxTokens: 4000 },
+      );
+      const j = parseJson(text);
+      const html = String(j.html ?? "").trim();
+      if (!html) throw new Error("The agent came back empty. Try again.");
+      return Response.json({ task, html, note: str(j.note, 200) });
+    }
+
     if (task === "write" || task === "custom") {
       const { text } = await askClaude(
         `${head}

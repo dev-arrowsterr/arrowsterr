@@ -35,7 +35,7 @@ export function railSections(ed: Editor): RailSection[] {
 }
 
 /** Where a section's own text starts and ends now: after its heading, up to the next heading of any level. Found again by the heading's text, since the draft changes. */
-function bodyOf(editor: Editor, s: RailSection) {
+export function bodyOf(editor: Editor, s: RailSection) {
   let start = -1;
   let end = editor.state.doc.content.size;
   let empty = true;
@@ -202,8 +202,10 @@ const TASK_ICON: Record<AgentTask, React.ReactNode> = {
   faq: <path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z" />,
   meta: <path d="M3 12V4h8l10 10-8 8zM7.5 8.5h.01" />,
   custom: <path d="M12 3l2 5.5 5.5 2-5.5 2L12 18l-2-5.5-5.5-2 5.5-2z" />,
+  rewrite: <path d="M4 7h11l-3-3M20 17H9l3 3" />,
+  paragraph: <path d="M4 6h16M4 12h16M4 18h10" />,
 };
-const TaskIcon = ({ t }: { t: AgentTask }) => (
+export const TaskIcon = ({ t }: { t: AgentTask }) => (
   <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
     {TASK_ICON[t]}
   </svg>
@@ -218,6 +220,8 @@ const DONE: Record<AgentTask, string> = {
   faq: "FAQ schema saved for publishing",
   meta: "Meta saved for publishing",
   custom: "Added to this section",
+  rewrite: "Rewritten",
+  paragraph: "Paragraph written",
 };
 
 function GuideCard({
