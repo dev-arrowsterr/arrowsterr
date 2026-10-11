@@ -1,8 +1,8 @@
 // The agents beside each heading of a draft, shared by the server and the browser.
 
-export type AgentTask = "write" | "table" | "widget" | "stats" | "links" | "faq" | "meta" | "custom" | "rewrite" | "paragraph";
+export type AgentTask = "write" | "table" | "widget" | "stats" | "links" | "faq" | "meta" | "custom" | "rewrite" | "paragraph" | "alt";
 
-export const AGENT_TASKS: Record<Exclude<AgentTask, "custom" | "rewrite" | "paragraph">, { label: string; hint: string }> = {
+export const AGENT_TASKS: Record<Exclude<AgentTask, "custom" | "rewrite" | "paragraph" | "alt">, { label: string; hint: string }> = {
   write: { label: "Write this section", hint: "Drafts it from the guide, the brief and your brand voice" },
   table: { label: "Make a table", hint: "A comparison or summary table for this section" },
   widget: { label: "Code an interactive element", hint: "A calculator, quiz or comparison tool in your brand style" },
@@ -13,12 +13,12 @@ export const AGENT_TASKS: Record<Exclude<AgentTask, "custom" | "rewrite" | "para
 };
 
 /** The jobs that fit a heading best, first in the list. */
-export function tasksFor(heading: string, level: number, first: boolean): Exclude<AgentTask, "custom" | "rewrite" | "paragraph">[] {
+export function tasksFor(heading: string, level: number, first: boolean): Exclude<AgentTask, "custom" | "rewrite" | "paragraph" | "alt">[] {
   const h = heading.toLowerCase();
   const faq = /question|faq/.test(h);
   const compare = /\bvs\b|versus|compar|alternativ|best|top \d|pricing|price|cost|plans?\b|features/.test(h);
   const tool = /calculat|cost|price|pricing|roi|save|estimate|quiz|which .* (right|best)|choose|checklist/.test(h);
-  const out: Exclude<AgentTask, "custom" | "rewrite" | "paragraph">[] = ["write"];
+  const out: Exclude<AgentTask, "custom" | "rewrite" | "paragraph" | "alt">[] = ["write"];
   if (first) out.push("meta");
   if (faq && level <= 2) out.push("faq");
   if (compare) out.push("table");
@@ -34,7 +34,8 @@ export type WriterAgentResult =
   | { task: "widget"; embed: string; note?: string }
   | { task: "faq"; faq: { q: string; a: string }[]; schema: string }
   | { task: "meta"; meta: { title: string; description: string; slug: string } }
-  | { task: "links"; links: { anchor: string; url: string }[] };
+  | { task: "links"; links: { anchor: string; url: string }[] }
+  | { task: "alt"; alt: string };
 
 /** Quick asks for a passage the writer picked: each is an instruction for the rewrite job. */
 export const REWRITES: { label: string; ask: string }[] = [

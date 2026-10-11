@@ -12,7 +12,7 @@ import { normalizeSite } from "@/lib/site";
 import { knowledgeText, type AgentTask } from "@/lib/writerAgent";
 import type { Profile } from "@/lib/db";
 
-const TASKS: AgentTask[] = ["write", "table", "widget", "stats", "links", "faq", "meta", "custom", "rewrite", "paragraph"];
+const TASKS: AgentTask[] = ["write", "table", "widget", "stats", "links", "faq", "meta", "custom", "rewrite", "paragraph", "alt"];
 const str = (v: unknown, n: number) => String(v ?? "").slice(0, n);
 const list = (v: unknown) => (Array.isArray(v) ? v : []);
 
@@ -28,7 +28,7 @@ async function handle(request: Request) {
   if (paid) return paid;
   const task = body.task as AgentTask;
   if (!TASKS.includes(task)) return Response.json({ error: "Unknown task." }, { status: 400 });
-  const took = await take(body.workspaceId, "tasks", task === "widget" ? TASK_COST.widget : task === "stats" ? TASK_COST.stats : TASK_COST.agent);
+  const took = await take(body.workspaceId, "tasks", task === "widget" ? TASK_COST.widget : task === "stats" ? TASK_COST.stats : task === "alt" ? TASK_COST.ai : TASK_COST.agent);
   if (!took.ok) return took.response;
   if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
 
@@ -82,6 +82,23 @@ ${section.trim() || "(nothing yet)"}`;
   const htmlRules = `Write HTML using only <p>, <h3>, <h4>, <ul>, <ol>, <li>, <strong>, <em>, <a href>, <blockquote>, <table>, <thead>, <tbody>, <tr>, <th>, <td>. No <h1> or <h2>, no classes, no styles, no scripts. Do not repeat the section heading.`;
 
   try {
+    if (task === "alt") {
+      // Alt text for a picture the writer added, from the file name and the words around it.
+      const { text } = await askClaude(
+        `${head}
+
+The writer added a picture named "${str(body.file, 200)}" under the heading "${heading}".
+Text around it:
+"""${str(body.before, 1500)}
+${str(body.after, 800)}"""
+
+Job: write alt text for it: what the picture most likely shows, in under 125 characters, using the target keyword only if it fits. No "image of".
+Answer: {"alt": "..."}`,
+        { maxTokens: 300 },
+      );
+      return Response.json({ task, alt: str(parseJson(text).alt, 160) });
+    }
+
     if (task === "rewrite" || task === "paragraph") {
       const passage = str(body.passage, 6000);
       const before = str(body.before, 2500);

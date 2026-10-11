@@ -1,13 +1,14 @@
 "use client";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
 import Placeholder from "@tiptap/extension-placeholder";
 import Table from "@tiptap/extension-table";
 import TableCell from "@tiptap/extension-table-cell";
 import TableHeader from "@tiptap/extension-table-header";
 import TableRow from "@tiptap/extension-table-row";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { NodeSelection, Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { EditorContent, Extension, useEditor, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -129,6 +130,33 @@ type Target = { kind: "block"; pos: number; type: string; level: number; text: s
 type Result = { task: AgentTask; html?: string; note?: string; done?: string; preview?: boolean };
 type CardState = "idle" | "busy" | Result | { error: string };
 
+/** The slash menu reads keys before the editor does, while it is open. */
+const slashKeysExtension = (box: { current: ((e: KeyboardEvent) => boolean) | null }) =>
+  Extension.create({
+    name: "awSlashKeys",
+    addProseMirrorPlugins: () => [new Plugin({ props: { handleKeyDown: (_v, e) => box.current?.(e) ?? false } })],
+  });
+
+/** One choice in the slash menu. */
+type Slash = { id: string; label: string; hint: string; keys: string; icon: string };
+const SLASH: Slash[] = [
+  { id: "h1", label: "Heading 1", hint: "The page title", keys: "h1 heading title", icon: "H1" },
+  { id: "h2", label: "Heading 2", hint: "A main section", keys: "h2 heading section", icon: "H2" },
+  { id: "h3", label: "Heading 3", hint: "A sub-section", keys: "h3 heading sub", icon: "H3" },
+  { id: "p", label: "Text", hint: "A plain paragraph", keys: "p text paragraph", icon: "¶" },
+  { id: "bullet", label: "Bullet list", hint: "A simple list", keys: "bullet list ul", icon: "•" },
+  { id: "numbered", label: "Numbered list", hint: "Steps in order", keys: "numbered list ol steps", icon: "1." },
+  { id: "quote", label: "Quote", hint: "A pull quote", keys: "quote blockquote", icon: "❝" },
+  { id: "table", label: "Table", hint: "3 by 3, with a header row", keys: "table grid", icon: "⊞" },
+  { id: "divider", label: "Divider", hint: "A line across the page", keys: "divider hr line", icon: "—" },
+  { id: "image", label: "Image", hint: "Upload a picture", keys: "image picture photo upload img", icon: "▣" },
+  { id: "write", label: "Write this line", hint: "The agent writes what belongs here", keys: "write agent ai line paragraph", icon: "✦" },
+  { id: "section", label: "Write this section", hint: "The agent writes the section under the heading above", keys: "section agent ai write", icon: "✦" },
+];
+
+const countWords = (ed: Editor) => draftText(ed).split(/\s+/).filter(Boolean).length;
+type BriefState = { status: "loading" | "none" | "running" | "done" | "failed"; error?: string; outline?: { h2: string; h3: string[] }[] };
+
 /** The writer's own draft as a Google Docs-style editor with an agent beside every line. */
 export function DocsEditor({
   sb,
@@ -154,18 +182,21 @@ export function DocsEditor({
   const [knowing, setKnowing] = useState(false);
   const [profile, setProfile] = useState(site.profile);
   const [guides, setGuides] = useState<Map<string, Guide>>(new Map());
-  const [layout, setLayout] = useState<{ blocks: Block[]; pages: number }>({ blocks: [], pages: 1 });
-  const [hover, setHover] = useState<number | null>(null); // pos of the block under the mouse
-  const [cursorPos, setCursorPos] = useState<number | null>(null);
-  const [sel, setSel] = useState<{ from: number; to: number; x: number; y: number } | null>(null);
+  const [brief, setBrief] = useState<BriefState>({ status: doc.calendar_item_id ? "loading" : "none" });
+  const [layout, setLayout] = useState<{ blocks: Block[]; pages: number; words: number; sections: RailSection[] }>({ blocks: [], pages: 1, words: 0, sections: [] });
   const [target, setTarget] = useState<Target | null>(null);
   const [card, setCard] = useState<CardState>("idle");
-  const [words, setWords] = useState(0);
+  const [note, setNote] = useState("");
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const titleRef = useRef(title);
   const targetRef = useRef<Target | null>(null);
   const canvas = useRef<HTMLDivElement | null>(null);
+  const fileInput = useRef<HTMLInputElement | null>(null);
   const lastBreaks = useRef("");
+  const lastLayout = useRef("");
+  // A plain box the slash menu fills with its key handler, read by the editor plugin.
+  const [slashKeys] = useState<{ current: ((e: KeyboardEvent) => boolean) | null }>(() => ({ current: null }));
+  const uploadRef = useRef<(files: File[], at?: number) => void>(() => {});
 
   const save = useCallback(
     (ed: Editor) => {
@@ -173,7 +204,7 @@ export function DocsEditor({
       if (timer.current) clearTimeout(timer.current);
       setState("saving");
       timer.current = setTimeout(async () => {
-        const w = draftText(ed).split(/\s+/).filter(Boolean).length;
+        const w = countWords(ed);
         try {
           await saveDoc(sb, doc.id, { title: titleRef.current || "Untitled", content: ed.getJSON() as Record<string, unknown>, words: w });
           setState("saved");
@@ -186,13 +217,16 @@ export function DocsEditor({
     [sb, doc.id, doc.site_id, doc.calendar_item_id, canEdit, onSaved],
   );
 
+  const [slashExt] = useState(() => slashKeysExtension(slashKeys));
+
   const editor = useEditor({
     immediatelyRender: false,
     editable: canEdit,
     extensions: [
       StarterKit.configure({ heading: { levels: [1, 2, 3, 4] } }),
       Link.configure({ openOnClick: false }),
-      Placeholder.configure({ placeholder: ({ node }) => (node.type.name === "heading" ? "Heading" : "Write, or press the ✦ in the margin to let the agent write this line") }),
+      Image.configure({ inline: false, allowBase64: false }),
+      Placeholder.configure({ placeholder: ({ node }) => (node.type.name === "heading" ? "Heading" : "Type / for headings, images and the agent") }),
       Note,
       Embed,
       Table.configure({ resizable: false }),
@@ -200,50 +234,66 @@ export function DocsEditor({
       TableHeader,
       TableCell,
       Pages,
+      slashExt,
     ],
     content: doc.content && Object.keys(doc.content).length ? doc.content : undefined,
-    onCreate: ({ editor: ed }) => setWords(draftText(ed).split(/\s+/).filter(Boolean).length),
-    onUpdate: ({ editor: ed }) => {
-      setWords(draftText(ed).split(/\s+/).filter(Boolean).length);
-      save(ed);
+    editorProps: {
+      // Paste or drop pictures straight into the draft.
+      handlePaste: (_view, event) => {
+        const files = [...(event.clipboardData?.files ?? [])].filter((f) => f.type.startsWith("image/"));
+        if (!files.length) return false;
+        uploadRef.current(files);
+        return true;
+      },
+      handleDrop: (view, event) => {
+        const files = [...(event.dataTransfer?.files ?? [])].filter((f) => f.type.startsWith("image/"));
+        if (!files.length) return false;
+        event.preventDefault();
+        uploadRef.current(files, view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos);
+        return true;
+      },
     },
-    onSelectionUpdate: ({ editor: ed }) => {
-      const { from, to } = ed.state.selection;
-      setCursorPos(ed.state.doc.resolve(from).before(1) ?? null);
-      if (from === to || !ed.isFocused) return setSel(null);
-      const c = ed.view.coordsAtPos(from);
-      const box = canvas.current?.getBoundingClientRect();
-      if (!box) return setSel(null);
-      setSel({ from, to, x: c.left - box.left, y: c.top - box.top });
-    },
-    onBlur: () => setTimeout(() => setSel((s) => (document.activeElement?.closest(".aw-bubble") ? s : null)), 150),
+    onUpdate: ({ editor: ed }) => save(ed),
   });
 
-  // Page breaks and block positions, after every change and on resize.
+  // Page breaks, block positions, words and the outline. Measured after typing pauses, and on resize.
+  // Margins never change when a break is added, so a block cannot flip back and forth between pages.
   useEffect(() => {
     if (!editor) return;
     let raf = 0;
-    const run = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(() => {
-        if (editor.isDestroyed) return;
-        const out = layOut(editor);
-        setLayout({ blocks: out.blocks, pages: out.pages });
-        const key = JSON.stringify(out.breaks);
-        if (key !== lastBreaks.current) {
-          lastBreaks.current = key;
-          editor.view.dispatch(editor.state.tr.setMeta(pagesKey, out.breaks).setMeta("addToHistory", false));
-        }
-      });
+    let wait: ReturnType<typeof setTimeout> | null = null;
+    const measure = () => {
+      if (editor.isDestroyed) return;
+      const out = layOut(editor);
+      const key = JSON.stringify(out.breaks);
+      if (key !== lastBreaks.current) {
+        lastBreaks.current = key;
+        editor.view.dispatch(editor.state.tr.setMeta(pagesKey, out.breaks).setMeta("addToHistory", false));
+      }
+      const sections = railSections(editor);
+      const sig = `${out.pages}|${out.blocks.map((b) => `${b.pos}:${b.top}:${b.h}:${b.type}`).join(",")}|${sections.map((s) => `${s.pos}${s.heading}${s.text.trim() ? 1 : 0}`).join(",")}`;
+      if (sig !== lastLayout.current) {
+        lastLayout.current = sig;
+        setLayout({ blocks: out.blocks, pages: out.pages, words: countWords(editor), sections });
+      }
     };
-    run();
-    editor.on("update", run);
-    const obs = new ResizeObserver(run);
+    const soon = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(measure);
+    };
+    const later = () => {
+      if (wait) clearTimeout(wait);
+      wait = setTimeout(soon, 180);
+    };
+    soon();
+    editor.on("update", later);
+    const obs = new ResizeObserver(later);
     obs.observe(editor.view.dom);
-    document.fonts?.ready.then(run).catch(() => {});
+    document.fonts?.ready.then(soon).catch(() => {});
     return () => {
       cancelAnimationFrame(raf);
-      editor.off("update", run);
+      if (wait) clearTimeout(wait);
+      editor.off("update", later);
       obs.disconnect();
     };
   }, [editor]);
@@ -265,17 +315,44 @@ export function DocsEditor({
     };
   }, [editor]);
 
-  // The guide for each heading comes from the brief the draft was made from.
-  useEffect(() => {
+  // The brief for this piece: its guide for each heading, or a button to write it.
+  const loadBrief = useCallback(async () => {
     if (!doc.calendar_item_id) return;
-    let live = true;
-    getBrief(sb, doc.calendar_item_id)
-      .then((b) => live && b.brief && setGuides(briefGuides(b.keyword ?? doc.title, b.secondary ?? [], b.brief)))
-      .catch(() => {});
-    return () => {
-      live = false;
-    };
+    try {
+      const b = await getBrief(sb, doc.calendar_item_id);
+      if (b.brief) {
+        setGuides(briefGuides(b.keyword ?? doc.title, b.secondary ?? [], b.brief));
+        setBrief({ status: "done", outline: b.brief.brief.outline.map((o) => ({ h2: o.h2, h3: o.h3 })) });
+      } else setBrief({ status: b.brief_status === "running" ? "running" : b.brief_status === "failed" ? "failed" : "none", error: b.brief_error ?? undefined });
+    } catch {
+      setBrief({ status: "none" });
+    }
   }, [sb, doc.calendar_item_id, doc.title]);
+  useEffect(() => {
+    // Loading the brief when the draft opens is the point of this effect.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadBrief();
+  }, [loadBrief]);
+  useEffect(() => {
+    if (brief.status !== "running") return;
+    const t = setInterval(loadBrief, 4000);
+    return () => clearInterval(t);
+  }, [brief.status, loadBrief]);
+  async function writeBrief() {
+    if (!doc.calendar_item_id) return;
+    setBrief({ status: "running" });
+    try {
+      await post(auth, "/api/research/brief", { itemId: doc.calendar_item_id });
+    } catch (e) {
+      setBrief({ status: "failed", error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+  function buildOutline() {
+    if (!editor || !brief.outline?.length) return;
+    const e = (x: string) => x.replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    const html = brief.outline.map((o) => `<h2>${e(o.h2)}</h2><p></p>${o.h3.map((h) => `<h3>${e(h)}</h3><p></p>`).join("")}`).join("");
+    editor.chain().focus().insertContentAt(editor.state.doc.content.size, html).run();
+  }
 
   // Full screen closes with Escape; so does the agent card.
   useEffect(() => {
@@ -297,23 +374,25 @@ export function DocsEditor({
 
   const blockAt = (pos: number | null) => (pos === null ? null : (layout.blocks.find((b) => b.pos === pos) ?? null));
   const targetBlock = target ? blockAt(target.kind === "block" ? target.pos : (editor?.state.doc.resolve(Math.min(target.from, editor.state.doc.content.size)).before(1) ?? null)) : null;
-  const chipBlock = target ? null : (blockAt(hover) ?? blockAt(cursorPos));
 
   /** Open the one agent card, beside its line, with the line in the middle of the screen. */
-  function open(t: Target, run?: () => void) {
+  function open(t: Target, then?: () => void) {
     targetRef.current = t;
     setTarget(t);
     setCard("idle");
-    setSel(null);
     const pos = t.kind === "block" ? t.pos : t.from;
     const dom = editor?.view.nodeDOM(t.kind === "block" ? pos : editor.state.doc.resolve(pos).before(1)) as HTMLElement | null;
     requestAnimationFrame(() => dom?.scrollIntoView?.({ behavior: "smooth", block: "center" }));
-    if (run) setTimeout(run, 0);
+    if (then) setTimeout(then, 0);
   }
   const close = () => {
     targetRef.current = null;
     setTarget(null);
     setCard("idle");
+  };
+  const blockTarget = (pos: number): Target | null => {
+    const node = editor?.state.doc.nodeAt(pos);
+    return node ? { kind: "block", pos, type: node.type.name, level: node.type.name === "heading" ? (node.attrs.level as number) : 0, text: node.textContent } : null;
   };
 
   const docText = () => (editor ? draftText(editor) : "");
@@ -321,6 +400,43 @@ export function DocsEditor({
     const d = editor!.state.doc;
     return { before: d.textBetween(Math.max(0, from - 4000), from, "\n").slice(-2500), after: d.textBetween(to, Math.min(d.content.size, to + 3000), "\n").slice(0, 1500) };
   };
+
+  /** Upload pictures to the draft's folder and put them in. The agent writes alt text for each. */
+  async function upload(files: File[], at?: number) {
+    if (!editor || !canEdit) return;
+    for (const f of files) {
+      if (f.size > 10 * 1024 * 1024) {
+        setNote(`${f.name} is over 10 MB.`);
+        continue;
+      }
+      setNote(`Uploading ${f.name}...`);
+      const path = `${auth.workspaceId}/${doc.id}/${Date.now()}-${f.name.toLowerCase().replace(/[^a-z0-9.]+/g, "-")}`;
+      const { error } = await sb.storage.from("doc-images").upload(path, f, { contentType: f.type, upsert: false });
+      if (error) {
+        setNote(/bucket|not found/i.test(error.message) ? "Run supabase/028_doc_images.sql in Supabase to turn on images." : error.message);
+        continue;
+      }
+      const src = sb.storage.from("doc-images").getPublicUrl(path).data.publicUrl;
+      const alt = f.name.replace(/\.[a-z0-9]+$/i, "").replace(/[-_]+/g, " ");
+      const pos = at ?? editor.state.selection.to;
+      editor.chain().focus().insertContentAt(pos, { type: "image", attrs: { src, alt } }).run();
+      setNote("");
+      // Alt text from the words around the picture, in the background.
+      const near = textAround(pos, pos);
+      const heading = [...layout.sections].reverse().find((s) => s.pos < pos)?.heading ?? "";
+      post<{ alt: string }>(auth, "/api/writer/agent", { siteId: site.id, docId: doc.id, task: "alt", file: f.name, heading, ...near })
+        .then(({ alt: better }) => {
+          if (!better) return;
+          editor.state.doc.descendants((n, p) => {
+            if (n.type.name === "image" && n.attrs.src === src) editor.view.dispatch(editor.state.tr.setNodeMarkup(p, undefined, { ...n.attrs, alt: better }));
+          });
+        })
+        .catch(() => {});
+    }
+  }
+  useEffect(() => {
+    uploadRef.current = upload;
+  });
 
   /** Run one agent job for the open card. */
   async function run(task: AgentTask, instruction = "") {
@@ -345,7 +461,7 @@ export function DocsEditor({
         setCard({ task: job, html: cleanHtml(out.html), note: out.note, preview: true });
         return;
       }
-      // A heading: the agent works on its whole section, like the guide comments did.
+      // A heading: the agent works on its whole section.
       const sections = railSections(editor);
       const s = sections.find((x) => x.pos === t.pos) ?? sections.find((x) => x.heading === t.text);
       if (!s) throw new Error("This heading changed. Open it again.");
@@ -390,6 +506,7 @@ export function DocsEditor({
       await saveDocMeta(sb, doc.id, { ...(await getDocMeta(sb, doc.id)), title: out.meta.title, description: out.meta.description, slug: out.meta.slug });
       return `Meta saved: ${out.meta.title}`;
     }
+    if (out.task === "alt") return "Alt text written";
     await saveDocMeta(sb, doc.id, { ...(await getDocMeta(sb, doc.id)), schema: out.schema });
     return "FAQ schema saved for publishing";
   }
@@ -411,16 +528,43 @@ export function DocsEditor({
     setCard({ task: card.task, done: mode === "replace" ? "Replaced" : "Added below" });
   }
 
+  /** Do what a slash menu choice says, after the "/word" is taken out. */
+  function slash(id: string, range: { from: number; to: number }) {
+    if (!editor) return;
+    const c = editor.chain().focus().deleteRange(range);
+    if (id === "h1" || id === "h2" || id === "h3") c.setNode("heading", { level: Number(id[1]) }).run();
+    else if (id === "p") c.setParagraph().run();
+    else if (id === "bullet") c.toggleBulletList().run();
+    else if (id === "numbered") c.toggleOrderedList().run();
+    else if (id === "quote") c.toggleBlockquote().run();
+    else if (id === "table") c.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+    else if (id === "divider") c.setHorizontalRule().run();
+    else {
+      c.run();
+      if (id === "image") return fileInput.current?.click();
+      const pos = editor.state.doc.resolve(editor.state.selection.from).before(1);
+      if (id === "write") {
+        const t = blockTarget(pos);
+        if (t) open(t, () => run("paragraph"));
+      } else if (id === "section") {
+        const h = [...railSections(editor)].reverse().find((s) => s.pos <= pos);
+        if (!h) return setNote("Add a heading first. The agent writes the section under it.");
+        const t = blockTarget(h.pos);
+        if (t) open(t, () => run("write"));
+      }
+    }
+  }
+
   const exportHtml = () => brandTables(exportClean(editor?.getHTML() ?? ""), guideline);
   const icon = (label: string, svg: React.ReactNode, onClick: () => void, pressed?: boolean) => (
     <button type="button" className="aw-iconbtn" title={label} aria-label={label} aria-pressed={pressed} onClick={onClick}>
       {svg}
     </button>
   );
-  const sections = editor ? railSections(editor) : [];
+  const sections = layout.sections;
   const canvasH = layout.pages * PITCH - PAGE_GAP;
   const cardTop = targetBlock ? MARGIN + targetBlock.top : MARGIN;
-
+  const hasOutline = sections.some((s) => s.level === 2);
 
   return (
     <div className={`aw-docs ${full ? "is-full" : ""}`}>
@@ -439,9 +583,12 @@ export function DocsEditor({
             aria-label="Draft title"
             className="aw-docs__title"
           />
+          <span className="aw-num px-1 text-[12px] whitespace-nowrap text-muted">
+            {layout.pages} {layout.pages === 1 ? "page" : "pages"} · {layout.words.toLocaleString("en-US")} words
+          </span>
           <span className="flex items-center gap-1.5 px-1 text-[12px] whitespace-nowrap text-muted">
             <i className={`inline-block h-1.5 w-1.5 rounded-full ${state === "error" ? "bg-neg" : state === "saving" ? "bg-warn" : "bg-pos"}`} aria-hidden="true" />
-            {state === "error" ? "Not saved" : state === "saving" ? "Saving" : "Saved"}
+            {note || (state === "error" ? "Not saved" : state === "saving" ? "Saving" : "Saved")}
           </span>
           {canEdit ? (
             <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm whitespace-nowrap" onClick={() => setKnowing(true)} title="What the agent knows about your product">
@@ -484,18 +631,55 @@ export function DocsEditor({
         </span>
       </div>
 
+      {canEdit && doc.calendar_item_id && brief.status !== "loading" && !(brief.status === "done" && hasOutline) ? (
+        <div className="aw-docs__briefbar">
+          {brief.status === "running" ? (
+            <span className="flex items-center gap-2">
+              <span className="aw-spin" aria-hidden="true" />
+              Reading Google&apos;s top 10 and writing the brief. The agent uses it as soon as it is ready.
+            </span>
+          ) : brief.status === "done" ? (
+            <>
+              <span className="flex items-center gap-2">
+                <Tick />
+                The brief is ready. The agent follows it in every section.
+              </span>
+              <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={buildOutline}>
+                Build outline from brief
+              </button>
+            </>
+          ) : (
+            <>
+              <span>{brief.status === "failed" ? `The brief failed: ${brief.error ?? "try again"}` : "No brief yet. With one, the agent knows what Google rewards for this keyword."}</span>
+              <button type="button" className="aw-btn aw-btn--accent aw-btn--sm" onClick={writeBrief}>
+                <AiIcon />
+                Generate brief
+              </button>
+            </>
+          )}
+        </div>
+      ) : null}
+
+      <input
+        ref={fileInput}
+        type="file"
+        accept="image/*"
+        multiple
+        hidden
+        onChange={(e) => {
+          const files = [...(e.target.files ?? [])];
+          e.target.value = "";
+          if (files.length) upload(files);
+        }}
+      />
+
       <div className="aw-docs__desk">
         {full ? (
           <nav className="aw-docs__outline" aria-label="Outline">
             <span className="aw-label mb-2 block">Outline</span>
             {sections.length ? (
               sections.map((s) => (
-                <button
-                  key={`${s.pos}:${s.heading}`}
-                  type="button"
-                  className={`aw-docs__ol aw-docs__ol--${s.level}`}
-                  onClick={() => (editor?.view.nodeDOM(s.pos) as HTMLElement | null)?.scrollIntoView({ behavior: "smooth", block: "center" })}
-                >
+                <button key={`${s.pos}:${s.heading}`} type="button" className={`aw-docs__ol aw-docs__ol--${s.level}`} onClick={() => (editor?.view.nodeDOM(s.pos) as HTMLElement | null)?.scrollIntoView({ block: "center" })}>
                   <span className="truncate">{s.heading || "Untitled"}</span>
                   {s.text.trim() ? <Tick /> : guides.has(guideKey(s.heading)) ? <span className="aw-docs__guide-dot" title="The brief has a guide for this section" /> : null}
                 </button>
@@ -506,7 +690,7 @@ export function DocsEditor({
           </nav>
         ) : null}
 
-        <div ref={canvas} className="aw-docs__canvas" style={{ height: canvasH }} onMouseLeave={() => setHover(null)}>
+        <div ref={canvas} className="aw-docs__canvas" style={{ height: canvasH }}>
           {Array.from({ length: layout.pages }, (_, i) => (
             <div key={i} className="aw-docs__page" style={{ top: i * PITCH, height: PAGE_H }} aria-hidden="true">
               <span className="aw-docs__pageno">
@@ -515,51 +699,20 @@ export function DocsEditor({
             </div>
           ))}
           {targetBlock ? <div className="aw-docs__focus" style={{ top: MARGIN + targetBlock.top - 4, height: targetBlock.h + 8 }} aria-hidden="true" /> : null}
-          <div
-            className="aw-docs__body"
-            style={{ paddingTop: MARGIN }}
-            onMouseMove={(e) => {
-              const y = e.clientY - (canvas.current?.getBoundingClientRect().top ?? 0) - MARGIN;
-              const b = layout.blocks.find((x) => y >= x.top - 6 && y <= x.top + x.h + 6);
-              setHover(b ? b.pos : null);
-            }}
-          >
+          <div className="aw-docs__body" style={{ paddingTop: MARGIN }}>
             <EditorContent editor={editor} />
           </div>
-
-          {/* The agent button for the line under the mouse, or the line with the cursor. */}
-          {canEdit && chipBlock ? (
-            <button
-              type="button"
-              className="aw-docs__chip"
-              style={{ top: MARGIN + chipBlock.top + Math.min(chipBlock.h, 28) / 2 - 13 }}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => open({ kind: "block", pos: chipBlock.pos, type: chipBlock.type, level: chipBlock.level, text: chipBlock.text })}
-              title={chipBlock.type === "heading" ? "Ask the agent to write this section" : chipBlock.text.trim() ? "Ask the agent to rewrite this line" : "Ask the agent to write this line"}
-            >
-              <AiIcon />
-              <span className="aw-docs__chip-label">{chipBlock.type === "heading" ? "Write section" : chipBlock.text.trim() ? "Rewrite" : "Write"}</span>
-            </button>
-          ) : null}
-
-          {/* The selection menu: pick text, then ask the agent. */}
-          {canEdit && sel && !target ? (
-            <div className="aw-bubble" style={{ left: Math.max(0, sel.x - 8), top: sel.y - 46 }} onMouseDown={(e) => e.preventDefault()}>
-              <button type="button" className="aw-bubble__ask" onClick={() => editor && open({ kind: "selection", from: sel.from, to: sel.to, text: editor.state.doc.textBetween(sel.from, sel.to, "\n") })}>
-                <AiIcon />
-                Ask agent
-              </button>
-              {REWRITES.slice(0, 3).map((r) => (
-                <button
-                  key={r.label}
-                  type="button"
-                  className="aw-bubble__btn"
-                  onClick={() => editor && open({ kind: "selection", from: sel.from, to: sel.to, text: editor.state.doc.textBetween(sel.from, sel.to, "\n") }, () => run("rewrite", r.ask))}
-                >
-                  {r.label}
-                </button>
-              ))}
-            </div>
+          {editor && canEdit ? (
+            <>
+              <Gutter editor={editor} canvas={canvas} blocks={layout.blocks} hidden={Boolean(target)} onOpen={(pos) => { const t = blockTarget(pos); if (t) open(t); }} />
+              <Bubble
+                editor={editor}
+                canvas={canvas}
+                hidden={Boolean(target)}
+                onAsk={(from, to, ask) => open({ kind: "selection", from, to, text: editor.state.doc.textBetween(from, to, "\n") }, ask ? () => run("rewrite", ask) : undefined)}
+              />
+              <SlashMenu editor={editor} canvas={canvas} keysRef={slashKeys} onPick={slash} />
+            </>
           ) : null}
         </div>
 
@@ -577,19 +730,7 @@ export function DocsEditor({
                 onClose={close}
               />
             </div>
-          ) : (
-            <div className="aw-agent aw-agent--hint" style={{ top: MARGIN }}>
-              <p className="text-[13px] font-medium text-ink">The agent works line by line</p>
-              <ul className="mt-2 flex flex-col gap-1.5 text-[12px] text-body">
-                <li>Press ✦ beside any line to write or rewrite it.</li>
-                <li>On a heading, ✦ writes the whole section from the brief.</li>
-                <li>Select any text to rewrite it, shorten it or ask for anything.</li>
-              </ul>
-              <p className="mt-3 text-[12px] text-muted">
-                {layout.pages} {layout.pages === 1 ? "page" : "pages"} · {words.toLocaleString("en-US")} words
-              </p>
-            </div>
-          )}
+          ) : null}
         </aside>
       </div>
 
@@ -607,6 +748,208 @@ export function DocsEditor({
           }}
         />
       ) : null}
+    </div>
+  );
+}
+
+/** The agent button in the left margin, beside the line under the mouse or the line with the cursor. Its own part, so moving the mouse redraws only this. */
+function Gutter({ editor, canvas, blocks, hidden, onOpen }: { editor: Editor; canvas: React.RefObject<HTMLDivElement | null>; blocks: Block[]; hidden: boolean; onOpen: (pos: number) => void }) {
+  const [hover, setHover] = useState<number | null>(null);
+  const [cursor, setCursor] = useState<number | null>(null);
+  const list = useRef(blocks);
+  useEffect(() => {
+    list.current = blocks;
+  }, [blocks]);
+  useEffect(() => {
+    const el = canvas.current;
+    if (!el) return;
+    let raf = 0;
+    const move = (e: MouseEvent) => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        const y = e.clientY - el.getBoundingClientRect().top - MARGIN;
+        const b = list.current.find((x) => y >= x.top - 6 && y <= x.top + x.h + 6);
+        setHover(b ? b.pos : null);
+      });
+    };
+    const leave = () => setHover(null);
+    el.addEventListener("mousemove", move);
+    el.addEventListener("mouseleave", leave);
+    return () => {
+      cancelAnimationFrame(raf);
+      el.removeEventListener("mousemove", move);
+      el.removeEventListener("mouseleave", leave);
+    };
+  }, [canvas]);
+  useEffect(() => {
+    const sel = () => {
+      const { from } = editor.state.selection;
+      setCursor(from > 0 ? editor.state.doc.resolve(from).before(1) : null);
+    };
+    editor.on("selectionUpdate", sel);
+    return () => {
+      editor.off("selectionUpdate", sel);
+    };
+  }, [editor]);
+  const b = hidden ? null : (blocks.find((x) => x.pos === hover) ?? blocks.find((x) => x.pos === cursor) ?? null);
+  if (!b || b.type === "image" || b.type === "horizontalRule") return null;
+  return (
+    <button
+      type="button"
+      className="aw-docs__chip"
+      style={{ top: MARGIN + b.top + Math.min(b.h, 28) / 2 - 13 }}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => onOpen(b.pos)}
+      title={b.type === "heading" ? "Ask the agent to write this section" : b.text.trim() ? "Ask the agent to rewrite this line" : "Ask the agent to write this line"}
+    >
+      <AiIcon />
+      <span className="aw-docs__chip-label">{b.type === "heading" ? "Write section" : b.text.trim() ? "Rewrite" : "Write"}</span>
+    </button>
+  );
+}
+
+/** The menu over selected text, or the alt text box for a selected picture. */
+function Bubble({ editor, canvas, hidden, onAsk }: { editor: Editor; canvas: React.RefObject<HTMLDivElement | null>; hidden: boolean; onAsk: (from: number, to: number, ask?: string) => void }) {
+  const [sel, setSel] = useState<{ from: number; to: number; x: number; y: number; image: string | null } | null>(null);
+  const [alt, setAlt] = useState("");
+  useEffect(() => {
+    const update = () => {
+      const s = editor.state.selection;
+      if (s.empty || !editor.isFocused) return setSel(null);
+      const box = canvas.current?.getBoundingClientRect();
+      if (!box) return setSel(null);
+      const c = editor.view.coordsAtPos(s.from);
+      const node = s instanceof NodeSelection ? s.node : null;
+      const image = node?.type.name === "image" ? String(node.attrs.alt ?? "") : null;
+      setSel({ from: s.from, to: s.to, x: c.left - box.left, y: c.top - box.top, image });
+      if (image !== null) setAlt(image);
+    };
+    const blur = () => setTimeout(() => !document.activeElement?.closest(".aw-bubble") && setSel(null), 150);
+    editor.on("selectionUpdate", update);
+    editor.on("blur", blur);
+    return () => {
+      editor.off("selectionUpdate", update);
+      editor.off("blur", blur);
+    };
+  }, [editor, canvas]);
+  if (!sel || hidden) return null;
+  if (sel.image !== null)
+    return (
+      <form
+        className="aw-bubble"
+        style={{ left: Math.max(0, sel.x), top: Math.max(0, sel.y - 46) }}
+        onSubmit={(e) => {
+          e.preventDefault();
+          editor.chain().focus().updateAttributes("image", { alt: alt.trim() }).run();
+        }}
+      >
+        <span className="px-2 text-[12px] text-white/70">Alt text</span>
+        <input value={alt} onChange={(e) => setAlt(e.target.value)} aria-label="Alt text" className="aw-bubble__input" placeholder="What the picture shows" />
+        <button type="submit" className="aw-bubble__btn">
+          Save
+        </button>
+      </form>
+    );
+  return (
+    <div className="aw-bubble" style={{ left: Math.max(0, sel.x - 8), top: sel.y - 46 }} onMouseDown={(e) => e.preventDefault()}>
+      <button type="button" className="aw-bubble__ask" onClick={() => onAsk(sel.from, sel.to)}>
+        <AiIcon />
+        Ask agent
+      </button>
+      {REWRITES.slice(0, 3).map((r) => (
+        <button key={r.label} type="button" className="aw-bubble__btn" onClick={() => onAsk(sel.from, sel.to, r.ask)}>
+          {r.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Type / at the start of a line for headings, lists, images and the agent. */
+function SlashMenu({ editor, canvas, keysRef, onPick }: { editor: Editor; canvas: React.RefObject<HTMLDivElement | null>; keysRef: React.RefObject<((e: KeyboardEvent) => boolean) | null>; onPick: (id: string, range: { from: number; to: number }) => void }) {
+  const [menu, setMenu] = useState<{ q: string; from: number; to: number; x: number; y: number } | null>(null);
+  const [i, setI] = useState(0);
+  const [closedAt, setClosedAt] = useState<number | null>(null);
+  // Each word of a choice can start the match, so /h finds headings and /im finds Image.
+  const q = menu?.q.trim().toLowerCase() ?? "";
+  const list = menu ? SLASH.filter((s) => !q || `${s.keys} ${s.label.toLowerCase()}`.split(/\s+/).some((w) => w.startsWith(q))) : [];
+
+  useEffect(() => {
+    const check = () => {
+      const s = editor.state.selection;
+      const $f = s.$from;
+      if (!s.empty || $f.parent.type.name !== "paragraph") return setMenu(null);
+      const before = $f.parent.textBetween(0, $f.parentOffset, undefined, "￼");
+      const m = before.match(/^\/([a-z0-9 ]{0,20})$/i);
+      if (!m || closedAt === $f.start()) return setMenu(null);
+      const box = canvas.current?.getBoundingClientRect();
+      const c = editor.view.coordsAtPos($f.start());
+      if (!box) return;
+      setMenu((old) => {
+        if (old?.q !== m[1]) setI(0);
+        return { q: m[1], from: $f.start(), to: $f.pos, x: c.left - box.left, y: c.bottom - box.top + 6 };
+      });
+    };
+    editor.on("update", check);
+    editor.on("selectionUpdate", check);
+    return () => {
+      editor.off("update", check);
+      editor.off("selectionUpdate", check);
+    };
+  }, [editor, canvas, closedAt]);
+
+  useEffect(() => {
+    keysRef.current = (e: KeyboardEvent) => {
+      if (!menu) return false;
+      if (e.key === "ArrowDown") {
+        setI((x) => Math.min(list.length - 1, x + 1));
+        return true;
+      }
+      if (e.key === "ArrowUp") {
+        setI((x) => Math.max(0, x - 1));
+        return true;
+      }
+      if ((e.key === "Enter" || e.key === "Tab") && list[i]) {
+        onPick(list[i].id, { from: menu.from, to: menu.to });
+        setMenu(null);
+        return true;
+      }
+      if (e.key === "Escape") {
+        setClosedAt(menu.from);
+        setMenu(null);
+        return true;
+      }
+      return false;
+    };
+    return () => {
+      keysRef.current = null;
+    };
+  });
+
+  if (!menu || !list.length) return null;
+  return (
+    <div className="aw-slash" style={{ left: menu.x, top: menu.y }} role="listbox" aria-label="Insert" onMouseDown={(e) => e.preventDefault()}>
+      {list.map((s, k) => (
+        <button
+          key={s.id}
+          type="button"
+          role="option"
+          aria-selected={k === i}
+          className={`aw-slash__item ${k === i ? "is-hot" : ""}`}
+          onMouseEnter={() => setI(k)}
+          onClick={() => {
+            onPick(s.id, { from: menu.from, to: menu.to });
+            setMenu(null);
+          }}
+        >
+          <span className={`aw-slash__icon ${s.icon === "✦" ? "is-ai" : ""}`}>{s.icon}</span>
+          <span className="flex min-w-0 flex-col items-start">
+            <span className="text-[13px] text-ink">{s.label}</span>
+            <span className="text-[11px] text-muted">{s.hint}</span>
+          </span>
+          <span className="ml-auto font-mono text-[11px] text-faint">/{s.keys.split(" ")[0]}</span>
+        </button>
+      ))}
     </div>
   );
 }

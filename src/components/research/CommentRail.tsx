@@ -204,6 +204,7 @@ const TASK_ICON: Record<AgentTask, React.ReactNode> = {
   custom: <path d="M12 3l2 5.5 5.5 2-5.5 2L12 18l-2-5.5-5.5-2 5.5-2z" />,
   rewrite: <path d="M4 7h11l-3-3M20 17H9l3 3" />,
   paragraph: <path d="M4 6h16M4 12h16M4 18h10" />,
+  alt: <path d="M4 5h16v14H4zM8 15l3-3 3 3 2-2 3 3" />,
 };
 export const TaskIcon = ({ t }: { t: AgentTask }) => (
   <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className="shrink-0">
@@ -222,6 +223,7 @@ const DONE: Record<AgentTask, string> = {
   custom: "Added to this section",
   rewrite: "Rewritten",
   paragraph: "Paragraph written",
+  alt: "Alt text written",
 };
 
 function GuideCard({
