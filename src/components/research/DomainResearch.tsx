@@ -102,7 +102,7 @@ export function DomainResearch({ sb, auth, site, canEdit, start, onStarted }: { 
           ...(own ? { action: "update" as const, current_url: r.url ?? null, current_rank: r.rank ?? null } : {}),
         })),
       );
-      setNotice(`${n} added to the editorial calendar.${n < rows.length ? ` ${rows.length - n} were already on it.` : ""}`);
+      setNotice(`${n} added to the Content Plan.${n < rows.length ? ` ${rows.length - n} were already in it.` : ""}`);
       setPicked(new Set());
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

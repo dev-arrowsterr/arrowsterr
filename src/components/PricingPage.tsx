@@ -50,8 +50,8 @@ const ROWS: { group: string; rows: { label: React.ReactNode; value: (p: Plan) =>
     group: "Organic Research",
     rows: [
       { label: "Keyword, Domain & Competitive Research", value: () => "✓" },
-      { label: "Revenue-driven Topic Bank", value: () => "✓" },
-      { label: "Content briefs & Editorial Calendar", value: () => "✓" },
+      { label: "Revenue-driven Content Plan", value: () => "✓" },
+      { label: "Content briefs & calendar view", value: () => "✓" },
       { label: "Agentic Writer", value: (p) => (p.id === "foundation" ? "–" : "✓") },
       { label: "Publish to your CMS", value: () => "✓" },
     ],

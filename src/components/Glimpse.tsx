@@ -124,7 +124,7 @@ function SeoDemo() {
         </table>
       </section>
       <div className="grid gap-3 sm:grid-cols-3">
-        {["Topic Bank · 120 keywords", "12 briefs on the Editorial Calendar", "Agentic Writer · draft in minutes"].map((x) => (
+        {["Content Plan · 12 weeks planned", "Briefs for every piece", "Agentic Writer · draft in minutes"].map((x) => (
           <div key={x} className="aw-frame px-4 py-3 text-[14px] text-ink">
             {x}
           </div>
@@ -136,7 +136,7 @@ function SeoDemo() {
 
 const PITCH: Record<Track, string> = {
   visibility: "See how ChatGPT, Gemini, Claude, Perplexity and Google's AI talk about your brand and your competitors, checked every day.",
-  seo: "Find the keywords that bring buyers, see how competitors win on Google, and turn it into content with the Topic Bank, briefs and the Agentic Writer.",
+  seo: "Find the keywords that bring buyers, see how competitors win on Google, and turn it into content with the Content Plan Bank, briefs and the Agentic Writer.",
 };
 
 /** The other toolset, shown with demo numbers behind an upgrade card. */

@@ -28,7 +28,7 @@ const stepIndex = (step: string) => {
 };
 const STALE = 20 * 60_000;
 
-/** A finished plan as Topic Bank rows: new pages to write and existing pages to improve. Rows already on the calendar are left out. */
+/** A finished plan as Content Plan rows: new pages to write and existing pages to improve. Rows already approved are left out. */
 export function planRows(res: AgentResult): Omit<BankRow, "id" | "added">[] {
   const keywords = res.keywords ?? [];
   const approved = new Set(res.approved ?? []);
@@ -74,8 +74,11 @@ export function planRows(res: AgentResult): Omit<BankRow, "id" | "added">[] {
   return [...fresh, ...updates];
 }
 
-/** A content plan in progress. When it finishes, its rows go into the Topic Bank through onRows. */
-export function PlanProgress({ sb, site, refresh, onRows }: { sb: SupabaseClient; site: Site; refresh: number; onRows: (rows: Omit<BankRow, "id" | "added">[]) => void }) {
+/**
+ * A content plan in progress. When it finishes, its rows go into the Content Plan through onRows.
+ * `first` is true for the brand's first plan, which gets dates; a monthly refresh only adds ideas.
+ */
+export function PlanProgress({ sb, site, refresh, onRows }: { sb: SupabaseClient; site: Site; refresh: number; onRows: (rows: Omit<BankRow, "id" | "added">[], first: boolean) => void }) {
   const [runs, setRuns] = useStash<KeywordRun[] | null>(`agentic:${site.id}:runs`, null);
   const [error, setError] = useState("");
   const [now, setNow] = useState(() => Date.now());
@@ -107,19 +110,21 @@ export function PlanProgress({ sb, site, refresh, onRows }: { sb: SupabaseClient
     return () => clearInterval(t);
   }, [running, load]);
 
-  // Finished plans that are not in the Topic Bank yet go there, once.
+  // Finished plans that are not in the Content Plan yet go there, once.
   useEffect(() => {
     const todo = (runs ?? []).filter((r) => r.status === "done" && !r.banked);
     if (!todo.length) return;
     setRuns((runs ?? []).map((r) => (todo.includes(r) ? { ...r, banked: true } : r)));
-    for (const r of todo)
+    for (const r of todo) {
+      const first = !(runs ?? []).some((x) => x.status === "done" && x.id !== r.id && x.created_at < r.created_at);
       keywordRunResult(sb, r.id)
         .then((result) => {
           if (result.banked) return;
-          onRows(planRows(result));
+          onRows(planRows(result), first);
           return saveKeywordRunResult(sb, r.id, { ...result, banked: true });
         })
         .catch(() => {});
+    }
   }, [runs, onRows, setRuns, sb]);
 
   if (error) return <p className="aw-error">{error}</p>;

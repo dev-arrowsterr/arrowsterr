@@ -4,14 +4,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { addCalendarItems, type Site } from "@/lib/db";
 import { KeywordPanel } from "./KeywordPanel";
-import { addToBank } from "./TopicBank";
 import { MARKETS, stageFromIntent, type KeywordReport, type KwList, type KwSummary } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
 import { peek, putStash, useStash } from "@/lib/stash";
 import { BrandLogo } from "../BrandLogo";
 import { Sheet } from "../Sheet";
 import { SampleBars, SampleChips, SampleRing, SampleRows, SampleStats, ToolIntro } from "../ToolIntro";
-import { BookmarkIcon, CalendarIcon, Card, favicon, Seg, Thinking } from "../ui";
+import { CalendarIcon, Card, favicon, Seg, Thinking } from "../ui";
 import { BAR_BUTTON, BAR_FIELD, BAR_INPUT, downloadCsv, fmtCpc, post, Sparkline } from "./shared";
 
 export const ISO: Record<string, string> = {
@@ -111,18 +110,13 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
         auth.workspaceId,
         rows.map((r) => ({ site_id: site.id, keyword: r.keyword, secondary: [], stage: stageFromIntent(r.intent), theme: null, volume: r.volume, difficulty: r.kd, intent: r.intent, cpc: r.cpc, source: "keyword research" })),
       );
-      setNotice(`${n} added to the editorial calendar.${n < rows.length ? ` ${rows.length - n} were already on it.` : ""}`);
+      setNotice(`${n} added to the Content Plan.${n < rows.length ? ` ${rows.length - n} were already in it.` : ""}`);
       setPicked(new Set());
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
   }
 
-  function toBank(rows: KwSummary[]) {
-    const n = addToBank(sb, site, onSite, rows.map((r) => ({ keyword: r.keyword, volume: r.volume, kd: r.kd, intent: r.intent, cpc: r.cpc })), "keyword research");
-    setNotice(n ? `${n} added to the Topic Bank.` : "Already in the Topic Bank.");
-    setPicked(new Set());
-  }
 
   const sheet = (rows: KwSummary[], label: string) => (
     <>
@@ -131,11 +125,7 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
           <span className="text-[13px] font-medium text-ink">{picked.size} selected</span>
           <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={() => addToCalendar(rows.filter((r) => picked.has(r.keyword)))}>
             <CalendarIcon />
-            Add to calendar
-          </button>
-          <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => toBank(rows.filter((r) => picked.has(r.keyword)))}>
-            <BookmarkIcon />
-            Add to Topic Bank
+            Add to Content Plan
           </button>
           <button type="button" className="aw-text-link text-[13px]" onClick={() => setPicked(new Set())}>
             Clear
@@ -232,10 +222,6 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
             </div>
             {canEdit && o ? (
               <span className="flex flex-wrap gap-2">
-                <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => toBank([o])}>
-                  <BookmarkIcon />
-                  Add to Topic Bank
-                </button>
                 <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => addToCalendar([o])}>
                   <CalendarIcon />
                   Add to calendar

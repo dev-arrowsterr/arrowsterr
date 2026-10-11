@@ -8,21 +8,19 @@ import { answered, brandStats } from "@/lib/metrics";
 import type { View } from "@/lib/view";
 import type { RunAuth } from "@/lib/runner";
 import { Thinking } from "../ui";
-import { ContentCalendar } from "./ContentCalendar";
+import { ContentCalendar, type Refresh } from "./ContentCalendar";
 import { DomainResearch, type SeoStart } from "./DomainResearch";
 import { KeywordGap } from "./KeywordGap";
 import { KeywordOverview } from "./KeywordOverview";
 import { AnalyzeSeo } from "./shared";
-import { TopicBank } from "./TopicBank";
 import { Writer } from "./Writer";
 
-export type Tool = "keywords" | "domain" | "gap" | "calendar" | "topics" | "writer";
+export type Tool = "keywords" | "domain" | "gap" | "calendar" | "writer";
 const TITLES: Record<Tool, string> = {
   keywords: "Keyword Research",
   domain: "Domain Research",
   gap: "Competitive Analysis",
-  calendar: "Editorial Calendar",
-  topics: "Topic Bank",
+  calendar: "Content Plan",
   writer: "Agentic Writer",
 };
 
@@ -37,6 +35,7 @@ export function ResearchPage({
   seoStart,
   onSeoStarted,
   onSeo,
+  refresh,
 }: {
   sb: SupabaseClient;
   auth: RunAuth;
@@ -47,6 +46,7 @@ export function ResearchPage({
   seoStart?: SeoStart | null;
   onSeoStarted?: () => void;
   onSeo?: (target: string, scope: SeoStart["scope"]) => void;
+  refresh?: Refresh;
 }) {
   const brand = view.brand;
   const [site, setSite] = useStash<Site | null | undefined>(`site:${brand.id}`, undefined);
@@ -70,7 +70,8 @@ export function ResearchPage({
   return (
     <AnalyzeSeo.Provider value={onSeo ?? null}>
     <div className="flex flex-col gap-5">
-      <h1 className="aw-h2">{TITLES[tool]}</h1>
+      {/* The Content Plan draws its own header, with the view switch beside the title. */}
+      {tool === "calendar" ? null : <h1 className="aw-h2">{TITLES[tool]}</h1>}
       {error ? <p className="aw-error">{error}</p> : null}
       {site === undefined ? (
         <Thinking text={`Loading ${brand.domain}...`} />
@@ -89,12 +90,10 @@ export function ResearchPage({
           onSite={setSite}
           stats={brandStats(answered(view.current, view.filter), { name: brand.name, domain: brand.domain })}
         />
-      ) : tool === "topics" ? (
-        <TopicBank sb={sb} auth={auth} site={site} canEdit={canEdit} onSite={setSite} onCalendar={() => onTool("calendar")} />
       ) : tool === "writer" ? (
         <Writer sb={sb} auth={auth} site={site} canEdit={canEdit} />
       ) : (
-        <ContentCalendar sb={sb} auth={auth} site={site} canEdit={canEdit} onWrite={() => onTool("writer")} results={{ brandId: brand.id, brandName: brand.name, days: view.days, chats: answered(view.current, view.filter) }} onSite={setSite} />
+        <ContentCalendar sb={sb} auth={auth} site={site} canEdit={canEdit} refresh={refresh} onWrite={() => onTool("writer")} results={{ brandId: brand.id, brandName: brand.name, days: view.days, chats: answered(view.current, view.filter) }} onSite={setSite} />
       )}
     </div>
     </AnalyzeSeo.Provider>

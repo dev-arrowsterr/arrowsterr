@@ -53,7 +53,11 @@ Method: Grow and Convert's Pain Point SEO with Perceptric's revenue-first planni
 - Every keyword must lead naturally to this business's product or service, so the page can pitch it.
 - Favor comparisons, alternatives, "best X for Y" and use-case searches; they convert even at low volume.
 - The plan is 60% BOFU, 20% MOFU and 20% TOFU. Upper-funnel keywords still need a clear path to the product.
-
+${
+  stage === "bofu"
+    ? `\nFor BOFU, run every product, service and category name, what customers call the seller, and each competitor name through these buckets, and spread keywords across every bucket that fits: shortlist (best / top X), head-to-head (X vs Y), alternatives (X alternatives), brand vetting (X reviews), cost (X pricing / cost), action (X free trial / demo / hire / book), deal (X discount), local (X in [city] / near me), switching (switch from X), fit (X for [audience / use case / feature]). Drop anything with learning intent (how to, what is, guide, template).\n`
+    : ""
+}
 ${about(s, ctx)}
 ${
   ctx.rivals.length

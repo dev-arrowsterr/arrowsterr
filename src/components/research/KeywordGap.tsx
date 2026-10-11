@@ -2,16 +2,16 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useId, useState } from "react";
-import type { Site } from "@/lib/db";
+import { addCalendarItems, type Site } from "@/lib/db";
+import { stageFromIntent } from "@/lib/research";
 import type { BrandStat } from "@/lib/metrics";
 import type { Gap, GapRow } from "@/lib/gap";
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
 import { Sheet, type Col } from "../Sheet";
-import { BookmarkIcon, Card, favicon, RIVAL_COLOR, Thinking, YOU_COLOR } from "../ui";
+import { CalendarIcon, Card, favicon, RIVAL_COLOR, Thinking, YOU_COLOR } from "../ui";
 import { BAR_BUTTON, BAR_INPUT, Difficulty, downloadCsv, fmtNum, post } from "./shared";
 import { KeywordPanel } from "./KeywordPanel";
-import { addToBank } from "./TopicBank";
 
 type Tab = "missing" | "shared" | "weaker" | "lead" | "only";
 const LABEL = (them: string): Record<Tab, string> => ({
@@ -113,11 +113,19 @@ export function KeywordGap({
     },
   ];
 
-  function bank() {
+  async function bank() {
     const list = rows.filter((r) => picked.has(r.keyword));
-    const n = addToBank(sb, site, onSite, list.map((r) => ({ keyword: r.keyword, volume: r.volume, kd: r.kd, intent: r.intent })), `keyword gap: ${result?.them}`);
-    setPicked(new Set());
-    setNotice(n ? `${n} added to the Topic Bank.` : "Already in the Topic Bank.");
+    try {
+      const n = await addCalendarItems(
+        sb,
+        auth.workspaceId,
+        list.map((r) => ({ site_id: site.id, keyword: r.keyword, secondary: [], stage: stageFromIntent(r.intent), theme: null, volume: r.volume, difficulty: r.kd, intent: r.intent, cpc: null, source: `keyword gap: ${result?.them}` })),
+      );
+      setPicked(new Set());
+      setNotice(n ? `${n} added to the Content Plan.` : "Already in the Content Plan.");
+    } catch (e) {
+      setNotice(e instanceof Error ? e.message : String(e));
+    }
   }
 
   return (
@@ -200,8 +208,8 @@ export function KeywordGap({
               <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint bg-brand-pale px-5 py-2.5">
                 <span className="text-[13px] font-medium text-ink">{picked.size} selected</span>
                 <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={bank}>
-                  <BookmarkIcon />
-                  Add to Topic Bank
+                  <CalendarIcon />
+                  Add to Content Plan
                 </button>
               </div>
             ) : null}

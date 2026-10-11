@@ -570,7 +570,7 @@ function DoneStep({ name, logo, seo, engines, prompts, onExit }: { name: string;
       <span className="aw-onb__kicker">All set</span>
       <h1 className="aw-onb__title">{seo ? `${name || "Your brand"} is ready` : `Your first check is running`}</h1>
       {seo ? (
-        <p className="text-[16px] text-body">Open the Topic Bank and click Generate to build your revenue-driven content plan.</p>
+        <p className="text-[16px] text-body">Open the Content Plan and click Build to plan 12 weeks of revenue-driven content.</p>
       ) : (
         <>
           <p className="text-[16px] text-body">
@@ -590,7 +590,7 @@ function DoneStep({ name, logo, seo, engines, prompts, onExit }: { name: string;
         </>
       )}
       <button type="button" className="aw-btn aw-btn--accent aw-btn--lg" onClick={onExit}>
-        {seo ? "Open the Topic Bank" : "Go to my dashboard"} →
+        {seo ? "Open the Content Plan" : "Go to my dashboard"} →
       </button>
     </section>
   );

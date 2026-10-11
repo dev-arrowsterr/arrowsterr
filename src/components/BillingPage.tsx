@@ -249,7 +249,7 @@ export function BillingPage({ sb, ws, auth, onPlan }: { sb: SupabaseClient; ws: 
               </li>
             ))}
           </ul>
-          <p className="mt-3 text-[13px] text-muted">Tracking prompts, publishing and your first Topic Bank use no tasks.</p>
+          <p className="mt-3 text-[13px] text-muted">Tracking prompts, publishing and your first Content Plan use no tasks.</p>
         </details>
       </section>
 

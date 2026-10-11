@@ -8,6 +8,8 @@ import { metered, meteredRoute } from "@/lib/meter";
 import { entitlement, requireTrack } from "@/lib/entitlements";
 import { enqueue, queueReady } from "@/lib/jobs";
 
+const REFRESH_DAYS = 30; // paid plans can refresh the Content Plan once a month
+
 // Agentic Keyword Research: start a run, answer right away, and keep working on the job queue
 // (or in the background before supabase/016_queue.sql).
 // The page reads progress from keyword_runs.
@@ -17,7 +19,7 @@ async function handle(request: Request) {
   if ("denied" in auth) return auth.denied;
   const paid = await requireTrack(body.workspaceId, "seo");
   if (paid) return paid;
-  // The Topic Bank is free on every plan: each website gets one content plan, kept for good.
+  // The first Content Plan is free on every plan. Paid plans can refresh it once a month.
   const e = await entitlement(body.workspaceId);
   if (e.readOnly) return Response.json({ error: "This workspace is read-only." }, { status: 402 });
   if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });
@@ -32,8 +34,13 @@ async function handle(request: Request) {
   if (error) return Response.json({ error: error.message + (/sites/.test(error.message) ? " Run supabase/006_research.sql in Supabase." : "") }, { status: 500 });
   if (!site) return Response.json({ error: "Website not found." }, { status: 404 });
 
-  const { data: done } = await auth.sb.from("keyword_runs").select("id").eq("site_id", site.id).eq("status", "done").limit(1);
-  if (done?.length) return Response.json({ error: "This website already has its Topic Bank.", id: done[0].id }, { status: 409 });
+  const { data: done } = await auth.sb.from("keyword_runs").select("id, created_at").eq("site_id", site.id).eq("status", "done").order("created_at", { ascending: false }).limit(1);
+  if (done?.length) {
+    if (e.plan === "free" || e.plan === "trial") return Response.json({ error: "Refreshing the Content Plan every month is on paid plans.", id: done[0].id }, { status: 402 });
+    const next = new Date(new Date(done[0].created_at).getTime() + REFRESH_DAYS * 864e5);
+    if (next > new Date())
+      return Response.json({ error: `Your next refresh opens on ${next.toLocaleDateString("en-US", { month: "long", day: "numeric" })}.`, id: done[0].id }, { status: 409 });
+  }
 
   // One research run at a time per website.
   const since = new Date(Date.now() - 20 * 60_000).toISOString();

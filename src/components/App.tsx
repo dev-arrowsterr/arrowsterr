@@ -51,8 +51,8 @@ import { ReportsPage } from "./reports/ReportsPage";
 import { VisitorsPage } from "./VisitorsPage";
 
 export type { Brand } from "@/lib/db";
-type Page = "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "gap" | "calendar" | "topics" | "writer" | "summary" | "members" | "billing";
-const RESEARCH: Page[] = ["keywords", "domain", "gap", "calendar", "topics", "writer"];
+type Page = "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "gap" | "calendar" | "writer" | "summary" | "members" | "billing";
+const RESEARCH: Page[] = ["keywords", "domain", "gap", "calendar", "writer"];
 /** Website analytics is still in testing: only this account sees it. */
 const WEBSITE_TESTER = "vincent@perceptric.com";
 const VISIBILITY: Page[] = ["prompts", "competitors", "domains", "urls"]; // the only pages with period, topic and model filters
@@ -68,8 +68,7 @@ const SLUGS: Record<Page, string> = {
   keywords: "/keywords",
   domain: "/domain-research",
   gap: "/competitive-analysis",
-  calendar: "/calendar",
-  topics: "/topic-bank",
+  calendar: "/content-plan",
   writer: "/agentic-writer",
   summary: "/reports",
   members: "/settings",
@@ -82,10 +81,12 @@ const ALIASES: Record<string, Page> = {
   "/urls": "urls",
   "/analytics": "traffic",
   "/keyword-research": "keywords",
-  "/agentic-research": "topics",
+  "/agentic-research": "calendar",
+  "/topic-bank": "calendar",
+  "/calendar": "calendar",
   "/keyword-gap": "gap",
   "/ai-gap": "gap",
-  "/planner": "topics",
+  "/planner": "calendar",
   "/writer": "writer",
   "/inkwell": "writer",
   "/content-calendar": "calendar",
@@ -390,7 +391,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
     setAdding(true);
     // The first check runs right away. After that the daily job keeps it fresh.
     void runBrand(brand);
-    // Make the brand's site now. The Topic Bank waits until someone clicks Generate.
+    // Make the brand's site now. The Content Plan waits until someone clicks Build.
     void siteForBrand(sb, brand, true).catch(() => {});
   }
 
@@ -469,8 +470,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
         onDone={onboard}
         onExit={() => {
           setAdding(false);
-          // Starter on Organic Research lands on the Topic Bank; everyone else on their prompts.
-          go(plan && !plan.open.visibility ? "topics" : "prompts");
+          // Starter on Organic Research lands on the Content Plan; everyone else on their prompts.
+          go(plan && !plan.open.visibility ? "calendar" : "prompts");
         }}
         engines={engines ?? []}
         checkEvery={plan?.limits.checkEvery ?? 1}
@@ -684,6 +685,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             />
           ) : RESEARCH.includes(page) ? (
             <ResearchPage key={view.brand.id} sb={sb} auth={auth} view={view} canEdit={canEdit} tool={page as Tool} onTool={(t) => go(t)} seoStart={seoStart}
+              refresh={{ paid: Boolean(plan && plan.plan !== "free" && plan.plan !== "trial"), onUpgrade: () => go("billing") }}
               onSeoStarted={() => setSeoStart(null)}
               onSeo={(target, scope) => {
                 setSeoStart({ target, scope });
@@ -790,7 +792,7 @@ function NavIcon({ name }: { name: string }) {
 
 /** The toolset a page belongs to. Starter opens one of them. */
 const trackOf = (page: Page): Track | null =>
-  ["prompts", "competitors", "domains", "urls"].includes(page) ? "visibility" : ["keywords", "domain", "gap", "topics", "calendar", "writer"].includes(page) ? "seo" : null;
+  ["prompts", "competitors", "domains", "urls"].includes(page) ? "visibility" : ["keywords", "domain", "gap", "calendar", "writer"].includes(page) ? "seo" : null;
 
 /** The big modules of the app. Each opens to its own pages. */
 const NAV: { group: string; icon: string; tester?: boolean; items: { id: Page; label: string; icon: string; also?: Page[] }[] }[] = [
@@ -816,8 +818,7 @@ const NAV: { group: string; icon: string; tester?: boolean; items: { id: Page; l
     group: "Agentic Content",
     icon: "pen",
     items: [
-      { id: "topics", label: "Topic Bank", icon: "bank" },
-      { id: "calendar", label: "Editorial Calendar", icon: "calendar" },
+      { id: "calendar", label: "Content Plan", icon: "calendar" },
       { id: "writer", label: "Agentic Writer", icon: "pen" },
     ],
   },

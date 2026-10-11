@@ -276,3 +276,41 @@ export function pagesOf(rows: Keyword[]) {
 
 /** One page of the brand's website and how it does on Google now. */
 export type PagePerf = { url: string; traffic: number; keywords: number; top3: number; top10: number; topKeyword: string | null; topRank: number | null; topVolume: number | null };
+
+/** How the Content Plan is paced: 3 pieces a week for 12 weeks. The rest wait as ideas. */
+export const PLAN_PER_WEEK = 3;
+export const PLAN_WEEKS = 12;
+
+/**
+ * Order a fresh plan the Perceptric way and give the first 12 weeks their dates.
+ * Quick wins first: pages that already rank and only need an update. Then a steady rhythm
+ * of mostly ready-to-buy pieces, 3 BOFU for every MOFU and TOFU (60/20/20), so revenue
+ * pages ship early and the upper funnel keeps feeding them. Rows past the 12 weeks get no date.
+ */
+export function schedulePlan<T extends { stage: Stage | null; action?: "new" | "update"; volume: number | null }>(rows: T[], start: Date): (T & { due_date: string | null })[] {
+  const byVolume = (a: T, b: T) => (b.volume ?? 0) - (a.volume ?? 0);
+  const updates = rows.filter((r) => r.action === "update").sort(byVolume);
+  const fresh = rows.filter((r) => r.action !== "update");
+  const queue: Record<Stage | "none", T[]> = {
+    bofu: fresh.filter((r) => r.stage === "bofu").sort(byVolume),
+    mofu: fresh.filter((r) => r.stage === "mofu").sort(byVolume),
+    tofu: fresh.filter((r) => r.stage === "tofu").sort(byVolume),
+    none: fresh.filter((r) => !r.stage).sort(byVolume),
+  };
+  const rhythm: (Stage | "none")[] = ["bofu", "bofu", "mofu", "bofu", "tofu"];
+  const ordered: T[] = [...updates];
+  for (let i = 0; ordered.length < rows.length; i++) {
+    const want = rhythm[i % rhythm.length];
+    const from = [want, "bofu", "mofu", "tofu", "none"].find((s) => queue[s as Stage | "none"].length) as Stage | "none";
+    ordered.push(queue[from].shift()!);
+  }
+  const dates = slots(start, PLAN_PER_WEEK, Math.min(ordered.length, PLAN_PER_WEEK * PLAN_WEEKS));
+  return ordered.map((r, i) => ({ ...r, due_date: dates[i] ?? null }));
+}
+
+/** The Monday after today, where a new plan starts. */
+export function nextMonday(from = new Date()) {
+  const d = new Date(from.getFullYear(), from.getMonth(), from.getDate());
+  d.setDate(d.getDate() + (((8 - d.getDay()) % 7) || 7));
+  return d;
+}

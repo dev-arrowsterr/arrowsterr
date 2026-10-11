@@ -6,10 +6,9 @@ import { addCalendarItems, type Site } from "@/lib/db";
 import { MARKETS, stageFromIntent, type KeywordReport, type KwSummary } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
-import { BookmarkIcon, CalendarIcon, ChartIcon, favicon, SidePanel, Thinking } from "../ui";
+import { CalendarIcon, ChartIcon, favicon, SidePanel, Thinking } from "../ui";
 import { flag, kdColor, kdWord, short } from "./KeywordOverview";
 import { AnalyzeSeo, fmtCpc, post, SerpTags, Sparkline, StageTag } from "./shared";
-import { addToBank } from "./TopicBank";
 
 /** Everything about one keyword in a side panel: numbers, trend, Google's results and ideas, with buttons to plan it. */
 export function KeywordPanel({
@@ -19,7 +18,6 @@ export function KeywordPanel({
   keyword,
   seed,
   canEdit,
-  onSite,
   onClose,
 }: {
   sb: SupabaseClient;
@@ -49,7 +47,6 @@ export function KeywordPanel({
   }, [auth, keyword, country, report, setReport]);
 
   const o: Partial<KwSummary> = { ...(seed ?? {}), ...(report?.overview ?? {}) };
-  const inBank = (site.profile.bank ?? []).some((b) => b.keyword === keyword.toLowerCase());
   const trend = o.trend ?? [];
   const change = trend.length > 1 && trend[0].volume ? Math.round(((trend[trend.length - 1].volume - trend[0].volume) / trend[0].volume) * 100) : null;
   const stage = stageFromIntent(o.intent ?? null);
@@ -60,15 +57,10 @@ export function KeywordPanel({
       const n = await addCalendarItems(sb, auth.workspaceId, [
         { site_id: site.id, keyword, secondary: [], stage, theme: null, volume: o.volume ?? null, difficulty: o.kd ?? null, intent: o.intent ?? null, cpc: o.cpc ?? null, source: "keyword research" },
       ]);
-      setDone((d) => [...d, n ? "On the Editorial Calendar" : "Already on the Editorial Calendar"]);
+      setDone((d) => [...d, n ? "In the Content Plan" : "Already in the Content Plan"]);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
-  }
-  function toBank() {
-    if (!onSite) return;
-    addToBank(sb, site, onSite, [{ keyword, volume: o.volume ?? null, kd: o.kd ?? null, intent: o.intent ?? null, cpc: o.cpc ?? null }], "keyword research");
-    setDone((d) => [...d, "In the Topic Bank"]);
   }
 
   const stat = (lab: string, v: React.ReactNode, sub?: React.ReactNode) => (
@@ -85,14 +77,8 @@ export function KeywordPanel({
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={toCalendar}>
             <CalendarIcon />
-            Add to Editorial Calendar
+            Add to Content Plan
           </button>
-          {onSite ? (
-            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={toBank} disabled={inBank}>
-              <BookmarkIcon />
-              {inBank ? "In the Topic Bank" : "Add to Topic Bank"}
-            </button>
-          ) : null}
           {done.map((d) => (
             <span key={d} className="aw-status aw-status--ranked">
               {d}

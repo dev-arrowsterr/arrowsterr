@@ -1,9 +1,9 @@
 "use client";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { useCallback, useEffect, useState } from "react";
-import { addCalendarItems, deleteCalendarItems, listCalendar, saveSite, updateCalendarItem, type CalendarItem, type CalendarStatus, type SheetColumn, type Site } from "@/lib/db";
-import { slots, STAGES, type Stage } from "@/lib/research";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { addCalendarItems, deleteCalendarItems, keywordRunResult, listCalendar, saveSite, updateCalendarItem, type BankRow, type CalendarItem, type CalendarStatus, type KeywordRun, type NewCalendarItem, type SheetColumn, type Site } from "@/lib/db";
+import { nextMonday, schedulePlan, slots, STAGES, type Stage } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
 import { Sheet, type Col, type Edit } from "../Sheet";
@@ -15,7 +15,9 @@ import { CalendarGrid } from "./CalendarGrid";
 import { ContentPiece, STATUSES } from "./ContentPiece";
 import { useAiIdeas } from "./AiIdeas";
 import { DayPanel, ideaPiece, type NewPiece } from "./DayPanel";
-import { Difficulty, downloadCsv, FIELD, STAGE_LABEL, StageTag } from "./shared";
+import { Difficulty, downloadCsv, FIELD, post, STAGE_LABEL, StageTag } from "./shared";
+import { PlanProgress, planRows } from "./AgenticResearch";
+import { PlanIntro } from "./PlanIntro";
 
 const STAGE_ORDER = (s: Stage | null) => (s ? STAGES.findIndex((x) => x.id === s) : 3);
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -26,6 +28,38 @@ const parse = (s: string) => {
 const BRIEF_LABEL = { running: "Writing...", done: "Ready", failed: "Failed" } as const;
 
 type Tab = "calendar" | "list" | "results";
+const VIEW_KEY = "arrowsterr.planView"; // each person's last view, kept in this browser
+const readView = (): Tab => {
+  try {
+    const v = localStorage.getItem(VIEW_KEY);
+    return v === "calendar" || v === "results" ? v : "list";
+  } catch {
+    return "list";
+  }
+};
+const REFRESH_DAYS = 30;
+/** Paid plans can refresh the Content Plan once a month. */
+export type Refresh = { paid: boolean; onUpgrade: () => void };
+type PlanRow = Omit<BankRow, "id" | "added">;
+
+/** A plan row as a Content Plan item. */
+const toItem = (siteId: string, r: PlanRow & { due_date?: string | null }): NewCalendarItem => ({
+  site_id: siteId,
+  keyword: r.keyword,
+  secondary: r.others ?? [],
+  stage: r.stage,
+  theme: r.theme ?? null,
+  volume: r.volume,
+  difficulty: r.kd,
+  intent: r.intent,
+  cpc: r.cpc ?? null,
+  source: r.source,
+  notes: r.notes,
+  due_date: r.due_date ?? null,
+  action: r.action ?? "new",
+  current_url: r.url ?? null,
+  current_rank: r.rank ?? null,
+});
 
 const icon = (d: React.ReactNode) => (
   <svg viewBox="0 0 24 24" width={17} height={17} fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -34,9 +68,12 @@ const icon = (d: React.ReactNode) => (
 );
 const CalendarIcon = () => icon(<><rect x={3.5} y={5} width={17} height={15} rx={2.5} /><path d="M3.5 10h17M8 3v4M16 3v4" /></>);
 const ListIcon = () => icon(<path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01" />);
-const ChartIcon = () => icon(<path d="M4 20V10M10 20V4M16 20v-7M21 20H3" />);
+const AiIconSmall = () => icon(<path d="M12 3c.6 4.6 1.9 5.9 6.5 6.5-4.6.6-5.9 1.9-6.5 6.5-.6-4.6-1.9-5.9-6.5-6.5C10.1 8.9 11.4 7.6 12 3Z" />);
 
-/** The editorial calendar: build it by hand on a month grid or a sheet, or generate a content plan and approve it in. */
+/**
+ * The Content Plan: every piece of content in one place, as a list or on a calendar.
+ * The AI agent builds it the Perceptric way, with dates; people edit it from there.
+ */
 export function ContentCalendar({
   sb,
   auth,
@@ -45,7 +82,9 @@ export function ContentCalendar({
   onWrite,
   results,
   onSite,
+  refresh,
 }: {
+  refresh?: Refresh;
   onSite: (s: Site) => void;
   sb: SupabaseClient;
   auth: RunAuth;
@@ -55,8 +94,18 @@ export function ContentCalendar({
   results: { brandId: string; brandName: string; days: number; chats: Chat[] };
 }) {
   const [items, setItems] = useStash<CalendarItem[] | null>(`cal:${site.id}:items`, null);
-  const [tab, setTab] = useStash<Tab>(`cal:${site.id}:view`, "calendar");
-  const view: Tab = tab === "list" || tab === "results" ? tab : "calendar"; // older sessions may have saved a view that no longer exists
+  const [view, setViewState] = useState<Tab>(readView);
+  const setTab = (v: Tab) => {
+    setViewState(v);
+    try {
+      localStorage.setItem(VIEW_KEY, v);
+    } catch {}
+  };
+  const [runs] = useStash<KeywordRun[] | null>(`agentic:${site.id}:runs`, null);
+  const [tick, setTick] = useState(0); // reloads the plan progress after a build starts
+  const [building, setBuilding] = useState(false);
+  const [undo, setUndo] = useState<CalendarItem[] | null>(null);
+  const pending = useRef<{ ids: string[]; timer: ReturnType<typeof setTimeout> } | null>(null);
   const [error, setError] = useState("");
   const [planning, setPlanning] = useState(false);
   const [perWeek, setPerWeek] = useState(2);
@@ -84,6 +133,43 @@ export function ContentCalendar({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
   }, [load]);
+
+  // Keywords saved in the old Topic Bank move into the Content Plan as ideas, once.
+  const oldBank = site.profile.bank;
+  useEffect(() => {
+    if (!canEdit || !oldBank?.length) return;
+    const s2 = { ...site, profile: { ...site.profile, bank: undefined } };
+    addCalendarItems(sb, auth.workspaceId, oldBank.map((b) => toItem(site.id, b)))
+      .then(() => saveSite(sb, s2))
+      .then(() => {
+        onSite(s2);
+        load();
+      })
+      .catch(() => {});
+    // Only when old rows are found.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [oldBank?.length]);
+
+  // A delete waits 10 seconds for Undo. Leaving the page makes it final.
+  const commit = useCallback(() => {
+    const p = pending.current;
+    if (!p) return;
+    clearTimeout(p.timer);
+    pending.current = null;
+    deleteCalendarItems(sb, p.ids).catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  }, [sb]);
+  useEffect(() => commit, [commit]);
+
+  // A finished plan lands here: the first one with dates, a monthly refresh as new ideas.
+  const onPlan = useCallback(
+    (rows: PlanRow[], first: boolean) => {
+      const list = first ? schedulePlan(rows, nextMonday()) : rows;
+      addCalendarItems(sb, auth.workspaceId, list.map((r) => toItem(site.id, r)))
+        .then(load)
+        .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+    },
+    [sb, auth.workspaceId, site.id, load],
+  );
 
 
 
@@ -142,12 +228,50 @@ export function ContentCalendar({
     }
   }
 
-  async function removePicked() {
-    if (!confirm(`Remove ${picked.size} ${picked.size === 1 ? "page" : "pages"} from the calendar?`)) return;
+  /** Take items off the plan, with 10 seconds to undo. Big deletes ask first. */
+  function remove(ids: string[]) {
+    if (ids.length > 10 && !confirm(`Delete ${ids.length} pieces from your Content Plan?${(runs ?? []).some((r) => r.status === "done") ? " You can restore the AI's plan later." : ""}`)) return;
+    commit();
+    const gone = items!.filter((i) => ids.includes(i.id));
+    setItems(items!.filter((i) => !ids.includes(i.id)));
+    setPicked(new Set());
+    setUndo(gone);
+    pending.current = { ids, timer: setTimeout(() => {
+      commit();
+      setUndo(null);
+    }, 10_000) };
+  }
+  function undoRemove() {
+    if (!undo) return;
+    if (pending.current) clearTimeout(pending.current.timer);
+    pending.current = null;
+    setItems([...items!, ...undo]);
+    setUndo(null);
+  }
+
+  async function build() {
+    setBuilding(true);
+    setError("");
     try {
-      await deleteCalendarItems(sb, [...picked]);
-      setItems(items!.filter((i) => !picked.has(i.id)));
-      setPicked(new Set());
+      await post(auth, "/api/research/agentic", { siteId: site.id });
+      setTick((n) => n + 1);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBuilding(false);
+    }
+  }
+
+  /** Put the AI's last plan back, with fresh dates. Pieces still on the plan are skipped. */
+  async function restore() {
+    const done = (runs ?? []).find((r) => r.status === "done");
+    if (!done) return;
+    setError("");
+    try {
+      const result = await keywordRunResult(sb, done.id);
+      const rows = schedulePlan(planRows({ ...result, approved: [] }), nextMonday());
+      await addCalendarItems(sb, auth.workspaceId, rows.map((r) => toItem(site.id, r)));
+      load();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -258,31 +382,74 @@ export function ContentCalendar({
 
 
 
-  const views: { id: Tab; label: string; icon: React.ReactNode; n?: number }[] = [
+  // The latest finished plan, and when the next monthly refresh opens.
+  const lastDone = (runs ?? []).find((r) => r.status === "done") ?? null;
+  const running = (runs ?? [])[0]?.status === "running";
+  const nextRefresh = lastDone ? new Date(new Date(lastDone.created_at).getTime() + REFRESH_DAYS * 864e5) : null;
+  const canRefresh = Boolean(refresh?.paid && nextRefresh && nextRefresh <= new Date());
+  const short = (d: Date) => d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+
+  const views: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    { id: "list", label: "List", icon: <ListIcon /> },
     { id: "calendar", label: "Calendar", icon: <CalendarIcon /> },
-    { id: "list", label: "List", icon: <ListIcon />, n: items.length },
-    { id: "results", label: "Performance", icon: <ChartIcon /> },
   ];
   const head = (
-    <nav className="flex items-center gap-1 border-b border-rule" role="tablist" aria-label="Calendar view">
-      {views.map((v, n) => (
-        <span key={v.id} className="flex items-center">
-          {n ? <span className="mx-1 h-5 w-px bg-rule" aria-hidden="true" /> : null}
-          <button
-            type="button"
-            role="tab"
-            aria-selected={view === v.id}
-            onClick={() => setTab(v.id)}
-            className={`-mb-px flex items-center gap-2 rounded-none border-b-2 px-3 py-2.5 text-[15px] transition-colors ${view === v.id ? "border-brand font-medium text-brand" : "border-transparent text-body hover:text-ink"}`}
-          >
-            {v.icon}
-            {v.label}
-            {v.n ? <span className="aw-num rounded-full bg-surface-2 px-1.5 text-[11px] text-muted">{v.n}</span> : null}
-          </button>
-        </span>
-      ))}
-    </nav>
+    <header className="flex flex-wrap items-center justify-between gap-3">
+      <h1 className="aw-h2 mb-0!">Content Plan</h1>
+      <div className="flex flex-wrap items-center gap-3">
+        {lastDone && canEdit && !running ? (
+          refresh?.paid ? (
+            canRefresh ? (
+              <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={build} disabled={building} title="Run the research again and add new ideas. Dated and written pieces stay as they are.">
+                <AiIconSmall />
+                {building ? "Starting..." : "Refresh plan"}
+              </button>
+            ) : nextRefresh ? (
+              <span className="text-[13px] text-muted" title="Paid plans can refresh the Content Plan once a month.">
+                Next refresh {short(nextRefresh)}
+              </span>
+            ) : null
+          ) : (
+            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={refresh?.onUpgrade} title="Refresh the Content Plan every month on paid plans.">
+              🔒 Monthly refresh · paid plans
+            </button>
+          )
+        ) : null}
+        <div className="aw-seg" role="tablist" aria-label="View">
+          {views.map((v) => (
+            <button key={v.id} type="button" role="tab" aria-selected={view === v.id} onClick={() => setTab(v.id)} className={view === v.id ? "is-on" : ""}>
+              {v.icon}
+              {v.label}
+            </button>
+          ))}
+        </div>
+        <button type="button" className={`aw-text-link text-[14px] ${view === "results" ? "text-brand!" : ""}`} onClick={() => setTab(view === "results" ? "list" : "results")}>
+          {view === "results" ? "← Back to plan" : "Performance"}
+        </button>
+      </div>
+    </header>
   );
+  const undoBar = undo ? (
+    <div className="aw-undo" role="status">
+      Deleted {undo.length} {undo.length === 1 ? "piece" : "pieces"}
+      <button type="button" onClick={undoRemove}>
+        Undo
+      </button>
+    </div>
+  ) : null;
+  const progress = <PlanProgress sb={sb} site={site} refresh={tick} onRows={onPlan} />;
+
+  // Before the first plan: what it is, a sample, and one button.
+  if (!items.length && !lastDone && !running)
+    return (
+      <div className="flex flex-col gap-5">
+        {error ? <p className="aw-error">{error}</p> : null}
+        {head}
+        {progress}
+        <PlanIntro canEdit={canEdit} busy={building} onBuild={build} />
+        {undoBar}
+      </div>
+    );
 
   if (view === "results")
     return (
@@ -290,6 +457,7 @@ export function ContentCalendar({
         {head}
         <SitePages auth={auth} site={site} items={items} canEdit={canEdit} />
         <ContentResults auth={auth} brandId={results.brandId} domain={site.domain} days={results.days} chats={results.chats} items={items} />
+        {progress}
       </div>
     );
 
@@ -297,6 +465,18 @@ export function ContentCalendar({
     <div className="flex flex-col gap-5">
       {error ? <p className="aw-error">{error}</p> : null}
       {head}
+      {progress}
+      {!items.length && lastDone && !running ? (
+        <section className="aw-frame flex flex-col items-center gap-3 px-6 py-12 text-center">
+          <span className="aw-h4">Your Content Plan is empty</span>
+          <p className="max-w-md text-[15px] text-ink">{canEdit ? "Put the AI's plan back with fresh dates, or add keywords of your own below." : "An editor can restore the plan or add keywords."}</p>
+          {canEdit ? (
+            <button type="button" className="aw-btn aw-btn--accent" onClick={restore}>
+              Restore the AI&apos;s plan
+            </button>
+          ) : null}
+        </section>
+      ) : null}
 
 
       {planning ? (
@@ -337,7 +517,7 @@ export function ContentCalendar({
         />
       ) : (
       <Card
-        title={`${items.length} pages`}
+        title={`${items.length} ${items.length === 1 ? "piece" : "pieces"}`}
         action={
           <span className="flex flex-wrap items-center gap-2">
             {canEdit ? (
@@ -390,8 +570,8 @@ export function ContentCalendar({
                 </option>
               ))}
             </select>
-            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={removePicked}>
-              Remove
+            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => remove([...picked])}>
+              Delete
             </button>
           </div>
         ) : null}
@@ -459,10 +639,8 @@ export function ContentCalendar({
             item={openItem}
             canEdit={canEdit}
             onPatch={(p) => patch(openItem.id, p)}
-            onRemove={async () => {
-              if (!confirm(`Remove "${openItem.keyword}" from the calendar?`)) return;
-              await deleteCalendarItems(sb, [openItem.id]).catch((e) => setError(e instanceof Error ? e.message : String(e)));
-              setItems(items.filter((i) => i.id !== openItem.id));
+            onRemove={() => {
+              remove([openItem.id]);
               setPanel(panel?.day ? { day: panel.day, piece: null } : null);
             }}
             onWrite={onWrite}
@@ -479,6 +657,7 @@ export function ContentCalendar({
           />
         </SidePanel>
       ) : null}
+      {undoBar}
     </div>
   );
 }

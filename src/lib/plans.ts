@@ -69,7 +69,7 @@ export const TASK_COST = {
 export type Track = "visibility" | "seo";
 export const TRACKS: Record<Track, { label: string; short: string; text: string }> = {
   visibility: { label: "AI Visibility", short: "AI Visibility", text: "50 prompts checked daily across AI, competitors, sources and reports" },
-  seo: { label: "Organic Research", short: "Organic Research", text: "Keyword, domain and competitive research, Topic Bank, briefs and the Editorial Calendar" },
+  seo: { label: "Organic Research", short: "Organic Research", text: "Keyword, domain and competitive research, Content Plan, briefs and the Editorial Calendar" },
 };
 /** Starter's limits for each toolset: the AI Visibility side tracks prompts, the SEO side gets the tasks. */
 const STARTER: Record<Track, Partial<Plan>> = {
