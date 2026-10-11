@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { useState } from "react";
 import { Logo } from "./Logo";
 
-type Mode = "signin" | "signup" | "forgot";
+type Mode = "signin" | "signup" | "forgot" | "link";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -44,6 +44,11 @@ export function AuthScreen({ sb, invited }: { sb: SupabaseClient; invited: boole
         const { data, error } = await sb.auth.signUp({ email, password, options: { emailRedirectTo: redirect } });
         if (error) throw error;
         if (!data.session) setSent(`We sent a link to ${email}. Click it to finish creating your account.`);
+      } else if (mode === "link") {
+        // Signs in, or makes the account on a first visit. Comes back to this page, so invite links keep working.
+        const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: redirect + window.location.pathname } });
+        if (error) throw error;
+        setSent(`We sent a sign-in link to ${email}. Click it to sign in.`);
       } else {
         const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: redirect });
         if (error) throw error;
@@ -66,17 +71,21 @@ export function AuthScreen({ sb, invited }: { sb: SupabaseClient; invited: boole
     }
   }
 
+  function switchTo(m: Mode) {
+    setMode(m);
+    setError("");
+    setSent("");
+  }
+
+  // The sign-in link is a way to sign in, so it keeps the Sign in tab selected.
+  const selected = (m: Mode) => mode === m || (m === "signin" && mode === "link");
   const tab = (m: Mode, label: string) => (
     <button
       type="button"
       role="tab"
-      aria-selected={mode === m}
-      onClick={() => {
-        setMode(m);
-        setError("");
-        setSent("");
-      }}
-      className={`flex-1 px-3 py-2 text-[15px] font-medium ${mode === m ? "bg-white text-ink shadow-aw-sm" : "text-muted hover:text-ink"}`}
+      aria-selected={selected(m)}
+      onClick={() => switchTo(m)}
+      className={`flex-1 px-3 py-2 text-[15px] font-medium ${selected(m) ? "bg-white text-ink shadow-aw-sm" : "text-muted hover:text-ink"}`}
     >
       {label}
     </button>
@@ -129,7 +138,7 @@ export function AuthScreen({ sb, invited }: { sb: SupabaseClient; invited: boole
             className="aw-input"
           />
         </div>
-        {mode !== "forgot" ? (
+        {mode === "signin" || mode === "signup" ? (
           <div>
             <label className="aw-label" htmlFor="password">
               Password
@@ -150,12 +159,12 @@ export function AuthScreen({ sb, invited }: { sb: SupabaseClient; invited: boole
         {error ? <p className="aw-error">{error}</p> : null}
         {sent ? <p className="aw-callout text-[15px]!">{sent}</p> : null}
         <button type="submit" className="aw-btn aw-btn--primary aw-btn--block" disabled={busy}>
-          {busy ? "Please wait..." : mode === "signin" ? "Sign in" : mode === "signup" ? "Create account" : "Send reset link"}
+          {busy ? "Please wait..." : mode === "signin" ? "Sign in" : mode === "signup" ? "Create account" : mode === "link" ? "Email me a sign-in link" : "Send reset link"}
         </button>
       </form>
-      {mode === "signup" ? (
+      {mode === "signup" || mode === "link" ? (
         <p className="aw-small">
-          By creating an account you agree to the{" "}
+          {mode === "link" ? "New here? The link also creates your account. " : null}By creating an account you agree to the{" "}
           <a className="aw-text-link" href="https://arrowsterr.com/terms" target="_blank" rel="noopener noreferrer">
             Terms
           </a>{" "}
@@ -167,11 +176,20 @@ export function AuthScreen({ sb, invited }: { sb: SupabaseClient; invited: boole
         </p>
       ) : null}
       {mode === "signin" ? (
-        <button type="button" className="aw-text-link self-start" onClick={() => setMode("forgot")}>
-          Forgot your password?
+        <div className="flex flex-wrap justify-between gap-3">
+          <button type="button" className="aw-text-link" onClick={() => switchTo("forgot")}>
+            Forgot your password?
+          </button>
+          <button type="button" className="aw-text-link" onClick={() => switchTo("link")}>
+            Email me a sign-in link instead
+          </button>
+        </div>
+      ) : mode === "link" ? (
+        <button type="button" className="aw-text-link self-start" onClick={() => switchTo("signin")}>
+          Sign in with a password instead
         </button>
       ) : mode === "forgot" ? (
-        <button type="button" className="aw-text-link self-start" onClick={() => setMode("signin")}>
+        <button type="button" className="aw-text-link self-start" onClick={() => switchTo("signin")}>
           Back to sign in
         </button>
       ) : null}
