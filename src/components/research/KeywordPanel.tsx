@@ -10,16 +10,7 @@ import { CalendarIcon, ChartIcon, favicon, SidePanel, Thinking } from "../ui";
 import { flag, kdColor, kdWord, short } from "./KeywordOverview";
 import { AnalyzeSeo, fmtCpc, post, SerpTags, Sparkline, StageTag } from "./shared";
 
-/** Everything about one keyword in a side panel: numbers, trend, Google's results and ideas, with buttons to plan it. */
-export function KeywordPanel({
-  sb,
-  auth,
-  site,
-  keyword,
-  seed,
-  canEdit,
-  onClose,
-}: {
+type Props = {
   sb: SupabaseClient;
   auth: RunAuth;
   site: Site;
@@ -28,7 +19,39 @@ export function KeywordPanel({
   canEdit: boolean;
   onSite?: (s: Site) => void;
   onClose: () => void;
-}) {
+};
+
+/**
+ * Everything about one keyword in a side panel: numbers, trend, Google's results and ideas, with buttons to plan it.
+ * Click a variation or a question to dig into it; Back returns to the keyword before.
+ */
+export function KeywordPanel(p: Props) {
+  const [trail, setTrail] = useState<{ keyword: string; seed?: Partial<KwSummary> | null }[]>([{ keyword: p.keyword, seed: p.seed }]);
+  const cur = trail[trail.length - 1];
+  const prev = trail.length > 1 ? trail[trail.length - 2] : null;
+  return (
+    <KeywordDive
+      key={cur.keyword}
+      {...p}
+      keyword={cur.keyword}
+      seed={cur.seed}
+      back={prev ? { keyword: prev.keyword, go: () => setTrail((t) => t.slice(0, -1)) } : null}
+      onPick={(keyword, seed) => setTrail((t) => [...t, { keyword, seed }])}
+    />
+  );
+}
+
+function KeywordDive({
+  sb,
+  auth,
+  site,
+  keyword,
+  seed,
+  canEdit,
+  onClose,
+  back,
+  onPick,
+}: Props & { back: { keyword: string; go: () => void } | null; onPick: (keyword: string, seed: Partial<KwSummary>) => void }) {
   const country = site.profile.country && MARKETS[site.profile.country] ? site.profile.country : "United States";
   const [report, setReport] = useStash<KeywordReport | null>(`kwpanel:${country}:${keyword}`, null);
   const [error, setError] = useState("");
@@ -72,7 +95,20 @@ export function KeywordPanel({
   );
 
   return (
-    <SidePanel narrow kicker={`${flag(country)} ${country}`} title={keyword} onClose={onClose}>
+    <SidePanel
+      narrow
+      kicker={
+        back ? (
+          <button type="button" className="aw-text-link" onClick={back.go}>
+            ← {back.keyword}
+          </button>
+        ) : (
+          `${flag(country)} ${country}`
+        )
+      }
+      title={keyword}
+      onClose={onClose}
+    >
       {canEdit ? (
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={toCalendar}>
@@ -168,14 +204,29 @@ export function KeywordPanel({
                 <h3 className="aw-h4">{b.title}</h3>
               </div>
               <ul className="divide-y divide-rule-faint">
-                {b.rows.slice(0, 6).map((r) => (
-                  <li key={r.keyword} className="flex items-center justify-between gap-3 px-4 py-2 text-[13px]">
-                    <span className="min-w-0 truncate text-ink" title={r.keyword}>
-                      {r.keyword}
-                    </span>
-                    <span className="aw-num shrink-0 text-muted">{short(r.volume)}</span>
-                  </li>
-                ))}
+                {b.rows
+                  .filter((r) => r.keyword.toLowerCase() !== keyword.toLowerCase())
+                  .slice(0, 6)
+                  .map((r) => (
+                    <li key={r.keyword}>
+                      <button
+                        type="button"
+                        onClick={() => onPick(r.keyword, { volume: r.volume, kd: r.kd ?? null, intent: r.intent ?? null })}
+                        className="flex w-full items-center justify-between gap-3 px-4 py-2 text-left text-[13px] hover:bg-brand-pale"
+                        title={`Open "${r.keyword}"`}
+                      >
+                        <span className="min-w-0 truncate text-brand" title={r.keyword}>
+                          {r.keyword}
+                        </span>
+                        <span className="flex shrink-0 items-center gap-2">
+                          <span className="aw-num text-muted">{short(r.volume)}</span>
+                          <span className="text-muted" aria-hidden="true">
+                            ›
+                          </span>
+                        </span>
+                      </button>
+                    </li>
+                  ))}
                 {!b.rows.length ? <li className="px-4 py-3 text-[13px] text-muted">–</li> : null}
               </ul>
             </section>

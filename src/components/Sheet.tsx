@@ -570,6 +570,7 @@ function pasteValue<T>(col: Col<T>, raw: string): string | null | undefined {
 }
 
 type Pos = { r: number; c: number };
+const PICK = "__pick"; // the checkbox column, as a grid column
 type Change<T> = { key: string; col: Col<T>; before: string | null };
 
 export function Sheet<T>({
@@ -734,13 +735,33 @@ export function Sheet<T>({
   };
 
   // ── Keyboard and selection, the way a spreadsheet works ──
+  // The checkbox column is a real column: select it, copy it as TRUE or FALSE, paste it, clear it, Space to tick.
+  const pickCol: Col<T> | null =
+    onSelect && selected
+      ? {
+          id: PICK,
+          label: "Select",
+          type: "list",
+          value: (r) => (selected.has(rowKey(r)) ? "TRUE" : "FALSE"),
+          edit: {
+            kind: "select",
+            options: [
+              { id: "TRUE", label: "TRUE", aliases: ["true", "yes", "y", "1", "x", "✓", "checked", "on"] },
+              { id: "FALSE", label: "FALSE", aliases: ["false", "no", "n", "0", "off", "unchecked"] },
+            ],
+            save: () => {},
+          },
+        }
+      : null;
+  const off = pickCol ? 1 : 0;
+  const gridCols = pickCol ? [pickCol, ...cols] : cols;
   const lastR = shown.length - 1;
-  const lastC = cols.length - 1;
+  const lastC = gridCols.length - 1;
   const clamp = (p: Pos): Pos => ({
     r: Math.max(0, Math.min(lastR, p.r)),
     c: Math.max(0, Math.min(lastC, p.c)),
   });
-  const at = cur && shown.length && cols.length ? clamp(cur) : null;
+  const at = cur && shown.length && gridCols.length ? clamp(cur) : null;
   const from = at && anchor ? clamp(anchor) : at;
   const box =
     at && from
@@ -755,7 +776,7 @@ export function Sheet<T>({
   const cellsInBox = () => {
     const out: { row: T; col: Col<T> }[] = [];
     if (!box) return out;
-    for (let r = box.r0; r <= box.r1; r++) for (let c = box.c0; c <= box.c1; c++) out.push({ row: shown[r], col: cols[c] });
+    for (let r = box.r0; r <= box.r1; r++) for (let c = box.c0; c <= box.c1; c++) out.push({ row: shown[r], col: gridCols[c] });
     return out;
   };
   const focusGrid = () => wrapRef.current?.focus({ preventScroll: true });
@@ -771,9 +792,14 @@ export function Sheet<T>({
     setTimeout(() => setFlash((x) => (x === t ? "" : x)), 1600);
   };
   const startEdit = (p: Pos, init: string | null = null) => {
-    const c = cols[p.c];
+    const c = gridCols[p.c];
     const r = shown[p.r];
     if (!c?.edit || !r) return false;
+    // The checkbox cell ticks or unticks.
+    if (c.id === PICK) {
+      apply([{ row: r, col: c, value: selected?.has(rowKey(r)) ? "FALSE" : "TRUE" }]);
+      return true;
+    }
     const rect = cellEl(p)?.getBoundingClientRect();
     setEditing({
       cell: `${rowKey(r)}|${c.id}`,
@@ -789,13 +815,26 @@ export function Sheet<T>({
   /** Save many cells at once, kept together for one Undo. */
   const apply = (list: { row: T; col: Col<T>; value: string | null | undefined }[]) => {
     const batch: Change<T>[] = [];
+    let picks: Set<string> | null = null;
     for (const x of list) {
       if (!x.col.edit || x.value === undefined) continue;
+      if (x.col.id === PICK) {
+        if (!canSelect(x.row)) continue;
+        picks ??= new Set(selected);
+        const key = rowKey(x.row);
+        const want = x.value === "TRUE";
+        if (picks.has(key) === want) continue;
+        batch.push({ key, col: x.col, before: picks.has(key) ? "TRUE" : "FALSE" });
+        if (want) picks.add(key);
+        else picks.delete(key);
+        continue;
+      }
       const before = beforeOf(x.row, x.col);
       if (before === x.value) continue;
       batch.push({ key: rowKey(x.row), col: x.col, before });
       x.col.edit.save(x.row, x.value);
     }
+    if (picks && onSelect) onSelect(picks);
     if (batch.length) history.current.push(batch);
     return batch.length;
   };
@@ -805,7 +844,7 @@ export function Sheet<T>({
     const lines: string[] = [];
     for (let r = box.r0; r <= box.r1; r++)
       lines.push(
-        cols
+        gridCols
           .slice(box.c0, box.c1 + 1)
           .map((c) => textOf(shown[r], c))
           .join("\t"),
@@ -838,14 +877,14 @@ export function Sheet<T>({
         if (r > lastR) {
           const rec: Record<string, string> = {};
           line.forEach((v, j) => {
-            const c = cols[at.c + j];
-            if (c && v.trim()) rec[c.id] = v.trim();
+            const c = gridCols[at.c + j];
+            if (c && c.id !== PICK && v.trim()) rec[c.id] = v.trim();
           });
           if (Object.keys(rec).length) extra.push(rec);
           return;
         }
         line.forEach((v, j) => {
-          const c = cols[at.c + j];
+          const c = gridCols[at.c + j];
           if (c?.edit) list.push({ row: shown[r], col: c, value: pasteValue(c, v) });
         });
       });
@@ -861,10 +900,18 @@ export function Sheet<T>({
   const undo = () => {
     const batch = history.current.pop();
     if (!batch) return say("Nothing to undo");
+    let picks: Set<string> | null = null;
     for (const x of batch) {
+      if (x.col.id === PICK) {
+        picks ??= new Set(selected);
+        if (x.before === "TRUE") picks.add(x.key);
+        else picks.delete(x.key);
+        continue;
+      }
       const row = rows.find((r) => rowKey(r) === x.key);
       if (row && x.col.edit) x.col.edit.save(row, x.before);
     }
+    if (picks && onSelect) onSelect(picks);
     say(`Undid ${batch.length} ${batch.length === 1 ? "change" : "changes"}`);
   };
   const pickRows = () => {
@@ -917,9 +964,9 @@ export function Sheet<T>({
     if (k === "PageDown" || k === "PageUp") return (e.preventDefault(), goTo({ r: at.r + (k === "PageDown" ? page : -page), c: at.c }, e.shiftKey));
     if (k === "Enter" || k === "F2") {
       e.preventDefault();
-      if (mod && at.c === 0 && onOpen && canOpen(shown[at.r])) return onOpen(shown[at.r]);
+      if (mod && at.c === off && onOpen && canOpen(shown[at.r])) return onOpen(shown[at.r]);
       if (startEdit(at)) return;
-      if (at.c === 0 && onOpen && canOpen(shown[at.r])) return onOpen(shown[at.r]);
+      if (at.c === off && onOpen && canOpen(shown[at.r])) return onOpen(shown[at.r]);
       return goTo({ r: at.r + (e.shiftKey ? -1 : 1), c: at.c });
     }
     if (k === "Escape") {
@@ -929,9 +976,19 @@ export function Sheet<T>({
       return setCur(null);
     }
     if (k === " " && e.shiftKey) return (e.preventDefault(), pickRows());
+    if (k === " " && gridCols[at.c]?.id === PICK) {
+      e.preventDefault();
+      // Space ticks the boxes in the range, or unticks them when they are all ticked.
+      const cells = cellsInBox().filter((x) => x.col.id === PICK);
+      const all = cells.every((x) => selected?.has(rowKey(x.row)));
+      apply(cells.map((x) => ({ ...x, value: all ? "FALSE" : "TRUE" })));
+      return;
+    }
     if (k === "Delete" || k === "Backspace") {
       e.preventDefault();
-      if (selected?.size && onDeleteRows) return onDeleteRows([...selected]);
+      // Delete on the checkbox column only unticks. Elsewhere, with rows ticked, it deletes them.
+      const onlyPicks = box && pickCol && box.c0 === 0 && box.c1 === 0;
+      if (!onlyPicks && selected?.size && onDeleteRows) return onDeleteRows([...selected]);
       const n = apply(cellsInBox().map((x) => ({ ...x, value: null })));
       return say(n ? `Cleared ${n} ${n === 1 ? "cell" : "cells"}` : "Nothing here can be cleared");
     }
@@ -957,7 +1014,7 @@ export function Sheet<T>({
     }
     if (mod && k === "/") return (e.preventDefault(), setKeysOpen((x) => !x));
     // Typing starts editing the cell, like a spreadsheet.
-    if (!mod && !e.altKey && k.length === 1 && cols[at.c]?.edit) {
+    if (!mod && !e.altKey && k.length === 1 && gridCols[at.c]?.edit && gridCols[at.c].id !== PICK) {
       e.preventDefault();
       startEdit(at, k);
     }
@@ -1133,7 +1190,7 @@ export function Sheet<T>({
             <tr>
               <th className="aw-sheet__n" aria-label="Row" />
               {onSelect ? (
-                <th className="aw-sheet__pick">
+                <th className={`aw-sheet__pick ${box && box.c0 === 0 ? "is-col-on" : ""}`}>
                   <input
                     type="checkbox"
                     aria-label="Select all shown rows"
@@ -1159,7 +1216,7 @@ export function Sheet<T>({
                   <th
                     key={c.id}
                     style={sized(c)}
-                    className={`relative ${stickyCls(c)} ${box && j >= box.c0 && j <= box.c1 ? "is-col-on" : ""}`}
+                    className={`relative ${stickyCls(c)} ${box && j + off >= box.c0 && j + off <= box.c1 ? "is-col-on" : ""}`}
                     aria-sort={on ? (sort.desc ? "descending" : "ascending") : "none"}
                   >
                     <button
@@ -1199,28 +1256,56 @@ export function Sheet<T>({
                     {i + 1}
                   </td>
                   {onSelect ? (
-                    <td className="aw-sheet__pick">
-                      <input type="checkbox" aria-label={`Select row ${i + 1}`} checked={on} disabled={!canSelect(r)} onChange={(e) => flip(key, e.target.checked)} />
+                    <td
+                      className={`aw-sheet__pick ${inBox(i, 0) ? "is-in-range" : ""} ${at?.r === i && at?.c === 0 ? "is-active" : ""}`}
+                      data-cell={`${i}:0`}
+                      aria-selected={inBox(i, 0)}
+                      onMouseDown={(e) => {
+                        // Clicking the box itself ticks it and selects the cell; clicking around it works like any cell.
+                        if ((e.target as HTMLElement).tagName === "INPUT") {
+                          if (e.shiftKey && at) setCur({ r: i, c: 0 });
+                          else {
+                            setCur({ r: i, c: 0 });
+                            setAnchor({ r: i, c: 0 });
+                          }
+                          return;
+                        }
+                        onCellDown(e, { r: i, c: 0 });
+                      }}
+                      onMouseEnter={() => onCellEnter({ r: i, c: 0 })}
+                    >
+                      <input
+                        type="checkbox"
+                        tabIndex={-1}
+                        aria-label={`Select row ${i + 1}`}
+                        checked={on}
+                        disabled={!canSelect(r)}
+                        onChange={(e) => {
+                          flip(key, e.target.checked);
+                          requestAnimationFrame(focusGrid);
+                        }}
+                      />
                     </td>
                   ) : null}
                   {cols.map((c, j) => {
                     const cellId = `${key}|${c.id}`;
                     const content = c.cell ? c.cell(r) : show(c.value(r));
-                    const isAt = at?.r === i && at?.c === j;
+                    const g = j + off; // this column's place in the grid, after the checkbox column
+                    const isAt = at?.r === i && at?.c === g;
                     const ed = editing?.cell === cellId && c.edit ? c.edit : null;
                     const opener = j === 0 && onOpen && canOpen(r);
                     return (
                       <td
                         key={c.id}
-                        data-cell={`${i}:${j}`}
+                        data-cell={`${i}:${g}`}
                         style={sized(c)}
-                        onMouseDown={(e) => onCellDown(e, { r: i, c: j })}
-                        onMouseEnter={() => onCellEnter({ r: i, c: j })}
-                        aria-selected={inBox(i, j)}
-                        className={`${c.type === "number" ? "is-num" : ""} ${widthOf(c) ? "overflow-hidden text-ellipsis whitespace-nowrap" : ""} ${stickyCls(c)} ${inBox(i, j) ? "is-in-range" : ""} ${isAt ? "is-active" : ""} ${c.edit ? "is-editable" : ""} ${ed && (ed.kind === "text" || ed.kind === "number") ? "is-editing" : ""} ${opener ? "has-open" : ""}`}
+                        onMouseDown={(e) => onCellDown(e, { r: i, c: g })}
+                        onMouseEnter={() => onCellEnter({ r: i, c: g })}
+                        aria-selected={inBox(i, g)}
+                        className={`${c.type === "number" ? "is-num" : ""} ${widthOf(c) ? "overflow-hidden text-ellipsis whitespace-nowrap" : ""} ${stickyCls(c)} ${inBox(i, g) ? "is-in-range" : ""} ${isAt ? "is-active" : ""} ${c.edit ? "is-editable" : ""} ${ed && (ed.kind === "text" || ed.kind === "number") ? "is-editing" : ""} ${opener ? "has-open" : ""}`}
                       >
                         {ed && (ed.kind === "text" || ed.kind === "number") ? (
-                          <TextEditor row={r} col={c} init={editing!.init} onDone={(mv) => endEdit({ r: i, c: j }, mv)} />
+                          <TextEditor row={r} col={c} init={editing!.init} onDone={(mv) => endEdit({ r: i, c: g }, mv)} />
                         ) : (
                           <>
                             <span className="aw-sheet__val">{content}</span>
@@ -1239,9 +1324,9 @@ export function Sheet<T>({
                             value={ed.value ? ed.value(r) : keyOf(c.value(r))}
                             onPick={(v) => {
                               apply([{ row: r, col: c, value: v || null }]);
-                              endEdit({ r: i, c: j });
+                              endEdit({ r: i, c: g });
                             }}
-                            onClose={() => endEdit({ r: i, c: j })}
+                            onClose={() => endEdit({ r: i, c: g })}
                           />
                         ) : null}
                         {ed && ed.kind === "date" && editing?.rect ? (
@@ -1251,9 +1336,9 @@ export function Sheet<T>({
                             value={ed.value ? ed.value(r) : keyOf(c.value(r))}
                             onPick={(v) => {
                               apply([{ row: r, col: c, value: v }]);
-                              endEdit({ r: i, c: j });
+                              endEdit({ r: i, c: g });
                             }}
-                            onClose={() => endEdit({ r: i, c: j })}
+                            onClose={() => endEdit({ r: i, c: g })}
                           />
                         ) : null}
                       </td>
