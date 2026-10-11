@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { droppedIdea, IdeaList, type AiIdea, type useAiIdeas } from "./AiIdeas";
 import type { CalendarItem } from "@/lib/db";
+import { Pop } from "../Sheet";
 import { byStage, STAGE_COLORS, statusLabel } from "./shared";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -10,7 +10,7 @@ const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart
 
 
 /** One page as a card you can drag to another day: the keyword, its search volume and where it stands. */
-function Chip({ item, onOpen, canDrag = true }: { item: CalendarItem; onOpen: () => void; canDrag?: boolean }) {
+function Chip({ item, onOpen, canDrag = true, showDate = false }: { item: CalendarItem; onOpen: () => void; canDrag?: boolean; showDate?: boolean }) {
   return (
     <button
       type="button"
@@ -27,14 +27,18 @@ function Chip({ item, onOpen, canDrag = true }: { item: CalendarItem; onOpen: ()
       <span className={`aw-cal-card__kw ${item.status === "published" ? "is-done" : ""}`}>{item.keyword}</span>
       <span className="aw-cal-card__foot">
         <span className="aw-cal-card__vol">{item.volume === null || item.volume === undefined ? "–" : `${item.volume.toLocaleString("en-US")}/mo`}</span>
-        <span className={`aw-cal-card__st aw-cal-card__st--${item.status === "planned" && !item.due_date ? "idea" : item.status}`}>{statusLabel(item)}</span>
+        <span className="flex items-center gap-1.5">
+          {showDate && item.due_date ? <span className="aw-num text-[11px] text-muted">{new Date(`${item.due_date}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span> : null}
+          <span className={`aw-cal-card__st aw-cal-card__st--${item.status === "planned" && !item.due_date ? "idea" : item.status}`}>{statusLabel(item)}</span>
+        </span>
       </span>
     </button>
   );
 }
 
 /**
- * The Editorial Calendar: a month of pages, and every unscheduled idea on the side.
+ * The Editorial Calendar: a month of pages, and the Topic Bank on the side: every piece, filtered by intent,
+ * scheduled or not, and search volume.
  * Drag an idea onto a day to schedule it (its status turns Planned), drag a page to another day to move it,
  * or back to the side to make it an idea again. Click a day to open it.
  */
@@ -43,8 +47,6 @@ export function CalendarGrid({
   canEdit,
   onMove,
   onDay,
-  ideas,
-  onIdea,
   onOpen,
   onAutoSchedule,
   toolbar,
@@ -53,8 +55,6 @@ export function CalendarGrid({
   canEdit: boolean;
   onMove: (id: string, date: string | null) => void;
   onDay: (date: string) => void;
-  ideas?: ReturnType<typeof useAiIdeas>;
-  onIdea?: (idea: AiIdea, date: string | null) => void;
   onOpen: (id: string) => void;
   onAutoSchedule?: () => void;
   /** The List and Calendar switch, at the start of the header. */
@@ -65,7 +65,6 @@ export function CalendarGrid({
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
   const [over, setOver] = useState<string | null>(null);
-  const [side, setSide] = useState<"unscheduled" | "ideas">("unscheduled");
 
   const first = new Date(month);
   first.setDate(1 - ((month.getDay() + 6) % 7)); // back to Monday
@@ -78,7 +77,6 @@ export function CalendarGrid({
   const today = iso(new Date());
   const byDay = new Map<string, CalendarItem[]>();
   for (const i of [...items].sort(byStage)) if (i.due_date) byDay.set(i.due_date, [...(byDay.get(i.due_date) ?? []), i]);
-  const unscheduled = items.filter((i) => !i.due_date && i.status !== "published").sort(byStage);
   const shift = (n: number) => setMonth(new Date(month.getFullYear(), month.getMonth() + n, 1));
 
   const drop = (date: string | null) => ({
@@ -92,8 +90,6 @@ export function CalendarGrid({
       e.preventDefault();
       setOver(null);
       if (!canEdit) return;
-      const idea = droppedIdea(e);
-      if (idea) return onIdea?.(idea, date);
       const id = e.dataTransfer.getData("text/plain");
       if (id) onMove(id, date);
     },
@@ -152,56 +148,216 @@ export function CalendarGrid({
         </div>
       </section>
 
-      <aside {...drop(null)} className={`aw-frame flex max-h-[760px] flex-col ${over === "tray" ? "outline-2 -outline-offset-2 outline-brand" : ""}`}>
-        <div className="flex items-center gap-1 border-b border-rule px-2 pt-2" role="tablist" aria-label="Side list">
-          {(
-            [
-              { id: "unscheduled", label: `Unscheduled ideas ${unscheduled.length}` },
-              ...(ideas ? [{ id: "ideas", label: "✦ AI ideas" } as const] : []),
-            ] as const
-          ).map((t) => (
-            <button
-              key={t.id}
-              type="button"
-              role="tab"
-              aria-selected={side === t.id}
-              onClick={() => setSide(t.id)}
-              className={`-mb-px rounded-none border-b-2 px-3 py-2 text-[14px] ${side === t.id ? "border-brand font-medium text-brand" : "border-transparent text-body hover:text-ink"}`}
-            >
-              {t.label}
-            </button>
-          ))}
-        </div>
-        {side === "unscheduled" ? (
-          <>
-            <p className="px-3 pt-3 text-[12px] text-muted">{unscheduled.length ? "Drag an idea onto a day to schedule it. Drag a page back here to unschedule it." : "Every idea has a date. Drag a page here to unschedule it."}</p>
-            {canEdit && unscheduled.length && onAutoSchedule ? (
-              <div className="px-3 pt-2">
-                <button type="button" className="aw-btn aw-btn--primary aw-btn--sm w-full" onClick={onAutoSchedule}>
-                  Schedule all
-                </button>
-              </div>
-            ) : null}
-            <div className="flex min-h-24 flex-col gap-1.5 overflow-y-auto p-3">
-              {unscheduled.map((i) => (
-                <Chip key={i.id} item={i} onOpen={() => onOpen(i.id)} canDrag={canEdit} />
-              ))}
-            </div>
-          </>
-        ) : ideas ? (
-          <div className="min-h-24 overflow-y-auto p-3">
-            <IdeaList state={ideas} canEdit={canEdit} onAdd={(i) => onIdea?.(i, null)} addLabel="+" compact />
-          </div>
-        ) : null}
-        <div className="mt-auto flex flex-wrap gap-x-3 gap-y-1 border-t border-rule-faint px-4 py-2.5 text-[12px] text-body">
-          {(["bofu", "mofu", "tofu"] as const).map((s) => (
-            <span key={s} className="flex items-center gap-1.5">
-              <i className="inline-block h-2.5 w-[3px]" style={{ background: STAGE_COLORS[s] }} />
-              {s.toUpperCase()}
-            </span>
-          ))}
-        </div>
+      <aside {...drop(null)} className={`aw-frame flex max-h-[860px] flex-col ${over === "tray" ? "outline-2 -outline-offset-2 outline-brand" : ""}`}>
+        <TopicBank items={items} canEdit={canEdit} onOpen={onOpen} onAutoSchedule={onAutoSchedule} />
       </aside>
     </div>
+  );
+}
+
+type Stage3 = "bofu" | "mofu" | "tofu" | "none";
+type VolOp = "any" | "gte" | "lte" | "between";
+type BankFilter = { when: ("unscheduled" | "scheduled")[]; intent: Stage3[]; vol: { op: VolOp; a: string; b: string }; sort: "stage" | "volume" | "az" };
+const ALL_INTENTS: Stage3[] = ["bofu", "mofu", "tofu", "none"];
+const START: BankFilter = { when: ["unscheduled"], intent: ALL_INTENTS, vol: { op: "any", a: "", b: "" }, sort: "stage" };
+const stageOf = (i: CalendarItem): Stage3 => i.stage ?? "none";
+const volOk = (v: number, f: BankFilter["vol"]) => {
+  const a = Number(f.a.replace(/[,\s]/g, "")) || 0;
+  const b = Number(f.b.replace(/[,\s]/g, "")) || 0;
+  return f.op === "gte" ? v >= a : f.op === "lte" ? v <= a : f.op === "between" ? v >= a && v <= (b || Infinity) : true;
+};
+
+/** The Topic Bank: every piece of the Content Plan, to search, filter like a sheet, and drag onto the calendar. */
+function TopicBank({ items, canEdit, onOpen, onAutoSchedule }: { items: CalendarItem[]; canEdit: boolean; onOpen: (id: string) => void; onAutoSchedule?: () => void }) {
+  const [f, setF] = useState<BankFilter>(START);
+  const [menu, setMenu] = useState<DOMRect | null>(null);
+  const [q, setQ] = useState("");
+
+  const live = items.filter((i) => i.status !== "published");
+  const list = live
+    .filter((i) => f.when.includes(i.due_date ? "scheduled" : "unscheduled"))
+    .filter((i) => f.intent.includes(stageOf(i)))
+    .filter((i) => volOk(i.volume ?? 0, f.vol))
+    .filter((i) => !q.trim() || i.keyword.toLowerCase().includes(q.trim().toLowerCase()))
+    .sort(f.sort === "volume" ? (a, b) => (b.volume ?? 0) - (a.volume ?? 0) : f.sort === "az" ? (a, b) => a.keyword.localeCompare(b.keyword) : byStage);
+  // How many filters differ from the start: unscheduled topics, every intent, any volume.
+  const active = (f.when.length !== 1 || f.when[0] !== "unscheduled" ? 1 : 0) + (f.intent.length !== ALL_INTENTS.length ? 1 : 0) + (f.vol.op !== "any" ? 1 : 0);
+  const onlyUnscheduled = f.when.length === 1 && f.when[0] === "unscheduled";
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex flex-col gap-2 border-b border-rule px-3 pt-3 pb-3">
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="aw-h4">Topic Bank</h3>
+          <span className="aw-num text-[12px] text-muted">
+            {list.length} of {live.length}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search topics" aria-label="Search topics" className="aw-pop__field min-w-0 flex-1" />
+          <button
+            type="button"
+            className={`aw-bank__filter ${active ? "is-on" : ""}`}
+            aria-haspopup="dialog"
+            aria-expanded={Boolean(menu)}
+            onClick={(e) => setMenu(menu ? null : e.currentTarget.getBoundingClientRect())}
+            title="Sort and filter"
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+              <path d="M3 5h18l-7 8v6l-4-2v-4z" />
+            </svg>
+            Filter{active ? ` · ${active}` : ""}
+          </button>
+        </div>
+        <p className="text-[12px] text-muted">
+          {onlyUnscheduled ? "Unscheduled" : f.when.length === 2 ? "All topics" : "Scheduled"}
+          {f.intent.length !== ALL_INTENTS.length ? ` · ${f.intent.filter((x) => x !== "none").map((x) => x.toUpperCase()).join(", ") || "No intent"}` : ""}
+          {f.vol.op !== "any" ? ` · ${f.vol.op === "gte" ? `${f.vol.a}+` : f.vol.op === "lte" ? `up to ${f.vol.a}` : `${f.vol.a} to ${f.vol.b}`} / mo` : ""}
+          {" · "}
+          {f.sort === "stage" ? "BOFU first" : f.sort === "volume" ? "most searched" : "A to Z"}
+          {canEdit && onlyUnscheduled && list.length && onAutoSchedule ? (
+            <>
+              {" · "}
+              <button type="button" className="aw-text-link text-[12px]" onClick={onAutoSchedule}>
+                Schedule all
+              </button>
+            </>
+          ) : null}
+        </p>
+      </div>
+      <div className="flex min-h-24 flex-col gap-1.5 overflow-y-auto p-3">
+        {list.map((i) => (
+          <Chip key={i.id} item={i} onOpen={() => onOpen(i.id)} canDrag={canEdit} showDate={Boolean(i.due_date)} />
+        ))}
+        {!list.length ? <p className="py-6 text-center text-[13px] text-muted">{active || q ? "No topics match these filters." : "Every topic has a date."}</p> : null}
+        {list.length ? <p className="pt-1 text-center text-[11px] text-faint">Drag a topic onto a day. Drag a page back here to unschedule it.</p> : null}
+      </div>
+      {menu ? <BankMenu anchor={menu} items={live} value={f} onApply={setF} onClose={() => setMenu(null)} /> : null}
+    </div>
+  );
+}
+
+/** The Topic Bank's one menu, like a column menu in Google Sheets: sort, then filter by schedule, intent and search volume. */
+function BankMenu({ anchor, items, value, onApply, onClose }: { anchor: DOMRect; items: CalendarItem[]; value: BankFilter; onApply: (f: BankFilter) => void; onClose: () => void }) {
+  const [d, setD] = useState<BankFilter>(value);
+  const [open, setOpen] = useState<Record<string, boolean>>({ when: true, intent: true, vol: value.vol.op !== "any" });
+  const n = (fn: (i: CalendarItem) => boolean) => items.filter(fn).length;
+  const flipIn = <K extends "when" | "intent">(k: K, v: BankFilter[K][number]) =>
+    setD((x) => ({ ...x, [k]: (x[k] as string[]).includes(v) ? (x[k] as string[]).filter((y) => y !== v) : [...x[k], v] }));
+  const section = (id: string, title: string, body: React.ReactNode, on: boolean) => (
+    <>
+      <button type="button" className="aw-pop__item" aria-expanded={Boolean(open[id])} onClick={() => setOpen((o) => ({ ...o, [id]: !o[id] }))}>
+        <span className="text-[10px] text-muted">{open[id] ? "▼" : "▶"}</span>
+        {title}
+        {on ? <span className="aw-pop__dot" /> : null}
+      </button>
+      {open[id] ? <div className="flex flex-col gap-1 px-3 pb-2">{body}</div> : null}
+    </>
+  );
+  const check = (label: React.ReactNode, on: boolean, flip: () => void, count: number) => (
+    <label className="aw-pop__check-row">
+      <input type="checkbox" checked={on} onChange={flip} />
+      <span className="flex flex-1 items-center gap-1.5">{label}</span>
+      <span className="aw-num text-[11px] text-muted">{count}</span>
+    </label>
+  );
+  const sortItem = (id: BankFilter["sort"], label: string) => (
+    <button type="button" className="aw-pop__item" onClick={() => setD((x) => ({ ...x, sort: id }))}>
+      {label}
+      {d.sort === id ? <span className="ml-auto text-pos">✓</span> : null}
+    </button>
+  );
+  return (
+    <Pop anchor={anchor} onClose={onClose} label="Sort and filter topics" width={290}>
+      <div className="flex flex-col">
+        {sortItem("stage", "Sort BOFU first")}
+        {sortItem("volume", "Sort by most searched")}
+        {sortItem("az", "Sort A to Z")}
+        <span className="my-1 border-t border-rule-faint" />
+        {section(
+          "when",
+          "Filter by schedule",
+          <>
+            {check("Unscheduled", d.when.includes("unscheduled"), () => flipIn("when", "unscheduled"), n((i) => !i.due_date))}
+            {check("Scheduled", d.when.includes("scheduled"), () => flipIn("when", "scheduled"), n((i) => Boolean(i.due_date)))}
+          </>,
+          d.when.length !== 1 || d.when[0] !== "unscheduled",
+        )}
+        {section(
+          "intent",
+          "Filter by intent",
+          <>
+            <span className="flex gap-1 text-[12px]">
+              <button type="button" className="aw-text-link text-[12px]" onClick={() => setD((x) => ({ ...x, intent: ALL_INTENTS }))}>
+                Select all
+              </button>
+              <span className="text-muted">·</span>
+              <button type="button" className="aw-text-link text-[12px]" onClick={() => setD((x) => ({ ...x, intent: [] }))}>
+                Clear
+              </button>
+            </span>
+            {ALL_INTENTS.map((s) =>
+              check(
+                s === "none" ? <span className="text-muted">(Blanks)</span> : (
+                  <>
+                    <i className="inline-block h-2.5 w-[3px]" style={{ background: STAGE_COLORS[s] }} />
+                    {s.toUpperCase()}
+                  </>
+                ),
+                d.intent.includes(s),
+                () => flipIn("intent", s),
+                n((i) => stageOf(i) === s),
+              ),
+            )}
+          </>,
+          d.intent.length !== ALL_INTENTS.length,
+        )}
+        {section(
+          "vol",
+          "Filter by search volume",
+          <>
+            <select value={d.vol.op} onChange={(e) => setD((x) => ({ ...x, vol: { ...x.vol, op: e.target.value as VolOp } }))} aria-label="Search volume condition" className="aw-pop__field">
+              <option value="any">Any volume</option>
+              <option value="gte">Greater than or equal to</option>
+              <option value="lte">Less than or equal to</option>
+              <option value="between">Is between</option>
+            </select>
+            {d.vol.op !== "any" ? (
+              <span className="flex items-center gap-1.5">
+                <input autoFocus inputMode="numeric" value={d.vol.a} onChange={(e) => setD((x) => ({ ...x, vol: { ...x.vol, a: e.target.value } }))} placeholder="e.g. 100" aria-label="Volume" className="aw-pop__field" />
+                {d.vol.op === "between" ? (
+                  <>
+                    <span className="text-[12px] text-muted">and</span>
+                    <input inputMode="numeric" value={d.vol.b} onChange={(e) => setD((x) => ({ ...x, vol: { ...x.vol, b: e.target.value } }))} placeholder="e.g. 5000" aria-label="Volume up to" className="aw-pop__field" />
+                  </>
+                ) : null}
+              </span>
+            ) : null}
+          </>,
+          d.vol.op !== "any",
+        )}
+        <div className="mt-1 flex items-center justify-between gap-2 border-t border-rule-faint px-3 pt-3 pb-1">
+          <button type="button" className="aw-text-link text-[12px]" onClick={() => setD(START)}>
+            Reset
+          </button>
+          <span className="flex gap-2">
+            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={onClose}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="aw-btn aw-btn--primary aw-btn--sm"
+              disabled={!d.when.length || !d.intent.length}
+              onClick={() => {
+                onApply(d);
+                onClose();
+              }}
+            >
+              OK
+            </button>
+          </span>
+        </div>
+      </div>
+    </Pop>
   );
 }

@@ -11,8 +11,7 @@ import type { Chat } from "@/lib/chats";
 import { Card, SidePanel, Thinking } from "../ui";
 import { CalendarGrid } from "./CalendarGrid";
 import { ContentPiece, STATUSES, type WriterAccess } from "./ContentPiece";
-import { useAiIdeas } from "./AiIdeas";
-import { DayPanel, ideaPiece, type NewPiece } from "./DayPanel";
+import { DayPanel, type NewPiece } from "./DayPanel";
 import { byStage, Difficulty, downloadCsv, FIELD, PLAN_VIEWS, post, STAGE_LABEL, StageTag, statusLabel, ViewSwitch, type PlanView } from "./shared";
 import { PlanProgress, planRows } from "./AgenticResearch";
 import { PlanIntro, PlanSample } from "./PlanIntro";
@@ -192,7 +191,6 @@ export function ContentCalendar({
 
 
 
-  const ideas = useAiIdeas(auth, site, results.brandName, results.chats, (items ?? []).map((i) => i.keyword));
   if (!items) return <Thinking text="Loading your calendar..." />;
 
   async function patch(id: string, p: Partial<CalendarItem>) {
@@ -591,8 +589,6 @@ export function ContentCalendar({
           canEdit={canEdit}
           onMove={(id, date) => patch(id, { due_date: date })}
           onDay={(day) => setPanel({ day, piece: null })}
-          ideas={ideas}
-          onIdea={(idea, date) => addOn(idea.keyword, date, ideaPiece(idea))}
           onOpen={(id) => setPanel({ day: items.find((i) => i.id === id)?.due_date ?? null, piece: id })}
           onAutoSchedule={() => setPlanning(true)}
         />
@@ -741,7 +737,6 @@ export function ContentCalendar({
         <SidePanel title={dayLabel(panel.day)} kicker="Editorial Calendar" onClose={() => setPanel(null)}>
           <DayPanel
             items={items.filter((i) => i.due_date === panel.day)}
-            ideas={ideas}
             canEdit={canEdit}
             onOpen={(id) => setPanel({ day: panel.day, piece: id })}
             onAdd={(p) => addOn(p.keyword, panel.day, p)}

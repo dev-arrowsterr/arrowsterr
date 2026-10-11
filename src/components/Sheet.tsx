@@ -157,7 +157,7 @@ const filterOn = (f?: Filter) => Boolean(f && (condReady(f.cond) || f.vals));
 const portalRoot = () => (typeof document === "undefined" ? null : ((document.querySelector(".aw") as HTMLElement | null) ?? document.body));
 
 /** A pop-up under a cell or a column name, kept on screen. Closes on a click outside or Escape. */
-function Pop({ anchor, onClose, children, width = 260, label }: { anchor: DOMRect; onClose: () => void; children: React.ReactNode; width?: number; label: string }) {
+export function Pop({ anchor, onClose, children, width = 260, label }: { anchor: DOMRect; onClose: () => void; children: React.ReactNode; width?: number; label: string }) {
   const ref = useRef<HTMLDivElement | null>(null);
   const [pos, setPos] = useState({ left: anchor.left, top: anchor.bottom + 4 });
   useLayoutEffect(() => {

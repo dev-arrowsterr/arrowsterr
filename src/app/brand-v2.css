@@ -327,3 +327,6 @@ html, body { background: #F8F8FF; }
 .aw .aw-stop { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--aw-rule); border-radius: 6px; background: #fff; color: var(--aw-ink); font-size: 12px; font-weight: 500; cursor: pointer; }
 .aw .aw-stop:hover { border-color: #B3093C; color: #B3093C; }
 .aw .aw-stop__sq { width: 8px; height: 8px; border-radius: 2px; background: currentColor; }
+.aw .aw-bank__filter { display: inline-flex; align-items: center; gap: 5px; height: 32px; padding: 0 10px; border: 1px solid var(--aw-rule); border-radius: 6px; background: #fff; font-size: 13px; color: var(--aw-body); cursor: pointer; white-space: nowrap; }
+.aw .aw-bank__filter:hover { border-color: var(--aw-brand); color: var(--aw-ink); }
+.aw .aw-bank__filter.is-on { border-color: #16A34A; color: #15803D; background: #F0FAF3; }

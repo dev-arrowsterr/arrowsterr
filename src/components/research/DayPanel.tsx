@@ -3,7 +3,6 @@
 import { useState } from "react";
 import type { CalendarItem } from "@/lib/db";
 import type { Stage } from "@/lib/research";
-import { droppedIdea, IdeaList, type AiIdea, type useAiIdeas } from "./AiIdeas";
 import { STATUSES } from "./ContentPiece";
 import { STAGE_COLORS } from "./shared";
 
@@ -17,51 +16,24 @@ export type NewPiece = {
   action?: "new" | "update";
   url?: string | null;
 };
-export const ideaPiece = (i: AiIdea): NewPiece => ({
-  keyword: i.keyword,
-  stage: i.stage,
-  notes: [i.why, i.prompt ? `Helps the prompt: ${i.prompt}` : ""].filter(Boolean).join("\n"),
-  volume: i.volume,
-  kd: i.kd,
-  intent: i.intent,
-  action: i.action,
-  url: i.url,
-});
 
-/** One day of the editorial calendar: what is planned, and keyword ideas from AI visibility to drag in. */
+/** One day of the editorial calendar: what is planned, and a box to add a keyword to it. */
 export function DayPanel({
   items,
-  ideas,
   canEdit,
   onOpen,
   onAdd,
 }: {
   items: CalendarItem[];
-  ideas: ReturnType<typeof useAiIdeas>;
   canEdit: boolean;
   onOpen: (id: string) => void;
   onAdd: (p: NewPiece) => void;
 }) {
   const [draft, setDraft] = useState("");
-  const [over, setOver] = useState(false);
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
-      <section
-        className={`flex flex-col gap-3 rounded-aw p-1 ${over ? "bg-brand-pale outline-2 outline-dashed outline-brand" : ""}`}
-        onDragOver={(e) => {
-          if (!canEdit) return;
-          e.preventDefault();
-          setOver(true);
-        }}
-        onDragLeave={() => setOver(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setOver(false);
-          const idea = droppedIdea(e);
-          if (idea) onAdd(ideaPiece(idea));
-        }}
-      >
+    <div className="max-w-2xl">
+      <section className="flex flex-col gap-3 p-1">
         <h3 className="aw-h4">Content for this day</h3>
         <ul className="flex flex-col gap-2">
           {items.map((i) => (
@@ -86,7 +58,7 @@ export function DayPanel({
               </button>
             </li>
           ))}
-          <li className="rounded-aw border border-dashed border-rule px-4 py-5 text-center text-[13px] text-muted">{canEdit ? "Drop an idea here" : "Nothing planned yet"}</li>
+          {!items.length ? <li className="rounded-aw border border-dashed border-rule px-4 py-5 text-center text-[13px] text-muted">Nothing planned yet</li> : null}
         </ul>
         {canEdit ? (
           <form
@@ -106,14 +78,6 @@ export function DayPanel({
         ) : null}
       </section>
 
-      <section className="aw-frame flex flex-col self-start">
-        <div className="aw-frame__head">
-          <h3 className="aw-h4">Ideas from AI visibility</h3>
-        </div>
-        <div className="p-4">
-          <IdeaList state={ideas} canEdit={canEdit} onAdd={(i) => onAdd(ideaPiece(i))} />
-        </div>
-      </section>
     </div>
   );
 }
