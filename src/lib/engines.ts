@@ -131,7 +131,9 @@ export async function askEngine(engine: Engine, userPrompt: string): Promise<Ans
   // DataForSEO reads the real apps and Google, so they get the plain prompt, the way a person types it.
   // API engines get the shared layout.
   const dfs = viaDfs(engine);
-  const prompt = dfs ? userPrompt : userPrompt + ANSWER_FORMAT;
+  // Job-to-be-done prompts ("How can we...") get a nudge to name tools, so the answer shows which brands win.
+  const asked = /^\s*how\b/i.test(userPrompt) && !/\btools?\b.*\?\s*$/i.test(userPrompt) ? `${userPrompt.trim()} Name the specific tools you would use.` : userPrompt;
+  const prompt = dfs ? asked : asked + ANSWER_FORMAT;
   let lastError: unknown;
   for (let attempt = 0; attempt < 2; attempt++) {
     try {

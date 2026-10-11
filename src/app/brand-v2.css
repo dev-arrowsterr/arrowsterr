@@ -1,0 +1,185 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   ARROWSTERR PRODUCT UI · v6
+   The new brand system for the product: flat, quiet and dense, like the
+   Stripe dashboard. Deep navy text on a #F8F8FF page, Arrowsterr Blue only
+   where it guides the eye, 6px controls, 8px cards, square status badges,
+   flat tables with hairline rules. Loaded after brand.css, so it wins.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ─────────────── Tokens ─────────────── */
+.aw {
+  /* Brand */
+  --aw-brand: #0943B0;
+  --aw-brand-deep: #07368E;   /* brand-hover */
+  --aw-brand-lift: #2F66D6;
+  --aw-brand-bg: #E8EFFC;     /* brand-tint: badges, icon wells */
+  --aw-brand-pale: #EEF3FD;   /* selected rows */
+  --aw-brand-mist: #C9D5F0;
+
+  /* Ink: deep navy, never pure black */
+  --aw-ink: #061B44;
+  --aw-ink-hover: #0B2559;
+  --aw-body: #46557A;         /* ink-muted */
+  --aw-muted: #5C6B89;        /* ink-subtle */
+  --aw-faint: #A3AEC4;
+
+  /* Surfaces */
+  --aw-paper: #F8F8FF;        /* app-bg */
+  --aw-surface: #FFFFFF;      /* app-panel */
+  --aw-surface-2: #EEF0FB;    /* app-hover */
+  --aw-surface-3: #E3E7F5;
+  --aw-rule: #E6E8F0;         /* app-divider */
+  --aw-rule-faint: #EEF0F5;
+  --aw-dark: #061B44;         /* surface-deep */
+  --aw-dark-2: #0B2559;
+  --aw-dark-3: #1E2C4A;
+  --aw-on-dark-2: #B0BCD2;
+  --aw-on-dark-3: #93A2BE;
+
+  /* States, from the badge pairs */
+  --aw-pos: #0B7A54;
+  --aw-pos-bg: #DDF5E7;
+  --aw-pos-rule: #BFE6D0;
+  --aw-neg: #C02A35;
+  --aw-neg-bg: #FFE7EC;
+  --aw-neg-rule: #F5C6D0;
+  --aw-warn: #8A4B00;
+  --aw-warn-bg: #FCEDB9;
+  --aw-warn-rule: #F0D98A;
+  --aw-accent-cyan: #18B4E9;
+  --aw-accent-amber: #F5A524;
+
+  /* Shape and depth */
+  --aw-r-xs: 4px;
+  --aw-r-sm: 6px;             /* radius-control: buttons, inputs, dropdowns */
+  --aw-r-md: 8px;             /* radius-md: cards and panels */
+  --aw-r-lg: 12px;
+  --aw-shadow-xs: 0 0 0 1px var(--aw-rule);
+  --aw-shadow-sm: 0 0 0 1px var(--aw-rule);
+  --aw-shadow-md: 0 0 0 1px rgba(6, 27, 68, .06), 0 8px 24px rgba(6, 27, 68, .14);
+  --aw-shadow-lg: 0 0 0 1px rgba(6, 27, 68, .06), 0 8px 24px rgba(6, 27, 68, .14);
+  --aw-shadow-control: 0 1px 1px rgba(6, 27, 68, .06), 0 2px 5px rgba(60, 66, 87, .08);
+  --aw-ring: 0 0 0 2px #18B4E9;
+
+  /* Type: Inter for reading, JetBrains Mono for numbers */
+  --aw-mono: var(--font-mono-jb), "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --aw-fs-ui: 14px;
+  --aw-fs-small: 13px;
+  --aw-fs-nano: 12px;
+  --aw-w-semibold: 600;
+  --aw-w-bold: 700;
+
+  font-size: 14px;
+  color: var(--aw-ink);
+  background: var(--aw-paper);
+}
+
+/* ─────────────── Type ─────────────── */
+.aw .aw-h2 { font-size: 28px !important; line-height: 36px !important; font-weight: 700 !important; letter-spacing: -0.01em !important; }
+.aw .aw-h3 { font-size: 20px !important; line-height: 28px !important; font-weight: 700 !important; letter-spacing: 0 !important; }
+.aw .aw-h4 { font-size: 16px !important; line-height: 24px !important; font-weight: 600 !important; letter-spacing: 0 !important; }
+.aw .aw-onb__title { font-size: 28px; line-height: 36px; font-weight: 700; letter-spacing: -0.01em; }
+.aw strong, .aw b { font-weight: 600 !important; }
+.aw .aw-small { font-size: 13px !important; color: var(--aw-muted) !important; }
+.aw .aw-label { font-family: var(--aw-font) !important; font-size: 12px !important; font-weight: 600 !important; text-transform: none !important; letter-spacing: 0 !important; color: var(--aw-ink) !important; }
+.aw .aw-num, .aw .aw-kpi__num, .aw .aw-stat__num, .aw .aw-mono { font-family: var(--aw-mono) !important; font-variant-numeric: tabular-nums; }
+.aw .aw-kpi__num { font-weight: 400 !important; letter-spacing: -0.02em; }
+.aw .aw-stat__num { font-weight: 400 !important; letter-spacing: -0.02em !important; }
+
+/* Links: brand text, no underline */
+.aw a, .aw a:link, .aw a:visited { color: var(--aw-brand) !important; text-decoration: none !important; }
+.aw a:hover { color: var(--aw-ink) !important; }
+.aw .aw-text-link, .aw a.aw-text-link:link, .aw a.aw-text-link:visited { color: var(--aw-brand) !important; font-weight: 500 !important; border-bottom: 0 !important; }
+.aw .aw-text-link:hover { color: var(--aw-ink) !important; }
+.aw :focus-visible { outline: 2px solid #18B4E9; outline-offset: 2px; }
+
+/* ─────────────── Buttons: 32px, 6px corners, semibold ─────────────── */
+.aw .aw-btn, .aw a.aw-btn, .aw a.aw-btn:link, .aw a.aw-btn:visited {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 32px; padding: 0 12px !important; border-radius: var(--aw-r-sm) !important;
+  font-family: var(--aw-font) !important; font-size: 14px !important; font-weight: 600 !important; letter-spacing: 0 !important; line-height: 1 !important;
+  border: 0 !important; box-shadow: var(--aw-shadow-control);
+}
+.aw .aw-btn--accent, .aw .aw-btn--primary, .aw a.aw-btn--accent:link, .aw a.aw-btn--primary:link { background: var(--aw-brand) !important; color: #fff !important; }
+.aw .aw-btn--accent:hover, .aw .aw-btn--primary:hover { background: var(--aw-brand-deep) !important; color: #fff !important; }
+.aw .aw-btn--secondary, .aw a.aw-btn--secondary:link { background: #fff !important; color: var(--aw-ink) !important; box-shadow: inset 0 0 0 1px var(--aw-rule), var(--aw-shadow-control) !important; }
+.aw .aw-btn--secondary:hover { background: var(--aw-surface-2) !important; color: var(--aw-ink) !important; }
+.aw .aw-btn--lg { min-height: 40px; padding: 0 18px !important; font-size: 15px !important; }
+.aw .aw-btn--sm { min-height: 30px; padding: 0 10px !important; font-size: 13px !important; }
+.aw .aw-btn:disabled, .aw .aw-btn[aria-disabled="true"] { opacity: .45; box-shadow: none; }
+.aw .aw-btn svg { stroke-linecap: round; }
+
+/* ─────────────── Cards and panels: hairline ring, no heavy shadow ─────────────── */
+.aw .aw-frame, .aw .aw-stats, .aw .aw-table-wrap, .aw .aw-kpi { background: #fff; border-color: transparent !important; box-shadow: 0 0 0 1px var(--aw-rule) !important; border-radius: var(--aw-r-md) !important; }
+.aw .aw-frame__head, .aw .aw-frame__foot { border-color: var(--aw-rule) !important; }
+.aw .aw-callout { background: #EEF1FA !important; border: 0 !important; border-radius: var(--aw-r-md) !important; color: var(--aw-body) !important; }
+.aw .aw-error { border-radius: var(--aw-r-md) !important; }
+
+/* ─────────────── Tables: flat, hairline rules, 12px headers ─────────────── */
+.aw .aw-table th, .aw .aw-sheet thead th {
+  background: transparent !important; font-family: var(--aw-font) !important; font-size: 12px !important; font-weight: 600 !important;
+  text-transform: none !important; letter-spacing: 0 !important; color: var(--aw-ink) !important; border-bottom: 1px solid var(--aw-rule) !important;
+}
+.aw .aw-sheet thead th { background: #fff !important; }
+.aw .aw-table td { font-size: 14px !important; color: var(--aw-body) !important; border-bottom: 1px solid var(--aw-rule) !important; }
+.aw .aw-table tbody tr:hover td { background: var(--aw-surface-2) !important; }
+.aw .aw-table tr.is-you td { background: var(--aw-brand-pale) !important; }
+.aw .aw-table td.aw-td-num, .aw .aw-table .aw-num { font-family: var(--aw-mono) !important; color: var(--aw-ink) !important; }
+.aw .bg-surface-2 > td { background: var(--aw-paper) !important; }
+
+/* ─────────────── Badges: square, word first ─────────────── */
+.aw .aw-sbadge { display: inline-flex; align-items: center; padding: 1px 6px; border-radius: 4px; font-size: 12px; line-height: 16px; font-weight: 500; white-space: nowrap; background: #EBEEF1; color: #414D63; }
+.aw .aw-sbadge--success { background: #D7F7C2; color: #05690D; }
+.aw .aw-sbadge--warning { background: #FCEDB9; color: #8A4B00; }
+.aw .aw-sbadge--danger { background: #FFE7EC; color: #B3093C; }
+.aw .aw-chip { border-radius: 4px !important; border: 0 !important; background: #EBEEF1; color: #414D63 !important; font-family: var(--aw-font) !important; font-size: 12px !important; font-weight: 500 !important; letter-spacing: 0 !important; text-transform: none !important; padding: 1px 6px !important; }
+.aw .aw-chip--brand { background: var(--aw-brand-bg); color: var(--aw-brand) !important; }
+.aw .aw-chip--btn { box-shadow: inset 0 0 0 1px var(--aw-rule); background: #fff; }
+.aw .aw-chip--btn.is-on { background: var(--aw-ink); color: #fff !important; }
+.aw .aw-status { border-radius: 4px !important; border: 0 !important; font-family: var(--aw-font) !important; font-size: 12px !important; font-weight: 500 !important; text-transform: none !important; letter-spacing: 0 !important; padding: 1px 6px !important; }
+.aw .aw-status::before { display: none !important; }
+.aw .aw-status--ranked { background: #D7F7C2 !important; color: #05690D !important; }
+.aw .aw-status--missed { background: #FFE7EC !important; color: #B3093C !important; }
+.aw .aw-status--pending { background: #EBEEF1 !important; color: #414D63 !important; }
+.aw .aw-status--warn { background: #FCEDB9 !important; color: #8A4B00 !important; }
+
+/* ─────────────── Forms ─────────────── */
+.aw .aw-input, .aw .aw-textarea, .aw .aw-select {
+  min-height: 36px; padding: 7px 12px; border-radius: var(--aw-r-sm) !important; font-size: 14px !important; color: var(--aw-ink) !important;
+  background: #fff; border: 0 !important; box-shadow: inset 0 0 0 1px #8593AE40, var(--aw-shadow-control) !important;
+}
+.aw .aw-input:focus, .aw .aw-textarea:focus, .aw .aw-select:focus { box-shadow: inset 0 0 0 1px var(--aw-brand), 0 0 0 2px #18B4E955 !important; outline: none; }
+.aw .aw-input--hero, .aw .aw-input--lg { min-height: 44px; font-size: 16px !important; }
+
+/* ─────────────── Shell: one background, divider lines, quiet nav ─────────────── */
+html, body { background: #F8F8FF; }
+.aw .aw-sidebar { background: var(--aw-paper) !important; border-color: var(--aw-rule) !important; }
+.aw .aw-mod { padding: 6px 8px; border-radius: var(--aw-r-sm); font-size: 14px; font-weight: 500; color: var(--aw-ink); gap: 10px; }
+.aw .aw-mod .aw-nav__icon { width: 16px; height: 16px; color: var(--aw-body); stroke-width: 1.75; }
+.aw .aw-mod:hover { background: var(--aw-surface-2); }
+.aw .aw-mod.is-on { color: var(--aw-ink); }
+.aw .aw-mod.is-on .aw-nav__icon { color: var(--aw-brand); }
+.aw .aw-mod--sm { font-size: 14px; font-weight: 500; color: var(--aw-ink); }
+.aw .aw-mod--sm.is-on, .aw .aw-mod__item.is-on { background: #E8EFFC; color: var(--aw-brand); box-shadow: inset 0 0 0 1px var(--aw-brand); font-weight: 500; }
+.aw .aw-mod__item.is-on::before { display: none; }
+.aw .aw-mod__items { border-left-color: var(--aw-rule); margin-left: 16px; }
+.aw .aw-mod__item { padding: 6px 8px; border-radius: var(--aw-r-sm); font-size: 14px; color: var(--aw-body); }
+.aw .aw-mod__item:hover { background: var(--aw-surface-2); color: var(--aw-ink); }
+
+/* ─────────────── Content Plan and onboarding pieces ─────────────── */
+.aw .aw-seg { border-radius: var(--aw-r-sm); background: var(--aw-surface-2); border-color: var(--aw-rule); }
+.aw .aw-seg button { border-radius: 4px; font-weight: 500; }
+.aw .aw-seg button.is-on { color: var(--aw-brand); box-shadow: var(--aw-shadow-control); }
+.aw .aw-onb { background: var(--aw-paper); }
+.aw .aw-onb__hero { border-radius: var(--aw-r-md); box-shadow: 0 0 0 1px var(--aw-rule), 0 8px 24px rgba(6, 27, 68, .08); }
+.aw .aw-onb__kicker { font-size: 15px; letter-spacing: 0; text-transform: none; color: var(--aw-brand); }
+.aw .aw-onb__kicker b { border-radius: 4px; background: var(--aw-brand-bg); border: 0; color: var(--aw-brand); font-family: var(--aw-mono); }
+.aw .aw-steps__item.is-on .aw-steps__dot { box-shadow: 0 0 0 3px var(--aw-brand-bg); }
+.aw .aw-cost { border: 0; box-shadow: 0 0 0 1px var(--aw-rule); border-radius: var(--aw-r-md); }
+.aw .aw-cost b { font-weight: 600; }
+.aw .aw-undo { background: var(--aw-ink); border-radius: var(--aw-r-md); }
+.aw .aw-think__bar::after { background: var(--aw-brand); }
+.aw .aw-musing { color: var(--aw-brand); }
+
+/* Dark ink surfaces keep white text */
+.aw .bg-ink, .aw .bg-dark { color: #fff; }

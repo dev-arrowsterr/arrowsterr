@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { MUSINGS } from "@/lib/musings";
 import { DinoGame } from "./DinoGame";
 import { flatPrompts, type Brand, type Profile, type Topic } from "@/lib/db";
-import { ANGLES, BUCKETS, BUSINESS_TYPES, MAX_PROMPTS, RECOMMENDED, type Angle, type PickedTopic } from "@/lib/onboarding";
+import { ANGLES, BUSINESS_TYPES, MAX_PROMPTS, TOPIC_KINDS, type Angle, type PickedTopic } from "@/lib/onboarding";
 import type { RunAuth } from "@/lib/runner";
 import { BrandLogo } from "./BrandLogo";
 import { Logo } from "./Logo";
@@ -20,8 +20,7 @@ type PromptsReply = { topics: { name: string; prompts: { text: string; angle: An
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 const angleLabel = (a: Angle) => ANGLES.find((x) => x.id === a)?.label ?? a;
-const bucketLabel = (b: string) => BUCKETS.find((x) => x.id === b)?.label ?? b;
-const fmt = (n: number | null) => (n === null ? "–" : n.toLocaleString("en-US"));
+const kindLabel = (k: string) => TOPIC_KINDS.find((x) => x.id === k)?.label ?? k;
 
 async function call(path: string, auth: RunAuth, body: Record<string, unknown>) {
   const res = await fetch(path, {
@@ -34,11 +33,18 @@ async function call(path: string, auth: RunAuth, body: Record<string, unknown>) 
   return data;
 }
 
-/** Tick the top 5 prompts of each tracked topic, within the plan's limit, one topic at a time in turn. */
+/** Grow a text box to fit its text, so nothing hides behind a scroll bar. */
+const fit = (el: HTMLTextAreaElement | null) => {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight + 2}px`;
+};
+
+/** Tick every prompt of each tracked topic, within the plan's limit, one topic at a time in turn. */
 function pick(list: { name: string; prompts: { text: string; angle: Angle }[] }[], cap: number): PlanTopic[] {
   const on = list.map((t) => t.prompts.map(() => false));
   let left = cap;
-  for (let round = 0; round < RECOMMENDED && left > 0; round++)
+  for (let round = 0; left > 0 && list.some((t) => round < t.prompts.length); round++)
     list.forEach((t, ti) => {
       if (left > 0 && round < t.prompts.length) {
         on[ti][round] = true;
@@ -164,7 +170,7 @@ export function Onboarding({
       setUrl(d.url);
       setLogo(d.logo);
       setProfile(d.profile);
-      setTopics((d.topics as PickedTopic[]).map((t, i) => ({ ...t, on: i < RECOMMENDED })));
+      setTopics((d.topics as PickedTopic[]).map((t) => ({ ...t, on: true })));
       if (seo) {
         // Organic Research only: no prompts to track, so the brand is ready now.
         setBusy("Setting up your brand...");
@@ -370,93 +376,43 @@ function SiteStep(p: { seo: boolean; website: string; setWebsite: (v: string) =>
   );
 }
 
-/** Estimated prompt volume for the topics, as one horizontal bar each. Hover a bar for its number. */
-function VolumeChart({ topics }: { topics: TopicPick[] }) {
-  const max = Math.max(1, ...topics.map((t) => t.volume ?? 0));
-  return (
-    <figure className="aw-vchart" aria-label="Estimated monthly prompt volume per topic">
-      <figcaption className="aw-vchart__title">
-        Estimated prompt volume
-        <span>AI assistants, per month</span>
-      </figcaption>
-      <ol>
-        {topics.map((t, i) => (
-          <li key={i} className={t.on ? "" : "is-off"} tabIndex={0} data-tip={`${t.topic}: ${t.volume === null ? "no data yet" : `about ${fmt(t.volume)} prompts a month`}`}>
-            <span className="aw-vchart__label">
-              <b>{String(i + 1).padStart(2, "0")}</b>
-              {t.topic}
-            </span>
-            <span className="aw-vchart__track">
-              <i style={{ width: `${Math.max(2, ((t.volume ?? 0) / max) * 100)}%` }} />
-            </span>
-            <span className="aw-vchart__num">{fmt(t.volume)}</span>
-          </li>
-        ))}
-      </ol>
-      <table className="sr-only">
-        <thead>
-          <tr>
-            <th>Topic</th>
-            <th>Estimated prompts a month</th>
-          </tr>
-        </thead>
-        <tbody>
-          {topics.map((t, i) => (
-            <tr key={i}>
-              <td>{t.topic}</td>
-              <td>{t.volume ?? "No data"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </figure>
-  );
-}
-
 function TopicsStep({ name, logo, topics, setTopics, onBack, onNext, quick }: { name: string; logo: string; topics: TopicPick[]; setTopics: (t: TopicPick[]) => void; onBack: () => void; onNext: () => void; quick?: Quick }) {
   const on = topics.filter((t) => t.on).length;
-  const card = (t: TopicPick, i: number) => (
-    <li key={i} className={`aw-topic ${t.on ? "" : "is-off"}`}>
-      <span className="aw-topic__rank">{String(i + 1).padStart(2, "0")}</span>
-      <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <input aria-label="Topic" value={t.topic} onChange={(e) => setTopics(topics.map((x, j) => (j === i ? { ...x, topic: e.target.value } : x)))} className="aw-topic__name" />
-        <span className="flex flex-wrap items-center gap-1.5">
-          <span className="aw-conv">High conversion potential</span>
-          <span className="aw-chip">{bucketLabel(t.bucket)}</span>
-        </span>
-        {t.reason ? <p className="text-[13px] text-muted">{t.reason}</p> : null}
-      </div>
-      <span className="aw-topic__est" title="Estimated prompts a month on AI assistants">
-        <b>{fmt(t.volume)}</b>
-        <span>est. prompts / mo</span>
-      </span>
-      <input type="checkbox" aria-label={`Track ${t.topic}`} checked={t.on} onChange={(e) => setTopics(topics.map((x, j) => (j === i ? { ...x, on: e.target.checked } : x)))} className="h-5 w-5 shrink-0 accent-[#0943B0]" />
-    </li>
-  );
   return (
     <>
       <div className="flex items-center gap-3">
         {logo ? <BrandLogo src={logo} name={name} size={36} /> : null}
-        <StepHead n={1} kicker={name || "Topics"} title="The buying topics worth tracking">
-          Ranked by how much they matter to you. Tick the ones to track.
+        <StepHead n={1} kicker={name || "Topics"} title="Topics to track">
+          The buying categories your customers ask AI about. Untick any that do not fit.
         </StepHead>
       </div>
 
-      <div className="aw-topics">
-        <div className="flex flex-col gap-3">
-          <section className="flex flex-col gap-2">
-            <h2 className="aw-onb__group">Highly recommended</h2>
-            <ol className="flex flex-col gap-2">{topics.slice(0, RECOMMENDED).map((t, i) => card(t, i))}</ol>
-          </section>
-          {topics.length > RECOMMENDED ? (
-            <section className="flex flex-col gap-2">
-              <h2 className="aw-onb__group">Suggested</h2>
-              <ol className="flex flex-col gap-2">{topics.slice(RECOMMENDED).map((t, i) => card(t, i + RECOMMENDED))}</ol>
-            </section>
-          ) : null}
-        </div>
-        <VolumeChart topics={topics} />
-      </div>
+      <section className="aw-frame overflow-x-auto">
+        <table className="aw-table aw-table--compact">
+          <thead>
+            <tr>
+              <th className="w-10" aria-label="Track" />
+              <th>Topic</th>
+              <th className="w-48">Type</th>
+            </tr>
+          </thead>
+          <tbody>
+            {topics.map((t, i) => (
+              <tr key={i} className={t.on ? "" : "opacity-50"}>
+                <td>
+                  <input type="checkbox" aria-label={`Track ${t.topic}`} checked={t.on} onChange={(e) => setTopics(topics.map((x, j) => (j === i ? { ...x, on: e.target.checked } : x)))} className="h-4 w-4 accent-[#0943B0]" />
+                </td>
+                <td>
+                  <input aria-label="Topic" value={t.topic} onChange={(e) => setTopics(topics.map((x, j) => (j === i ? { ...x, topic: e.target.value } : x)))} className="aw-onb__cell font-medium text-ink!" />
+                </td>
+                <td>
+                  <span className="aw-sbadge">{kindLabel(t.kind)}</span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
 
       <Footer onBack={onBack} next="Write my prompts" onNext={onNext} disabled={!on} note={`${on} of ${topics.length} topics`} quick={quick} />
     </>
@@ -475,16 +431,12 @@ function costLine(prompts: number, engines: string[], checkEvery: number) {
 }
 
 function PromptsStep(p: { plan: PlanTopic[]; setPlan: (v: PlanTopic[]) => void; used: number; cap: number; engines: string[]; checkEvery: number; onBack: () => void; onNext: () => void }) {
-  const [edit, setEdit] = useState(false);
   const set = (ti: number, pi: number, x: Partial<PromptPick>) => p.setPlan(p.plan.map((t, i) => (i === ti ? { ...t, prompts: t.prompts.map((y, j) => (j === pi ? { ...y, ...x } : y)) } : t)));
   const cost = costLine(p.used, p.engines, p.checkEvery);
   return (
     <>
       <StepHead n={2} kicker="Prompts" title="Prompts we will ask AI">
-        {edit ? "Eight prompts per topic, each from a different buyer angle. The first 5 are highly recommended." : "The highly recommended prompts for each topic."}{" "}
-        <button type="button" className="aw-text-link" onClick={() => setEdit(!edit)}>
-          {edit ? "Show the short list" : "Edit prompts"}
-        </button>
+        Five prompts per topic, written the way your buyers ask. Untick or edit any of them.
       </StepHead>
       {cost ? (
         <div className="aw-cost">
@@ -495,66 +447,56 @@ function PromptsStep(p: { plan: PlanTopic[]; setPlan: (v: PlanTopic[]) => void; 
       ) : null}
       {p.used > p.cap ? <p className="aw-error">You picked {p.used} prompts. Your plan allows {p.cap}. Untick some to continue.</p> : null}
 
-      {edit ? (
-        p.plan.map((t, ti) => (
-          <section key={t.name} className="aw-table-wrap rounded-aw-lg">
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rule bg-surface-2 px-5 py-3">
-              <span className="flex items-center gap-3">
-                <span className="aw-topic__rank aw-topic__rank--sm">{String(ti + 1).padStart(2, "0")}</span>
-                <span className="aw-h4">{t.name}</span>
-              </span>
-              <span className="aw-small">{t.prompts.filter((x) => x.on).length} tracked</span>
-            </div>
-            <table className="aw-table aw-table--compact">
-              <thead>
-                <tr>
-                  <th className="w-10" aria-label="Track" />
-                  <th>Prompt</th>
-                  <th className="w-36">Angle</th>
-                  <th className="w-44">Pick</th>
-                </tr>
-              </thead>
-              <tbody>
-                {t.prompts.map((x, pi) => (
-                  <tr key={pi} className={x.on ? "is-you" : ""}>
-                    <td>
-                      <input type="checkbox" aria-label={`Track: ${x.text}`} checked={x.on} onChange={(e) => set(ti, pi, { on: e.target.checked })} className="h-4 w-4 accent-[#0943B0]" />
-                    </td>
-                    <td>
-                      <input value={x.text} onChange={(e) => set(ti, pi, { text: e.target.value })} aria-label="Prompt" className="aw-onb__cell text-ink!" />
-                    </td>
-                    <td>
-                      <span className="aw-chip">{angleLabel(x.angle)}</span>
-                    </td>
-                    <td className="text-[12px]! text-muted!">{pi < RECOMMENDED ? "Highly recommended" : "Suggested"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-        ))
-      ) : (
-        <div className="aw-plist">
+      <section className="aw-frame overflow-x-auto">
+        <table className="aw-table aw-table--compact aw-table--tight">
+          <thead>
+            <tr>
+              <th>Topic and prompt</th>
+              <th className="w-44">Type</th>
+            </tr>
+          </thead>
           {p.plan.map((t, ti) => (
-            <section key={t.name} className="aw-plist__card">
-              <header>
-                <span className="aw-topic__rank aw-topic__rank--sm">{String(ti + 1).padStart(2, "0")}</span>
-                <span className="aw-plist__topic">{t.name}</span>
-              </header>
-              <ul>
-                {t.prompts
-                  .filter((x) => x.on)
-                  .map((x, i) => (
-                    <li key={i}>
-                      <span>{x.text}</span>
-                      <em>{angleLabel(x.angle)}</em>
-                    </li>
-                  ))}
-              </ul>
-            </section>
+            <tbody key={t.name}>
+              <tr className="bg-surface-2">
+                <td colSpan={2}>
+                  <span className="flex items-center gap-2 text-[15px] font-medium text-ink">
+                    <span aria-hidden="true" className="text-muted">
+                      ▾
+                    </span>
+                    {t.name}
+                    <span className="font-normal text-muted">· {t.prompts.filter((x) => x.on).length} prompts</span>
+                  </span>
+                </td>
+              </tr>
+              {t.prompts.map((x, pi) => (
+                <tr key={pi} className={x.on ? "" : "opacity-50"}>
+                  <td>
+                    <span className="flex items-center gap-2 pl-5">
+                      <input type="checkbox" aria-label={`Track: ${x.text}`} checked={x.on} onChange={(e) => set(ti, pi, { on: e.target.checked })} className="h-4 w-4 shrink-0 accent-[#0943B0]" />
+                      <textarea
+                        rows={1}
+                        ref={fit}
+                        value={x.text}
+                        onChange={(e) => {
+                          fit(e.target);
+                          set(ti, pi, { text: e.target.value });
+                        }}
+                        aria-label="Prompt"
+                        className="aw-onb__cell resize-none text-ink!"
+                      />
+                    </span>
+                  </td>
+                  <td>
+                    <span className="aw-sbadge" title={x.angle === "jtbd" ? "Daily checks ask AI to name the tools it would use." : undefined}>
+                      {angleLabel(x.angle)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
           ))}
-        </div>
-      )}
+        </table>
+      </section>
 
       <Footer onBack={p.onBack} next="Start tracking" onNext={p.onNext} disabled={!p.used || p.used > p.cap} note={`${p.used} of ${p.cap} prompts`} />
     </>

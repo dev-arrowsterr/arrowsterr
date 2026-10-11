@@ -5,10 +5,8 @@ import { take } from "@/lib/entitlements";
 import { TASK_COST } from "@/lib/plans";
 import { fetchSitePages, logoFor, normalizeSite } from "@/lib/site";
 import { meteredRoute } from "@/lib/meter";
-import { aiPromptVolume } from "@/lib/dataforseo";
-import { marketOf } from "@/lib/research";
 
-// Onboarding: research the brand, then return it with its 8 best BOFU topics and their estimated prompt volume.
+// Onboarding: research the brand, then return it with its 5 BOFU topics.
 async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const site = normalizeSite(String(body.website ?? ""));
@@ -34,15 +32,13 @@ async function handle(request: Request) {
     const profile = cleanProfile(data);
     const topics = cleanTopics(data.topics, name);
     if (!topics.length) throw new Error("No topics came back. Try again.");
-    const m = marketOf(profile.country === "Global" ? "United States" : profile.country);
-    const volume = await aiPromptVolume(topics.map((t) => t.topic), m.location, m.language).catch(() => new Map<string, number | null>());
     return Response.json({
       url: site.url,
       domain: site.domain,
       name,
       logo: page.icon || logoFor(site.domain),
       profile,
-      topics: topics.map((t) => ({ ...t, volume: volume.get(t.topic.toLowerCase()) ?? null })),
+      topics,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);

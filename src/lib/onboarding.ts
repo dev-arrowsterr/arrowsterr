@@ -29,11 +29,10 @@ export const COUNTRIES = [
 ];
 
 export const MAX_TOPICS = 8; // topics a brand can track
-export const RECOMMENDED = 5; // the first 5 topics, and the first 5 prompts of each, are highly recommended
 export const PROMPTS_PER_TOPIC = 5;
 export const MAX_PROMPTS = 25; // prompts tracked by default, within the trial's limit
-export const TOPIC_COUNT = 8;
-export const PROMPT_COUNT = 8; // prompts written per topic: 5 highly recommended, 3 suggested
+export const TOPIC_COUNT = 5;
+export const PROMPT_COUNT = 5; // one prompt of each type per topic
 
 // ── Research, then the 8 topics, in one structured reply ────────────────────────
 
@@ -54,22 +53,18 @@ Search the web to fill gaps. Write clear research notes on:
 5. Its top 3 to 5 competitors, with their websites.
 State every assumption you make.`;
 
-export const BUCKETS = [
-  { id: "shortlist", label: "Shortlist", page: "Listicle" },
-  { id: "versus", label: "Head-to-head", page: "Comparison page" },
-  { id: "alternatives", label: "Alternatives", page: "Alternatives page" },
-  { id: "vetting", label: "Brand vetting", page: "Review page" },
-  { id: "cost", label: "Cost", page: "Pricing page" },
-  { id: "action", label: "Action", page: "Landing page" },
-  { id: "deal", label: "Deal", page: "Offer page" },
-  { id: "local", label: "Local and urgent", page: "Location page" },
-  { id: "switching", label: "Switching", page: "Migration page" },
-  { id: "fit", label: "Fit", page: "Use-case page" },
+/** The 5 topics, each with its own job in the set. */
+export const TOPIC_KINDS = [
+  { id: "primary", label: "Primary category", hint: "the main category buyers search for, as customers name it" },
+  { id: "primary2", label: "Second category", hint: "the other name buyers use for the same purchase, or the second product line" },
+  { id: "variant", label: "Variant", hint: "the category narrowed by a key capability or setup the business is built for (multi-location, AI-powered, self-serve...)" },
+  { id: "segment", label: "Segment", hint: "the category for the company size or buyer type it sells to (enterprise, small business, agencies...)" },
+  { id: "vertical", label: "Vertical", hint: "the category for the industry it serves most (restaurants, healthcare, SaaS...)" },
 ] as const;
-export type Bucket = (typeof BUCKETS)[number]["id"];
+export type TopicKind = (typeof TOPIC_KINDS)[number]["id"];
 
-/** Second pass: the business in a few fields, and its 8 best BOFU topics, following the BOFU keyword framework. */
-export const PLAN_PROMPT = (url: string, notes: string, text: string) => `You plan the topics an AI search visibility tool will track for the business at ${url}. A topic is a bottom-of-funnel (BOFU) search: typed by someone ready to buy, hire, book or switch.
+/** Second pass: the business in a few fields, and its 5 BOFU topics. */
+export const PLAN_PROMPT = (url: string, notes: string, text: string) => `You pick the topics an AI search visibility tool will track for the business at ${url}. A topic is a bottom-of-funnel category keyword: the product category a buyer is ready to purchase.
 
 Research notes:
 ${notes}
@@ -84,20 +79,16 @@ Part 1: the business.
 - products, customers, features: short comma lists in the words customers use.
 - competitors: the top 3 to 5, with their domains.
 
-Part 2: the 8 best BOFU topics. Follow this method.
-1. Seeds: every offering noun (each product, service and category, with synonyms), provider nouns (what customers call the seller) and competitor brand names. Never the business's own brand.
-2. Run the seeds through the 10 modifier buckets. Each topic belongs to exactly one bucket:
-${BUCKETS.map((b, i) => `   ${i + 1}. ${b.id}: ${b.label} → ${b.page}`).join("\n")}
-   Patterns: shortlist "best / top [seed]"; versus "[brand] vs [brand]"; alternatives "[competitor] alternatives"; vetting "[competitor] reviews"; cost "[seed] pricing / cost"; action "[seed] free trial / demo / hire / book"; deal "[seed] discount"; local "[seed] in [city] / near me"; switching "switch from [competitor]"; fit "[seed] for [audience / use case / feature]".
-3. Filter out anything with learning intent (how to, what is, guide, examples, template), anything no real buyer would type, and near duplicates.
-4. Favor the buckets that matter most in this industry: B2B and SaaS 2, 3, 4, 9 plus 1 and 10; local services 5, 6, 8; ecommerce 1, 6, 7, 10; healthcare and legal 4, 5, 8.
-5. Pick the 8 best. They must be strictly mutually exclusive and non-overlapping, and together cover the entire product suite and the widest spread of buyers. Be as diverse as possible: different products, audiences, use cases and buckets. Use at most 2 topics from any one bucket.
-6. Rank from most relevant to least. The first 5 are the ones this business must win.
-- topic: 2 to 6 words, lowercase except brand and place names, the way a buyer types it.
-- seed: the seed the topic came from.
-- reason: why a buyer here is ready to choose, and why this business fits, in under 18 words.
+Part 2: exactly 5 topics, one of each kind, in this order:
+${TOPIC_KINDS.map((k, i) => `${i + 1}. ${k.id}: ${k.hint}`).join("\n")}
 
-Use the words customers use. No internal jargon.`;
+Example for Momos (restaurant reputation software): reputation management software, review management software, multi-location review management software, enterprise reputation management software, restaurant reputation management software.
+
+Rules:
+- Pure category keywords that end in the product noun ("software", "platform", "agency", "services", "app"...). 2 to 5 words, lowercase.
+- Never a brand name, never "alternatives", never "vs", never "best", never a question.
+- Each topic must be a real search a buyer types. Use the words customers use, not the company's own jargon.
+- The 5 must not repeat each other.`;
 
 export const PLAN_SCHEMA = {
   type: "object",
@@ -119,54 +110,40 @@ export const PLAN_SCHEMA = {
       items: {
         type: "object",
         additionalProperties: false,
-        required: ["topic", "bucket", "seed", "reason"],
-        properties: { topic: { type: "string" }, bucket: { type: "string", enum: BUCKETS.map((b) => b.id) }, seed: { type: "string" }, reason: { type: "string" } },
+        required: ["topic", "kind"],
+        properties: { topic: { type: "string" }, kind: { type: "string", enum: TOPIC_KINDS.map((k) => k.id) } },
       },
     },
   },
 };
 
-export type PickedTopic = { topic: string; bucket: Bucket; seed: string; reason: string; volume: number | null };
+export type PickedTopic = { topic: string; kind: TopicKind };
 
-/** The 8 topics, cleaned: no blanks, no duplicates, no brand name, in the AI's order. */
-export function cleanTopics(v: unknown, brand: string): Omit<PickedTopic, "volume">[] {
+/** The 5 topics, cleaned: no blanks, no duplicates, no brand name, no alternatives or comparisons. */
+export function cleanTopics(v: unknown, brand: string): PickedTopic[] {
   if (!Array.isArray(v)) return [];
   const seen = new Set<string>();
-  const out: Omit<PickedTopic, "volume">[] = [];
+  const out: PickedTopic[] = [];
   for (const t of v as Record<string, unknown>[]) {
-    const topic = String(t?.topic ?? "").trim().replace(/\s+/g, " ").slice(0, 80);
-    const key = topic.toLowerCase();
-    if (!topic || seen.has(key) || (brand && key.includes(brand.toLowerCase()))) continue;
-    seen.add(key);
-    const bucket = (BUCKETS.some((b) => b.id === t.bucket) ? t.bucket : "shortlist") as Bucket;
-    out.push({ topic, bucket, seed: String(t.seed ?? "").slice(0, 80), reason: String(t.reason ?? "").slice(0, 200) });
+    const topic = String(t?.topic ?? "").trim().replace(/\s+/g, " ").toLowerCase().slice(0, 80);
+    if (!topic || seen.has(topic) || (brand && topic.includes(brand.toLowerCase())) || /\b(alternatives?|vs\.?|versus)\b/.test(topic)) continue;
+    seen.add(topic);
+    out.push({ topic, kind: (TOPIC_KINDS.some((k) => k.id === t.kind) ? t.kind : "primary") as TopicKind });
   }
   return out.slice(0, TOPIC_COUNT);
 }
 
-// ── Prompts by angle ───────────────────────────────────────────────────────────
+// ── Prompts: one of each type per topic ──────────────────────────────────────
 
-/** Content angles from the BOFU angle framework, plus the topic itself as a plain search. */
+/** The 5 prompt types. "jtbd" prompts start with "How"; daily checks ask the AI to name the tools it would use. */
 export const ANGLES = [
-  { id: "head", label: "Head search", hint: "the topic itself, as a short search" },
-  { id: "audience", label: "Audience fit", hint: "best for a specific audience, role or use case" },
-  { id: "budget", label: "Budget", hint: "best for a budget or price range" },
-  { id: "feature", label: "Feature", hint: "best for a specific feature or integration" },
-  { id: "outcome", label: "Outcome", hint: "best for a specific business result" },
-  { id: "comparison", label: "Comparison", hint: "named options compared on features, pricing or performance" },
-  { id: "unhappy", label: "Unhappy switch", hint: "an alternative for people dissatisfied with a named tool" },
-  { id: "outgrown", label: "Outgrown", hint: "an alternative for people who outgrew a named tool" },
-  { id: "pros_cons", label: "Pros and cons", hint: "strengths and limits of the top options" },
-  { id: "hidden_costs", label: "Hidden costs", hint: "total cost and pricing traps" },
-  { id: "setup", label: "Easy setup", hint: "fastest or easiest to implement" },
-  { id: "industry", label: "Industry needs", hint: "fits an industry's specific requirements" },
-  { id: "risk", label: "Risk", hint: "avoiding purchase mistakes and objections" },
-  { id: "specialized", label: "Specialized", hint: "specialized versus general-purpose options" },
-  { id: "size", label: "Company size", hint: "fits a company size or stage" },
+  { id: "head", label: "Head term", hint: "exactly the topic text" },
+  { id: "direct", label: "Direct", hint: 'a "What..." question straight to the point: which tool is best for this category' },
+  { id: "pain", label: "ICP pain", hint: 'a "What..." question built on a specific pain the ideal customer has, naming their situation' },
+  { id: "jtbd", label: "Job to be done", hint: 'a "How..." question about the job the buyer needs done' },
+  { id: "looking", label: "Looking for", hint: 'starts with "I\'m looking for a tool that can" and names another specific pain for this category' },
 ] as const;
 export type Angle = (typeof ANGLES)[number]["id"];
-
-export const MOTIVATIONS = ["price", "features", "alternatives", "comparison", "trust", "convenience", "specialization", "risk reduction", "performance", "availability"] as const;
 
 const about = (name: string, site: string, p: Profile) =>
   [
@@ -176,10 +153,7 @@ const about = (name: string, site: string, p: Profile) =>
     `Customers: ${p.customers || "Not given"}`,
     `Key features: ${p.features || "Not given"}`,
     `Market: ${p.country || "United States"}`,
-    p.competitors?.length ? `Competitors: ${p.competitors.map((c) => c.name).join(", ")}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  ].join("\n");
 
 export const PROMPTS_PROMPT = (name: string, site: string, p: Profile, topics: string[]) => `You write the prompts an AI visibility tool sends to ChatGPT, Gemini, Perplexity, Claude and Google every day, to see which brands they recommend.
 
@@ -188,21 +162,20 @@ ${about(name, site, p)}
 Topics:
 ${topics.map((t, i) => `${i + 1}. ${t}`).join("\n")}
 
-Method, for each topic:
-1. Find why a buyer searches it. Motivations: ${MOTIVATIONS.join(", ")}.
-2. Turn the strongest motivations into angles:
-${ANGLES.map((a) => `   - ${a.id}: ${a.hint}`).join("\n")}
-3. Keep only angles that address a distinct buyer decision. Drop anything generic that could apply to any business, and anything that repeats another angle in other words.
-4. Rank by buying intent, fit with ${name}'s strongest capabilities, and commercial value.
+For each topic, write exactly 5 prompts, one of each type, in this order:
+${ANGLES.map((a, i) => `${i + 1}. ${a.id}: ${a.hint}`).join("\n")}
 
-Write ${PROMPT_COUNT} prompts per topic, each from a different angle, best first. The first prompt is always "head": exactly the topic text.
-Every prompt must:
-- Make the AI answer with named brands, tools, products or providers ("best", "top", "which", "recommend", "alternatives to", "vs").
-- Never be a how-to, what-is or why question.
-- Be concise and natural, the way a real buyer types into ChatGPT, in the words customers use.
-- Never include ${name} or ${site}. Competitor names only in comparison, unhappy and outgrown prompts.
-- Never claim features, prices or results you cannot back up.
-- Differ from every other prompt in meaning, across all topics.`;
+Example for "reputation management software" (Momos, restaurant chains):
+- head: reputation management software
+- direct: What's a good reputation management platform for a fast-food chain?
+- pain: We're getting inconsistent reviews across our restaurants. What software can help us spot recurring issues and improve our ratings?
+- jtbd: How can a restaurant brand track and respond to reviews across hundreds of locations?
+- looking: I'm looking for a tool that can compare customer feedback across all our franchise locations.
+
+Rules:
+- Write as the ideal customer, in their words, one or two short sentences.
+- Never include ${name} or ${site}, and never name any brand.
+- No two prompts may mean the same thing, across all topics.`;
 
 export const PROMPTS_SCHEMA = {
   type: "object",
@@ -222,8 +195,8 @@ export const PROMPTS_SCHEMA = {
             items: {
               type: "object",
               additionalProperties: false,
-              required: ["text", "angle", "motivation"],
-              properties: { text: { type: "string" }, angle: { type: "string", enum: ANGLES.map((a) => a.id) }, motivation: { type: "string", enum: [...MOTIVATIONS] } },
+              required: ["text", "angle"],
+              properties: { text: { type: "string" }, angle: { type: "string", enum: ANGLES.map((a) => a.id) } },
             },
           },
         },
@@ -241,7 +214,7 @@ function overlap(a: Set<string>, b: Set<string>) {
   return n / (a.size + b.size - n);
 }
 
-// Questions whose answers explain ideas and seldom name brands.
+// Questions whose answers explain ideas and seldom name brands. Job-to-be-done prompts are the exception: checks ask them for tools.
 const NO_BRANDS = /^\s*(how (to|do|does|can|should)|what (is|are|does)|why|when|what should i look for|what to look for|tips?\b|guide to)\b/i;
 /** Prompts the AI will answer with brand names. Drops how-to style prompts, prompts naming the brand, and near duplicates. */
 export function cleanPrompts(list: { text: string; angle: string }[], topic: string, seen: Set<string>[], brand = "") {
@@ -249,14 +222,14 @@ export function cleanPrompts(list: { text: string; angle: string }[], topic: str
   const own = termsOf(topic);
   for (const p of list) {
     const text = String(p.text ?? "").trim().replace(/\s+/g, " ").slice(0, 300);
-    if (!text || NO_BRANDS.test(text)) continue;
+    if (!text || (p.angle !== "jtbd" && NO_BRANDS.test(text))) continue;
     // A prompt that names the brand itself always "finds" it, so it measures nothing.
     if (brand && text.toLowerCase().includes(brand.toLowerCase())) continue;
     // Every prompt shares the topic's words, so compare only what each prompt adds.
     const t = new Set([...termsOf(text)].filter((w) => !own.has(w)));
     if (p.angle !== "head" && (!t.size || seen.some((s) => overlap(s, t) >= 0.5))) continue;
     if (t.size) seen.push(t);
-    out.push({ text, angle: (ANGLES.some((a) => a.id === p.angle) ? p.angle : "audience") as Angle });
+    out.push({ text, angle: (ANGLES.some((a) => a.id === p.angle) ? p.angle : "direct") as Angle });
   }
   if (!out.some((p) => p.angle === "head")) out.unshift({ text: topic, angle: "head" });
   return out.slice(0, PROMPT_COUNT);

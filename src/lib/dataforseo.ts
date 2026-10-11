@@ -130,15 +130,3 @@ export async function getTask(engine: DfsEngine, id: string): Promise<TaskState>
   return { state: "failed", error: `DataForSEO: ${task?.status_message ?? `status ${code}`}` };
 }
 
-/**
- * Estimated monthly prompt volume: how often people ask AI assistants about each keyword.
- * From DataForSEO's AI keyword data. Missing keywords come back as null.
- */
-export async function aiPromptVolume(keywords: string[], location = 2840, language = "en"): Promise<Map<string, number | null>> {
-  const out = new Map<string, number | null>(keywords.map((k) => [k.toLowerCase(), null]));
-  if (!dfsReady() || !keywords.length) return out;
-  const tasks = await call("ai_optimization/ai_keyword_data/keywords_search_volume/live", [{ keywords, location_code: location, language_code: language }]);
-  const items = (tasks[0]?.result?.[0]?.items ?? []) as { keyword?: string; ai_search_volume?: number | null; search_volume?: number | null }[];
-  for (const it of items) if (it?.keyword) out.set(it.keyword.toLowerCase(), it.ai_search_volume ?? it.search_volume ?? null);
-  return out;
-}
