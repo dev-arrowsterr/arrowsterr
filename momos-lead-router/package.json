@@ -1,0 +1,24 @@
+{
+  "name": "momos-lead-router",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Routes Framer demo-form leads to the right Momos AE using Claude.",
+  "scripts": {
+    "start": "node src/server.ts",
+    "dev": "node --watch src/server.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
+    "zod": "^4.6.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=22.18"
+  }
+}
