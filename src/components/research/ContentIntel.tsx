@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useState } from "react";
 import type { Chat } from "@/lib/chats";
 import { addCalendarItems, listCalendar, type CalendarItem, type Site } from "@/lib/db";
+import { intelRows, TAG_COLOR, TAG_HELP, TAGS, visitsOf, type IntelRow, type Tag } from "@/lib/intel";
 import { pathOf, type TrafficData } from "@/lib/reports";
 import type { PagePerf } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
@@ -15,40 +16,9 @@ import { citedPathsOf } from "./ContentResults";
 import { flag, short } from "./KeywordOverview";
 import { downloadCsv, post } from "./shared";
 
-/** How a page is doing, from best to worst. */
-type Tag = "Top performer" | "Striking distance" | "Steady" | "Underperforming" | "No traction";
-const TAGS: Tag[] = ["Top performer", "Striking distance", "Steady", "Underperforming", "No traction"];
-const TAG_HELP: Record<Tag, string> = {
-  "Top performer": "Among your top fifth for visits, with a keyword in Google's top 3.",
-  "Striking distance": "Its best keyword sits at #4 to #20 with real search volume. A content update can push it up.",
-  Steady: "Gets visits and holds its spots. Keep it fresh.",
-  Underperforming: "Ranks for keywords, but none in the top 10.",
-  "No traction": "No visits and no keywords on Google.",
-};
-// One hue, darker for better pages, since the tags run in order.
-const TAG_COLOR: Record<Tag, string> = { "Top performer": "#0943B0", "Striking distance": "#3B6AD0", Steady: "#7E9BDD", Underperforming: "#B9C8EC", "No traction": "#DDE4F5" };
 const TAG_CLASS: Record<Tag, string> = { "Top performer": "aw-status--ranked", "Striking distance": "aw-status--warn", Steady: "aw-status--pending", Underperforming: "aw-status--missed", "No traction": "aw-status--pending" };
 
-type Row = {
-  path: string;
-  url: string;
-  seo: PagePerf | null;
-  views: number | null; // from Google Analytics or the tracking script
-  ai: number | null; // visits from AI assistants
-  cited: number | null; // share of AI answers that cite it
-  plan: CalendarItem | null;
-  tag: Tag;
-};
-
-function tagOf(r: Omit<Row, "tag">, topCut: number): Tag {
-  const visits = r.views ?? r.seo?.traffic ?? 0;
-  const s = r.seo;
-  if (visits > 0 && visits >= topCut && (s?.top3 ?? 0) > 0) return "Top performer";
-  if (s?.topRank && s.topRank >= 4 && s.topRank <= 20 && (s.topVolume ?? 0) >= 50) return "Striking distance";
-  if (visits > 0 && (!s || s.top10 > 0)) return "Steady";
-  if (s && s.keywords > 0) return "Underperforming";
-  return visits > 0 ? "Steady" : "No traction";
-}
+type Row = IntelRow & { plan: CalendarItem | null };
 
 /** A horizontal bar chart with a value at the end of each bar and a tooltip on hover. */
 function Bars({ rows, label, onPick }: { rows: { key: string; label: string; value: number; color: string; note?: string }[]; label: string; onPick?: (key: string) => void }) {
@@ -161,24 +131,7 @@ export function ContentIntel({
   const onPlanMap = new Map<string, CalendarItem>();
   for (const i of items ?? []) for (const u of [i.url, i.current_url]) if (u) onPlanMap.set(pathOf(u), i);
 
-  // One row per page: Google's list first, then pages that only show up in analytics.
-  const base = new Map<string, Omit<Row, "tag">>();
-  for (const p of pages ?? []) base.set(pathOf(p.url), { path: pathOf(p.url), url: p.url, seo: p, views: null, ai: null, cited: null, plan: null });
-  for (const r of t?.breakdowns.pages ?? []) {
-    const path = pathOf(r.x);
-    if (!base.has(path)) base.set(path, { path, url: `https://${site.domain}${path === "/" ? "" : path}`, seo: null, views: null, ai: null, cited: null, plan: null });
-  }
-  for (const r of base.values()) {
-    r.views = t ? (t.breakdowns.pages ?? []).filter((x) => pathOf(x.x) === r.path).reduce((n, x) => n + x.y, 0) : null;
-    r.ai = t ? t.pages.filter((x) => pathOf(x.path) === r.path).reduce((n, x) => n + x.visits, 0) : null;
-    r.cited = cited ? (cited.get(r.path) ?? 0) : null;
-    r.plan = onPlanMap.get(r.path) ?? null;
-  }
-  const list = [...base.values()];
-  const visitsOf = (r: Omit<Row, "tag">) => r.views ?? r.seo?.traffic ?? 0;
-  const sortedVisits = list.map(visitsOf).sort((a, b) => b - a);
-  const topCut = sortedVisits[Math.max(0, Math.ceil(sortedVisits.length / 5) - 1)] ?? 0;
-  const rows: Row[] = list.map((r) => ({ ...r, tag: tagOf(r, topCut) }));
+  const rows: Row[] = intelRows({ pages, traffic: t, cited, domain: site.domain }).map((r) => ({ ...r, plan: onPlanMap.get(r.path) ?? null }));
   const shown = tagFilter ? rows.filter((r) => r.tag === tagFilter) : rows;
 
   const linked = Boolean(t);

@@ -4,21 +4,36 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useRef, useState } from "react";
 import { preinit } from "react-dom";
 import { getGuideline, listCalendar, siteForBrand, type CalendarItem } from "@/lib/db";
+import { intelRows, intelSnapshot, SAMPLE_CITED, sampleIntel } from "@/lib/intel";
 import { FONTS, fontsUrl, TEMPLATES, themeOf, type Cards, type Font, type Hero, type ReportTheme } from "@/lib/reportTheme";
 import type { BrandGuideline } from "@/lib/writerTypes";
 import type { Visitor } from "@/lib/journey";
 import { answered, brandStats } from "@/lib/metrics";
 import { contentRows, winsAndDrops, type TrafficData } from "@/lib/reports";
-import { SECTIONS, type ReportSection, type ReportSnapshot, type ReportStyle } from "@/lib/reportTypes";
+import type { PagePerf } from "@/lib/research";
+import { SECTIONS, type CompetitorsSnapshot, type IntelSnapshot, type PromptsSnapshot, type ReportSection, type ReportSnapshot, type ReportStyle } from "@/lib/reportTypes";
 import type { RunAuth } from "@/lib/runner";
 import { peek, useStash } from "@/lib/stash";
 import type { View } from "@/lib/view";
 import { citedPathsOf } from "../research/ContentResults";
+import { promptsSnapshot } from "../PromptsPage";
 import { AiIcon, Seg, Thinking } from "../ui";
+import { CompetitorsDoc } from "./CompetitorsDoc";
+import { IntelDoc } from "./IntelDoc";
+import { PromptsDoc } from "./PromptsDoc";
 import { ReportDoc, reportCss } from "./ReportDoc";
 
-type Data = { traffic: TrafficData | null; visitors: Visitor[] | null; items: CalendarItem[] | null; guideline: BrandGuideline | null; at: string };
+type Data = { traffic: TrafficData | null; visitors: Visitor[] | null; items: CalendarItem[] | null; guideline: BrandGuideline | null; siteId?: string | null; at: string };
 type Summary = { headline: string; points: string[]; next: string[] };
+type Kind = "client" | "prompts" | "competitors" | "intel";
+
+/** The reports one click away. The client report is the one you design and white label. */
+const KINDS: { id: Kind; title: string; text: string }[] = [
+  { id: "client", title: "Client report", text: "Everything in one branded report. Design it, white label it, pick sections." },
+  { id: "prompts", title: "AI Visibility", text: "Every prompt, every AI and each full answer." },
+  { id: "competitors", title: "Competitors and Quadrant", text: "Who AI names most, and where each brand sits." },
+  { id: "intel", title: "Content Intelligence", text: "How every page performs and which to update next." },
+];
 const STYLE_KEY = (ws: string) => `arrowsterr.reportstyle.${ws}`;
 const DATA_KEY = (brand: string) => `report:${brand}`;
 const FRESH = 10 * 60_000;
@@ -33,37 +48,7 @@ function readStyle(ws: string): ReportStyle {
   }
 }
 
-/** A tiny picture of a template, so people can pick by eye. */
-function Thumb({ t, on, onPick }: { t: ReportTheme; on: boolean; onPick: () => void }) {
-  const hero = t.hero === "gradient" ? `linear-gradient(135deg, ${t.accent}, ${t.accent2})` : t.heroBg;
-  return (
-    <button type="button" onClick={onPick} aria-pressed={on} className={`flex flex-col gap-2 rounded-aw border p-2 text-left transition-shadow hover:shadow-aw ${on ? "border-brand ring-2 ring-[var(--aw-brand)]/30" : "border-rule"}`}>
-      <span className="flex h-24 flex-col gap-1.5 overflow-hidden p-2" style={{ background: t.paper, borderRadius: Math.min(t.radius, 10) }}>
-        <span className="flex h-9 shrink-0 items-end gap-1.5 p-1.5" style={{ background: t.hero === "split" ? t.surface : hero, borderRadius: Math.min(t.radius, 8) / 1.5, border: t.hero === "light" || t.hero === "split" ? `1px solid ${t.line}` : undefined }}>
-          <span className="h-1.5 w-10 rounded-full" style={{ background: t.hero === "light" || t.hero === "split" ? t.ink : t.heroText }} />
-          {t.hero === "split" ? <span className="ml-auto h-full w-6" style={{ background: t.heroBg }} /> : null}
-        </span>
-        <span className="grid flex-1 grid-cols-3 gap-1">
-          {[0, 1, 2].map((i) => (
-            <span key={i} className="flex items-end p-1" style={{ background: t.surface, borderRadius: Math.min(t.radius, 8) / 2, border: t.cards === "outline" ? `1px solid ${t.line}` : undefined }}>
-              <span className="h-1 rounded-full" style={{ width: `${40 + i * 20}%`, background: `linear-gradient(90deg, ${t.accent}, ${t.accent2})` }} />
-            </span>
-          ))}
-        </span>
-      </span>
-      <span className="flex items-center justify-between gap-2 px-1">
-        <span className="text-[13px] font-medium text-ink">{t.name}</span>
-        <span className="flex gap-0.5">
-          {[t.accent, t.accent2, t.heroBg].map((c, i) => (
-            <i key={i} className="inline-block h-2.5 w-2.5 rounded-full border border-rule" style={{ background: c }} />
-          ))}
-        </span>
-      </span>
-    </button>
-  );
-}
-
-/** Build a client report: pick sections, add your agency's logo and color, then download a PDF or share a link. */
+/** Reports: the branded client report, plus one-click AI Visibility, Competitors and Content Intelligence reports. */
 export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; auth: RunAuth; view: View; canEdit: boolean }) {
   const { brand, current, previous, filter, days, engines } = view;
   const [saved, setSaved] = useStash<Record<number, Data>>(DATA_KEY(brand.id), {});
@@ -73,7 +58,10 @@ export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; a
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [link, setLink] = useState("");
-  const [panel, setPanel] = useState<"templates" | "agent" | "label" | "sections">("templates");
+  const [panel, setPanel] = useState<"agent" | "label" | "sections">("agent");
+  const [kind, setKind] = useStash<Kind>(`report:${brand.id}:kind`, "client");
+  const [promptsSnap, setPromptsSnap] = useState<PromptsSnapshot | null>(null);
+  const [pages, setPages] = useState<PagePerf[] | null>(null);
   const [ask, setAsk] = useState("");
   const [why, setWhy] = useState("");
   // While a new period loads, keep showing the last one instead of dropping to a spinner.
@@ -95,9 +83,6 @@ export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; a
       // Storage blocked. The style lasts until the page reloads.
     }
   };
-
-  // Every template's fonts, so switching templates never waits on a font sheet.
-  for (const t of TEMPLATES) preinit(fontsUrl(t), { as: "style", precedence: "default" });
 
   const workspaceId = auth.workspaceId;
   useEffect(() => {
@@ -124,12 +109,28 @@ export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; a
         site ? listCalendar(sb, site.id).catch(() => null) : Promise.resolve(null),
         site ? getGuideline(sb, site.id).catch(() => null) : Promise.resolve(null),
       ]);
-      if (live) setSaved((x) => ({ ...x, [days]: { traffic, visitors, items, guideline, at: new Date().toISOString() } }));
+      if (live) setSaved((x) => ({ ...x, [days]: { traffic, visitors, items, guideline, siteId: site?.id ?? null, at: new Date().toISOString() } }));
     })();
     return () => {
       live = false;
     };
   }, [sb, workspaceId, brand, canEdit, days, setSaved]);
+
+  // The AI Visibility report reads each prompt's full answers, so it loads when picked.
+  const viewRef = useRef(view);
+  useEffect(() => {
+    viewRef.current = view;
+  });
+  useEffect(() => {
+    if (kind !== "prompts") return;
+    let live = true;
+    promptsSnapshot(sb, viewRef.current, viewRef.current.engines)
+      .then((r) => live && setPromptsSnap(r))
+      .catch((e) => live && setError(e instanceof Error ? e.message : String(e)));
+    return () => {
+      live = false;
+    };
+  }, [kind, sb, brand.id, days]);
 
   if (!data) return <Thinking text="Pulling your report together..." />;
 
@@ -199,6 +200,21 @@ export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; a
     drops,
   };
 
+  const competitorsSnap: CompetitorsSnapshot = {
+    kind: "competitors",
+    brand: { name: brand.name, domain: brand.domain, logo: brand.logo },
+    days,
+    at: data.at,
+    rows: ranked.slice(0, 15).map((s) => ({ name: s.name, domain: s.domain, isYou: s.isYou, visibility: s.visibility, position: s.position, mentions: s.mentions })),
+  };
+  // Content Intelligence uses the pages that page already loaded. Until then it shows a sample.
+  const realPages = pages ?? (data.siteId ? (peek<PagePerf[] | null>(`pages:${data.siteId}`) ?? null) : null);
+  const intelSnap: IntelSnapshot = intelSnapshot(
+    intelRows({ pages: realPages ?? sampleIntel(brand.domain), traffic: realPages ? t : null, cited: !realPages ? SAMPLE_CITED : chats.length ? citedPathsOf(chats, brand.domain) : null, domain: brand.domain }),
+    { brand: { name: brand.name, domain: brand.domain, logo: brand.logo }, days, linked: Boolean(realPages && t), sample: !realPages },
+  );
+  const quick = kind === "prompts" ? promptsSnap : kind === "competitors" ? competitorsSnap : kind === "intel" ? intelSnap : null;
+
   async function post<T>(path: string, body: Record<string, unknown>): Promise<T> {
     const res = await fetch(path, {
       method: "POST",
@@ -232,7 +248,7 @@ export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; a
     setBusy("share");
     setError("");
     try {
-      const { url } = await post<{ url: string }>("/api/reports/share", { brandId: brand.id, data: snapshot });
+      const { url } = await post<{ url: string }>("/api/reports/share", { brandId: brand.id, data: kind === "client" ? snapshot : quick });
       setLink(url);
       navigator.clipboard?.writeText(url).catch(() => {});
     } catch (e) {
@@ -242,7 +258,21 @@ export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; a
     }
   }
 
+  async function loadPages() {
+    if (!data?.siteId) return;
+    setBusy("pages");
+    setError("");
+    try {
+      setPages((await post<{ pages: PagePerf[] }>("/api/research/pages", { brandId: brand.id, siteId: data.siteId })).pages);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy("");
+    }
+  }
+
   const theme = themeOf(style);
+  preinit(fontsUrl(theme), { as: "style", precedence: "default" });
   const setTheme = (patch: Partial<ReportTheme>) => setStyle({ theme: { ...theme, ...patch }, color: patch.accent ?? theme.accent });
 
   async function design() {
@@ -304,129 +334,154 @@ export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; a
   return (
     <div className="grid gap-6 xl:grid-cols-[360px_minmax(0,1fr)]">
       <aside className="flex flex-col gap-4 self-start print:hidden xl:sticky xl:top-20 xl:max-h-[calc(100vh-100px)] xl:overflow-y-auto xl:pb-4">
-        <h1 className="aw-h2">Client report</h1>
+        <h1 className="aw-h2">Reports</h1>
         {error ? <p className="aw-error">{error}</p> : null}
-        <Seg
-          label="Report settings"
-          value={panel}
-          onChange={setPanel}
-          options={[
-            { id: "templates", label: "Templates" },
-            { id: "agent", label: "✦ Agent" },
-            { id: "label", label: "White label" },
-            { id: "sections", label: "Sections" },
-          ]}
-        />
+        <div role="tablist" aria-label="Report" className="flex flex-col gap-2">
+          {KINDS.map((k) => (
+            <button
+              key={k.id}
+              type="button"
+              role="tab"
+              aria-selected={kind === k.id}
+              onClick={() => setKind(k.id)}
+              className={`flex flex-col gap-0.5 rounded-aw border px-3.5 py-2.5 text-left transition-colors ${kind === k.id ? "border-brand bg-brand-pale" : "border-rule bg-white hover:border-[var(--aw-brand)]/40"}`}
+            >
+              <span className="text-[14px] font-medium text-ink">{k.title}</span>
+              <span className="text-[12.5px] text-body">{k.text}</span>
+            </button>
+          ))}
+        </div>
 
-        {panel === "templates" ? (
-          <div className="grid grid-cols-2 gap-3">
-            {theme.template === "brand" ? <Thumb t={theme} on onPick={() => {}} /> : null}
-            {TEMPLATES.map((t) => (
-              <Thumb key={t.template} t={t} on={theme.template === t.template} onPick={() => setStyle({ theme: t, color: t.accent })} />
-            ))}
-          </div>
-        ) : panel === "agent" ? (
-          <section className="aw-frame flex flex-col gap-3 p-4">
-            <span className="flex items-center gap-2 text-[13px]">
-              <span className={`aw-status ${data.guideline ? "aw-status--ranked" : "aw-status--pending"}`}>{data.guideline ? "Brand guideline found" : "No brand guideline"}</span>
-              {!data.guideline ? <span className="text-muted">Uses {brand.domain}</span> : null}
-            </span>
-            <textarea value={ask} onChange={(e) => setAsk(e.target.value)} rows={4} placeholder="Dark and premium, like a luxury brand. Big numbers. Keep our blue." aria-label="What the agent should do" className="aw-textarea text-[14px]!" />
-            {canEdit ? (
-              <button type="button" className="aw-btn aw-btn--accent" onClick={design} disabled={Boolean(busy)}>
-                <AiIcon />
-                {busy === "design" ? "Designing..." : "Design in our brand style"}
+        {kind === "intel" && intelSnap.sample ? (
+          <section className="aw-frame flex flex-col gap-3 p-4 text-[13px] text-body">
+            <p>This is a sample with example numbers. Load {brand.domain} to fill it with real pages.</p>
+            {canEdit && data.siteId ? (
+              <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm self-start" onClick={loadPages} disabled={Boolean(busy)}>
+                {busy === "pages" ? "Reading every page..." : "Load real pages"}
               </button>
             ) : null}
-            {why ? <p className="text-[13px] text-body">{why}</p> : null}
           </section>
-        ) : panel === "label" ? (
-          <section className="aw-frame flex flex-col gap-3 p-4">
-            <label className="flex flex-col gap-1 text-[13px] text-body">
-              Report title
-              <input value={style.title ?? ""} onChange={(e) => setStyle({ title: e.target.value })} placeholder="AI Visibility Report" className={field} />
-            </label>
-            <label className="flex flex-col gap-1 text-[13px] text-body">
-              Agency name
-              <input value={style.agency} onChange={(e) => setStyle({ agency: e.target.value })} placeholder="Perceptric" className={field} />
-            </label>
-            <label className="flex flex-col gap-1 text-[13px] text-body">
-              Logo URL
-              <input value={style.logo} onChange={(e) => setStyle({ logo: e.target.value.trim() })} placeholder="https://.../logo.png" className={field} />
-            </label>
-            <label className="flex flex-col gap-1 text-[13px] text-body">
-              Footer line
-              <input value={style.footer ?? ""} onChange={(e) => setStyle({ footer: e.target.value })} placeholder="hello@agency.com · agency.com" className={field} />
-            </label>
-            <label className="flex items-center gap-2 text-[14px] text-ink">
-              <input type="checkbox" checked={Boolean(style.whiteLabel)} onChange={(e) => setStyle({ whiteLabel: e.target.checked })} className="h-4 w-4 accent-[var(--aw-brand)]" />
-              Hide &quot;Made with Arrowsterr&quot;
-            </label>
-            <span className="aw-label mt-2">Colors</span>
-            {color("Accent", "accent")}
-            {color("Second accent", "accent2")}
-            {color("Cover", "heroBg")}
-            {color("Cover text", "heroText")}
-            {color("Page", "paper")}
-            {color("Cards", "surface")}
-            {color("Headings", "ink")}
-            {color("Body text", "text")}
-            <span className="aw-label mt-2">Type and shape</span>
-            {fontPick("Headings", "heading")}
-            {fontPick("Body", "body")}
-            {fontPick("Labels", "label")}
-            <label className="flex items-center justify-between gap-2 text-[13px] text-body">
-              Cover
-              <select value={theme.hero} onChange={(e) => setTheme({ hero: e.target.value as Hero })} className="aw-input w-44! py-1.5! text-[13px]!">
-                <option value="dark">Dark</option>
-                <option value="gradient">Gradient</option>
-                <option value="light">Light</option>
-                <option value="split">Split</option>
-              </select>
-            </label>
-            <label className="flex items-center justify-between gap-2 text-[13px] text-body">
-              Cards
-              <select value={theme.cards} onChange={(e) => setTheme({ cards: e.target.value as Cards })} className="aw-input w-44! py-1.5! text-[13px]!">
-                <option value="elevated">Shadow</option>
-                <option value="outline">Outline</option>
-                <option value="tinted">Tinted</option>
-                <option value="flat">Flat</option>
-              </select>
-            </label>
-            <label className="flex items-center justify-between gap-2 text-[13px] text-body">
-              Corners
-              <input type="range" min={0} max={28} value={theme.radius} onChange={(e) => setTheme({ radius: Number(e.target.value) })} className="w-44 accent-[var(--aw-brand)]" />
-            </label>
-          </section>
-        ) : (
-          <section className="aw-frame flex flex-col gap-2.5 p-4">
-            {SECTIONS.map((s) => (
-              <label key={s.id} className="flex items-center gap-2 text-[14px] text-ink">
-                <input type="checkbox" checked={sections.includes(s.id)} onChange={() => toggle(s.id)} className="h-4 w-4 accent-[var(--aw-brand)]" />
-                {s.label}
-              </label>
-            ))}
-          </section>
+        ) : null}
+
+        {kind !== "client" ? null : (
+          <>
+            <Seg
+              label="Report settings"
+              value={panel}
+              onChange={setPanel}
+              options={[
+                { id: "agent", label: "✦ Agent" },
+                { id: "label", label: "White label" },
+                { id: "sections", label: "Sections" },
+              ]}
+            />
+
+            {panel === "agent" ? (
+              <section className="aw-frame flex flex-col gap-3 p-4">
+                <span className="flex items-center gap-2 text-[13px]">
+                  <span className={`aw-status ${data.guideline ? "aw-status--ranked" : "aw-status--pending"}`}>{data.guideline ? "Brand guideline found" : "No brand guideline"}</span>
+                  {!data.guideline ? <span className="text-muted">Uses {brand.domain}</span> : null}
+                </span>
+                <textarea value={ask} onChange={(e) => setAsk(e.target.value)} rows={4} placeholder="Dark and premium, like a luxury brand. Big numbers. Keep our blue." aria-label="What the agent should do" className="aw-textarea text-[14px]!" />
+                {canEdit ? (
+                  <button type="button" className="aw-btn aw-btn--accent" onClick={design} disabled={Boolean(busy)}>
+                    <AiIcon />
+                    {busy === "design" ? "Designing..." : "Design in our brand style"}
+                  </button>
+                ) : null}
+                {why ? <p className="text-[13px] text-body">{why}</p> : null}
+              </section>
+            ) : panel === "label" ? (
+              <section className="aw-frame flex flex-col gap-3 p-4">
+                <label className="flex flex-col gap-1 text-[13px] text-body">
+                  Report title
+                  <input value={style.title ?? ""} onChange={(e) => setStyle({ title: e.target.value })} placeholder="AI Visibility Report" className={field} />
+                </label>
+                <label className="flex flex-col gap-1 text-[13px] text-body">
+                  Agency name
+                  <input value={style.agency} onChange={(e) => setStyle({ agency: e.target.value })} placeholder="Perceptric" className={field} />
+                </label>
+                <label className="flex flex-col gap-1 text-[13px] text-body">
+                  Logo URL
+                  <input value={style.logo} onChange={(e) => setStyle({ logo: e.target.value.trim() })} placeholder="https://.../logo.png" className={field} />
+                </label>
+                <label className="flex flex-col gap-1 text-[13px] text-body">
+                  Footer line
+                  <input value={style.footer ?? ""} onChange={(e) => setStyle({ footer: e.target.value })} placeholder="hello@agency.com · agency.com" className={field} />
+                </label>
+                <label className="flex items-center gap-2 text-[14px] text-ink">
+                  <input type="checkbox" checked={Boolean(style.whiteLabel)} onChange={(e) => setStyle({ whiteLabel: e.target.checked })} className="h-4 w-4 accent-[var(--aw-brand)]" />
+                  Hide &quot;Made with Arrowsterr&quot;
+                </label>
+                <span className="aw-label mt-2">Colors</span>
+                {color("Accent", "accent")}
+                {color("Second accent", "accent2")}
+                {color("Cover", "heroBg")}
+                {color("Cover text", "heroText")}
+                {color("Page", "paper")}
+                {color("Cards", "surface")}
+                {color("Headings", "ink")}
+                {color("Body text", "text")}
+                <span className="aw-label mt-2">Type and shape</span>
+                {fontPick("Headings", "heading")}
+                {fontPick("Body", "body")}
+                {fontPick("Labels", "label")}
+                <label className="flex items-center justify-between gap-2 text-[13px] text-body">
+                  Cover
+                  <select value={theme.hero} onChange={(e) => setTheme({ hero: e.target.value as Hero })} className="aw-input w-44! py-1.5! text-[13px]!">
+                    <option value="dark">Dark</option>
+                    <option value="gradient">Gradient</option>
+                    <option value="light">Light</option>
+                    <option value="split">Split</option>
+                  </select>
+                </label>
+                <label className="flex items-center justify-between gap-2 text-[13px] text-body">
+                  Cards
+                  <select value={theme.cards} onChange={(e) => setTheme({ cards: e.target.value as Cards })} className="aw-input w-44! py-1.5! text-[13px]!">
+                    <option value="elevated">Shadow</option>
+                    <option value="outline">Outline</option>
+                    <option value="tinted">Tinted</option>
+                    <option value="flat">Flat</option>
+                  </select>
+                </label>
+                <label className="flex items-center justify-between gap-2 text-[13px] text-body">
+                  Corners
+                  <input type="range" min={0} max={28} value={theme.radius} onChange={(e) => setTheme({ radius: Number(e.target.value) })} className="w-44 accent-[var(--aw-brand)]" />
+                </label>
+              </section>
+            ) : (
+              <section className="aw-frame flex flex-col gap-2.5 p-4">
+                {SECTIONS.map((s) => (
+                  <label key={s.id} className="flex items-center gap-2 text-[14px] text-ink">
+                    <input type="checkbox" checked={sections.includes(s.id)} onChange={() => toggle(s.id)} className="h-4 w-4 accent-[var(--aw-brand)]" />
+                    {s.label}
+                  </label>
+                ))}
+              </section>
+            )}
+          </>
         )}
       </aside>
 
       <div className="flex min-w-0 flex-col gap-3">
         <div className="flex flex-wrap items-center gap-2 print:hidden">
-          {canEdit ? (
+          {canEdit && kind === "client" ? (
             <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={writeSummary} disabled={Boolean(busy) || stale}>
               <AiIcon />
               {busy === "summary" ? "Writing..." : summary ? "Rewrite AI summary" : "Add AI summary"}
             </button>
           ) : null}
           <span className="ml-auto flex flex-wrap gap-2">
-            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={downloadHtml}>
-              Download HTML
-            </button>
+            {kind === "client" ? (
+              <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={downloadHtml}>
+                Download HTML
+              </button>
+            ) : null}
             <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => window.print()}>
               Download PDF
             </button>
             {canEdit ? (
-              <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={share} disabled={Boolean(busy) || stale}>
+              <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={share} disabled={Boolean(busy) || stale || (kind !== "client" && !quick)}>
                 {busy === "share" ? "Creating link..." : "Share link"}
               </button>
             ) : null}
@@ -440,9 +495,15 @@ export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; a
             </a>
           </p>
         ) : null}
-        <div aria-busy={stale} className={`min-h-[80vh] min-w-0 overflow-hidden rounded-aw-lg border border-rule transition-opacity print:min-h-0 print:rounded-none print:border-0 ${stale ? "opacity-60" : ""}`} style={{ background: theme.paper }}>
-          <ReportDoc r={snapshot} />
-        </div>
+        {kind === "client" ? (
+          <div aria-busy={stale} className={`min-h-[80vh] min-w-0 overflow-hidden rounded-aw-lg border border-rule transition-opacity print:min-h-0 print:rounded-none print:border-0 ${stale ? "opacity-60" : ""}`} style={{ background: theme.paper }}>
+            <ReportDoc r={snapshot} />
+          </div>
+        ) : (
+          <div className="min-h-[80vh] min-w-0 overflow-hidden rounded-aw-lg border border-rule bg-white print:min-h-0 print:rounded-none print:border-0">
+            {kind === "prompts" ? promptsSnap ? <PromptsDoc r={promptsSnap} /> : <Thinking text="Reading every AI answer..." /> : kind === "competitors" ? <CompetitorsDoc r={competitorsSnap} /> : <IntelDoc r={intelSnap} />}
+          </div>
+        )}
       </div>
     </div>
   );

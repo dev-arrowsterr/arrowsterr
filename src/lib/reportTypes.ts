@@ -83,3 +83,17 @@ export type CompetitorsSnapshot = {
   at: string;
   rows: { name: string; domain: string | null; isYou: boolean; visibility: number; position: number | null; mentions: number }[];
 };
+
+/** Content Intelligence, frozen for a share link: how every page performs and which to update next. */
+export type IntelSnapshot = {
+  kind: "intel";
+  brand: { name: string; domain: string; logo?: string };
+  days: number;
+  at: string;
+  sample: boolean; // example numbers, shown before the site's pages are loaded
+  linked: boolean; // real visits from Google Analytics or the tracking script
+  totals: { pages: number; visits: number; cited: number | null };
+  byTag: { tag: string; pages: number }[];
+  keywords: { top3: number; top10: number; all: number };
+  rows: { path: string; url: string; tag: string; visits: number; ai: number | null; cited: number | null; keyword: string | null; rank: number | null; volume: number | null }[];
+};

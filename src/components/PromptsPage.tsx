@@ -96,7 +96,7 @@ export function PromptsPage(p: Props) {
 }
 
 /** A frozen copy of this page for a share link, with each prompt's deep dive and full answers. */
-async function promptsSnapshot(sb: SupabaseClient, view: View, engines: string[]): Promise<PromptsSnapshot> {
+export async function promptsSnapshot(sb: SupabaseClient, view: View, engines: string[]): Promise<PromptsSnapshot> {
   const { brand, current, filter, topics } = view;
   const chats = answered(current, filter);
   const stats = brandStats(chats, { name: brand.name, domain: brand.domain });
