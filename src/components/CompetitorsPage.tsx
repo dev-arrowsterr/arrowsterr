@@ -16,7 +16,7 @@ import { BrandName, Card, Delta, Empty, favicon, guessDomain, pct, pos, score, S
 const MAX_BRANDS = 50;
 const SHOWN = 10; // brands on the chart at first
 
-export type Dot = { name: string; domain: string | null; isYou: boolean; visibility: number; position: number };
+export type Dot = { name: string; domain: string | null; isYou: boolean; visibility: number; position: number; sentiment?: number | null };
 const SHOWN_ROWS = 9; // rows in the table before View all
 const quadLabel = "text-[12px] font-medium tracking-wide text-ink uppercase";
 
@@ -106,7 +106,7 @@ export function Quadrant({
                 onMouseLeave={() => onHover(null)}
                 onFocus={() => onHover(d.name)}
                 onBlur={() => onHover(null)}
-                aria-label={`${d.name}: visibility ${Math.round(d.visibility)}%, average position #${d.position.toFixed(1)}`}
+                aria-label={`${d.name}: visibility ${Math.round(d.visibility)}%, average position #${d.position.toFixed(1)}${d.sentiment != null ? `, sentiment ${Math.round(d.sentiment)}` : ""}`}
                 className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-[10px] border-2 bg-white p-1 transition-transform ${d.isYou ? "border-brand shadow-[3px_3px_0_0_var(--aw-brand)]" : picked === d.name ? "border-ink shadow-[3px_3px_0_0_#111111]" : "border-ink shadow-[3px_3px_0_0_var(--aw-ink)]"} ${on ? "z-30 -translate-y-[calc(50%+2px)] scale-115" : "z-10 hover:z-30"}`}
                 style={{ left: `${x(d.position)}%`, top: `${y(d.visibility)}%` }}
               >
@@ -124,7 +124,7 @@ export function Quadrant({
                 <span
                   className={`pointer-events-none absolute top-full left-1/2 mt-1 -translate-x-1/2 px-1.5 py-0.5 text-[11px] whitespace-nowrap ${on ? "bg-[var(--aw-ink)] text-white" : d.isYou ? "font-medium text-ink" : "hidden"}`}
                 >
-                  {on ? `${d.name} · ${pct(d.visibility)} · #${d.position.toFixed(1)}` : "You"}
+                  {on ? `${d.name} · ${pct(d.visibility)} · #${d.position.toFixed(1)}${d.sentiment != null ? ` · sentiment ${Math.round(d.sentiment)}` : ""}` : "You"}
                 </span>
               </button>
             );
@@ -194,6 +194,7 @@ export function CompetitorsPage({
   const [seoFirst, setSeoFirst] = useState(false);
   const { share, dialog, busy: sharing } = useShare(auth, brand.id);
   const [seo, setSeo] = useState<Record<string, DomainReport>>({});
+  const [quadTopic, setQuadTopic] = useState<string | null>(null);
 
   if (!chats.length) return <Empty>No results in the last {days} days yet. They show up after the first check finishes, then update every day.</Empty>;
 
@@ -204,10 +205,16 @@ export function CompetitorsPage({
   const on = shown ?? defaults();
   const flip = (n: string) => setShown(on.has(n) ? new Set([...on].filter((x) => x !== n)) : new Set([...on, n]));
 
-  const dots: Dot[] = stats
-    .filter((s): s is BrandStat & { position: number } => on.has(s.name) && s.position !== null)
-    .map((s) => ({ name: s.name, domain: s.domain, isYou: s.isYou, visibility: s.visibility, position: s.position }));
-  const best = [...stats].filter((s) => s.position !== null).sort((x, y) => y.visibility - x.visibility || x.position! - y.position!)[0]?.name ?? null;
+  // The quadrant can show one topic: the brands AI names most for that niche, and how warmly.
+  const qTopic = topics.find((t) => t.name === quadTopic) ?? null;
+  const qChats = qTopic ? chats.filter((c) => qTopic.prompts.includes(c.prompt)) : chats;
+  const qStats = qTopic ? brandStats(qChats, you) : stats;
+  const qOn = qTopic ? new Set([brand.name, ...qStats.filter((s) => !s.isYou).slice(0, SHOWN - 1).map((s) => s.name)]) : on;
+  const dots: Dot[] = qStats
+    .filter((s): s is BrandStat & { position: number } => qOn.has(s.name) && s.position !== null)
+    .map((s) => ({ name: s.name, domain: s.domain, isYou: s.isYou, visibility: s.visibility, position: s.position, sentiment: s.sentiment }));
+  const best = [...qStats].filter((s) => s.position !== null).sort((x, y) => y.visibility - x.visibility || x.position! - y.position!)[0]?.name ?? null;
+  const warmest = qTopic ? [...qStats].filter((s) => s.sentiment !== null && s.mentions >= 2).sort((x, y) => y.sentiment! - x.sentiment! || y.visibility - x.visibility)[0] : null;
 
   const find = (n: string | null) => stats.find((s) => s.name.toLowerCase() === n?.toLowerCase());
   const A = find(a) ?? stats.find((s) => s.isYou)!;
@@ -376,6 +383,28 @@ export function CompetitorsPage({
 
           {/* Right: the quadrant */}
           <div className="flex min-h-[520px] flex-col max-xl:border-t max-xl:border-rule">
+            {topics.length > 1 ? (
+              <div className="flex flex-col gap-2 border-b border-rule-faint px-4 pt-3 pb-2.5">
+                <div className="flex gap-1.5 overflow-x-auto pb-0.5" role="tablist" aria-label="Quadrant topic">
+                  {[null, ...topics.map((t) => t.name)].map((n) => (
+                    <button key={n ?? "all"} type="button" role="tab" aria-selected={quadTopic === n} className={`aw-chip aw-chip--btn shrink-0 whitespace-nowrap ${quadTopic === n ? "is-on" : ""}`} onClick={() => setQuadTopic(n)}>
+                      {n ?? "All topics"}
+                    </button>
+                  ))}
+                </div>
+                {qTopic ? (
+                  <p className="aw-small">
+                    The top {SHOWN} brands AI names for {qTopic.name}
+                    {warmest ? (
+                      <>
+                        . Most favorable: <span className="font-medium text-ink">{warmest.name}</span>, sentiment {Math.round(warmest.sentiment!)}
+                      </>
+                    ) : null}
+                    .
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             <div className="min-h-0 flex-1">
               <Quadrant dots={dots} logo={brand.logo} picked={B?.name} hover={hover} onHover={setHover} onPick={open} crown={best} />
             </div>
