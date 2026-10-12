@@ -129,7 +129,7 @@ function writeLocal(key: string, value: string | null) {
 }
 
 /** Sign-in gate. Everything after sign-in lives in Shell. */
-export function App({ config }: { config: SupaConfig }) {
+export function App({ config, googleClientId = null }: { config: SupaConfig; googleClientId?: string | null }) {
   const sb = getSupabase(config);
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [recovery, setRecovery] = useState(false);
@@ -153,7 +153,7 @@ export function App({ config }: { config: SupaConfig }) {
 
   if (session === undefined) return null;
   if (recovery && session) return <NewPassword sb={sb} onDone={() => setRecovery(false)} />;
-  if (!session) return <AuthScreen sb={sb} invited={Boolean(readLocal(INVITE_KEY))} />;
+  if (!session) return <AuthScreen sb={sb} invited={Boolean(readLocal(INVITE_KEY))} googleClientId={googleClientId} />;
   return <Shell sb={sb} session={session} />;
 }
 
