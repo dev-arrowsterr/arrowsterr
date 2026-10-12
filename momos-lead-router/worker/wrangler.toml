@@ -1,0 +1,14 @@
+name = "momos-lead-routing"
+main = "src/index.ts"
+compatibility_date = "2026-10-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+JAMES_URL = "https://calendar.app.google/LxFWWodxZMcd957n6"
+JILL_URL = "https://www.momos.com/book-a-demo-us"
+NOT_FIT_URL = "https://www.momos.com/thank-you"
+ALLOWED_ORIGINS = "https://www.momos.com,https://momos.com"
+
+# Secrets (set once, never commit):
+#   npx wrangler secret put ANTHROPIC_API_KEY
+#   npx wrangler secret put ZAPIER_HOOK_URL
