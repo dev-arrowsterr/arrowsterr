@@ -58,12 +58,15 @@ export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; a
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [link, setLink] = useState("");
-  const [panel, setPanel] = useState<"agent" | "label" | "sections">("agent");
+  const [panel, setPanel] = useState<"agent" | "label" | "sections">(() => (readStyle(auth.workspaceId).agency ? "agent" : "label"));
   const [kind, setKind] = useStash<Kind>(`report:${brand.id}:kind`, "client");
   const [promptsSnap, setPromptsSnap] = useState<PromptsSnapshot | null>(null);
   const [pages, setPages] = useState<PagePerf[] | null>(null);
   const [ask, setAsk] = useState("");
   const [why, setWhy] = useState("");
+  const [website, setWebsite] = useState("");
+  const [learned, setLearned] = useState("");
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // While a new period loads, keep showing the last one instead of dropping to a spinner.
   const data = saved[days] ?? Object.values(saved).sort((a, b) => b.at.localeCompare(a.at))[0] ?? null;
   const stale = !saved[days];
@@ -74,15 +77,50 @@ export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; a
   });
   const summary = summaries[days] ?? null;
 
-  const setStyle = (patch: Partial<ReportStyle>) => {
+  // The style is saved per workspace, so every teammate and device gets it. This browser keeps a copy for a fast first paint.
+  const setStyle = (patch: Partial<ReportStyle>, site?: string) => {
     const next = { ...style, ...patch };
     setStyleState(next);
     try {
       localStorage.setItem(STYLE_KEY(auth.workspaceId), JSON.stringify(next));
     } catch {
-      // Storage blocked. The style lasts until the page reloads.
+      // Storage blocked. The workspace copy still saves.
     }
+    if (!canEdit) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(async () => {
+      const { error } = await sb.from("report_styles").upsert({ workspace_id: auth.workspaceId, style: next, ...(site ? { website: site } : {}), updated_at: new Date().toISOString() });
+      if (error) setError(/report_styles/.test(error.message) ? "Your report style is saved in this browser only. Run supabase/031_report_style.sql in Supabase to save it for the whole workspace." : error.message);
+    }, 700);
   };
+
+  useEffect(() => {
+    let live = true;
+    sb.from("report_styles")
+      .select("style, website")
+      .eq("workspace_id", auth.workspaceId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (!live || error) return;
+        if (!data) {
+          // A style made before workspace saving lived in this browser only. Copy it up once.
+          const local = readStyle(auth.workspaceId);
+          if (canEdit && (local.agency || local.logo || local.footer)) sb.from("report_styles").upsert({ workspace_id: auth.workspaceId, style: local }).then(() => {});
+          return;
+        }
+        const saved = { ...BASE, ...(data.style as ReportStyle) };
+        setStyleState({ ...saved, theme: saved.theme ?? { ...TEMPLATES[0], accent: saved.color } });
+        setWebsite(data.website ?? "");
+        try {
+          localStorage.setItem(STYLE_KEY(auth.workspaceId), JSON.stringify(saved));
+        } catch {
+          // Storage blocked.
+        }
+      });
+    return () => {
+      live = false;
+    };
+  }, [sb, auth.workspaceId, canEdit]);
 
   const workspaceId = auth.workspaceId;
   useEffect(() => {
@@ -297,6 +335,24 @@ export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; a
     }
   }
 
+  // The white label agent: learns the agency's brand from its website, then shows the report in it.
+  async function learnBrand() {
+    setBusy("brand");
+    setError("");
+    setLearned("");
+    try {
+      const out = await post<{ website: string; style: Partial<ReportStyle>; why: string }>("/api/reports/brand", { website });
+      setStyle(out.style, out.website);
+      setWebsite(out.website);
+      setLearned(out.why || `Learned ${out.style.agency ?? out.website}.`);
+      document.getElementById("report")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy("");
+    }
+  }
+
   function downloadHtml() {
     const el = document.getElementById("report");
     if (!el) return;
@@ -393,6 +449,26 @@ export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; a
               </section>
             ) : panel === "label" ? (
               <section className="aw-frame flex flex-col gap-3 p-4">
+                {canEdit ? (
+                  <form
+                    className="flex flex-col gap-2 rounded-aw border border-brand/30 bg-brand-pale p-3"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (website.trim()) learnBrand();
+                    }}
+                  >
+                    <span className="flex items-center gap-1.5 text-[14px] font-medium text-ink">
+                      <AiIcon />
+                      Learn your agency brand
+                    </span>
+                    <span className="text-[12.5px] text-body">The agent reads your website for your name, logo, colors, fonts and contact line, then shows this report in your brand.</span>
+                    <input value={website} onChange={(e) => setWebsite(e.target.value)} placeholder="youragency.com" aria-label="Your agency's website" className={field} />
+                    <button type="submit" className="aw-btn aw-btn--accent aw-btn--sm" disabled={Boolean(busy) || !website.trim()}>
+                      {busy === "brand" ? "Reading your site..." : "Learn my brand"}
+                    </button>
+                    {learned ? <span className="text-[12.5px] text-ink">{learned} The report preview now uses your brand. Change anything below.</span> : null}
+                  </form>
+                ) : null}
                 <label className="flex flex-col gap-1 text-[13px] text-body">
                   Report title
                   <input value={style.title ?? ""} onChange={(e) => setStyle({ title: e.target.value })} placeholder="AI Visibility Report" className={field} />

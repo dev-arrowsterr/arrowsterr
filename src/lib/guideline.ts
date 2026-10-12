@@ -59,6 +59,45 @@ export async function readBrand(domain: string) {
     $('meta[property="og:image"]').attr("content") ??
     $('link[rel*="icon"]').attr("href") ??
     null;
+  // Every logo the page might use, best first. Inline SVG logos become data URLs so they work in an <img>.
+  const abs = (h?: string | null) => {
+    try {
+      return h && !h.startsWith("data:") ? new URL(h, base).toString() : null;
+    } catch {
+      return null;
+    }
+  };
+  // An inline SVG counts only when it, or a close parent, is named logo or brand, and it is not a small line icon.
+  const named = (e: Parameters<typeof $>[0]) => /(^|[^a-z])(logo|brand)([^a-z]|$)/i.test(`${$(e).attr("class") ?? ""} ${$(e).attr("id") ?? ""} ${$(e).attr("aria-label") ?? ""}`);
+  const svg = $("svg")
+    .filter((_, e) => {
+      const box = ($(e).attr("viewBox") ?? "").split(/[\s,]+/).map(Number);
+      const w = Number($(e).attr("width")) || box[2] || 0;
+      return w > 24 && $(e).attr("fill") !== "none" && [e, ...$(e).parents().slice(0, 3).get()].some(named);
+    })
+    .first();
+  const svgLogo = svg.length ? $.html(svg).replace(/<svg(?![^>]*xmlns=)/, '<svg xmlns="http://www.w3.org/2000/svg"') : "";
+  const ldLogo = html.match(/"logo"\s*:\s*(?:\{[^}]*?"url"\s*:\s*)?"([^"]+)"/)?.[1] ?? null;
+  const logos = [
+    ...new Set(
+      [
+        ...$('img[src*="logo" i], img[alt*="logo" i], [class*="logo" i] img, header img')
+          .map((_, e) => $(e).attr("src") ?? $(e).attr("data-src"))
+          .get(),
+        ldLogo,
+        $('link[rel="apple-touch-icon"]').attr("href"),
+        $('meta[property="og:image"]').attr("content"),
+        $('link[rel*="icon"]').attr("href"),
+      ]
+        .map(abs)
+        .filter((u): u is string => Boolean(u)),
+    ),
+  ].slice(0, 8);
+  if (svgLogo && svgLogo.length < 40_000) logos.push(`data:image/svg+xml;utf8,${encodeURIComponent(svgLogo)}`);
+  const siteName = $('meta[property="og:site_name"]').attr("content") ?? $('meta[name="application-name"]').attr("content") ?? "";
+  const hrefs = (prefix: string) => [...new Set($(`a[href^="${prefix}"]`).map((_, a) => decodeURIComponent($(a).attr("href")!.slice(prefix.length).split("?")[0]).trim()).get())].filter(Boolean).slice(0, 3);
+  const contact = { emails: hrefs("mailto:"), phones: hrefs("tel:") };
+
   const text = (sel: string, n: number) => [...new Set($(sel).map((_, e) => $(e).text().replace(/\s+/g, " ").trim()).get().filter((t) => t.length > 1 && t.length < 160))].slice(0, n);
   const headings = text("h1, h2, h3", 40);
   const ctas = text('button, a[class*="btn" i], a[class*="button" i], [role="button"], input[type="submit"]', 25);
@@ -69,6 +108,9 @@ export async function readBrand(domain: string) {
     title: $("title").first().text().trim(),
     description: $('meta[name="description"]').attr("content") ?? "",
     logo: logo ? new URL(logo, base).toString() : null,
+    logos,
+    siteName,
+    contact,
     headings,
     ctas,
     body,
