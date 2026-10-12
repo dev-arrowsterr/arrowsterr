@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { EVENTS } from "@/lib/integrationTypes";
 import type { RunAuth } from "@/lib/runner";
 import { post } from "./research/shared";
@@ -11,6 +11,108 @@ type State = { allowed: boolean; setup?: string; slack?: boolean; points?: numbe
 
 const date = (s: string | null) => (s ? new Date(s).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : "Never");
 const api = () => `${window.location.origin}/api/v1`;
+
+const MCP_TOOLS = [
+  ["get_ai_visibility", "Visibility, sentiment and position, by model and topic"],
+  ["get_competitors", "Every brand AI names, with its quadrant, overall or per topic"],
+  ["get_prompts", "Each prompt's results and the brands named most"],
+  ["get_prompt_answers", "The full answer from each AI model for one prompt"],
+  ["get_cited_sources", "The sites and pages AI links to"],
+  ["get_visibility_trend", "Visibility by day against competitors"],
+  ["get_content_plan / get_topic_bank", "Planned pieces and saved keyword ideas"],
+  ["keyword_research", "Google volume and difficulty (uses tasks)"],
+  ["add_prompts / add_to_content_plan", "Track new prompts and plan new pieces"],
+];
+
+/** Copy a value, with a short "Copied" on the button. */
+function CopyRow({ value, label }: { value: string; label: string }) {
+  const [done, setDone] = useState(false);
+  return (
+    <span className="flex items-center gap-2">
+      <code aria-label={label} className="min-w-0 flex-1 truncate rounded-[6px] border border-rule bg-surface-2 px-2 py-1.5 text-[12px] text-ink">
+        {value}
+      </code>
+      <button
+        type="button"
+        className="aw-btn aw-btn--secondary aw-btn--sm shrink-0"
+        onClick={() => {
+          navigator.clipboard.writeText(value).catch(() => {});
+          setDone(true);
+          setTimeout(() => setDone(false), 1500);
+        }}
+      >
+        {done ? "Copied" : "Copy"}
+      </button>
+    </span>
+  );
+}
+
+/** Connect Claude, ChatGPT, Cursor or any MCP app. They sign in with OAuth, or use an API key. */
+function McpCard({ off }: { off: boolean }) {
+  const origin = useSyncExternalStore(
+    () => () => {},
+    () => window.location.origin,
+    () => "https://app.arrowsterr.com",
+  );
+  const url = `${origin}/api/mcp`;
+  const cursor = JSON.stringify({ mcpServers: { arrowsterr: { url } } }, null, 2);
+  return (
+    <div className="aw-frame flex max-w-2xl flex-col gap-3 p-5">
+      <div className="flex items-center justify-between gap-3">
+        <span className="flex items-center gap-2 text-[15px] font-medium text-ink">
+          <img src="https://www.google.com/s2/favicons?domain=claude.ai&sz=64" alt="" width={18} height={18} />
+          Claude, ChatGPT and Cursor
+        </span>
+        <span className="aw-chip">MCP</span>
+      </div>
+      <p className="text-[13px] text-muted">
+        Ask your AI app about your AI visibility, competitors and Content Plan, in plain words. &quot;How did our visibility change this week, and who passed us?&quot; Add this server address to any app that supports MCP.
+      </p>
+      {off ? <p className="text-[13px] text-body">Connecting AI apps is on Pro and up.</p> : null}
+      <CopyRow value={url} label="MCP server address" />
+      <div className="flex flex-col divide-y divide-rule-faint border-y border-rule-faint text-[13px]">
+        <details className="py-2.5" open>
+          <summary className="cursor-pointer font-medium text-ink">Claude (web and desktop)</summary>
+          <ol className="mt-2 ml-4 flex list-decimal flex-col gap-1 text-body">
+            <li>Open Settings → Connectors → Add custom connector.</li>
+            <li>Name it Arrowsterr and paste the address above.</li>
+            <li>Click Connect, sign in to Arrowsterr and pick a workspace. Workspace admins can connect.</li>
+          </ol>
+        </details>
+        <details className="py-2.5">
+          <summary className="cursor-pointer font-medium text-ink">ChatGPT</summary>
+          <p className="mt-2 text-body">In Settings → Apps and Connectors, turn on developer mode, create a connector with the address above and choose OAuth. ChatGPT sends you here to approve it.</p>
+        </details>
+        <details className="py-2.5">
+          <summary className="cursor-pointer font-medium text-ink">Claude Code</summary>
+          <div className="mt-2 flex flex-col gap-2 text-body">
+            <CopyRow value={`claude mcp add --transport http arrowsterr ${url}`} label="Claude Code command" />
+            <span>Then type /mcp in Claude Code to sign in.</span>
+          </div>
+        </details>
+        <details className="py-2.5">
+          <summary className="cursor-pointer font-medium text-ink">Cursor and other apps</summary>
+          <div className="mt-2 flex flex-col gap-2 text-body">
+            <span>Add this to your MCP settings (in Cursor: ~/.cursor/mcp.json). The app opens a sign-in page the first time.</span>
+            <pre className="overflow-x-auto rounded-[6px] border border-rule bg-surface-2 p-2 text-[12px] text-ink">{cursor}</pre>
+            <span>Apps without sign-in can send an API key from below as a header: Authorization: Bearer aw_live_…</span>
+          </div>
+        </details>
+        <details className="py-2.5">
+          <summary className="cursor-pointer font-medium text-ink">What it can do</summary>
+          <ul className="mt-2 flex flex-col gap-1.5">
+            {MCP_TOOLS.map(([k, v]) => (
+              <li key={k}>
+                <code className="text-ink">{k}</code> <span className="text-muted">{v}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-2 text-muted">Up to 60 tool calls a minute. Keyword research uses your plan&apos;s tasks. Connected apps show up under API keys, where you can revoke them.</p>
+        </details>
+      </div>
+    </div>
+  );
+}
 
 /** Slack alerts, API keys and webhooks. Pro and up. */
 export function IntegrationsSettings({ auth, isAdmin }: { auth: RunAuth; isAdmin: boolean }) {
@@ -58,12 +160,14 @@ export function IntegrationsSettings({ auth, isAdmin }: { auth: RunAuth; isAdmin
     <section className="flex flex-col gap-4">
       <div className="flex flex-col gap-1">
         <h2 className="aw-h4">Integrations</h2>
-        <p className="max-w-2xl text-[14px] text-body">Get alerts in Slack, and connect Arrowsterr to Zapier or your own tools with the API.</p>
+        <p className="max-w-2xl text-[14px] text-body">Use Arrowsterr from Claude, ChatGPT and Cursor, get alerts in Slack, and connect Zapier or your own tools with the API.</p>
       </div>
-      {off ? <div className="aw-callout max-w-2xl">Slack, Zapier and the API are on Pro and up.</div> : null}
+      {off ? <div className="aw-callout max-w-2xl">AI apps, Slack, Zapier and the API are on Pro and up.</div> : null}
       {s.setup ? <div className="aw-callout max-w-2xl">{s.setup}</div> : null}
       {error ? <p className="aw-error max-w-2xl">{error}</p> : null}
       {notice ? <div className="aw-callout max-w-2xl">{notice}</div> : null}
+
+      <McpCard off={off} />
 
       {/* Slack */}
       <div className="aw-frame flex max-w-2xl flex-col gap-3 p-5">
