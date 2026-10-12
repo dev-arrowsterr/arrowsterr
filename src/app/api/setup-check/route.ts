@@ -28,6 +28,21 @@ export async function GET() {
             r.includes("daily_answer_limit") ? `${r}. Run supabase/002_daily_runs_and_limits.sql in the SQL Editor.` : r,
           )
         : "Set SUPABASE_URL first";
+  // The newest database updates, checked by a table or column each one adds.
+  if (url && secret) {
+    const checks: [string, string][] = [
+      ["031_report_style.sql", "/rest/v1/report_styles?select=workspace_id&limit=1"],
+      ["032_oauth.sql", "/rest/v1/api_keys?select=refresh_hash,client_id&limit=1"],
+    ];
+    report.migrations = Object.fromEntries(
+      await Promise.all(
+        checks.map(async ([file, path]) => {
+          const r = await ping(path, secret);
+          return [file, r === "OK" ? "Done" : `Not run yet. Open Supabase → SQL Editor and run supabase/${file}.`];
+        }),
+      ),
+    );
+  }
   report.CRON_SECRET = process.env.CRON_SECRET?.trim() ? "Set" : "MISSING (needed for daily runs)";
 
   const on = availableEngines();
