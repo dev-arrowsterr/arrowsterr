@@ -1,0 +1,168 @@
+<!--
+  Momos Lead Router
+  Paste this whole file into Framer: Site Settings > General > Custom Code > "End of <body> tag".
+  It catches the Book a Demo form, decides the AE in under a millisecond, sends the
+  visitor to that AE's calendar, and fires the lead to Zapier in the background.
+-->
+<script>
+(function () {
+  var CONFIG = {
+    // Zapier > Webhooks by Zapier > Catch Hook URL
+    zapierHook: "https://hooks.zapier.com/hooks/catch/XXXXXXX/XXXXXXX/",
+    james: "https://calendar.app.google/LxFWWodxZMcd957n6",
+    jill: "https://www.momos.com/book-a-demo-us",
+    notFitUrl: "https://www.momos.com/thank-you",
+    // Fewer locations than this is not ICP. Leave blank answers alone (they still get routed).
+    minLocations: 3
+  };
+
+  // Region -> AE
+  var ROUTES = { us_west: "james", apac: "james", us_east: "jill", emea: "jill", unknown: "jill" };
+
+  var US_WEST = " WA OR CA NV ID MT WY UT CO AZ NM AK HI washington oregon california nevada idaho montana wyoming utah colorado arizona new_mexico alaska hawaii ";
+  var CA_WEST = " BC AB YT british_columbia alberta yukon ";
+  var US = " united_states united_states_of_america usa us u.s. u.s.a. america ";
+  var CANADA = " canada ";
+  var APAC = " singapore malaysia indonesia thailand vietnam philippines brunei cambodia myanmar laos australia new_zealand japan south_korea korea china hong_kong taiwan macau india sri_lanka bangladesh pakistan nepal maldives mongolia fiji ";
+  var EMEA = " united_kingdom uk england scotland wales ireland france germany spain portugal italy netherlands belgium luxembourg switzerland austria denmark sweden norway finland iceland poland czechia czech_republic slovakia hungary romania bulgaria greece croatia slovenia serbia estonia latvia lithuania ukraine cyprus malta turkey türkiye united_arab_emirates uae saudi_arabia ksa qatar kuwait bahrain oman jordan lebanon israel egypt morocco south_africa nigeria kenya ghana tunisia algeria ";
+  var ME_ZONES = " Asia/Dubai Asia/Riyadh Asia/Qatar Asia/Kuwait Asia/Bahrain Asia/Muscat Asia/Jerusalem Asia/Tel_Aviv Asia/Beirut Asia/Amman Asia/Baghdad Asia/Tehran Asia/Nicosia Asia/Istanbul ";
+  var US_WEST_ZONES = " America/Los_Angeles America/Denver America/Phoenix America/Boise America/Anchorage America/Juneau America/Sitka America/Nome America/Metlakatla America/Yakutat Pacific/Honolulu America/Vancouver America/Edmonton America/Whitehorse ";
+
+  var FREE = " gmail.com googlemail.com yahoo.com hotmail.com outlook.com live.com msn.com icloud.com me.com aol.com proton.me protonmail.com gmx.com mail.com ";
+  var DISPOSABLE = " mailinator.com 10minutemail.com guerrillamail.com tempmail.com temp-mail.org yopmail.com trashmail.com sharklasers.com getnada.com maildrop.cc fakeinbox.com ";
+
+  // Field name aliases. Framer uses the field "Name" you set in the editor.
+  var FIELDS = {
+    email: ["email", "workemail", "businessemail", "emailaddress"],
+    first_name: ["firstname", "first", "fname"],
+    last_name: ["lastname", "last", "lname", "surname"],
+    company: ["company", "companyname", "brand", "brandname", "restaurant", "business", "businessname", "organization"],
+    job_title: ["jobtitle", "title", "role", "position"],
+    phone: ["phone", "phonenumber", "mobile", "tel"],
+    country: ["country", "countryregion"],
+    state: ["state", "province", "stateprovince"],
+    locations: ["locations", "numberoflocations", "howmanylocations", "howmanylocationsdoesyourbusinesshave", "outlets", "stores"]
+  };
+  var TRACKING = ["utm_source", "utm_channel", "utm_medium", "utm_campaign", "utm_term", "utm_content", "gclid"];
+
+  function k(s) { return String(s || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
+  function w(s) { return " " + String(s || "").trim().toLowerCase().replace(/\s+/g, "_") + " "; }
+  function has(list, s) { return !!String(s || "").trim() && list.indexOf(w(s)) > -1; }
+  function hasRaw(list, s) { return !!s && list.indexOf(" " + s + " ") > -1; }
+
+  function pick(raw) {
+    var byKey = {}, out = {};
+    for (var name in raw) byKey[k(name)] = raw[name];
+    for (var f in FIELDS) {
+      for (var i = 0; i < FIELDS[f].length; i++) {
+        var v = byKey[FIELDS[f][i]];
+        if (v != null && String(v).trim() !== "") { out[f] = String(v).trim(); break; }
+      }
+    }
+    if (!out.first_name && (byKey.name || byKey.fullname)) {
+      var parts = String(byKey.name || byKey.fullname).trim().split(/\s+/);
+      out.first_name = parts.shift();
+      if (parts.length) out.last_name = parts.join(" ");
+    }
+    return out;
+  }
+
+  function region(country, state, tz) {
+    var westState = has(US_WEST, state) || hasRaw(US_WEST, String(state || "").trim().toUpperCase());
+    var westCa = has(CA_WEST, state) || hasRaw(CA_WEST, String(state || "").trim().toUpperCase());
+    var tzWest = hasRaw(US_WEST_ZONES, tz);
+    if (has(US, country)) return state ? (westState ? "us_west" : "us_east") : (tzWest ? "us_west" : "us_east");
+    if (has(CANADA, country)) return state ? (westCa ? "us_west" : "us_east") : (tzWest ? "us_west" : "us_east");
+    if (has(APAC, country)) return "apac";
+    if (has(EMEA, country)) return "emea";
+    if (country) return "unknown";
+    // No country on the form: the visitor's own time zone tells us.
+    tz = tz || "";
+    if (tzWest) return "us_west";
+    if (/^America\//.test(tz)) return /^America\/(New_York|Chicago|Detroit|Indiana|Kentucky|Toronto|Montreal|Halifax|Winnipeg|Regina|St_Johns|Menominee|North_Dakota)/.test(tz) ? "us_east" : "unknown";
+    if (hasRaw(ME_ZONES, tz) || /^(Europe|Africa|Atlantic\/(Reykjavik|Canary|Madeira|Azores))\//.test(tz)) return "emea";
+    if (/^(Asia|Australia|Pacific)\//.test(tz)) return "apac";
+    return "unknown";
+  }
+
+  function icp(lead) {
+    var email = lead.email || "";
+    var domain = (email.split("@")[1] || "").toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(email) || hasRaw(DISPOSABLE, domain)) return ["rejected", "bad email"];
+    if (/\b(test|asdf|qwerty|lorem|fake)\b/i.test([lead.first_name, lead.last_name, lead.company].join(" "))) return ["rejected", "looks like a test"];
+    var nums = String(lead.locations || "").match(/\d+/g);
+    if (nums) {
+      var most = Math.max.apply(null, nums.map(Number));
+      if (/\+|more|over/i.test(lead.locations)) most += 1;
+      if (most < CONFIG.minLocations) return ["not_fit", most + " location(s)"];
+      return ["fit", most + "+ locations" + (hasRaw(FREE, domain) ? ", personal email" : "")];
+    }
+    return ["maybe", "locations not given" + (hasRaw(FREE, domain) ? ", personal email" : "")];
+  }
+
+  function decide(raw, tz) {
+    var lead = pick(raw);
+    var r = region(lead.country, lead.state, tz);
+    var fit = icp(lead);
+    var ae = fit[0] === "fit" || fit[0] === "maybe" ? ROUTES[r] : null;
+    return {
+      lead: lead,
+      region: r,
+      icp: fit[0],
+      icp_reason: fit[1],
+      ae: ae ? (ae === "james" ? "James" : "Jill") : "",
+      redirect_url: ae ? CONFIG[ae] : CONFIG.notFitUrl
+    };
+  }
+
+  // Keep UTMs and gclid from the landing page so they survive until the form.
+  function tracking() {
+    var out = {}, q = new URLSearchParams(location.search), store;
+    try { store = JSON.parse(sessionStorage.getItem("momos_utm") || "{}"); } catch (e) { store = {}; }
+    TRACKING.forEach(function (t) { if (q.get(t)) store[t] = q.get(t); });
+    try { sessionStorage.setItem("momos_utm", JSON.stringify(store)); } catch (e) {}
+    TRACKING.forEach(function (t) { out[t === "gclid" ? "gclid_c" : t] = store[t] || ""; });
+    return out;
+  }
+
+  var root = typeof window !== "undefined" ? window : globalThis;
+  root.MomosRouter = { decide: decide, region: region, icp: icp, pick: pick, CONFIG: CONFIG };
+  if (typeof document === "undefined" || !document.addEventListener) return;
+
+  var utm = tracking();
+  // Do the slow first-run work at page load so the submit path stays under 1 ms.
+  var tz = "";
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || ""; } catch (err) {}
+  decide({ email: "warm@up.com", company: "x", locations: "9", country: "usa", state: "ca" }, tz);
+
+  // Capture phase on document runs before Framer's own submit handler.
+  document.addEventListener("submit", function (e) {
+    var t0 = performance.now();
+    var form = e.target;
+    if (!form || form.tagName !== "FORM") return;
+    var raw = {};
+    new FormData(form).forEach(function (v, name) { if (typeof v === "string") raw[name] = v; });
+    var lead = pick(raw);
+    if (!lead.email || !lead.company) return; // Not the demo form (e.g. newsletter). Leave it alone.
+
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    var d = decide(raw, tz);
+    var ms = (performance.now() - t0).toFixed(2);
+
+    var body = new URLSearchParams();
+    var payload = Object.assign({}, raw, d.lead, utm, {
+      region: d.region, icp: d.icp, icp_reason: d.icp_reason, ae: d.ae,
+      redirect_url: d.redirect_url, route_ms: ms, timezone: tz,
+      page_url: location.href, referrer: document.referrer, submitted_at: new Date().toISOString()
+    });
+    for (var key in payload) body.append(key, payload[key] == null ? "" : String(payload[key]));
+
+    // sendBeacon survives the page change, so the redirect never waits on Zapier.
+    if (!(navigator.sendBeacon && navigator.sendBeacon(CONFIG.zapierHook, body))) {
+      fetch(CONFIG.zapierHook, { method: "POST", body: body, keepalive: true, mode: "no-cors" });
+    }
+    location.href = d.redirect_url;
+  }, true);
+})();
+</script>
