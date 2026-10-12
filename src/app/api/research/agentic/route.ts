@@ -9,6 +9,7 @@ import { entitlement, requireTrack } from "@/lib/entitlements";
 import { enqueue, queueReady } from "@/lib/jobs";
 
 const REFRESH_DAYS = 30; // paid plans can refresh the Content Plan once a month
+const TRIAL_PLAN_SIZE = 10; // Content Plan items on the free trial
 
 // Agentic Keyword Research: start a run, answer right away, and keep working on the job queue
 // (or in the background before supabase/016_queue.sql).
@@ -65,9 +66,11 @@ async function handle(request: Request) {
     .single();
   if (err || !run) return Response.json({ error: err?.message ?? "Could not start." }, { status: 500 });
 
-  // Every website gets the full-size plan, bottom of the funnel first.
+  // Paid plans get the full-size plan, bottom of the funnel first. The trial gets a 10-item taste,
+  // with no page updates on top, so the whole plan is 10 items.
   const asked = cleanBrief(body.brief);
-  const brief: PlanBrief = { funnel: "bofu", ...asked, size: 120 };
+  const taste = e.plan === "free" || e.plan === "trial";
+  const brief: PlanBrief = taste ? { funnel: "bofu", ...asked, size: TRIAL_PLAN_SIZE, updates: false } : { funnel: "bofu", ...asked, size: 120 };
   if (await queueReady()) {
     await enqueue("plan", { runId: run.id, site: { ...site, brief } }, { workspaceId: body.workspaceId, key: `plan:${run.id}`, maxAttempts: 2 });
     return Response.json({ id: run.id });

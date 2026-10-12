@@ -109,7 +109,7 @@ export function PricingPage() {
         <section className="mx-auto flex max-w-4xl flex-col items-center gap-6 px-4 pt-10 pb-12 text-center sm:px-8">
           <span className="aw-chip aw-chip--brand">Pricing</span>
           <h1 className="aw-display mb-0!">Be the brand AI recommends</h1>
-          <p className="aw-lede max-w-2xl">See where ChatGPT, Claude, Gemini, Perplexity and Google AI name you, who they name instead, and what to publish to win. 14-day free trial, no card.</p>
+          <p className="aw-lede max-w-2xl">See where ChatGPT, Claude, Gemini, Perplexity and Google AI name you, who they name instead, and what to publish to win. 7-day free trial, no card.</p>
           <ul className="flex flex-wrap justify-center gap-2">
             {AIS.map((a) => (
               <li key={a.name} className="flex items-center gap-2 rounded-full border border-rule bg-white py-1.5 pr-3.5 pl-1.5 text-[13px] font-medium text-ink shadow-aw-sm">
@@ -198,7 +198,7 @@ export function PricingPage() {
         <div className="flex flex-col items-center gap-5 rounded-[24px] bg-[linear-gradient(135deg,var(--aw-brand),var(--aw-brand-deep))] px-6 py-14 text-center text-white">
           <LogoStack size={30} />
           <h2 className="text-[32px] leading-tight font-medium text-white sm:text-[40px]">Find out what AI says about you</h2>
-          <p className="max-w-xl text-[16px] text-white/80">Your first results in minutes. Free for 14 days.</p>
+          <p className="max-w-xl text-[16px] text-white/80">Your first results in minutes. Free for 7 days.</p>
           <Link href="/" className="aw-btn aw-btn--lg bg-white! text-brand!">
             Start free trial
           </Link>

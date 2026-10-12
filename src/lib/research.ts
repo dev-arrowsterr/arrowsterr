@@ -32,7 +32,7 @@ export type AgentUpdate = Keyword & { stage: Stage; theme: string; page: string 
 export type PlanBrief = {
   goal?: "leads" | "traffic" | "ai" | "authority";
   funnel?: "balanced" | "bofu" | "mofu" | "tofu";
-  size?: 30 | 60 | 120;
+  size?: 10 | 30 | 60 | 120;
   difficulty?: "easy" | "mixed" | "hard";
   formats?: string[];
   focus?: string;

@@ -77,7 +77,7 @@ const COLS: Col<Row>[] = [
 ];
 
 /** What the Content Plan is. It stays at the top of the page, before and after the plan is built. */
-export function PlanIntro({ canEdit, busy, built, onBuild }: { canEdit: boolean; busy: boolean; built: boolean; onBuild: () => void }) {
+export function PlanIntro({ canEdit, busy, built, onBuild, trial }: { canEdit: boolean; busy: boolean; built: boolean; onBuild: () => void; trial?: { onUpgrade: () => void } }) {
   return (
     <section className="aw-frame flex flex-col gap-3 p-6 md:p-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -107,14 +107,21 @@ export function PlanIntro({ canEdit, busy, built, onBuild }: { canEdit: boolean;
         ))}
       </ul>
       <p className="text-[15px] text-ink">Edit it like a spreadsheet: move dates, paste in your own keywords, and click any keyword to research it and write it.</p>
-      {built ? null : canEdit ? (
+      {!built && canEdit ? (
         <button type="button" className="aw-btn aw-btn--accent mt-2 self-start" onClick={onBuild} disabled={busy}>
           <AiIcon />
           {busy ? "Starting..." : "Build my content plan"}
         </button>
-      ) : (
-        <p className="aw-small">Ask an editor to build the Content Plan.</p>
-      )}
+      ) : null}
+      {trial ? (
+        <p className="text-[13px] text-muted">
+          Your free trial plan has 10 content items. You can edit, research and write all of them.{" "}
+          <button type="button" className="aw-text-link" onClick={trial.onUpgrade}>
+            Upgrade for the full 120-item plan
+          </button>
+        </p>
+      ) : null}
+      {built || canEdit ? null : <p className="aw-small">Ask an editor to build the Content Plan.</p>}
     </section>
   );
 }

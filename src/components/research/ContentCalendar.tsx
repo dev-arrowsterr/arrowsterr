@@ -474,7 +474,7 @@ export function ContentCalendar({
 
   const toggle = <ViewSwitch value={view} onChange={setTab} options={PLAN_VIEWS} />;
   const built = Boolean(items.length || lastDone);
-  const intro = <PlanIntro canEdit={canEdit} busy={building || running} built={built} onBuild={build} />;
+  const intro = <PlanIntro canEdit={canEdit} busy={building || running} built={built} onBuild={build} trial={refresh && !refresh.paid ? { onUpgrade: refresh.onUpgrade } : undefined} />;
   const head = (
     <header className="flex flex-wrap items-center justify-between gap-3">
       <h1 className="aw-h2 mb-0!">Content Plan</h1>
