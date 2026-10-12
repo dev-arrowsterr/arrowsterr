@@ -576,7 +576,7 @@ export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; a
             <ReportDoc r={snapshot} />
           </div>
         ) : (
-          <div className="min-h-[80vh] min-w-0 overflow-hidden rounded-aw-lg border border-rule bg-white print:min-h-0 print:rounded-none print:border-0">
+          <div className="aw-read min-h-[80vh] min-w-0 overflow-hidden rounded-aw-lg border border-rule bg-white print:min-h-0 print:rounded-none print:border-0">
             {kind === "prompts" ? promptsSnap ? <PromptsDoc r={promptsSnap} /> : <Thinking text="Reading every AI answer..." /> : kind === "competitors" ? <CompetitorsDoc r={competitorsSnap} /> : <IntelDoc r={intelSnap} />}
           </div>
         )}

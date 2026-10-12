@@ -28,7 +28,7 @@ export default async function SharedReport({ params }: { params: Promise<{ token
   const isPrompts = kind === "prompts" || kind === "competitors" || kind === "intel";
   const paper = isPrompts ? undefined : themeOf((row.data as ReportSnapshot).style ?? { color: "" }).paper;
   return (
-    <main className="min-h-screen bg-surface-2 py-8 print:bg-white print:py-0" style={paper ? { background: paper } : undefined}>
+    <main className="aw-read min-h-screen bg-surface-2 py-8 print:bg-white print:py-0" style={paper ? { background: paper } : undefined}>
       <div className="mx-auto mb-4 flex max-w-6xl justify-end px-4 print:hidden">
         <PrintButton />
       </div>
