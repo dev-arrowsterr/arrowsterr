@@ -1,4 +1,5 @@
 import "server-only";
+import { aiContext } from "./aiSettings";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import * as cheerio from "cheerio";
 import { askClaude, parseJson } from "./claude";
@@ -262,7 +263,7 @@ export async function runBrief(sb: SupabaseClient, itemId: string) {
   async function work() {
     const { data: item, error } = await sb.from("calendar_items").select("keyword, secondary, action, current_url, site_id, status").eq("id", itemId).single();
     if (error || !item) throw new Error(error?.message ?? "Item not found.");
-    const { data: site, error: e2 } = await sb.from("sites").select("domain, name, profile, pages").eq("id", item.site_id).single();
+    const { data: site, error: e2 } = await sb.from("sites").select("domain, name, profile, pages, workspace_id").eq("id", item.site_id).single();
     if (e2 || !site) throw new Error(e2?.message ?? "Website not found.");
 
     // A SERP analysis already run for this piece is reused, so Google is not searched twice.
@@ -273,7 +274,8 @@ export async function runBrief(sb: SupabaseClient, itemId: string) {
     const g = { cost: fresh?.cost ?? 0 };
     const links = linkCandidates((site.pages as SitePage[]) ?? [], [item.keyword, ...(item.secondary ?? [])]).filter((u) => u !== item.current_url);
 
-    const { text } = await askClaude(PROMPT(item.keyword, item.secondary ?? [], item.action, item.current_url, site as { domain: string; name: string; profile: Profile }, serp, links), {
+    const notes = await aiContext(sb, site.workspace_id as string);
+    const { text } = await askClaude(PROMPT(item.keyword, item.secondary ?? [], item.action, item.current_url, site as { domain: string; name: string; profile: Profile }, serp, links) + (notes ? `\n\n${notes}` : ""), {
       maxTokens: 14000,
     });
     const out = parseJson(text) as { analysis?: Analysis; brief?: BriefDoc; template?: BriefTemplate };

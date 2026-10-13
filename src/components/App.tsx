@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { loadRuns, type Run } from "@/lib/chats";
 import {
   acceptInvite,
+  joinByDomain,
   addBrand,
   getUsage,
   getPlanUsage,
@@ -39,13 +40,16 @@ import type { View } from "@/lib/view";
 import { runAll, type RunAuth } from "@/lib/runner";
 import { getSupabase, type SupaConfig } from "@/lib/supa";
 import { clearStash, primeStash } from "@/lib/stash";
-import { AuthScreen, NewPassword } from "./AuthScreen";
+import { AuthScreen, CodeCheck, NewPassword } from "./AuthScreen";
 import { WorkspaceAvatar } from "./WorkspaceAvatar";
 import { BrandLogo } from "./BrandLogo";
 import { CompetitorsPage } from "./CompetitorsPage";
 import { Logo } from "./Logo";
 import { MembersPage } from "./MembersPage";
 import { SettingsPage, SETTINGS_TABS, type SettingsTab } from "./SettingsPage";
+import { ProfileSettings, SecuritySettings } from "./AccountSettings";
+import { AccessSettings, AiSettingsPage, RetentionSettings, TimezoneSetting } from "./WorkspaceSettings";
+import { ExportsSettings, JobsSettings } from "./JobsSettings";
 import { BillingPage, choosePlan } from "./BillingPage";
 import { Onboarding, type Checking, type NewBrand, type Welcome } from "./Onboarding";
 import { PromptsPage } from "./PromptsPage";
@@ -77,10 +81,18 @@ const SLUGS: Record<Page, string> = {
   calendar: "/content-plan",
   intel: "/content-intelligence",
   summary: "/reports",
+  profile: "/settings/profile",
+  security: "/settings/security",
   settings: "/settings",
   members: "/settings/members",
+  access: "/settings/access",
+  ai: "/settings/ai",
+  retention: "/settings/data-retention",
   integrations: "/settings/integrations",
+  publishing: "/settings/publishing",
   billing: "/settings/billing",
+  exports: "/settings/imports-exports",
+  jobs: "/settings/background-actions",
 };
 /** Older addresses still open the right page. */
 const ALIASES: Record<string, Page> = {
@@ -180,9 +192,22 @@ export function App({ config }: { config: SupaConfig }) {
     return () => data.subscription.unsubscribe();
   }, [sb]);
 
+  // People with 2-step sign-in on enter a code before the app opens. Checked once per person, so a token refresh keeps the app open.
+  const uid = session?.user.id;
+  const [gate, setGate] = useState<{ user: string; need: boolean } | null>(null);
+  useEffect(() => {
+    if (!uid) return;
+    sb.auth.mfa
+      .getAuthenticatorAssuranceLevel()
+      .then(({ data }) => setGate({ user: uid, need: data?.nextLevel === "aal2" && data.currentLevel !== "aal2" }))
+      .catch(() => setGate({ user: uid, need: false }));
+  }, [sb, uid]);
+
   if (session === undefined) return null;
   if (recovery && session) return <NewPassword sb={sb} onDone={() => setRecovery(false)} />;
   if (!session) return <AuthScreen sb={sb} invited={Boolean(readLocal(INVITE_KEY))} />;
+  if (gate?.user !== session.user.id) return null;
+  if (gate.need) return <CodeCheck sb={sb} onDone={() => setGate({ user: session.user.id, need: false })} />;
   return <Shell sb={sb} session={session} />;
 }
 
@@ -280,6 +305,15 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
         }
       }
       let list = await listWorkspaces(sb, userId);
+      // A company email can join its team's workspace on its own (Settings → Identity and access).
+      if (!list.length) {
+        const joined = await joinByDomain(sb);
+        if (joined) {
+          list = await listWorkspaces(sb, userId);
+          setWsId(joined);
+          setNotice("You joined your team's workspace.");
+        }
+      }
       if (!list.length) {
         await createWorkspace(sb, firstWorkspaceName(email));
         list = await listWorkspaces(sb, userId);
@@ -706,6 +740,20 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             <SettingsPage tab={page} onTab={go}>
               {page === "billing" ? (
                 <BillingPage key={ws.id} sb={sb} ws={ws} auth={auth} onPlan={loadPlan} />
+              ) : page === "profile" ? (
+                <ProfileSettings key={userId} sb={sb} user={session.user} />
+              ) : page === "security" ? (
+                <SecuritySettings key={userId} sb={sb} user={session.user} />
+              ) : page === "access" ? (
+                <AccessSettings key={ws.id} sb={sb} ws={ws} email={email} />
+              ) : page === "ai" ? (
+                <AiSettingsPage key={ws.id} sb={sb} ws={ws} />
+              ) : page === "retention" ? (
+                <RetentionSettings plan={plan} />
+              ) : page === "exports" ? (
+                <ExportsSettings key={ws.id} sb={sb} ws={ws} brands={brands ?? []} onBrand={update} />
+              ) : page === "jobs" ? (
+                <JobsSettings key={ws.id} sb={sb} ws={ws} brands={brands ?? []} />
               ) : (
                 <MembersPage
                   key={`${ws.id}-${page}`}
@@ -718,6 +766,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
                   section={page === "settings" ? "workspace" : page}
                 />
               )}
+              {page === "settings" ? <TimezoneSetting key={`tz-${ws.id}`} sb={sb} ws={ws} /> : null}
             </SettingsPage>
           ) : !view ? (
             <div className="aw-callout max-w-xl">This workspace has no brands yet. Ask an editor or admin to add one.</div>

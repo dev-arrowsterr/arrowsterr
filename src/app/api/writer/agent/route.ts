@@ -1,3 +1,4 @@
+import { aiContext } from "@/lib/aiSettings";
 import type { Brief } from "@/lib/briefTypes";
 import { askClaude, parseJson } from "@/lib/claude";
 import { buildGuideline, guidelineText } from "@/lib/guideline";
@@ -61,10 +62,11 @@ async function handle(request: Request) {
   const head = `You are an agent inside Arrowsterr working on a draft for ${site.name} (${site.domain})${keyword ? `, target keyword "${keyword}"` : ""}. A human writes the article. You do one job around it and answer with JSON only, no other text. Never invent facts, numbers, customers or quotes.`;
 
   const brand = guidelineText(guideline);
+  const notes = await aiContext(auth.sb, body.workspaceId);
   const know = knowledgeText(site.profile as Profile | null);
   const context = `Brand guideline:
 ${brand}
-
+${notes ? `\n${notes}\n` : ""}
 ${know ? `What we know about ${site.name} (use it, never contradict it):\n${know}\n` : ""}
 ${
   brief

@@ -74,7 +74,7 @@ export function MembersPage({
   userId: string;
   onChanged: () => Promise<void>;
   auth: RunAuth;
-  section: "workspace" | "members" | "integrations";
+  section: "workspace" | "members" | "integrations" | "publishing";
 }) {
   const isAdmin = atLeast(ws.role, "admin");
   const [members, setMembers] = useState<Member[] | null>(null);
@@ -394,12 +394,8 @@ export function MembersPage({
         </>
       ) : null}
 
-      {section === "integrations" ? (
-        <>
-          <CmsSettings auth={auth} isAdmin={isAdmin} />
-          <IntegrationsSettings auth={auth} isAdmin={isAdmin} />
-        </>
-      ) : null}
+      {section === "integrations" ? <IntegrationsSettings auth={auth} isAdmin={isAdmin} /> : null}
+      {section === "publishing" ? <CmsSettings auth={auth} isAdmin={isAdmin} /> : null}
     </div>
   );
 }

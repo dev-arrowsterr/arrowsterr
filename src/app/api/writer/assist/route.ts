@@ -1,3 +1,4 @@
+import { aiContext } from "@/lib/aiSettings";
 import type { Brief } from "@/lib/briefTypes";
 import { askClaude } from "@/lib/claude";
 import { guidelineText } from "@/lib/guideline";
@@ -36,12 +37,13 @@ async function handle(request: Request) {
   const limited = await takeAnswer(auth.sb, body.workspaceId);
   if (limited) return limited;
 
+  const notes = await aiContext(auth.sb, body.workspaceId);
   const history = (Array.isArray(body.history) ? (body.history as ChatMessage[]) : []).slice(-8);
   const prompt = `You are the writing and web assistant inside Arrowsterr for ${site.name} (${site.domain}). A human writer owns the article. You help them: ideas, outlines, edits of their text in the brand's voice, checks against the brief and the brand, and on-brand HTML and CSS when they ask for code.
 
 Follow the brand guideline closely:
 ${guidelineText(site.guideline as BrandGuideline | null)}
-
+${notes ? `\n${notes}\n` : ""}
 ${
   brief
     ? `Content brief for this page (target keyword "${keyword}"):

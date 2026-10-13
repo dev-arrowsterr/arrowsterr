@@ -241,3 +241,57 @@ export function NewPassword({ sb, onDone }: { sb: SupabaseClient; onDone: () => 
     </Frame>
   );
 }
+
+/** The 6-digit code from an authenticator app, for people with 2-step sign-in on. */
+export function CodeCheck({ sb, onDone }: { sb: SupabaseClient; onDone: () => void }) {
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const { data } = await sb.auth.mfa.listFactors();
+      const factor = data?.totp.find((f) => f.status === "verified");
+      if (!factor) return onDone();
+      const { error } = await sb.auth.mfa.challengeAndVerify({ factorId: factor.id, code: code.trim() });
+      if (error) throw error;
+      onDone();
+    } catch (err) {
+      setError(/invalid/i.test(message(err)) ? "That code is not right. Check the app and try the newest one." : message(err));
+      setCode("");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Frame>
+      <h1 className="aw-h3 mb-0!">Enter your code</h1>
+      <p className="text-[15px] text-body">Open your authenticator app and type the 6-digit code for Arrowsterr.</p>
+      <form onSubmit={submit} className="flex flex-col gap-5">
+        <input
+          aria-label="6-digit code"
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          pattern="[0-9]{6}"
+          maxLength={6}
+          required
+          autoFocus
+          value={code}
+          onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+          className="aw-input aw-mono text-center text-[22px] tracking-[0.3em]"
+        />
+        {error ? <p className="aw-error">{error}</p> : null}
+        <button type="submit" className="aw-btn aw-btn--primary aw-btn--block" disabled={busy || code.length !== 6}>
+          {busy ? "Checking..." : "Continue"}
+        </button>
+        <button type="button" className="aw-text-link text-[13px]" onClick={() => sb.auth.signOut()}>
+          Sign out
+        </button>
+      </form>
+    </Frame>
+  );
+}

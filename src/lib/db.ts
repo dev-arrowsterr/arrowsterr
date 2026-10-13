@@ -114,6 +114,39 @@ export async function renameWorkspace(sb: SupabaseClient, id: string, name: stri
   check(await sb.from("workspaces").update({ name }).eq("id", id));
 }
 
+/** What the AI should know about the business and how it should write. */
+export type AiSettings = { about?: string; audience?: string; voice?: string; avoid?: string };
+export type WorkspaceSettings = { timezone: string | null; ai_settings: AiSettings; allowed_domain: string | null; join_role: "viewer" | "editor" };
+
+/** The workspace's settings page values. Null until supabase/034_settings.sql has been run. */
+export async function getWorkspaceSettings(sb: SupabaseClient, id: string): Promise<WorkspaceSettings | null> {
+  const { data, error } = await sb.from("workspaces").select("timezone, ai_settings, allowed_domain, join_role").eq("id", id).maybeSingle();
+  if (error || !data) return null;
+  return { ...(data as WorkspaceSettings), ai_settings: (data.ai_settings ?? {}) as AiSettings };
+}
+
+export async function saveWorkspaceSettings(sb: SupabaseClient, id: string, patch: Partial<WorkspaceSettings>) {
+  check(await sb.from("workspaces").update(patch).eq("id", id));
+}
+
+/** Join every workspace that lets people with this email domain in. Returns the first one joined. */
+export async function joinByDomain(sb: SupabaseClient): Promise<string | null> {
+  const { data, error } = await sb.rpc("join_by_domain");
+  return error ? null : ((data as string | null) ?? null);
+}
+
+export type UserProfile = { full_name: string | null; avatar: string | null };
+
+export async function getProfile(sb: SupabaseClient, userId: string): Promise<UserProfile | null> {
+  const { data, error } = await sb.from("profiles").select("full_name, avatar").eq("id", userId).maybeSingle();
+  if (error) return null;
+  return (data as UserProfile | null) ?? { full_name: null, avatar: null };
+}
+
+export async function saveProfile(sb: SupabaseClient, userId: string, patch: Partial<UserProfile>) {
+  check(await sb.from("profiles").upsert({ id: userId, ...patch, updated_at: new Date().toISOString() }));
+}
+
 export async function acceptInvite(sb: SupabaseClient, token: string): Promise<string> {
   return check(await sb.rpc("accept_invite", { p_token: token })) as string;
 }

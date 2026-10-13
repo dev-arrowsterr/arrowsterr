@@ -34,6 +34,7 @@ export async function GET() {
       ["031_report_style.sql", "/rest/v1/report_styles?select=workspace_id&limit=1"],
       ["032_oauth.sql", "/rest/v1/api_keys?select=refresh_hash,client_id&limit=1"],
       ["033_bulk_runs.sql", "/rest/v1/bulk_runs?select=id&limit=1"],
+      ["034_settings.sql", "/rest/v1/profiles?select=id,avatar&limit=1"],
     ];
     report.migrations = Object.fromEntries(
       await Promise.all(
