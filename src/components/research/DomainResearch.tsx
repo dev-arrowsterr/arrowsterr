@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { addCalendarItems, type Site } from "@/lib/db";
 import { MARKETS, stageFromIntent, type DomainReport, type Keyword } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
+import { scopeOf } from "@/lib/scope";
 import { useStash } from "@/lib/stash";
 import { BrandLogo } from "../BrandLogo";
 import { Sheet } from "../Sheet";
@@ -134,7 +135,12 @@ export function DomainResearch({ sb, auth, site, canEdit, start, onStarted }: { 
             </option>
           ))}
         </select>
-        <input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder={SCOPES.find((x) => x.id === scope)!.hint} aria-label="Address" className={BAR_INPUT} />
+        <input value={domain} onChange={(e) => {
+            setDomain(e.target.value);
+            const s = scopeOf(e.target.value);
+            if (s) setScope(s);
+          }}
+          placeholder={SCOPES.find((x) => x.id === scope)!.hint} aria-label="Address" className={BAR_INPUT} />
         <select aria-label="Country" value={country} onChange={(e) => setCountry(e.target.value)} className={BAR_FIELD}>
           {Object.keys(MARKETS).map((c) => (
             <option key={c} value={c}>
