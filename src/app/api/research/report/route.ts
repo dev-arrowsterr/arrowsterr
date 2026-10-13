@@ -1,6 +1,6 @@
 import { dfsReady } from "@/lib/dataforseo";
 import { allSuggestions, bulkReport, keywordReport } from "@/lib/kwReport";
-import { MARKETS } from "@/lib/research";
+import { BULK_LIMIT, bulkList, MARKETS } from "@/lib/research";
 import { requireRole } from "@/lib/serverAuth";
 import { meteredRoute, streamed } from "@/lib/meter";
 import { requireTrack, take } from "@/lib/entitlements";
@@ -16,17 +16,17 @@ async function handle(request: Request) {
   if ("denied" in auth) return auth.denied;
   const paid = await requireTrack(body.workspaceId, "seo");
   if (paid) return paid;
-  const took = await take(body.workspaceId, "tasks", body.action === "bulk" ? TASK_COST.bulk(Array.isArray(body.keywords) ? body.keywords.length : 20) : TASK_COST.keyword);
+  // A bulk list is cleaned first, so it is charged for what actually runs.
+  const list = body.action === "bulk" ? bulkList(Array.isArray(body.keywords) ? body.keywords : String(body.keywords ?? "")) : [];
+  if (body.action === "bulk" && !list.length) return Response.json({ error: "Paste at least one keyword." }, { status: 400 });
+  if (list.length > BULK_LIMIT) return Response.json({ error: `Up to ${BULK_LIMIT} keywords at a time. This list has ${list.length}.` }, { status: 400 });
+  const took = await take(body.workspaceId, "tasks", body.action === "bulk" ? TASK_COST.bulk(list.length) : TASK_COST.keyword);
   if (!took.ok) return took.response;
   if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });
   const country = MARKETS[body.country] ? String(body.country) : "United States";
 
   try {
-    if (body.action === "bulk") {
-      const keywords = (Array.isArray(body.keywords) ? body.keywords : String(body.keywords ?? "").split(/\n|,/)).map(String).filter((k: string) => k.trim());
-      if (!keywords.length) return Response.json({ error: "Paste at least one keyword." }, { status: 400 });
-      return Response.json(await bulkReport(keywords, country));
-    }
+    if (body.action === "bulk") return Response.json(await bulkReport(list, country));
     const keyword = String(body.keyword ?? "").trim();
     if (!keyword) return Response.json({ error: "Enter a keyword." }, { status: 400 });
     if (body.action === "all") {

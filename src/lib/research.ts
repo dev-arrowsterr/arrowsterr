@@ -247,6 +247,26 @@ export function clustersOf(rows: KwSummary[], seed: string, max = 6): KwCluster[
 
 // ─────────────── domain research ───────────────
 
+/** The most keywords or sites one bulk analysis takes. */
+export const BULK_LIMIT = 500;
+
+/** Clean a pasted list: one item per line or comma, trimmed, lowercased, no repeats, no blanks. */
+export function bulkList(text: string | string[]): string[] {
+  const parts = Array.isArray(text) ? text.map(String) : text.split(/[\n,;\t]+/);
+  return [...new Set(parts.map((x) => x.trim().toLowerCase().replace(/^["']|["']$/g, "").replace(/\s+/g, " ").slice(0, 200)).filter(Boolean))];
+}
+
+/** One site or page in a bulk domain analysis. Null numbers mean Google data had nothing for it. */
+export type DomainBulkRow = {
+  target: string;
+  kind: "domain" | "subdomain" | "page";
+  keywords: number | null;
+  traffic: number | null;
+  value: number | null;
+  paidKeywords: number | null;
+  paidTraffic: number | null;
+};
+
 export type DomainReport = {
   domain: string;
   scope?: "domain" | "subdomain" | "subfolder" | "url";

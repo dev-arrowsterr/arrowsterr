@@ -1,7 +1,7 @@
 import "server-only";
 import { cached, DAY, readCache, writeCache } from "./cache";
 import { call } from "./dataforseo";
-import { clustersOf, MARKETS, type KeywordReport, type KwList, type KwSerp, type KwSummary } from "./research";
+import { BULK_LIMIT, clustersOf, MARKETS, type KeywordReport, type KwList, type KwSerp, type KwSummary } from "./research";
 
 // One Semrush-style report for a keyword: numbers, volume by country, variations, questions,
 // clusters and Google's top 20 with traffic. Every piece is cached and shared across customers.
@@ -360,11 +360,11 @@ export async function keywordReport(keyword: string, country: string, device: "d
   };
 }
 
-/** Bulk analysis: numbers for up to 700 keywords. */
+/** Bulk analysis: numbers for up to 500 keywords. */
 export async function bulkReport(keywords: string[], country: string) {
   const m = MARKETS[country] ?? MARKETS["United States"];
   const cost = { total: 0 };
-  const list = [...new Set(keywords.map((k) => k.trim().toLowerCase().replace(/\s+/g, " ").slice(0, 80)).filter(Boolean))].slice(0, 700);
+  const list = [...new Set(keywords.map((k) => k.trim().toLowerCase().replace(/\s+/g, " ").slice(0, 80)).filter(Boolean))].slice(0, BULK_LIMIT);
   const map = await fillVolume(await overviewMany(list, m, cost), m, cost);
   return { rows: list.map((k) => map.get(k) ?? { keyword: k, volume: null, kd: null, cpc: null, competition: null, intent: null, otherIntents: [], trend: [], serp: [], results: null, core: null }), cost: Math.round(cost.total * 10000) / 10000 };
 }

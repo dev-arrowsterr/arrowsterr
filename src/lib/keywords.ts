@@ -1,6 +1,7 @@
 import "server-only";
 import { call } from "./dataforseo";
-import type { Keyword } from "./research";
+import { DAY, readCache, writeCache } from "./cache";
+import type { DomainBulkRow, Keyword } from "./research";
 
 // Keyword numbers from DataForSEO Labs, and Google's top 10 results for grouping keywords into pages.
 
@@ -238,4 +239,54 @@ export async function relevantPages(domain: string, m: Market, spend: Spend, lim
       const n = (k: string) => Number(o[k] ?? 0);
       return { url: i.page_address!, traffic: Math.round(n("etv")), keywords: n("count"), top3: n("pos_1") + n("pos_2_3"), top10: n("pos_1") + n("pos_2_3") + n("pos_4_10") };
     });
+}
+
+type BulkMetrics = { etv?: number; count?: number; estimated_paid_traffic_cost?: number };
+
+/**
+ * Size on Google for many sites and pages in one call: keywords, visits and what those visits would
+ * cost in ads. Domains and subdomains go in bare, pages as full links. Cached 30 days per target.
+ */
+export async function bulkDomains(targets: { target: string; kind: DomainBulkRow["kind"] }[], m: Market, spend: Spend): Promise<DomainBulkRow[]> {
+  const key = (t: string) => `bte:${m.location}:${m.language}:${t}`;
+  const found = new Map<string, DomainBulkRow>();
+  const missing: typeof targets = [];
+  await Promise.all(
+    targets.map(async (t) => {
+      const hit = await readCache<DomainBulkRow>(key(t.target), 30 * DAY);
+      if (hit) found.set(t.target, hit);
+      else missing.push(t);
+    }),
+  );
+  for (let i = 0; i < missing.length; i += 1000) {
+    const chunk = missing.slice(i, i + 1000);
+    const tasks = await call("dataforseo_labs/google/bulk_traffic_estimation/live", [
+      { targets: chunk.map((t) => t.target), location_code: m.location, language_code: m.language, item_types: ["organic", "paid"] },
+    ]);
+    spend.add(tasks);
+    const task = tasks[0];
+    if (task?.status_code !== 20000) throw new Error(`DataForSEO: ${task?.status_message ?? "no result"}`);
+    type Item = { target?: string; metrics?: { organic?: BulkMetrics; paid?: BulkMetrics } };
+    const items = new Map(((task.result?.[0]?.items ?? []) as Item[]).map((x) => [String(x.target ?? "").toLowerCase().replace(/\/$/, ""), x.metrics]));
+    await Promise.all(
+      chunk.map(async (t) => {
+        const mx = items.get(t.target.toLowerCase().replace(/\/$/, ""));
+        const o = mx?.organic;
+        const p = mx?.paid;
+        const row: DomainBulkRow = {
+          target: t.target,
+          kind: t.kind,
+          keywords: o ? Number(o.count ?? 0) : null,
+          traffic: o ? Math.round(Number(o.etv ?? 0)) : null,
+          value: o ? Math.round(Number(o.estimated_paid_traffic_cost ?? 0)) : null,
+          paidKeywords: p ? Number(p.count ?? 0) : null,
+          paidTraffic: p ? Math.round(Number(p.etv ?? 0)) : null,
+        };
+        found.set(t.target, row);
+        // Sites Google has nothing on are not saved, so a new site can show up next time.
+        if (o) await writeCache(key(t.target), row);
+      }),
+    );
+  }
+  return targets.map((t) => found.get(t.target)!);
 }

@@ -9,7 +9,8 @@ import { peek, putStash, useStash } from "@/lib/stash";
 import { BrandLogo } from "../BrandLogo";
 import { Sheet } from "../Sheet";
 import { SampleBars, SampleChips, SampleRing, SampleRows, SampleStats, ToolIntro } from "../ToolIntro";
-import { CalendarIcon, Card, favicon, Thinking } from "../ui";
+import { CalendarIcon, Card, favicon, Seg, Thinking } from "../ui";
+import { BulkKeywords } from "./Bulk";
 import { BAR_BUTTON, BAR_FIELD, BAR_INPUT, AnalyzeSeo, downloadCsv, fmtCpc, post, postLines, Sparkline } from "./shared";
 
 export const ISO: Record<string, string> = {
@@ -47,7 +48,7 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
   const [live, setLive] = useState<KeywordReport | null>(null);
   const [waiting, setWaiting] = useState<string[]>([]);
   const report = live ?? saved;
-  const [bulk, setBulk] = useStash<{ rows: KwSummary[]; cost: number } | null>(k("bulk"), null);
+  const [mode, setMode] = useStash<"single" | "bulk">(k("mode"), "single");
   const [all, setAll] = useStash<{ questions: boolean; list: KwList } | null>(k("all"), null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState("");
@@ -101,52 +102,51 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
   async function analyze(input: string) {
     const list = many(input);
     if (!list.length) return;
+    // Several keywords go to Bulk analysis, ready to run.
+    if (list.length > 1) {
+      putStash(`kwb:${site.id}:text`, list.join("\n"));
+      setMode("bulk");
+      return;
+    }
     setQuery(input);
     top.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     setError("");
     setNotice("");
     setPicked(new Set());
     try {
-      if (list.length > 1) {
-        setBusy(`Checking ${list.length} keywords...`);
-        setBulk(await post(auth, "/api/research/report", { action: "bulk", keywords: list, country }));
-        setReport(null);
-      } else {
-        setBusy(`Analyzing "${list[0]}"...`);
-        setBulk(null);
-        setAll(null);
-        const none: KwList = { total: 0, volume: 0, rows: [] };
-        let cur: KeywordReport = {
-          keyword: list[0].toLowerCase().replace(/\s+/g, " "),
-          country,
-          device: "desktop",
-          overview: null,
-          byCountry: [],
-          variations: none,
-          questions: none,
-          clusters: [],
-          serp: null,
-          cost: 0,
-          cached: true,
-        };
-        let left = ["overview", "ideas", "serp"];
+      setBusy(`Analyzing "${list[0]}"...`);
+      setAll(null);
+      const none: KwList = { total: 0, volume: 0, rows: [] };
+      let cur: KeywordReport = {
+        keyword: list[0].toLowerCase().replace(/\s+/g, " "),
+        country,
+        device: "desktop",
+        overview: null,
+        byCountry: [],
+        variations: none,
+        questions: none,
+        clusters: [],
+        serp: null,
+        cost: 0,
+        cached: true,
+      };
+      let left = ["overview", "ideas", "serp"];
+      setWaiting(left);
+      // Each piece shows the moment it lands, so the numbers come up before Google's results.
+      await postLines(auth, "/api/research/report", { action: "report", keyword: list[0], country, stream: true }, (x) => {
+        if (x.part === "error") throw new Error(String(x.error));
+        if (x.part === "done") {
+          setReport(x.report as KeywordReport);
+          setLive(null);
+          return;
+        }
+        const { part, ...rest } = x;
+        cur = { ...cur, ...rest };
+        left = left.filter((p) => p !== part);
+        setLive(cur);
         setWaiting(left);
-        // Each piece shows the moment it lands, so the numbers come up before Google's results.
-        await postLines(auth, "/api/research/report", { action: "report", keyword: list[0], country, stream: true }, (x) => {
-          if (x.part === "error") throw new Error(String(x.error));
-          if (x.part === "done") {
-            setReport(x.report as KeywordReport);
-            setLive(null);
-            return;
-          }
-          const { part, ...rest } = x;
-          cur = { ...cur, ...rest };
-          left = left.filter((p) => p !== part);
-          setLive(cur);
-          setWaiting(left);
-          setBusy("");
-        });
-      }
+        setBusy("");
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -268,8 +268,39 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
   const s = report?.serp;
   const trendChange = o && o.trend.length > 1 && o.trend[0].volume ? Math.round(((o.trend[o.trend.length - 1].volume - o.trend[0].volume) / o.trend[0].volume) * 100) : null;
 
+  const modeBar = (
+    <div className="flex">
+      <Seg
+        label="Mode"
+        value={mode}
+        onChange={setMode}
+        options={[
+          { id: "single", label: "Keyword overview" },
+          { id: "bulk", label: "Bulk analysis" },
+        ]}
+      />
+    </div>
+  );
+  if (mode === "bulk")
+    return (
+      <div className="flex flex-col gap-5">
+        {modeBar}
+        <BulkKeywords
+          sb={sb}
+          auth={auth}
+          site={site}
+          canEdit={canEdit}
+          onResearch={(keyword) => {
+            setMode("single");
+            analyze(keyword);
+          }}
+        />
+      </div>
+    );
+
   return (
     <div className="flex flex-col gap-5">
+      {modeBar}
       <form
         ref={top}
         className="aw-frame flex flex-wrap scroll-mt-6 items-center gap-3 p-3"
@@ -300,26 +331,6 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
       {error ? <p className="aw-error">{error}</p> : null}
       {notice ? <div className="aw-callout">{notice}</div> : null}
       {busy ? <Thinking text={busy} /> : null}
-
-      {!busy && bulk ? (
-        <Card
-          title={`${bulk.rows.length} keywords`}
-          action={
-            <span className="flex items-center gap-3">
-              <span className="aw-label">{bulk.cost ? `Cost $${bulk.cost.toFixed(3)}` : "Free, saved results"}</span>
-              <button
-                type="button"
-                className="aw-btn aw-btn--secondary aw-btn--sm"
-                onClick={() => downloadCsv("keywords.csv", ["keyword", "volume", "kd", "intent", "cpc"], bulk.rows.map((r) => [r.keyword, r.volume, r.kd, r.intent, r.cpc]))}
-              >
-                Export CSV
-              </button>
-            </span>
-          }
-        >
-          {sheet(bulk.rows, "Keywords")}
-        </Card>
-      ) : null}
 
       {!busy && report ? (
         <>
@@ -525,7 +536,7 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
         </>
       ) : null}
 
-      {!busy && !report && !bulk ? (
+      {!busy && !report ? (
         <ToolIntro
           title="Know what your market wants before you write a word"
           lead="Every search is a person telling Google what they need. Keyword Research shows how many people ask, how hard it is to win the top spots, what the searcher is ready to do and what advertisers pay to reach them. Use it to place your content bets on the topics that bring buyers, and skip the ones that only bring clicks."
@@ -555,7 +566,7 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
             "Type a keyword and pick a country.",
             "Click Analyze.",
             "Check difficulty, volume and intent, then add the best keywords to your editorial calendar.",
-            "Paste several keywords, separated by commas, to compare them side by side.",
+            "Open Bulk analysis to check up to 500 keywords at once.",
           ]}
           faqs={[
             { q: "How is Keyword Difficulty calculated?", a: "It looks at the pages in Google's top 10 for the keyword: how strong those sites are and how many links point to them. The stronger they are, the higher the score." },

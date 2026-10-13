@@ -11,6 +11,7 @@ import { BrandLogo } from "../BrandLogo";
 import { Sheet } from "../Sheet";
 import { SampleLine, SampleRows, SampleStats, ToolIntro } from "../ToolIntro";
 import { CalendarIcon, Card, favicon, Seg, Thinking } from "../ui";
+import { BulkDomains } from "./Bulk";
 import { flag, KdDot, short } from "./KeywordOverview";
 import { BAR_BUTTON, BAR_FIELD, BAR_INPUT, downloadCsv, KeywordLink, post } from "./shared";
 
@@ -32,6 +33,7 @@ export function DomainResearch({ sb, auth, site, canEdit, start, onStarted }: { 
   const [country, setCountry] = useStash(k("country"), site.profile.country && MARKETS[site.profile.country] ? site.profile.country : "United States");
   const [report, setReport] = useStash<DomainReport | null>(k("report"), null);
   const [tab, setTab] = useStash<"keywords" | "pages" | "competitors">(k("tab"), "keywords");
+  const [mode, setMode] = useStash<"single" | "bulk">(k("mode"), "single");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -51,6 +53,7 @@ export function DomainResearch({ sb, auth, site, canEdit, start, onStarted }: { 
 
   async function analyze(d: string, as: Scope = scope) {
     if (!d.trim()) return;
+    setMode("single");
     setDomain(d);
     setScope(as);
     setBusy(`Reading ${d} on Google...`);
@@ -119,8 +122,30 @@ export function DomainResearch({ sb, auth, site, canEdit, start, onStarted }: { 
     }
   };
 
+  const modeBar = (
+    <div className="flex">
+      <Seg
+        label="Mode"
+        value={mode}
+        onChange={setMode}
+        options={[
+          { id: "single", label: "Domain overview" },
+          { id: "bulk", label: "Bulk analysis" },
+        ]}
+      />
+    </div>
+  );
+  if (mode === "bulk")
+    return (
+      <div className="flex flex-col gap-5">
+        {modeBar}
+        <BulkDomains auth={auth} site={site} canEdit={canEdit} onOpen={(target, as) => analyze(target, as)} />
+      </div>
+    );
+
   return (
     <div className="flex flex-col gap-5">
+      {modeBar}
       <form
         className="aw-frame flex flex-wrap items-center gap-3 p-3"
         onSubmit={(e) => {

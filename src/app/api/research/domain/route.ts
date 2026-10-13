@@ -1,7 +1,8 @@
 import { cached, DAY } from "@/lib/cache";
 import { dfsReady } from "@/lib/dataforseo";
-import { competitors, domainOverview, parseTarget, rankedFor, Spend, targetLabel, type Scope } from "@/lib/keywords";
-import { MARKETS, pagesOf, type DomainReport } from "@/lib/research";
+import { bulkDomains, competitors, domainOverview, parseTarget, rankedFor, Spend, targetLabel, type Scope } from "@/lib/keywords";
+import { BULK_LIMIT, bulkList, MARKETS, pagesOf, type DomainBulkRow, type DomainReport } from "@/lib/research";
+import { scopeOf } from "@/lib/scope";
 import { requireRole } from "@/lib/serverAuth";
 import { meteredRoute } from "@/lib/meter";
 import { requireTrack, take } from "@/lib/entitlements";
@@ -9,12 +10,15 @@ import { TASK_COST } from "@/lib/plans";
 
 // Domain research: how big a domain, subdomain, folder or page is on Google, its top keywords and pages, and its competitors.
 // Shared and cached for 30 days, so the same domain again is free.
+//   { domain, scope, country, more? }  one site in depth
+//   { action: "bulk", targets: string[], country }  up to 500 sites or pages, their size on Google side by side
 async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
   const paid = await requireTrack(body.workspaceId, "seo");
   if (paid) return paid;
+  if (body.action === "bulk") return bulk(body);
   const took = await take(body.workspaceId, "tasks", TASK_COST.domain);
   if (!took.ok) return took.response;
   if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });
@@ -57,6 +61,38 @@ async function handle(request: Request) {
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("Domain research failed:", message);
+    return Response.json({ error: message }, { status: 500 });
+  }
+}
+
+/** A typed site or page as a bulk target: bare for domains and subdomains, a full link for pages and folders. */
+function bulkTarget(input: string): { target: string; kind: DomainBulkRow["kind"] } | null {
+  const scope = scopeOf(input);
+  if (!scope) return null;
+  const t = parseTarget(input, scope);
+  if (!t) return null;
+  if (scope === "domain") return { target: t.host, kind: "domain" };
+  if (scope === "subdomain") return { target: t.host, kind: "subdomain" };
+  return { target: `https://${t.host}${t.path}`, kind: "page" };
+}
+
+async function bulk(body: { workspaceId: string; targets?: unknown; country?: string }) {
+  const lines = bulkList(Array.isArray(body.targets) ? body.targets.map(String) : String(body.targets ?? ""));
+  const targets = [...new Map(lines.map(bulkTarget).filter((t): t is NonNullable<typeof t> => Boolean(t)).map((t) => [t.target, t])).values()];
+  const skipped = lines.length - targets.length;
+  if (!targets.length) return Response.json({ error: "Paste at least one site, like acme.com, one per line." }, { status: 400 });
+  if (targets.length > BULK_LIMIT) return Response.json({ error: `Up to ${BULK_LIMIT} sites at a time. This list has ${targets.length}.` }, { status: 400 });
+  const took = await take(body.workspaceId, "tasks", TASK_COST.bulk(targets.length));
+  if (!took.ok) return took.response;
+  if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });
+  const country = body.country && MARKETS[body.country] ? body.country : "United States";
+  try {
+    const spend = new Spend();
+    const rows = await bulkDomains(targets, MARKETS[country], spend);
+    return Response.json({ rows, country, skipped, cost: Math.round(spend.total * 10000) / 10000 });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.error("Bulk domain analysis failed:", message);
     return Response.json({ error: message }, { status: 500 });
   }
 }
