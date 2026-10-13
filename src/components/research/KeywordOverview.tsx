@@ -9,7 +9,7 @@ import { peek, putStash, useStash } from "@/lib/stash";
 import { BrandLogo } from "../BrandLogo";
 import { Sheet } from "../Sheet";
 import { SampleBars, SampleChips, SampleRing, SampleRows, SampleStats, ToolIntro } from "../ToolIntro";
-import { CalendarIcon, Card, favicon, Seg, Thinking } from "../ui";
+import { CalendarIcon, Card, favicon, Thinking } from "../ui";
 import { BAR_BUTTON, BAR_FIELD, BAR_INPUT, AnalyzeSeo, downloadCsv, fmtCpc, post, postLines, Sparkline } from "./shared";
 
 export const ISO: Record<string, string> = {
@@ -48,7 +48,6 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
   const [waiting, setWaiting] = useState<string[]>([]);
   const report = live ?? saved;
   const [bulk, setBulk] = useStash<{ rows: KwSummary[]; cost: number } | null>(k("bulk"), null);
-  const [ideas, setIdeas] = useStash<"variations" | "questions" | "topics">(k("ideas"), "variations");
   const [all, setAll] = useStash<{ questions: boolean; list: KwList } | null>(k("all"), null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState("");
@@ -222,10 +221,52 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
     </>
   );
 
+  /** Variations or questions: the count, the top 5, and a button for the full list. */
+  const ideaColumn = (title: string, l: KwList, questions: boolean) => (
+    <div className="flex flex-col gap-3 p-5">
+      <span className="aw-label">{title}</span>
+      <span className="flex items-baseline gap-2">
+        <span className="aw-num text-[32px] leading-none text-brand">{short(l.total)}</span>
+        <span className="aw-small">{l.total === 1 ? "keyword" : "keywords"}</span>
+      </span>
+      <table className="aw-table aw-table--compact">
+        <thead>
+          <tr>
+            <th>Keyword</th>
+            <th className="w-20 text-right!">Volume</th>
+            <th className="w-16">KD</th>
+          </tr>
+        </thead>
+        <tbody>
+          {l.rows.slice(0, 5).map((r) => (
+            <tr key={r.keyword}>
+              <td>{kwLink(r.keyword)}</td>
+              <td className="aw-num text-right">{short(r.volume)}</td>
+              <td>
+                <KdDot kd={r.kd} />
+              </td>
+            </tr>
+          ))}
+          {!l.rows.length ? (
+            <tr>
+              <td colSpan={3} className="aw-small">
+                None found.
+              </td>
+            </tr>
+          ) : null}
+        </tbody>
+      </table>
+      {l.total > 5 && canEdit ? (
+        <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm self-start" onClick={() => viewAll(questions)}>
+          {l.total > 1000 ? "View top 1,000 keywords" : `View all ${l.total.toLocaleString("en-US")} keywords`}
+        </button>
+      ) : null}
+    </div>
+  );
+
   const o = report?.overview;
   const s = report?.serp;
   const trendChange = o && o.trend.length > 1 && o.trend[0].volume ? Math.round(((o.trend[o.trend.length - 1].volume - o.trend[0].volume) / o.trend[0].volume) * 100) : null;
-  const list = report ? (ideas === "questions" ? report.questions : report.variations) : null;
 
   return (
     <div className="flex flex-col gap-5">
@@ -343,134 +384,114 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
             <div className="aw-callout">No search data in {report.country}.</div>
           )}
 
-          <div className="grid gap-5 xl:grid-cols-2">
-            <Card
-              title={
-                <Seg
-                  label="Ideas"
-                  value={ideas}
-                  onChange={setIdeas}
-                  options={[
-                    { id: "variations", label: waiting.includes("ideas") ? "Variations" : `Variations ${short(report.variations.total)}` },
-                    { id: "questions", label: waiting.includes("ideas") ? "Questions" : `Questions ${short(report.questions.total)}` },
-                    { id: "topics", label: "Topics" },
-                  ]}
-                />
-              }
-            >
-              {waiting.includes("ideas") ? (
-                <Pending text="Finding related keywords..." />
-              ) : ideas === "topics" ? (
-                <ul className="divide-y divide-rule-faint">
-                  {report.clusters.map((c) => (
-                    <li key={c.name} className="flex items-center justify-between gap-3 px-5 py-2.5">
-                      <button type="button" className="aw-text-link text-left text-[14px]" onClick={() => analyze(c.name)}>
-                        {c.name}
-                      </button>
-                      <span className="aw-num text-[12px] text-muted">
-                        {c.count} keywords · {short(c.volume)}
-                      </span>
-                    </li>
-                  ))}
-                  {!report.clusters.length ? <li className="aw-small px-5 py-4">Not enough related keywords to group.</li> : null}
-                </ul>
-              ) : list ? (
-                <>
-                  <table className="aw-table aw-table--compact">
-                    <thead>
-                      <tr>
-                        <th>Keyword</th>
-                        <th className="w-20">Volume</th>
-                        <th className="w-16">KD</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {list.rows.slice(0, 10).map((r) => (
-                        <tr key={r.keyword}>
-                          <td>
-                            {kwLink(r.keyword)}
-                          </td>
-                          <td className="aw-num">{short(r.volume)}</td>
-                          <td>
-                            <KdDot kd={r.kd} />
-                          </td>
-                        </tr>
-                      ))}
-                      {!list.rows.length ? (
-                        <tr>
-                          <td colSpan={3} className="aw-small">
-                            None found.
-                          </td>
-                        </tr>
-                      ) : null}
-                    </tbody>
-                  </table>
-                  {list.total > 10 ? (
-                    <div className="border-t border-rule-faint px-5 py-3">
-                      <button type="button" className="aw-text-link" onClick={() => viewAll(ideas === "questions")} disabled={!canEdit}>
-                        See all {list.total > 1000 ? "top 1,000" : list.total} in a sheet
-                      </button>
-                    </div>
-                  ) : null}
-                </>
-              ) : null}
-            </Card>
-
-            <Card title="Top 10 on Google">
-              {waiting.includes("serp") ? (
-                <Pending text="Reading Google's top 10 and AI Overview..." />
-              ) : !s ? (
-                <p className="aw-small p-5">Could not load Google&apos;s results. Try again in a minute.</p>
-              ) : (
-                <>
-                  {s.aio.shown ? (
-                    <div className="flex flex-wrap items-center gap-2 border-b border-rule-faint px-5 py-3 text-[13px]">
-                      <span className="text-ink">✦ AI Overview cites</span>
-                      {s.aio.cites.slice(0, 6).map((c) => (
-                        <a key={c.url} href={c.url} target="_blank" rel="noopener noreferrer nofollow" className="flex items-center gap-1 border border-rule px-1.5 py-0.5 text-[12px]">
-                          <BrandLogo src={favicon(c.domain)} name={c.domain} size={12} />
-                          {c.domain}
-                        </a>
-                      ))}
-                      {!s.aio.cites.length ? <span className="text-muted">no links</span> : null}
-                    </div>
-                  ) : null}
-                  <ol className="divide-y divide-rule-faint">
-                    {s.rows.slice(0, 10).map((r) => (
-                      <li key={r.url} className={`flex items-center gap-3 px-5 py-2.5 ${r.domain === site.domain.replace(/^www\./, "") ? "bg-brand-pale" : ""}`}>
-                        <span className="aw-num w-5 text-[12px] text-muted">{r.rank}</span>
-                        <BrandLogo src={favicon(r.domain)} name={r.domain} size={16} />
-                        {toDomain ? (
-                          <span className="flex min-w-0 flex-1 items-baseline text-[14px]">
-                            <button type="button" className="aw-text-link shrink-0" title={`Domain Research for ${r.domain}`} onClick={() => toDomain(r.domain, "domain")}>
-                              {r.domain}
-                            </button>
-                            <button type="button" className="min-w-0 truncate text-left text-muted hover:text-brand hover:underline" title={`Domain Research for ${r.url}`} onClick={() => toDomain(r.url, "url")}>
-                              {new URL(r.url).pathname.replace(/\/$/, "")}
-                            </button>
-                          </span>
-                        ) : (
-                          <span className="min-w-0 flex-1 truncate text-[14px]" title={r.url}>
-                            {r.domain}
-                            <span className="text-muted">{new URL(r.url).pathname.replace(/\/$/, "")}</span>
-                          </span>
-                        )}
-                        {r.aiCited ? <span className="aw-badge">AI cited</span> : null}
-                        <span className="aw-num w-14 text-right text-[12px] text-ink" title="Estimated monthly visits from Google">
-                          {short(r.traffic)}
+          <Card title="Keyword ideas">
+            {waiting.includes("ideas") ? (
+              <Pending text="Finding related keywords..." />
+            ) : (
+              <div className="grid divide-y divide-rule-faint lg:grid-cols-3 lg:divide-x lg:divide-y-0">
+                {ideaColumn("Keyword variations", report.variations, false)}
+                {ideaColumn("Questions", report.questions, true)}
+                <div className="flex flex-col gap-3 p-5">
+                  <span className="aw-label">Topics</span>
+                  <span className="aw-small">Groups of keywords one page can cover. Click one to research it.</span>
+                  <ul className="flex flex-col gap-2">
+                    {report.clusters.map((c) => (
+                      <li key={c.name} className="flex items-baseline justify-between gap-3 text-[14px]">
+                        <span className="min-w-0">{kwLink(c.name)}</span>
+                        <span className="aw-num shrink-0 text-[12px] text-muted">
+                          {c.count} kw · {short(c.volume)}
                         </span>
-                        <a href={r.url} target="_blank" rel="noopener noreferrer nofollow" aria-label={`Open ${r.url} in a new tab`} title="Open in a new tab" className="shrink-0 p-1 text-muted hover:text-brand">
-                          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      </li>
+                    ))}
+                    {!report.clusters.length ? <li className="aw-small">Not enough related keywords to group.</li> : null}
+                  </ul>
+                </div>
+              </div>
+            )}
+          </Card>
+
+          <Card title="Top 10 on Google">
+            {waiting.includes("serp") ? (
+              <Pending text="Reading Google's top 10 and AI Overview..." />
+            ) : !s ? (
+              <p className="aw-small p-5">Could not load Google&apos;s results. Try again in a minute.</p>
+            ) : (
+              <table className="aw-table">
+                <thead>
+                  <tr>
+                    <th className="w-12">#</th>
+                    <th>URL</th>
+                    <th className="w-32 text-right!">Visits / mo</th>
+                    <th className="w-32 text-right!">Keywords</th>
+                    <th className="w-12" aria-label="Open" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {s.aio.shown ? (
+                    <tr>
+                      <td className="text-muted">✦</td>
+                      <td colSpan={4}>
+                        <div className="flex flex-wrap items-center gap-2 text-[13px]">
+                          <span className="font-medium text-ink">
+                            AI Overview ({s.aio.cites.length} {s.aio.cites.length === 1 ? "link" : "links"})
+                          </span>
+                          {s.aio.cites.slice(0, 8).map((c) => (
+                            <a key={c.url} href={c.url} target="_blank" rel="noopener noreferrer nofollow" title={c.url} className="flex items-center gap-1 border border-rule px-1.5 py-0.5 text-[12px]">
+                              <BrandLogo src={favicon(c.domain)} name={c.domain} size={12} />
+                              {c.domain}
+                            </a>
+                          ))}
+                        </div>
+                      </td>
+                    </tr>
+                  ) : null}
+                  {s.rows.slice(0, 10).map((r) => (
+                    <tr key={r.url} className={r.domain === site.domain.replace(/^www\./, "") ? "is-you" : ""}>
+                      <td className="aw-num align-top text-muted">{r.rank}</td>
+                      <td className="max-w-0">
+                        <div className="flex min-w-0 flex-col gap-1">
+                          {toDomain ? (
+                            <button type="button" className="aw-text-link block truncate text-left" title={`Domain Research for ${r.url}`} onClick={() => toDomain(r.url, "url")}>
+                              {r.url}
+                            </button>
+                          ) : (
+                            <span className="block truncate" title={r.url}>
+                              {r.url}
+                            </span>
+                          )}
+                          <span className="flex flex-wrap items-center gap-2 text-[13px]">
+                            <BrandLogo src={favicon(r.domain)} name={r.domain} size={14} />
+                            {toDomain ? (
+                              <button type="button" className="font-medium text-ink hover:text-brand hover:underline" title={`Domain Research for ${r.domain}`} onClick={() => toDomain(r.domain, "domain")}>
+                                {r.domain}
+                              </button>
+                            ) : (
+                              <span className="font-medium text-ink">{r.domain}</span>
+                            )}
+                            {r.sitelinks ? <span className="text-muted">Sitelinks</span> : null}
+                            {r.aiCited ? <span className="aw-badge">AI cited</span> : null}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="aw-num text-right" title="Estimated monthly visits from Google">
+                        {short(r.traffic)}
+                      </td>
+                      <td className="aw-num text-right" title="Keywords this page ranks for">
+                        {short(r.keywords)}
+                      </td>
+                      <td>
+                        <a href={r.url} target="_blank" rel="noopener noreferrer nofollow" aria-label={`Open ${r.url} in a new tab`} title="Open in a new tab" className="inline-flex p-1 text-muted hover:text-brand">
+                          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                             <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
                           </svg>
                         </a>
-                      </li>
-                    ))}
-                  </ol>
-                </>
-              )}
-            </Card>
-          </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Card>
 
           {all ? (
             <div role="region" aria-label="All keywords" className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-white">
