@@ -7,6 +7,7 @@
   --aw-font: var(--font-geist), "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --aw-mono: var(--font-geist-mono), "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --aw-read: var(--aw-font);
+  --aw-display: var(--font-bricolage), "Bricolage Grotesque", var(--aw-font);
   /* Token names the app uses that the brand file names differently. */
   --aw-brand-fg: var(--aw-brand-lift);
   --aw-brand-mist: #C9D5F0;
@@ -237,6 +238,9 @@ body {
 }
 @keyframes aw-spark { 0%, 100% { transform: scale(0.82) rotate(0deg); opacity: 0.55 } 50% { transform: scale(1) rotate(45deg); opacity: 1 } }
 @keyframes aw-sweep { from { left: -40% } to { left: 100% } }
+
+/* Page titles and big headings in Bricolage Grotesque. Small headings and everything else stay in Geist. */
+.aw .aw-hero, .aw .aw-display, .aw .aw-h2, .aw .aw-h3 { font-family: var(--aw-display) !important; letter-spacing: -0.015em !important; }
 
 /* Long reading: the document editor and the reports clients see. Same Geist as the rest of the app. */
 .aw .aw-docs,
