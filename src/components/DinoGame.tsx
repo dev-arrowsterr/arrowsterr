@@ -154,7 +154,7 @@ export function DinoGame({ onGameOver }: { onGameOver?: () => void } = {}) {
     ctx.scale(dpr, dpr);
     const mono = getComputedStyle(document.body).getPropertyValue("--font-plex").trim() || "ui-monospace, monospace";
 
-    const fresh = (): State => ({ y: 0, vy: 0, speed: 4.2, score: 0, things: [], bits: [], pops: [], next: 70, nextSpark: 120, frame: 0, over: false, running: false, best: false, line: "" });
+    const fresh = (): State => ({ y: 0, vy: 0, speed: 5, score: 0, things: [], bits: [], pops: [], next: 70, nextSpark: 120, frame: 0, over: false, running: false, best: false, line: "" });
     state.current = fresh();
 
     const burst = (s: State, x: number, y: number, n: number, colors: string[], spread = 3) => {
