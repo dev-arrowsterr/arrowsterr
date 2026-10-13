@@ -155,6 +155,30 @@ export async function post<T>(auth: RunAuth, path: string, body: Record<string, 
   return data as T;
 }
 
+/** POST and read a reply sent as one JSON object per line, handing each to onLine as it arrives. */
+export async function postLines(auth: RunAuth, path: string, body: Record<string, unknown>, onLine: (x: Record<string, unknown>) => void, signal?: AbortSignal) {
+  const res = await fetch(path, {
+    method: "POST",
+    signal,
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${await auth.token()}` },
+    body: JSON.stringify({ ...body, workspaceId: auth.workspaceId }),
+  });
+  if (!res.ok || !res.body) {
+    const data = await res.json().catch(() => ({ error: `The server returned ${res.status}.` }));
+    throw new Error(data.error || `Error ${res.status}`);
+  }
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (value) buf += value;
+    const lines = buf.split("\n");
+    buf = done ? "" : lines.pop()!;
+    for (const l of lines) if (l.trim()) onLine(JSON.parse(l));
+    if (done) return;
+  }
+}
+
 /** True when a request failed because someone pressed Stop. */
 export const stopped = (e: unknown) => e instanceof DOMException && e.name === "AbortError";
 

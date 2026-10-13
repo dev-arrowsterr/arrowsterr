@@ -64,23 +64,36 @@ async function save(workspaceId: string, action: string, m: Meter) {
   if (error && !/cost_ledger/.test(error.message)) console.error("Cost ledger:", error.message);
 }
 
+const open = new WeakMap<Response, Promise<boolean>>();
+
+/** Keep a streamed response's meter open until `work` ends. work resolves false (or throws) when it failed. */
+export function streamed(res: Response, work: Promise<boolean>) {
+  open.set(res, work);
+  return res;
+}
+
 /**
  * Wrap a POST route so everything it spends lands on its workspace's ledger, and allowances it took
  * are handed back if it fails or spent nothing. Reads workspaceId from the JSON body.
+ * A streamed response (see streamed) settles when its stream ends.
  */
 export function meteredRoute(action: string, handler: (request: Request) => Promise<Response>) {
   return async (request: Request) => {
     const body = (await request.clone().json().catch(() => ({}))) as { workspaceId?: unknown };
-    return metered(typeof body.workspaceId === "string" ? body.workspaceId : null, action, async () => {
-      const m = store.getStore()!;
-      let res: Response | null = null;
-      try {
-        res = await handler(request);
-        return res;
-      } finally {
-        const failed = !res || res.status >= 400;
-        for (const r of m.refunds) if (failed || (r.ifFree && m.cost === 0)) await r.giveBack().catch(() => {});
-      }
-    });
+    const workspaceId = typeof body.workspaceId === "string" ? body.workspaceId : null;
+    const m: Meter = { cost: 0, parts: {}, refunds: [] };
+    let res: Response | null = null;
+    const settle = async (ok: boolean) => {
+      for (const r of m.refunds) if (!ok || (r.ifFree && m.cost === 0)) await r.giveBack().catch(() => {});
+      if (workspaceId && m.cost > 0) void save(workspaceId, action, m);
+    };
+    try {
+      res = await store.run(m, () => handler(request));
+      return res;
+    } finally {
+      const work = res ? open.get(res) : undefined;
+      if (work) void work.catch(() => false).then(settle);
+      else await settle(Boolean(res) && res!.status < 400);
+    }
   };
 }

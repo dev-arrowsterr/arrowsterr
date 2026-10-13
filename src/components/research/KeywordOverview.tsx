@@ -11,7 +11,7 @@ import { BrandLogo } from "../BrandLogo";
 import { Sheet } from "../Sheet";
 import { SampleBars, SampleChips, SampleRing, SampleRows, SampleStats, ToolIntro } from "../ToolIntro";
 import { CalendarIcon, Card, favicon, Seg, Thinking } from "../ui";
-import { BAR_BUTTON, BAR_FIELD, BAR_INPUT, downloadCsv, fmtCpc, post, Sparkline } from "./shared";
+import { BAR_BUTTON, BAR_FIELD, BAR_INPUT, downloadCsv, fmtCpc, post, postLines, Sparkline } from "./shared";
 
 export const ISO: Record<string, string> = {
   "United States": "US", "United Kingdom": "GB", Canada: "CA", Australia: "AU", Germany: "DE", France: "FR", Spain: "ES", Netherlands: "NL",
@@ -42,7 +42,11 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
   const k = (name: string) => `kw:${site.id}:${name}`;
   const [query, setQuery] = useStash(k("q"), "");
   const [country, setCountry] = useStash(k("country"), site.profile.country && MARKETS[site.profile.country] ? site.profile.country : "United States");
-  const [report, setReport] = useStash<KeywordReport | null>(k("report"), null);
+  const [saved, setReport] = useStash<KeywordReport | null>(k("report"), null);
+  // A report still coming in, piece by piece. Only the finished one is remembered.
+  const [live, setLive] = useState<KeywordReport | null>(null);
+  const [waiting, setWaiting] = useState<string[]>([]);
+  const report = live ?? saved;
   const [bulk, setBulk] = useStash<{ rows: KwSummary[]; cost: number } | null>(k("bulk"), null);
   const [ideas, setIdeas] = useStash<"variations" | "questions" | "topics">(k("ideas"), "variations");
   const [all, setAll] = useStash<{ questions: boolean; list: KwList } | null>(k("all"), null);
@@ -78,14 +82,46 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
         setReport(null);
       } else {
         setBusy(`Analyzing "${list[0]}"...`);
-        setReport(await post<KeywordReport>(auth, "/api/research/report", { action: "report", keyword: list[0], country }));
         setBulk(null);
         setAll(null);
+        const none: KwList = { total: 0, volume: 0, rows: [] };
+        let cur: KeywordReport = {
+          keyword: list[0].toLowerCase().replace(/\s+/g, " "),
+          country,
+          device: "desktop",
+          overview: null,
+          byCountry: [],
+          variations: none,
+          questions: none,
+          clusters: [],
+          serp: null,
+          cost: 0,
+          cached: true,
+        };
+        let left = ["overview", "ideas", "serp"];
+        setWaiting(left);
+        // Each piece shows the moment it lands, so the numbers come up before Google's results.
+        await postLines(auth, "/api/research/report", { action: "report", keyword: list[0], country, stream: true }, (x) => {
+          if (x.part === "error") throw new Error(String(x.error));
+          if (x.part === "done") {
+            setReport(x.report as KeywordReport);
+            setLive(null);
+            return;
+          }
+          const { part, ...rest } = x;
+          cur = { ...cur, ...rest };
+          left = left.filter((p) => p !== part);
+          setLive(cur);
+          setWaiting(left);
+          setBusy("");
+        });
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy("");
+      setLive(null);
+      setWaiting([]);
     }
   }
 
@@ -182,7 +218,7 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
             </option>
           ))}
         </select>
-        <button type="submit" className={BAR_BUTTON} disabled={!canEdit || Boolean(busy) || !query.trim()}>
+        <button type="submit" className={BAR_BUTTON} disabled={!canEdit || Boolean(busy) || waiting.length > 0 || !query.trim()}>
           Analyze
         </button>
       </form>
@@ -217,7 +253,7 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
             <div className="flex flex-col gap-1">
               <h2 className="aw-h3">{report.keyword}</h2>
               <span className="text-[13px] text-muted">
-                {flag(report.country)} {report.country} · {report.cached ? "Free, saved results" : `Cost $${report.cost.toFixed(3)}`}
+                {flag(report.country)} {report.country} · {live ? "Loading..." : report.cached ? "Free, saved results" : `Cost $${report.cost.toFixed(3)}`}
               </span>
             </div>
             {canEdit && o ? (
@@ -230,7 +266,11 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
             ) : null}
           </div>
 
-          {o ? (
+          {waiting.includes("overview") ? (
+            <div className="aw-frame">
+              <Pending text="Getting the numbers..." />
+            </div>
+          ) : o ? (
             <div className="aw-stats aw-stats--tight" style={{ ["--cols" as string]: 5 }}>
               <div className="aw-stat">
                 <div className="aw-stat__lab">Volume</div>
@@ -278,14 +318,16 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
                   value={ideas}
                   onChange={setIdeas}
                   options={[
-                    { id: "variations", label: `Variations ${short(report.variations.total)}` },
-                    { id: "questions", label: `Questions ${short(report.questions.total)}` },
+                    { id: "variations", label: waiting.includes("ideas") ? "Variations" : `Variations ${short(report.variations.total)}` },
+                    { id: "questions", label: waiting.includes("ideas") ? "Questions" : `Questions ${short(report.questions.total)}` },
                     { id: "topics", label: "Topics" },
                   ]}
                 />
               }
             >
-              {ideas === "topics" ? (
+              {waiting.includes("ideas") ? (
+                <Pending text="Finding related keywords..." />
+              ) : ideas === "topics" ? (
                 <ul className="divide-y divide-rule-faint">
                   {report.clusters.map((c) => (
                     <li key={c.name} className="flex items-center justify-between gap-3 px-5 py-2.5">
@@ -344,7 +386,9 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
             </Card>
 
             <Card title="Top 10 on Google">
-              {!s ? (
+              {waiting.includes("serp") ? (
+                <Pending text="Reading Google's top 10 and AI Overview..." />
+              ) : !s ? (
                 <p className="aw-small p-5">Could not load Google&apos;s results. Try again in a minute.</p>
               ) : (
                 <>
@@ -446,6 +490,16 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
         />
       ) : null}
       {open ? <KeywordPanel sb={sb} auth={auth} site={site} keyword={open.keyword} seed={open} canEdit={canEdit} onSite={onSite} onClose={() => setOpen(null)} /> : null}
+    </div>
+  );
+}
+
+/** A card section still loading. */
+function Pending({ text }: { text: string }) {
+  return (
+    <div className="flex flex-col items-center gap-3 px-5 py-10 text-center" role="status" aria-live="polite">
+      <span className="aw-small">{text}</span>
+      <span className="aw-think__bar" aria-hidden="true" />
     </div>
   );
 }

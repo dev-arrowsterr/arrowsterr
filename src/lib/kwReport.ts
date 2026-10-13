@@ -286,40 +286,75 @@ async function traffic(urls: string[], m: Market, cost: { total: number }) {
   return data;
 }
 
-export async function keywordReport(keyword: string, country: string, device: "desktop" | "mobile", withCountries = false): Promise<KeywordReport> {
+/** A piece of a keyword report, sent as soon as it is ready so the page can fill in. */
+export type ReportPart =
+  | { part: "overview"; overview: KwSummary | null }
+  | { part: "ideas"; variations: KwList; questions: KwList; clusters: KeywordReport["clusters"] }
+  | { part: "serp"; serp: KwSerp | null }
+  | { part: "countries"; byCountry: KeywordReport["byCountry"] };
+
+/**
+ * Every piece runs at once and each one finishes its own fallbacks without waiting on the others,
+ * so the slowest piece (Google's live results) sets the total time. onPart gets each piece as it lands.
+ */
+export async function keywordReport(keyword: string, country: string, device: "desktop" | "mobile", withCountries = false, onPart?: (p: ReportPart) => void): Promise<KeywordReport> {
   const kw = keyword.trim().toLowerCase().replace(/\s+/g, " ").slice(0, 80);
   const m = MARKETS[country] ?? MARKETS["United States"];
   const cost = { total: 0 };
   const countries = [...new Set([country === "Global" ? "United States" : country, ...TOP_MARKETS])].filter((c) => MARKETS[c]).slice(0, 6);
+  const empty = (): KwList => ({ total: 0, volume: 0, rows: [] });
+  const send = <T>(p: Promise<T>, make: (v: T) => ReportPart) =>
+    p.then((v) => {
+      try {
+        onPart?.(make(v));
+      } catch {
+        // The page stopped listening. The report still finishes and gets saved.
+      }
+      return v;
+    });
 
-  const [main, others, variations, questions, google] = await Promise.all([
-    overviewMany([kw], m, cost),
-    // Volume in other countries costs a call each, so it only runs when asked for.
-    withCountries ? Promise.all(countries.map(async (c) => ({ country: c, volume: (await overviewMany([kw], MARKETS[c], cost).catch(() => new Map())).get(kw)?.volume ?? null }))) : Promise.resolve([]),
-    suggestions(kw, m, false, cost).catch(() => ({ total: 0, volume: 0, rows: [] })),
-    suggestions(kw, m, true, cost).catch(() => ({ total: 0, volume: 0, rows: [] })),
-    serp(kw, m, device, cost).catch((e) => {
-      console.error("Keyword SERP failed:", e instanceof Error ? e.message : e);
-      return null;
-    }),
-  ]);
   // Long or new searches are often missing from DataForSEO Labs. Fall back to Google Ads numbers and wider ideas.
-  const overview = (await fillVolume(new Map([[kw, main.get(kw) ?? null]]), m, cost)).get(kw) ?? null;
-  const [vars, qs] = await Promise.all([widen(kw, variations, m, false, cost), widen(kw, questions, m, true, cost)]);
-  if (google?.rows.length) {
-    const t = await traffic(google.rows.map((r) => r.url), m, cost).catch(() => ({}) as Record<string, { etv: number; count: number }>);
-    google.rows = google.rows.map((r) => ({ ...r, traffic: t[r.url]?.etv ?? null, keywords: t[r.url]?.count ?? null }));
-  }
+  const overview = send(
+    overviewMany([kw], m, cost).then(async (main) => (await fillVolume(new Map([[kw, main.get(kw) ?? null]]), m, cost)).get(kw) ?? null),
+    (o) => ({ part: "overview", overview: o }),
+  );
+  const ideas = send(
+    Promise.all([
+      suggestions(kw, m, false, cost).catch(empty).then((v) => widen(kw, v, m, false, cost)),
+      suggestions(kw, m, true, cost).catch(empty).then((q) => widen(kw, q, m, true, cost)),
+    ]).then(([variations, questions]) => ({ variations, questions, clusters: clustersOf([...variations.rows, ...questions.rows], kw) })),
+    (x) => ({ part: "ideas", ...x }),
+  );
+  const google = send(
+    serp(kw, m, device, cost)
+      .then(async (g) => {
+        if (!g.rows.length) return g;
+        const t = await traffic(g.rows.map((r) => r.url), m, cost).catch(() => ({}) as Record<string, { etv: number; count: number }>);
+        return { ...g, rows: g.rows.map((r) => ({ ...r, traffic: t[r.url]?.etv ?? null, keywords: t[r.url]?.count ?? null })) };
+      })
+      .catch((e) => {
+        console.error("Keyword SERP failed:", e instanceof Error ? e.message : e);
+        return null;
+      }),
+    (g) => ({ part: "serp", serp: g }),
+  );
+  // Volume in other countries costs a call each, so it only runs when asked for.
+  const others = withCountries
+    ? send(
+        Promise.all(countries.map(async (c) => ({ country: c, volume: (await overviewMany([kw], MARKETS[c], cost).catch(() => new Map())).get(kw)?.volume ?? null }))),
+        (b) => ({ part: "countries", byCountry: b }),
+      )
+    : Promise.resolve([]);
+
+  const [o, i, g, b] = await Promise.all([overview, ideas, google, others]);
   return {
     keyword: kw,
     country,
     device,
-    overview,
-    byCountry: others,
-    variations: vars,
-    questions: qs,
-    clusters: clustersOf([...vars.rows, ...qs.rows], kw),
-    serp: google,
+    overview: o,
+    byCountry: b,
+    ...i,
+    serp: g,
     cost: Math.round(cost.total * 10000) / 10000,
     cached: cost.total === 0,
   };
