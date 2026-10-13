@@ -47,7 +47,7 @@ import { Logo } from "./Logo";
 import { MembersPage } from "./MembersPage";
 import { SettingsPage, SETTINGS_TABS, type SettingsTab } from "./SettingsPage";
 import { BillingPage, choosePlan } from "./BillingPage";
-import { Onboarding, type NewBrand, type Welcome } from "./Onboarding";
+import { Onboarding, type Checking, type NewBrand, type Welcome } from "./Onboarding";
 import { PromptsPage } from "./PromptsPage";
 import { ResearchPage, type Tool } from "./research/ResearchPage";
 import type { SeoStart } from "./research/DomainResearch";
@@ -502,6 +502,13 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
     );
   }
 
+  // The first check, model by model: answers in so far out of the prompts each one gets.
+  const liveRun = running ? (runs[running] ?? []).at(-1) : undefined;
+  const checking: Checking | null =
+    running && engines?.length
+      ? engines.map((e) => ({ engine: e, done: liveRun?.chats.filter((c) => c.engine === e).length ?? 0, total: Math.round(progress.total / engines.length) }))
+      : null;
+
   const auth: RunAuth = { workspaceId: ws.id, token };
   if (onboarding) {
     // A brand-new account first says who they are and names its workspace. Adding more brands later skips this.
@@ -539,6 +546,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
         importCount={!brands.length ? legacyCount : 0}
         onImport={importLocal}
         promptRoom={promptRoom}
+        checking={checking}
         seo={Boolean(plan && !plan.open.visibility)}
       />
     );
@@ -782,6 +790,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
               view={view}
               focusTopic={focusTopic}
               paused={paused}
+              checking={running === view.brand.id ? checking : null}
               readOnly={!canEdit}
               onChange={update}
               onCompetitor={(name) => {
@@ -1178,7 +1187,7 @@ function TopBar(p: {
         {!p.visibility ? null : p.running ? (
           <span className="flex items-center gap-3">
             <span className="aw-label aw-label--brand">First check running</span>
-            <span className="aw-progress w-32">
+            <span className="aw-progress aw-progress--live w-32">
               <span className="aw-progress__fill block" style={{ width: `${(p.progress.done / Math.max(p.progress.total, 1)) * 100}%` }} />
             </span>
             <span className="aw-num text-[12px] text-muted">

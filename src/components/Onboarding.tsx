@@ -7,6 +7,7 @@ import { flatPrompts, type Brand, type Profile, type Topic } from "@/lib/db";
 import { ANGLES, BUSINESS_TYPES, MAX_PROMPTS, TOPIC_KINDS, type Angle, type PickedTopic } from "@/lib/onboarding";
 import type { RunAuth } from "@/lib/runner";
 import { BrandLogo } from "./BrandLogo";
+import { ENGINE_LOGOS } from "./Engines";
 import { Dropdown } from "./Pickers";
 import { Logo } from "./Logo";
 import { Thinking } from "./ui";
@@ -15,6 +16,8 @@ export type NewBrand = Omit<Brand, "id" | "workspace_id" | "daily">;
 type Step = "you" | "workspace" | "site" | "topics" | "prompts" | "done";
 /** A new account's first steps: who they are and what to call the workspace. null skips that step. */
 export type Welcome = { you: { first: string; last: string; role: string } | null; workspace: string | null };
+/** The first check, model by model: answers in so far out of the prompts each one gets. */
+export type Checking = { engine: string; done: number; total: number }[];
 export const ROLES = ["Founder / CEO", "Marketing lead", "SEO or content", "Growth", "Agency", "Developer", "Other"];
 type TopicPick = PickedTopic & { on: boolean };
 type PromptPick = { text: string; angle: Angle; on: boolean };
@@ -72,7 +75,10 @@ export function Onboarding({
   seo = false,
   welcome,
   onWelcome,
+  checking,
 }: {
+  /** The first check while it runs; null once it is done. */
+  checking?: Checking | null;
   /** First onboarding of a new account: ask for a profile and a workspace name first. */
   welcome?: Welcome;
   onWelcome?: (w: { you?: { first: string; last: string; role: string }; workspace?: string }) => Promise<void>;
@@ -304,7 +310,7 @@ export function Onboarding({
           <PromptsStep plan={plan} setPlan={setPlan} used={used} cap={cap} engines={engines} checkEvery={checkEvery} onBack={() => go("topics")} onNext={() => finish(plan)} />
         ) : null}
 
-        {step === "done" && !busy ? <DoneStep name={name} logo={logo} seo={seo} engines={engines} prompts={used} onExit={onExit} /> : null}
+        {step === "done" && !busy ? <DoneStep name={name} logo={logo} seo={seo} engines={engines} prompts={used} checking={checking ?? null} onExit={onExit} /> : null}
       </div>
     </main>
   );
@@ -596,29 +602,39 @@ function PromptsStep(p: { plan: PlanTopic[]; setPlan: (v: PlanTopic[]) => void; 
 }
 
 /** The last page: what happens now, and the way into the app. */
-function DoneStep({ name, logo, seo, engines, prompts, onExit }: { name: string; logo: string; seo: boolean; engines: string[]; prompts: number; onExit: () => void }) {
-  const daily = engines.filter((e) => !WEEKLY.includes(e));
+export function DoneStep({ name, logo, seo, engines, prompts, checking, onExit }: { name: string; logo: string; seo: boolean; engines: string[]; prompts: number; checking: Checking | null; onExit: () => void }) {
+  // While the check runs each model fills its own bar. Once it is done, every bar is full.
+  const rows = engines.map((e) => checking?.find((c) => c.engine === e) ?? { engine: e, done: prompts, total: prompts });
+  const left = rows.filter((r) => r.done < r.total).length;
   return (
     <section className="aw-frame aw-onb__done">
       <span className="aw-onb__seal">{logo ? <BrandLogo src={logo} name={name} size={40} /> : "✓"}</span>
       <span className="aw-onb__kicker">All set</span>
-      <h1 className="aw-onb__title">{seo ? `${name || "Your brand"} is ready` : `Your first check is running`}</h1>
+      <h1 className="aw-onb__title">{seo ? `${name || "Your brand"} is ready` : left ? "Your first check is running" : "Your first check is done"}</h1>
       {seo ? (
         <p className="text-[16px] text-body">Open the Content Plan and click Build to plan 12 weeks of revenue-driven content.</p>
       ) : (
         <>
           <p className="text-[16px] text-body">
-            We are asking {prompts} prompts on {daily.length ? daily.join(", ") : "every AI engine"} right now. Results in about 10 minutes. You can leave this page while it runs.
+            {left
+              ? `We are asking ${prompts} prompts on ${engines.length} AI models right now. Results fill in as each one answers, in about 10 minutes. You can leave this page while it runs.`
+              : `Every AI model answered your ${prompts} prompts. Your dashboard is ready.`}
           </p>
-          {engines.length ? (
-            <ul className="aw-onb__engines">
-              {engines.map((e) => (
-                <li key={e}>
-                  <i aria-hidden="true" />
-                  {e}
-                  <span>{WEEKLY.includes(e) ? "weekly" : "running"}</span>
-                </li>
-              ))}
+          {rows.length ? (
+            <ul className="aw-checks" aria-label="First check, by AI model">
+              {rows.map((r) => {
+                const full = r.done >= r.total;
+                return (
+                  <li key={r.engine} className={full ? "is-done" : ""}>
+                    <BrandLogo src={ENGINE_LOGOS[r.engine] ?? ""} name={r.engine} size={20} />
+                    <span className="aw-checks__name">{r.engine}</span>
+                    <span className="aw-checks__bar" role="progressbar" aria-valuemin={0} aria-valuemax={r.total} aria-valuenow={r.done} aria-label={`${r.engine} progress`}>
+                      <span className="aw-checks__fill" style={{ width: `${r.total ? Math.max(4, (r.done / r.total) * 100) : 100}%` }} />
+                    </span>
+                    <span className="aw-checks__count aw-num">{full ? "Done ✓" : `${r.done}/${r.total}`}</span>
+                  </li>
+                );
+              })}
             </ul>
           ) : null}
         </>

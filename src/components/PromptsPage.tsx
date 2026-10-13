@@ -24,6 +24,8 @@ type Props = {
   readOnly: boolean;
   focusTopic?: string | null;
   paused?: Set<string>;
+  /** The first check while it runs: models still answering show as loading. */
+  checking?: { engine: string; done: number; total: number }[] | null;
   onChange: (b: Brand) => void;
   onCompetitor: (name: string) => void;
 };
@@ -89,8 +91,17 @@ export function PromptsPage(p: Props) {
           </button>
         </form>
       ) : null}
-      <Scores view={view} />
-      <Results sb={p.sb} view={view} engines={shown} edit={edit} focusTopic={p.focusTopic} paused={p.paused} onCompetitor={p.onCompetitor} />
+      <Scores view={view} loading={Boolean(p.checking?.some((c) => c.done < c.total))} />
+      <Results
+        sb={p.sb}
+        view={view}
+        engines={shown}
+        edit={edit}
+        focusTopic={p.focusTopic}
+        paused={p.paused}
+        loading={new Set((p.checking ?? []).filter((c) => c.done < c.total).map((c) => c.engine))}
+        onCompetitor={p.onCompetitor}
+      />
     </div>
   );
 }
@@ -198,10 +209,25 @@ function InlineInput({ start, label, onSave, onCancel }: { start: string; label:
 const positionScore = (n: number | null) => (n === null ? null : Math.max(0, 110 - n * 10));
 
 /** Visibility, sentiment and position, with change and rank. */
-function Scores({ view }: { view: View }) {
+function Scores({ view, loading }: { view: View; loading?: boolean }) {
   const { brand, current, previous, filter, days } = view;
   const you = { name: brand.name, domain: brand.domain };
   const chats = answered(current, filter);
+  if (!chats.length && loading)
+    return (
+      <section className="aw-frame aw-pending">
+        <div className="border-b border-rule px-5 py-3.5 text-[15px] text-ink">Your first check is running. Scores fill in as each AI answers.</div>
+        <div className="grid gap-6 px-5 py-6 sm:grid-cols-3">
+          {["Visibility", "Sentiment", "Position"].map((x) => (
+            <div key={x} className="flex flex-col gap-3">
+              <span className="aw-label">{x}</span>
+              <span className="aw-shimmer h-14 w-40" />
+              <span className="aw-shimmer h-3 w-52" />
+            </div>
+          ))}
+        </div>
+      </section>
+    );
   if (!chats.length) return <Empty>No results in the last {days} days yet. They show up after the first check finishes, then update every day.</Empty>;
   const prev = answered(previous, filter);
   const stats = brandStats(chats, you);
@@ -216,9 +242,10 @@ function Scores({ view }: { view: View }) {
       : `${brand.name}'s visibility is ${Math.abs(change) < 0.5 ? "steady" : `trending ${change > 0 ? "up" : "down"} by ${Math.abs(change).toFixed(1)} points`} vs the ${days} days before`;
 
   return (
-    <section className="aw-frame">
+    <section className={`aw-frame ${loading ? "aw-pending" : ""}`}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rule px-5 py-3.5">
         <span className="text-[15px] text-ink">{headline}</span>
+        {loading ? <span className="aw-label aw-label--brand aw-pending__note">First check still running</span> : null}
       </div>
       <div className="grid sm:grid-cols-3">
         {(
@@ -297,6 +324,7 @@ function Results({
   edit,
   focusTopic,
   paused,
+  loading,
   onCompetitor,
 }: {
   sb: SupabaseClient;
@@ -305,6 +333,8 @@ function Results({
   edit: Editing | null;
   focusTopic?: string | null;
   paused?: Set<string>;
+  /** Models still answering the first check. */
+  loading?: Set<string>;
   onCompetitor: (name: string) => void;
 }) {
   const { brand, current, filter, topics } = view;
@@ -340,6 +370,7 @@ function Results({
                 <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
                   <BrandLogo src={ENGINE_LOGOS[e] ?? ""} name={e} size={14} />
                   {ENGINE_SHORT[e] ?? e}
+                  {loading?.has(e) ? <i className="aw-pending__dot" title={`${e} is still answering`} /> : null}
                 </span>
               </th>
             ))}
@@ -399,9 +430,7 @@ function Results({
                   <Share v={top.visibility} />
                 </td>
                 {engines.map((e) => (
-                  <td key={e}>
-                    <Share v={top.byEngine[e]} />
-                  </td>
+                  <td key={e}>{loading?.has(e) && top.byEngine[e] == null ? <span className="aw-shimmer h-3 w-14" aria-label={`${e} is still answering`} /> : <Share v={top.byEngine[e]} />}</td>
                 ))}
                 <td className="aw-small whitespace-nowrap">{ago(last)}</td>
               </tr>
@@ -454,9 +483,7 @@ function Results({
                           </td>
                           <td className="aw-num">{pct(r.visibility)}</td>
                           {r.latest.filter((c) => engines.includes(c.engine)).map((c) => (
-                            <td key={c.engine}>
-                              <Cell c={c} />
-                            </td>
+                            <td key={c.engine}>{loading?.has(c.engine) && c.status === "none" ? <span className="aw-shimmer h-3 w-10" aria-label={`${c.engine} is still answering`} /> : <Cell c={c} />}</td>
                           ))}
                           <td className="aw-small whitespace-nowrap">{ago(r.latestAt)}</td>
                         </tr>

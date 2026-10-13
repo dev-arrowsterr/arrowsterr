@@ -369,3 +369,26 @@ html, body { background: #F8F8FF; }
 .aw input[type="checkbox"]:indeterminate::before { height: 2px; clip-path: none; transform: scale(1); }
 .aw input[type="checkbox"]:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(9,67,176,.18); }
 .aw input[type="checkbox"]:disabled { cursor: default; opacity: .45; }
+
+/* The first check, one bar per AI model (onboarding finish screen). */
+.aw .aw-checks { display: flex; flex-direction: column; gap: 12px; width: 100%; max-width: 560px; margin: 8px auto 14px; padding: 0; list-style: none; text-align: left; }
+.aw .aw-checks li { display: grid; grid-template-columns: 20px 112px 1fr 64px; align-items: center; gap: 12px; font-size: 14px; color: var(--aw-ink); }
+.aw .aw-checks__count { text-align: right; font-size: 12px; color: var(--aw-muted); }
+.aw .aw-checks li.is-done .aw-checks__count { color: var(--aw-pos); font-weight: 600; }
+.aw .aw-checks__bar { position: relative; height: 8px; overflow: hidden; border-radius: 999px; background: var(--aw-brand-pale); }
+.aw .aw-checks__fill { position: relative; display: block; height: 100%; border-radius: 999px; background: var(--aw-brand); transition: width .6s var(--aw-ease); overflow: hidden; }
+.aw .aw-checks li:not(.is-done) .aw-checks__fill::after,
+.aw .aw-progress--live .aw-progress__fill::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent); background-size: 50% 100%; background-repeat: no-repeat; animation: aw-shine 1.4s linear infinite; }
+.aw .aw-checks li:not(.is-done) .aw-checks__bar::before { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(9,67,176,.10), transparent); background-size: 40% 100%; background-repeat: no-repeat; animation: aw-shine 2.2s linear infinite; }
+.aw .aw-checks li.is-done .aw-checks__fill { background: var(--aw-pos); }
+.aw .aw-progress--live { position: relative; overflow: hidden; }
+.aw .aw-progress--live .aw-progress__fill { position: relative; overflow: hidden; }
+@keyframes aw-shine { from { background-position: -50% 0; } to { background-position: 150% 0; } }
+
+/* Parts of a page still waiting on the first check: lighter, with a slow shimmer. */
+.aw .aw-shimmer { display: inline-block; border-radius: 6px; background: linear-gradient(90deg, var(--aw-rule-faint) 0%, #EEF3FC 40%, var(--aw-rule-faint) 80%); background-size: 200% 100%; animation: aw-shimmer 1.6s ease-in-out infinite; vertical-align: middle; }
+@keyframes aw-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.aw .aw-pending { position: relative; }
+.aw .aw-pending > .grid { opacity: .72; }
+.aw .aw-pending__note { animation: aw-pulse 1.8s ease-in-out infinite; }
+.aw .aw-pending__dot { display: inline-block; width: 6px; height: 6px; border-radius: 999px; background: var(--aw-brand); animation: aw-pulse 1.2s ease-in-out infinite; }
