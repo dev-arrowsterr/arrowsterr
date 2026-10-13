@@ -80,16 +80,16 @@ export function Empty({ children }: { children: React.ReactNode }) {
 }
 
 /** The AI is working: a pulsing spark, a sweeping line and one short line of text. */
-export function Thinking({ text, children }: { text: string; children?: React.ReactNode }) {
+export function Thinking({ text, children, done }: { text: string; children?: React.ReactNode; done?: boolean }) {
   return (
-    <div className="aw-frame aw-think" role="status" aria-live="polite">
+    <div className={`aw-frame aw-think ${done ? "is-done" : ""}`} role="status" aria-live="polite">
       <span className="aw-think__icon" aria-hidden="true">
         <svg viewBox="0 0 24 24">
           <path d="M12 1.5c.6 4.9 2.9 8.6 10.5 10.5-7.6 1.9-9.9 5.6-10.5 10.5-.6-4.9-2.9-8.6-10.5-10.5C9.1 10.1 11.4 6.4 12 1.5z" />
         </svg>
       </span>
       <span className="aw-h4">{text}</span>
-      <span className="aw-think__bar" aria-hidden="true" />
+      {done ? null : <span className="aw-think__bar" aria-hidden="true" />}
       {children}
     </div>
   );

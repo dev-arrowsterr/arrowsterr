@@ -134,8 +134,13 @@ function draw(ctx: CanvasRenderingContext2D, rows: string[], x0: number, y0: num
   });
 }
 
-export function DinoGame() {
+/** onGameOver runs each time Arro crashes, so the page can move on when it is waiting. */
+export function DinoGame({ onGameOver }: { onGameOver?: () => void } = {}) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const over = useRef(onGameOver);
+  useEffect(() => {
+    over.current = onGameOver;
+  });
   const state = useRef<State | null>(null);
   const [best, setBest] = useState(readBest);
 
@@ -225,6 +230,7 @@ export function DinoGame() {
             continue;
           }
           s.over = true;
+          over.current?.();
           const lines = BONKS[t.kind];
           s.line = lines[Math.floor(Math.random() * lines.length)];
           burst(s, heroX + HERO_W, top + HERO_H / 2, 10, ["#0943B0", "#2F6BE0", "#B9C0CC"]);

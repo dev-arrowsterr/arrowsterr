@@ -103,6 +103,11 @@ export function Onboarding({
       return null;
     }
   });
+  // The game runs while the brand is researched. When the topics are ready it keeps going until the
+  // player clicks the button or crashes; a crash moves on after a second.
+  const [playing, setPlaying] = useState(false);
+  const [ready, setReady] = useState<Step | null>(null);
+  const [leaving, setLeaving] = useState(false);
   const [step, setStep] = useState<Step>(welcome?.you ? "you" : welcome?.workspace != null ? "workspace" : (saved?.step ?? "site"));
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -154,10 +159,11 @@ export function Onboarding({
     return promptsJob.current.promise;
   };
   useEffect(() => {
-    if (step === "topics" && topics.length) void getPrompts();
-    // Only when the step changes.
+    // Also while the player keeps playing after the topics are ready.
+    if ((step === "topics" || ready === "topics") && topics.length) void getPrompts();
+    // Only when the step changes or the topics come in.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [step]);
+  }, [step, ready]);
 
   const finish = (final: PlanTopic[]) =>
     run(seo ? "Setting up your brand..." : "Setting up your brand and starting the first check...", async () => {
@@ -176,10 +182,20 @@ export function Onboarding({
       go("done");
     });
 
+  const advance = (to: Step) => {
+    setReady(null);
+    setLeaving(false);
+    setPlaying(false);
+    go(to);
+  };
   const readSite = (e: React.FormEvent) => {
     e.preventDefault();
+    setPlaying(true);
     run("Researching your brand and finding its best topics...", async () => {
-      const d = await call("/api/onboard", auth, { website });
+      const d = await call("/api/onboard", auth, { website }).catch((err) => {
+        setPlaying(false); // research failed: no game left behind with nothing to wait for
+        throw err;
+      });
       setName(d.name);
       setDomain(d.domain);
       setUrl(d.url);
@@ -191,9 +207,19 @@ export function Onboarding({
         setBusy("Setting up your brand...");
         const p = d.profile as Profile;
         await onDone({ name: d.name, domain: d.domain, url: d.url, logo: d.logo, category: BUSINESS_TYPES.find((b) => b.id === p.businessType)?.label ?? "", profile: p, topics: [], prompts: [] });
-        go("done");
-      } else go("topics");
+        setReady("done");
+      } else setReady("topics");
     });
+  };
+  const readyRef = useRef<Step | null>(null);
+  useEffect(() => {
+    readyRef.current = ready;
+  });
+  const onGameOver = () => {
+    const to = readyRef.current;
+    if (!to || leaving) return;
+    setLeaving(true);
+    setTimeout(() => advance(to), 1000);
   };
   const loadPrompts = async () => {
     const d = await getPrompts().catch(() => {
@@ -260,12 +286,18 @@ export function Onboarding({
 
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-6 sm:px-6">
         {error ? <p className="aw-error">{error}</p> : null}
-        {busy ? (
+        {busy || ready ? (
           <div className="mx-auto w-full max-w-4xl">
-            <Thinking text={busy}>
-              <Musing />
-              <DinoGame />
-              <p className="aw-small">This takes about a minute. Keep this tab open.</p>
+            <Thinking text={leaving ? (ready === "done" ? "Opening your brand..." : "Loading your topics...") : ready ? (ready === "done" ? "Setup done" : "Research done") : busy} done={Boolean(ready) && !leaving}>
+              {ready && !leaving ? (
+                <button type="button" className="aw-btn aw-btn--accent aw-btn--lg" onClick={() => advance(ready)}>
+                  {ready === "done" ? "Your brand is ready" : "Your topics are ready"} →
+                </button>
+              ) : (
+                <Musing />
+              )}
+              {playing ? <DinoGame onGameOver={onGameOver} /> : null}
+              <p className="aw-small">{ready ? "Keep playing as long as you like. When Arro trips, we open them for you." : playing ? "This takes about a minute. Play while you wait." : "This takes a few seconds."}</p>
             </Thinking>
           </div>
         ) : null}
@@ -292,9 +324,9 @@ export function Onboarding({
           />
         ) : null}
 
-        {step === "site" && !busy ? <SiteStep seo={seo} website={website} setWebsite={setWebsite} onSubmit={readSite} importCount={importCount} onImport={onImport} /> : null}
+        {step === "site" && !busy && !ready ? <SiteStep seo={seo} website={website} setWebsite={setWebsite} onSubmit={readSite} importCount={importCount} onImport={onImport} /> : null}
 
-        {step === "topics" && !busy ? (
+        {step === "topics" && !busy && !ready ? (
           <TopicsStep
             name={name}
             logo={logo}
@@ -306,11 +338,11 @@ export function Onboarding({
           />
         ) : null}
 
-        {step === "prompts" && !busy ? (
+        {step === "prompts" && !busy && !ready ? (
           <PromptsStep plan={plan} setPlan={setPlan} used={used} cap={cap} engines={engines} checkEvery={checkEvery} onBack={() => go("topics")} onNext={() => finish(plan)} />
         ) : null}
 
-        {step === "done" && !busy ? <DoneStep name={name} logo={logo} seo={seo} engines={engines} prompts={used} checking={checking ?? null} onExit={onExit} /> : null}
+        {step === "done" && !busy && !ready ? <DoneStep name={name} logo={logo} seo={seo} engines={engines} prompts={used} checking={checking ?? null} onExit={onExit} /> : null}
       </div>
     </main>
   );

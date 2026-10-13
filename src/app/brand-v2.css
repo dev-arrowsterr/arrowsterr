@@ -392,3 +392,4 @@ html, body { background: #F8F8FF; }
 .aw .aw-pending > .grid { opacity: .72; }
 .aw .aw-pending__note { animation: aw-pulse 1.8s ease-in-out infinite; }
 .aw .aw-pending__dot { display: inline-block; width: 6px; height: 6px; border-radius: 999px; background: var(--aw-brand); animation: aw-pulse 1.2s ease-in-out infinite; }
+.aw .aw-think.is-done .aw-think__icon svg { animation: none; }
