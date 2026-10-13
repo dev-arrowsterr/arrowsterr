@@ -599,7 +599,12 @@ function PromptsStep(p: { plan: PlanTopic[]; setPlan: (v: PlanTopic[]) => void; 
                 </td>
               </tr>
               {t.prompts.map((x, pi) => (
-                <tr key={pi} className={x.on ? "" : "opacity-50"}>
+                <tr
+                  key={pi}
+                  className={`cursor-pointer hover:bg-paper ${x.on ? "" : "opacity-50"}`}
+                  // A click anywhere on the row picks or drops the prompt. The text box still edits.
+                  onClick={(e) => !(e.target as HTMLElement).closest("textarea, input") && set(ti, pi, { on: !x.on })}
+                >
                   <td>
                     <span className="flex items-center gap-2 pl-5">
                       <input type="checkbox" aria-label={`Track: ${x.text}`} checked={x.on} onChange={(e) => set(ti, pi, { on: e.target.checked })} className="h-4 w-4 shrink-0 accent-[#0943B0]" />
