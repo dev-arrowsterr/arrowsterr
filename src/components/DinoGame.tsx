@@ -3,12 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 
 // A small runner game for the wait. Arro, the Arrowsterr arrow, runs through the hills:
-// jump the snakes and rocks, grab the sparkles. Space, the up arrow or a tap jumps.
+// jump the snakes, mind the birds, grab the sparkles. Space, the up arrow or a tap jumps.
 
-const W = 600;
-const H = 150;
-const GROUND = 126;
-const PX = 2; // one sprite pixel, in canvas pixels
+const W = 900;
+const H = 270;
+const GROUND = 230;
+const PX = 3; // one sprite pixel, in canvas pixels
+const HERO_X = 70;
 
 const C: Record<string, string> = {
   "#": "#0943B0", // brand blue
@@ -19,8 +20,8 @@ const C: Record<string, string> = {
   d: "#1F7543", // snake dark green
   y: "#F5B70A", // snake belly, sparkles
   r: "#E5484D", // tongue
-  s: "#8C94A3", // rock
-  t: "#B9C0CC", // rock light
+  o: "#F27A5E", // bird
+  O: "#C9533A", // bird wing
 };
 
 // Arro: an arrowhead with eyes. Two eye rows: looking ahead, and dizzy after a bump.
@@ -67,17 +68,29 @@ const SNAKE = [
     "       ddd     ",
   ],
 ];
-const ROCK = [
-  "    tttt    ",
-  "  ttssssst  ",
-  " tsssssssst ",
-  "tssssssssss ",
-  "sssssssssssk",
-  " skkkkkkkkk ",
+// Birds fly at Arro: low ones to jump over, high ones to stay under.
+const BIRD = [
+  [
+    "      OO     ",
+    "     OOO     ",
+    "  oo OOOO    ",
+    "yykooooooooO ",
+    "  ooooooooooO",
+    "    oooooo   ",
+  ],
+  [
+    "             ",
+    "             ",
+    "  oo         ",
+    "yykooooooooO ",
+    "  ooooOOOooooO",
+    "     OOO     ",
+    "      OO     ",
+  ],
 ];
 const SPARK = ["   y   ", "  yyy  ", "yyyyyyy", "  yyy  ", "   y   "];
 
-type Thing = { x: number; y: number; w: number; h: number; kind: "snake" | "rock" | "spark"; got?: boolean };
+type Thing = { x: number; y: number; w: number; h: number; kind: "snake" | "bird" | "spark"; got?: boolean };
 type Bit = { x: number; y: number; vx: number; vy: number; life: number; color: string; size: number };
 type Pop = { x: number; y: number; text: string; life: number };
 type State = {
@@ -105,7 +118,7 @@ const readBest = () => {
     return 0;
   }
 };
-const BONKS = ["Bonk!", "Hiss! A snake got you.", "Oof, that rock came out of nowhere.", "Arro tripped."];
+const BONKS = { snake: ["Hiss! A snake got Arro.", "Bonk! Watch the snakes.", "Arro tripped on a snake."], bird: ["Bonk! A bird got Arro.", "Tweet tweet, try again.", "That bird came out of nowhere."] };
 
 function draw(ctx: CanvasRenderingContext2D, rows: string[], x0: number, y0: number) {
   // Whole pixels, so no hairline gaps show between sprite pixels.
@@ -136,7 +149,7 @@ export function DinoGame() {
     ctx.scale(dpr, dpr);
     const mono = getComputedStyle(document.body).getPropertyValue("--font-plex").trim() || "ui-monospace, monospace";
 
-    const fresh = (): State => ({ y: 0, vy: 0, speed: 5, score: 0, things: [], bits: [], pops: [], next: 70, nextSpark: 120, frame: 0, over: false, running: false, best: false, line: "" });
+    const fresh = (): State => ({ y: 0, vy: 0, speed: 4.2, score: 0, things: [], bits: [], pops: [], next: 70, nextSpark: 120, frame: 0, over: false, running: false, best: false, line: "" });
     state.current = fresh();
 
     const burst = (s: State, x: number, y: number, n: number, colors: string[], spread = 3) => {
@@ -152,8 +165,8 @@ export function DinoGame() {
       }
       s.running = true;
       if (s.y === 0) {
-        s.vy = -10.5;
-        burst(s, 40 + HERO_W / 2, GROUND, 4, ["#D5DBE5"], 1.5);
+        s.vy = -12;
+        burst(s, HERO_X + HERO_W / 2, GROUND, 4, ["#D5DBE5"], 1.5);
       }
     };
     const onKey = (e: KeyboardEvent) => {
@@ -173,13 +186,13 @@ export function DinoGame() {
     let raf = 0;
     const tick = () => {
       const s = state.current!;
-      const heroX = 40;
+      const heroX = HERO_X;
       if (s.running && !s.over) {
         s.frame++;
-        s.speed += 0.0025;
+        s.speed = Math.min(9, s.speed + 0.0015);
         s.score += s.speed / 30;
         const wasUp = s.y < 0;
-        s.vy += 0.6;
+        s.vy += 0.55;
         s.y = Math.min(0, s.y + s.vy);
         if (s.y === 0) {
           s.vy = 0;
@@ -187,16 +200,16 @@ export function DinoGame() {
         }
         for (const t of s.things) t.x -= s.speed;
         s.things = s.things.filter((t) => t.x + t.w > -10 && !t.got);
-        // Snakes and rocks on the ground, now and then two close together.
+        // Snakes on the ground. Once the run warms up, birds too: low ones to jump, high ones to stay under.
         if (--s.next <= 0) {
-          const snake = Math.random() < 0.6;
-          s.things.push(snake ? { x: W, y: GROUND - 14, w: 30, h: 14, kind: "snake" } : { x: W, y: GROUND - 12, w: 24, h: 12, kind: "rock" });
-          if (Math.random() < 0.2) s.things.push({ x: W + 34, y: GROUND - 12, w: 24, h: 12, kind: "rock" });
-          s.next = Math.round(50 + Math.random() * 70 - Math.min(25, s.speed * 2));
+          const bird = s.score > 80 && Math.random() < 0.35;
+          if (bird) s.things.push({ x: W, y: GROUND - (Math.random() < 0.5 ? 45 : 82), w: 13 * PX, h: 7 * PX, kind: "bird" });
+          else s.things.push({ x: W, y: GROUND - 7 * PX, w: 15 * PX, h: 7 * PX, kind: "snake" });
+          s.next = Math.round(75 + Math.random() * 80 - Math.min(20, s.speed * 2));
         }
         // Sparkles in the air, worth a jump.
         if (--s.nextSpark <= 0) {
-          s.things.push({ x: W, y: GROUND - 58 - Math.random() * 22, w: 14, h: 10, kind: "spark" });
+          s.things.push({ x: W, y: GROUND - 120 - Math.random() * 25, w: 7 * PX, h: 5 * PX, kind: "spark" });
           s.nextSpark = Math.round(90 + Math.random() * 120);
         }
         // Hits, with a little forgiveness at the edges.
@@ -212,7 +225,8 @@ export function DinoGame() {
             continue;
           }
           s.over = true;
-          s.line = BONKS[Math.floor(Math.random() * BONKS.length)];
+          const lines = BONKS[t.kind];
+          s.line = lines[Math.floor(Math.random() * lines.length)];
           burst(s, heroX + HERO_W, top + HERO_H / 2, 10, ["#0943B0", "#2F6BE0", "#B9C0CC"]);
           const score = Math.floor(s.score);
           if (score > readBest()) {
@@ -221,7 +235,7 @@ export function DinoGame() {
             } catch {}
             setBest(score);
             s.best = true;
-            for (let i = 0; i < 4; i++) burst(s, 100 + i * 130, 30, 14, ["#0943B0", "#F5B70A", "#2E9E5B", "#E5484D", "#2F6BE0"], 4);
+            for (let i = 0; i < 5; i++) burst(s, 120 + i * 170, 40, 16, ["#0943B0", "#F5B70A", "#2E9E5B", "#E5484D", "#2F6BE0"], 4);
           }
           break;
         }
@@ -249,36 +263,36 @@ export function DinoGame() {
       const scroll = s.frame * s.speed;
       ctx.fillStyle = "#FFFFFF";
       for (let i = 0; i < 4; i++) {
-        const x = ((((i * 180 - scroll * 0.15) % (W + 120)) + W + 120) % (W + 120)) - 60;
-        const y = 18 + (i % 2) * 16;
-        ctx.fillRect(x, y + 4, 44, 8);
-        ctx.fillRect(x + 8, y, 22, 6);
+        const x = ((((i * 260 - scroll * 0.15) % (W + 160)) + W + 160) % (W + 160)) - 80;
+        const y = 26 + (i % 2) * 26;
+        ctx.fillRect(x, y + 6, 66, 12);
+        ctx.fillRect(x + 12, y, 33, 9);
       }
       ctx.fillStyle = "#D7E3FA";
       for (let i = 0; i < 5; i++) {
-        const x = ((((i * 150 - scroll * 0.35) % (W + 150)) + W + 150) % (W + 150)) - 75;
+        const x = ((((i * 220 - scroll * 0.35) % (W + 220)) + W + 220) % (W + 220)) - 110;
         ctx.beginPath();
-        ctx.ellipse(x, GROUND, 80, 26 + (i % 3) * 8, 0, Math.PI, 0);
+        ctx.ellipse(x, GROUND, 120, 40 + (i % 3) * 14, 0, Math.PI, 0);
         ctx.fill();
       }
       // Ground: grass line and tufts.
       ctx.fillStyle = "#FFFFFF";
       ctx.fillRect(0, GROUND, W, H - GROUND);
       ctx.fillStyle = "#2E9E5B";
-      ctx.fillRect(0, GROUND, W, 2);
-      for (let i = 0; i < 14; i++) {
-        const x = (((i * 47 - scroll) % W) + W) % W;
-        ctx.fillRect(x, GROUND - 2, 2, 2);
-        ctx.fillRect(x + 3, GROUND - 3, 2, 3);
+      ctx.fillRect(0, GROUND, W, 3);
+      for (let i = 0; i < 18; i++) {
+        const x = (((i * 53 - scroll) % W) + W) % W;
+        ctx.fillRect(x, GROUND - 3, 3, 3);
+        ctx.fillRect(x + 4, GROUND - 5, 3, 5);
         ctx.fillStyle = "#C9D1DC";
-        ctx.fillRect(x + 20, GROUND + 8 + (i % 3) * 4, 3 + (i % 2) * 3, 1);
+        ctx.fillRect(x + 24, GROUND + 12 + (i % 3) * 6, 4 + (i % 2) * 4, 2);
         ctx.fillStyle = "#2E9E5B";
       }
 
-      // Snakes, rocks and sparkles.
+      // Snakes, birds and sparkles.
       for (const t of s.things) {
         if (t.kind === "snake") draw(ctx, SNAKE[Math.floor(s.frame / 8) % 2], t.x, t.y);
-        else if (t.kind === "rock") draw(ctx, ROCK, t.x, t.y);
+        else if (t.kind === "bird") draw(ctx, BIRD[Math.floor(s.frame / 10) % 2], t.x, t.y);
         else draw(ctx, SPARK, t.x, t.y + Math.sin((s.frame + t.x) / 8) * 2);
       }
 
@@ -292,8 +306,8 @@ export function DinoGame() {
       if (s.y < 0 && !s.over) {
         // A little speed trail while in the air.
         ctx.fillStyle = "rgba(9,67,176,.18)";
-        ctx.fillRect(heroX - 10, top + 10, 8, 2);
-        ctx.fillRect(heroX - 14, top + 16, 10, 2);
+        ctx.fillRect(heroX - 14, top + 14, 12, 3);
+        ctx.fillRect(heroX - 20, top + 24, 15, 3);
       }
 
       for (const b of s.bits) {
@@ -302,7 +316,7 @@ export function DinoGame() {
         ctx.fillRect(b.x, b.y, b.size, b.size);
       }
       ctx.globalAlpha = 1;
-      ctx.font = `600 12px ${mono}`;
+      ctx.font = `600 16px ${mono}`;
       ctx.textAlign = "center";
       for (const p of s.pops) {
         ctx.globalAlpha = Math.min(1, p.life / 20);
@@ -312,20 +326,20 @@ export function DinoGame() {
       ctx.globalAlpha = 1;
 
       // Score and messages.
-      ctx.font = `600 13px ${mono}`;
+      ctx.font = `600 20px ${mono}`;
       ctx.textAlign = "right";
       ctx.fillStyle = "#0943B0";
-      ctx.fillText(String(Math.floor(s.score)).padStart(5, "0"), W - 10, 20);
+      ctx.fillText(String(Math.floor(s.score)).padStart(5, "0"), W - 16, 34);
       ctx.textAlign = "center";
       ctx.fillStyle = "#0B1220";
-      ctx.font = `500 13px ${mono}`;
-      if (!s.running) ctx.fillText("Help Arro jump the snakes. Space or tap to start", W / 2, 66);
+      ctx.font = `500 19px ${mono}`;
+      if (!s.running) ctx.fillText("Help Arro jump the snakes and dodge the birds. Space or tap to start", W / 2, 100);
       if (s.over) {
-        ctx.font = `600 14px ${mono}`;
-        ctx.fillText(s.best ? "New best! Arro is proud of you." : s.line, W / 2, 58);
-        ctx.font = `500 12px ${mono}`;
+        ctx.font = `600 22px ${mono}`;
+        ctx.fillText(s.best ? "New best! Arro is proud of you." : s.line, W / 2, 92);
+        ctx.font = `500 17px ${mono}`;
         ctx.fillStyle = "#5B6475";
-        ctx.fillText("Space or tap to run again", W / 2, 78);
+        ctx.fillText("Space or tap to run again", W / 2, 124);
       }
       raf = requestAnimationFrame(tick);
     };
@@ -339,7 +353,7 @@ export function DinoGame() {
 
   return (
     <div className="aw-dino">
-      <canvas ref={canvas} className="aw-dino__canvas" aria-label="A small runner game: help Arro jump over snakes and rocks. Press space or tap to jump." />
+      <canvas ref={canvas} className="aw-dino__canvas" aria-label="A small runner game: help Arro jump over snakes and dodge birds. Press space or tap to jump." />
       {best ? <span className="aw-dino__best">Best {best}</span> : null}
     </div>
   );

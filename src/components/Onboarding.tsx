@@ -255,7 +255,7 @@ export function Onboarding({
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-6 sm:px-6">
         {error ? <p className="aw-error">{error}</p> : null}
         {busy ? (
-          <div className="mx-auto w-full max-w-2xl">
+          <div className="mx-auto w-full max-w-4xl">
             <Thinking text={busy}>
               <Musing />
               <DinoGame />
