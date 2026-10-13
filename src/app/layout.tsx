@@ -1,24 +1,24 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Mono, Inter, JetBrains_Mono } from "next/font/google";
+import { Geist, Geist_Mono, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
-// The product UI: a console feel, the same type as the landing pages.
+// The Arro game's pixel-style text.
 const plex = IBM_Plex_Mono({
   variable: "--font-plex",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
 });
 
-// Long reading: the document editor and client-facing shared reports.
-const inter = Inter({
-  variable: "--font-inter",
+// The product UI and long reading, the same type as the landing pages and Claritia.
+const geist = Geist({
+  variable: "--font-geist",
   subsets: ["latin"],
   weight: ["300", "400", "500", "600", "700"],
 });
 
 // Numbers, prompts and URLs inside product screens.
-const mono = JetBrains_Mono({
-  variable: "--font-mono-jb",
+const mono = Geist_Mono({
+  variable: "--font-geist-mono",
   subsets: ["latin"],
   weight: ["400", "500"],
 });
@@ -33,7 +33,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${plex.variable} ${inter.variable} ${mono.variable} h-full`}
+      className={`${plex.variable} ${geist.variable} ${mono.variable} h-full`}
     >
       <body className="min-h-full">
         <div className="aw flex min-h-screen flex-col">{children}</div>

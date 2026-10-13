@@ -4,9 +4,9 @@
 
 /* Point the brand font tokens at the fonts loaded by next/font in layout.tsx. */
 .aw {
-  --aw-font: var(--font-plex), "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
-  --aw-mono: var(--font-plex), "IBM Plex Mono", ui-monospace, monospace;
-  --aw-read: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --aw-font: var(--font-geist), "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --aw-mono: var(--font-geist-mono), "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --aw-read: var(--aw-font);
   /* Token names the app uses that the brand file names differently. */
   --aw-brand-fg: var(--aw-brand-lift);
   --aw-brand-mist: #C9D5F0;
@@ -238,10 +238,9 @@ body {
 @keyframes aw-spark { 0%, 100% { transform: scale(0.82) rotate(0deg); opacity: 0.55 } 50% { transform: scale(1) rotate(45deg); opacity: 1 } }
 @keyframes aw-sweep { from { left: -40% } to { left: 100% } }
 
-/* Long reading keeps Inter: the document editor and the reports clients see. */
+/* Long reading: the document editor and the reports clients see. Same Geist as the rest of the app. */
 .aw .aw-docs,
 .aw .aw-read {
   --aw-font: var(--aw-read);
-  --aw-mono: var(--font-mono-jb), "JetBrains Mono", ui-monospace, monospace;
   font-family: var(--aw-read);
 }

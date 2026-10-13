@@ -61,8 +61,8 @@
   --aw-shadow-control: 0 1px 1px rgba(6, 27, 68, .06), 0 2px 5px rgba(60, 66, 87, .08);
   --aw-ring: 0 0 0 2px #18B4E9;
 
-  /* Type: Inter for reading, JetBrains Mono for numbers */
-  --aw-mono: var(--font-mono-jb), "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  /* Type: Geist for reading, Geist Mono for numbers (same as Claritia) */
+  --aw-mono: var(--font-geist-mono), "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --aw-fs-ui: 14px;
   --aw-fs-small: 13px;
   --aw-fs-nano: 12px;

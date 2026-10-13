@@ -363,7 +363,9 @@ export function RetentionSettings({ plan }: { plan: PlanUsage | null }) {
         <ul className="aw-list aw-list--tight">
           <li className="text-[15px]!">Removing a brand deletes all of its answers and history.</li>
           <li className="text-[15px]!">
-            To delete the whole workspace or your account, write to <a href="mailto:support@arrowsterr.com">support@arrowsterr.com</a> from your account email.
+            <span>
+              To delete the whole workspace or your account, write to <a href="mailto:support@arrowsterr.com">support@arrowsterr.com</a> from your account email.
+            </span>
           </li>
         </ul>
       </section>
