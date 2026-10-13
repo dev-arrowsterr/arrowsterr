@@ -285,6 +285,14 @@ export function Venn({ them, you, themLogo, youLogo, counts, tab, onTab }: { the
       </text>
     </g>
   );
+  // A brand's logo inside its circle, centered on x.
+  const logo = (x: number, y: number, src: string, name: string) => (
+    <foreignObject x={x - 14} y={y - 14} width="28" height="28" pointerEvents="none">
+      <div className="flex h-7 w-7 items-center justify-center">
+        <BrandLogo src={src} name={name} size={26} />
+      </div>
+    </foreignObject>
+  );
   return (
     <section className="aw-frame flex flex-col">
       <div className="aw-frame__head justify-between">
@@ -304,32 +312,34 @@ export function Venn({ them, you, themLogo, youLogo, counts, tab, onTab }: { the
         <button type="button" onClick={() => onTab("shared")} aria-pressed={tab === "shared"} className={`aw-chip ${tab === "shared" ? "aw-chip--brand" : ""}`}>
           Shared Keywords <span className="aw-num">{fmtNum(counts.shared)}</span>
         </button>
-        <svg viewBox="0 0 640 290" className="w-full max-w-[680px]" role="group" aria-label={`Keywords ${them} and ${you} rank for`}>
+        <svg viewBox="0 0 760 380" className="w-full max-w-[820px]" role="group" aria-label={`Keywords ${them} and ${you} rank for`}>
           <defs>
             <clipPath id={`${id}t`}>
-              <circle cx="245" cy="145" r="135" />
+              <circle cx="290" cy="190" r="180" />
             </clipPath>
             <clipPath id={`${id}y`}>
-              <circle cx="395" cy="145" r="135" />
+              <circle cx="470" cy="190" r="180" />
             </clipPath>
           </defs>
-          <circle cx="245" cy="145" r="135" {...fill(RIVAL_COLOR, "missing")} {...region("missing")} />
-          <circle cx="395" cy="145" r="135" {...fill(YOU_COLOR, "only")} {...region("only")} />
+          <circle cx="290" cy="190" r="180" {...fill(RIVAL_COLOR, "missing")} {...region("missing")} />
+          <circle cx="470" cy="190" r="180" {...fill(YOU_COLOR, "only")} {...region("only")} />
           <g clipPath={`url(#${id}t)`}>
             <g clipPath={`url(#${id}y)`}>
-              <rect x="0" y="0" width="640" height="145" fill="#fff" />
-              <rect x="0" y="145" width="640" height="145" fill="#fff" />
-              <rect x="0" y="0" width="640" height="145" {...fill(RIVAL_COLOR, "weaker")} {...region("weaker")} />
-              <rect x="0" y="145" width="640" height="145" {...fill(YOU_COLOR, "lead")} {...region("lead")} />
-              <line x1="0" y1="145" x2="640" y2="145" stroke="var(--aw-rule)" pointerEvents="none" />
+              <rect x="0" y="0" width="760" height="190" fill="#fff" />
+              <rect x="0" y="190" width="760" height="190" fill="#fff" />
+              <rect x="0" y="0" width="760" height="190" {...fill(RIVAL_COLOR, "weaker")} {...region("weaker")} />
+              <rect x="0" y="190" width="760" height="190" {...fill(YOU_COLOR, "lead")} {...region("lead")} />
+              <line x1="0" y1="190" x2="760" y2="190" stroke="var(--aw-rule)" pointerEvents="none" />
             </g>
           </g>
-          <circle cx="245" cy="145" r="135" fill="none" stroke={RIVAL_COLOR} strokeWidth={tab === "missing" ? 2.5 : 1.5} pointerEvents="none" />
-          <circle cx="395" cy="145" r="135" fill="none" stroke={YOU_COLOR} strokeWidth={tab === "only" ? 2.5 : 1.5} pointerEvents="none" />
-          {text(178, 122, ["Owned by", them.length > 22 ? `${them.slice(0, 21)}…` : them], counts.missing, RIVAL_COLOR)}
-          {text(462, 130, [L.only], counts.only, YOU_COLOR)}
-          {text(320, 92, [L.weaker], counts.weaker, RIVAL_COLOR, 20)}
-          {text(320, 182, [L.lead], counts.lead, YOU_COLOR, 20)}
+          <circle cx="290" cy="190" r="180" fill="none" stroke={RIVAL_COLOR} strokeWidth={tab === "missing" ? 2.5 : 1.5} pointerEvents="none" />
+          <circle cx="470" cy="190" r="180" fill="none" stroke={YOU_COLOR} strokeWidth={tab === "only" ? 2.5 : 1.5} pointerEvents="none" />
+          {logo(195, 128, themLogo, them)}
+          {logo(565, 138, youLogo, you)}
+          {text(195, 168, ["Owned by", them.length > 22 ? `${them.slice(0, 21)}…` : them], counts.missing, RIVAL_COLOR, 34)}
+          {text(565, 178, [L.only], counts.only, YOU_COLOR, 34)}
+          {text(380, 116, [L.weaker], counts.weaker, RIVAL_COLOR, 22)}
+          {text(380, 236, [L.lead], counts.lead, YOU_COLOR, 22)}
         </svg>
       </div>
     </section>
