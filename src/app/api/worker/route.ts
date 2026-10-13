@@ -4,6 +4,7 @@ import { allowed } from "@/lib/cronAuth";
 import { claim, enqueue, prune, queueReady, retry, type Job, type JobKind } from "@/lib/jobs";
 import { metered } from "@/lib/meter";
 import { sendNudges } from "@/lib/nudges";
+import { sendWeekly } from "@/lib/notify";
 import { adminClient } from "@/lib/serverAuth";
 import { brief, check, plan, rollup, schedule } from "@/lib/worker/handlers";
 
@@ -37,7 +38,10 @@ export async function POST(request: Request) {
     await enqueue("schedule", {}, { key: `schedule:${window}`, maxAttempts: 2 });
     if (window % 36 === 0) await prune();
     // About once an hour: emails for tasks running low and trials ending.
-    if (window % 6 === 0) await sendNudges(db).catch((e) => console.error("Nudges failed:", e instanceof Error ? e.message : e));
+    if (window % 6 === 0) {
+      await sendNudges(db).catch((e) => console.error("Nudges failed:", e instanceof Error ? e.message : e));
+      await sendWeekly(db).catch((e) => console.error("Weekly emails failed:", e instanceof Error ? e.message : e));
+    }
 
     // A 15-minute lease: a brief or a plan can take several minutes, and must not be picked up twice.
     const jobs = await claim(WORKER, limit, undefined, 900);

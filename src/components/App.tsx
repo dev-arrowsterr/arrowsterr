@@ -47,7 +47,7 @@ import { CompetitorsPage } from "./CompetitorsPage";
 import { Logo } from "./Logo";
 import { MembersPage } from "./MembersPage";
 import { SettingsPage, SETTINGS_TABS, type SettingsTab } from "./SettingsPage";
-import { ProfileSettings, SecuritySettings } from "./AccountSettings";
+import { NotificationSettings, ProfileSettings, SecuritySettings } from "./AccountSettings";
 import { AccessSettings, AiSettingsPage, RetentionSettings, TimezoneSetting } from "./WorkspaceSettings";
 import { ExportsSettings, JobsSettings } from "./JobsSettings";
 import { BillingPage, choosePlan } from "./BillingPage";
@@ -83,6 +83,7 @@ const SLUGS: Record<Page, string> = {
   summary: "/reports",
   profile: "/settings/profile",
   security: "/settings/security",
+  notifications: "/settings/notifications",
   settings: "/settings",
   members: "/settings/members",
   access: "/settings/access",
@@ -744,6 +745,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
                 <ProfileSettings key={userId} sb={sb} user={session.user} />
               ) : page === "security" ? (
                 <SecuritySettings key={userId} sb={sb} user={session.user} />
+              ) : page === "notifications" ? (
+                <NotificationSettings key={`${ws.id}-${userId}`} sb={sb} wsId={ws.id} wsName={ws.name} userId={userId} alertsOnPlan={Boolean(plan?.limits.alerts)} />
               ) : page === "access" ? (
                 <AccessSettings key={ws.id} sb={sb} ws={ws} email={email} />
               ) : page === "ai" ? (

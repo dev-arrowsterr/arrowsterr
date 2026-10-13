@@ -7,6 +7,7 @@ import { availableEngines, viaDfs, WEEKLY_ENGINES, type Engine } from "@/lib/eng
 import { allowed } from "@/lib/cronAuth";
 import { entitlement } from "@/lib/entitlements";
 import { sendNudges } from "@/lib/nudges";
+import { sendWeekly } from "@/lib/notify";
 import { queueReady } from "@/lib/jobs";
 import { checkDue, promptAllowance } from "@/lib/plans";
 import { metered } from "@/lib/meter";
@@ -75,7 +76,10 @@ export async function POST(request: Request) {
   const sb = adminClient();
   if (!sb) return Response.json({ error: "Add SUPABASE_SECRET_KEY on Render." }, { status: 500 });
   // About once an hour: emails for tasks running low and trials ending.
-  if (Math.floor(Date.now() / 600_000) % 6 === 0) await sendNudges(sb).catch((e) => console.error("Nudges failed:", e instanceof Error ? e.message : e));
+  if (Math.floor(Date.now() / 600_000) % 6 === 0) {
+    await sendNudges(sb).catch((e) => console.error("Nudges failed:", e instanceof Error ? e.message : e));
+    await sendWeekly(sb).catch((e) => console.error("Weekly emails failed:", e instanceof Error ? e.message : e));
+  }
   if (await queueReady()) return Response.json({ done: true, message: "The job queue runs daily checks now." });
   const engines = availableEngines();
   if (!engines.length) return Response.json({ done: true, message: "No engine keys are set." });

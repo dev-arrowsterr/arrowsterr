@@ -3,6 +3,7 @@ import { createHash, randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { entitlement } from "./entitlements";
 import type { EventName } from "./integrationTypes";
+import { shares, type Metric } from "./visibility";
 import { adminClient } from "./serverAuth";
 
 // Slack alerts, API keys and webhooks. Slack, Zapier and the API are on Pro and up (the plan's `alerts`).
@@ -67,22 +68,6 @@ export async function dispatch(db: SupabaseClient, ws: string, event: EventName,
   );
 }
 
-type Metric = { day: string; engine: string; named: string; is_you: boolean; answers: number; mentions: number };
-
-/** Visibility by brand name for one day, counting only the given AIs. */
-function shares(rows: Metric[], engines: Set<string>) {
-  const answers = rows.filter((r) => r.named === "" && engines.has(r.engine)).reduce((n, r) => n + r.answers, 0);
-  const by = new Map<string, { name: string; you: boolean; mentions: number }>();
-  for (const r of rows) {
-    if (!r.named || !engines.has(r.engine)) continue;
-    const k = r.named.toLowerCase();
-    const x = by.get(k) ?? { name: r.named, you: r.is_you, mentions: 0 };
-    x.mentions += r.mentions;
-    by.set(k, x);
-  }
-  return [...by.values()].map((x) => ({ ...x, visibility: answers ? Math.round((x.mentions / answers) * 1000) / 10 : 0 }));
-}
-
 /**
  * After a brand's daily numbers are saved: send the day's result to webhooks, and a Slack alert when
  * visibility moved by the workspace's alert size or a competitor overtook the brand.
@@ -129,6 +114,8 @@ export async function afterDaily(db: SupabaseClient, ws: string, brandId: string
   }
   if (!reasons.length) return;
   await dispatch(db, ws, "visibility.alert", { ...result, reasons });
+  const { emailAlert } = await import("./notify");
+  await emailAlert(db, ws, brand, day, reasons).catch((err) => console.error("Alert email failed:", err instanceof Error ? err.message : err));
   if (cfg?.slack_webhook) {
     await slackSend(cfg.slack_webhook, `${brand.name}: AI visibility ${change! < 0 ? "dropped" : change! > 0 ? "changed" : "alert"}`, reasons).catch((err) =>
       console.error("Slack alert failed:", err instanceof Error ? err.message : err),

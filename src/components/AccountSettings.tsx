@@ -6,6 +6,7 @@ import { Dropdown } from "./Pickers";
 import { ROLES } from "./Onboarding";
 import { avatarFromFile } from "./WorkspaceAvatar";
 import { getProfile, saveProfile, type UserProfile } from "@/lib/db";
+import { recordUndo } from "@/lib/undo";
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
@@ -408,6 +409,72 @@ export function SecuritySettings({ sb, user }: { sb: SupabaseClient; user: User 
           </button>
         </div>
       </section>
+    </div>
+  );
+}
+
+type Prefs = { weekly: boolean; alerts: boolean; jobs: boolean };
+const NOTIFY: { id: keyof Prefs; label: string; hint: string }[] = [
+  { id: "weekly", label: "Weekly summary", hint: "Monday morning: each brand's AI visibility for the week, against the week before, and the brands AI named most." },
+  { id: "alerts", label: "Visibility alerts", hint: "When a brand's AI visibility moves by your alert size, or a competitor overtakes it. Checked after each daily run." },
+  { id: "jobs", label: "Content Plan and briefs", hint: "When a Content Plan or a brief you started is ready, or didn't finish." },
+];
+
+/** Which emails you get from this workspace. */
+export function NotificationSettings({ sb, wsId, wsName, userId, alertsOnPlan }: { sb: SupabaseClient; wsId: string; wsName: string; userId: string; alertsOnPlan: boolean }) {
+  const [prefs, setPrefs] = useState<Prefs | null | undefined>(undefined);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    sb.from("notification_prefs")
+      .select("weekly, alerts, jobs")
+      .eq("workspace_id", wsId)
+      .eq("user_id", userId)
+      .maybeSingle()
+      .then(({ data, error: err }) => setPrefs(err ? null : ((data as Prefs | null) ?? { weekly: true, alerts: true, jobs: true })));
+  }, [sb, wsId, userId]);
+
+  async function set(next: Prefs, was: Prefs) {
+    setError("");
+    setPrefs(next);
+    const { error: err } = await sb.from("notification_prefs").upsert({ workspace_id: wsId, user_id: userId, ...next, updated_at: new Date().toISOString() }, { onConflict: "workspace_id,user_id" });
+    if (err) {
+      setPrefs(was);
+      setError(err.message);
+    } else recordUndo({ label: "the email change", undo: () => set(was, next), redo: () => set(next, was) });
+  }
+
+  if (prefs === null) return <p className="aw-callout max-w-xl text-[15px]!">Email choices turn on once supabase/035_notifications.sql has been run in Supabase → SQL Editor. Until then, every email is on.</p>;
+  return (
+    <div className="flex max-w-2xl flex-col gap-6">
+      <p className="text-[15px] text-body">
+        Emails from <strong className="text-ink">{wsName}</strong>, sent to you only. Each person in the workspace picks their own.
+      </p>
+      {error ? <p className="aw-error">{error}</p> : null}
+      <div className="aw-table-wrap">
+        <table className="aw-table">
+          <tbody>
+            {NOTIFY.map((n) => (
+              <tr key={n.id}>
+                <td>
+                  <div className="font-medium text-ink">
+                    {n.label}
+                    {n.id === "alerts" && !alertsOnPlan ? <span className="aw-tag ml-2">Pro and up</span> : null}
+                  </div>
+                  <div className="aw-small">{n.hint}</div>
+                </td>
+                <td className="w-24 text-right">
+                  <label className="inline-flex cursor-pointer items-center gap-2 text-[14px] text-ink">
+                    <input type="checkbox" checked={prefs?.[n.id] ?? true} disabled={!prefs} onChange={(e) => prefs && set({ ...prefs, [n.id]: e.target.checked }, prefs)} />
+                    {(prefs?.[n.id] ?? true) ? "On" : "Off"}
+                  </label>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="aw-small">Alerts go out when visibility moves 5 points or more, unless an admin picked another size under Integrations → Slack alerts. Every email has an unsubscribe link.</p>
     </div>
   );
 }
