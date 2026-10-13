@@ -1,5 +1,6 @@
 "use client";
 
+import { recordUndo } from "@/lib/undo";
 import { CmsSettings } from "./CmsSettings";
 import { IntegrationsSettings } from "./IntegrationsSettings";
 import type { RunAuth } from "@/lib/runner";
@@ -249,7 +250,17 @@ export function MembersPage({
                           aria-label={`Role for ${m.email ?? "member"}`}
                           className="aw-select py-1!"
                           value={m.role}
-                          onChange={(e) => act(() => setMemberRole(sb, ws.id, m.user_id, e.target.value as Role), "Role updated.")}
+                          onChange={(e) => {
+                            const was = m.role;
+                            const next = e.target.value as Role;
+                            const who = m.email ?? "a member";
+                            recordUndo({
+                              label: `the role change for ${who}`,
+                              undo: () => act(() => setMemberRole(sb, ws.id, m.user_id, was), "Role put back."),
+                              redo: () => act(() => setMemberRole(sb, ws.id, m.user_id, next), "Role updated."),
+                            });
+                            act(() => setMemberRole(sb, ws.id, m.user_id, next), "Role updated.");
+                          }}
                         >
                           {ROLES.filter((r) => r.id !== "owner").map((r) => (
                             <option key={r.id} value={r.id}>

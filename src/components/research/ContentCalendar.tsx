@@ -2,10 +2,11 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { addCalendarItems, deleteCalendarItems, keywordRunResult, listCalendar, listMembers, saveSite, updateCalendarItem, type BankRow, type CalendarItem, type CalendarStatus, type KeywordRun, type NewCalendarItem, type SheetColumn, type Site } from "@/lib/db";
+import { addCalendarItems, deleteCalendarItems, keywordRunResult, restoreCalendarItems, listCalendar, listMembers, saveSite, updateCalendarItem, type BankRow, type CalendarItem, type CalendarStatus, type KeywordRun, type NewCalendarItem, type SheetColumn, type Site } from "@/lib/db";
 import { nextMonday, schedulePlan, slots, STAGES, type Stage } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
+import { quietly, recordUndo } from "@/lib/undo";
 import { Sheet, type Col, type Edit } from "../Sheet";
 import type { Chat } from "@/lib/chats";
 import { Card, SidePanel, Thinking } from "../ui";
@@ -179,6 +180,11 @@ export function ContentCalendar({
   if (!items) return <Thinking text="Loading your calendar..." />;
 
   async function patch(id: string, p: Partial<CalendarItem>) {
+    const was = items!.find((i) => i.id === id);
+    if (was) {
+      const back = Object.fromEntries(Object.keys(p).map((f) => [f, was[f as keyof CalendarItem]])) as Partial<CalendarItem>;
+      recordUndo({ label: `a change to "${was.keyword}"`, undo: () => patch(id, back), redo: () => patch(id, p), key: `plan:${id}:${Object.keys(p).join(",")}` });
+    }
     setItems((list) => list!.map((i) => (i.id === id ? { ...i, ...p } : i)));
     try {
       await updateCalendarItem(sb, id, p);
@@ -194,7 +200,14 @@ export function ContentCalendar({
       .sort((a, b) => STAGE_ORDER(a.stage) - STAGE_ORDER(b.stage) || (b.volume ?? 0) - (a.volume ?? 0));
     const dates = slots(parse(start), perWeek, todo.length);
     setPlanning(false);
-    await Promise.all(todo.map((i, n) => patch(i.id, { due_date: dates[n] })));
+    // Scheduling everything is one step for Undo.
+    const before = new Map(todo.map((i) => [i.id, i.due_date]));
+    recordUndo({
+      label: `scheduling ${todo.length} ${todo.length === 1 ? "piece" : "pieces"}`,
+      undo: () => Promise.all(todo.map((i) => patch(i.id, { due_date: before.get(i.id) ?? null }))),
+      redo: () => Promise.all(todo.map((i, n) => patch(i.id, { due_date: dates[n] }))),
+    });
+    await quietly(() => Promise.all(todo.map((i, n) => patch(i.id, { due_date: dates[n] }))));
   }
 
   async function add(e: React.FormEvent) {
@@ -242,6 +255,15 @@ export function ContentCalendar({
       commit();
       setUndo(null);
     }, 10_000) };
+    recordUndo({ label: `deleting ${gone.length} ${gone.length === 1 ? "piece" : "pieces"}`, undo: () => bringBack(gone) });
+  }
+  /** Ctrl + Z after a delete: cancel it while it waits, or put the pieces back once it went through. */
+  async function bringBack(gone: CalendarItem[]) {
+    const ids = new Set(gone.map((g) => g.id));
+    if (pending.current && pending.current.ids.every((id) => ids.has(id))) return undoRemove();
+    setUndo(null);
+    setItems((list) => [...(list ?? []).filter((i) => !ids.has(i.id)), ...gone]);
+    await restoreCalendarItems(sb, gone);
   }
   function undoRemove() {
     if (!undo) return;

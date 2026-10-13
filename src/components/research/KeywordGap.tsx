@@ -8,6 +8,7 @@ import type { BrandStat } from "@/lib/metrics";
 import type { Gap, GapRow } from "@/lib/gap";
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
+import { BrandLogo } from "../BrandLogo";
 import { Sheet, type Col } from "../Sheet";
 import { CalendarIcon, Card, favicon, RIVAL_COLOR, Thinking, YOU_COLOR } from "../ui";
 import { BAR_BUTTON, BAR_INPUT, Difficulty, downloadCsv, fmtNum, KeywordLink, post } from "./shared";
@@ -24,6 +25,25 @@ const rank = (n: number | null) => (n === null ? <span className="text-muted">�
 
 const bare = (d: string | null | undefined) => (d ?? "").toLowerCase().replace(/^www\./, "");
 
+/** A readable name from a domain: animalz.co → Animalz, the-hoth.com → The Hoth, acme.co.uk → Acme. */
+export function nameFromDomain(d: string) {
+  const parts = bare(d).split("/")[0].split(".");
+  const base = parts.length > 2 && /^(co|com|org|net|ac|gov|edu)$/.test(parts[parts.length - 2]) ? parts[parts.length - 3] : (parts[parts.length - 2] ?? parts[0]);
+  return base
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map((w) => w[0].toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
+/** A brand's logo and name side by side. */
+const Brand = ({ name, logo, size = 16 }: { name: string; logo: string; size?: number }) => (
+  <span className="inline-flex min-w-0 items-center gap-1.5">
+    <BrandLogo src={logo} name={name} size={size} />
+    <span className="truncate">{name}</span>
+  </span>
+);
+
 /** Competitive Analysis: rivals from your AI answers and from Google, and how your keywords overlap with theirs. */
 export function KeywordGap({
   sb,
@@ -31,12 +51,15 @@ export function KeywordGap({
   site,
   canEdit,
   stats,
+  me,
 }: {
   sb: SupabaseClient;
   auth: RunAuth;
   site: Site;
   canEdit: boolean;
   stats: BrandStat[];
+  /** Your brand's name and logo. */
+  me: { name: string; logo?: string | null };
 }) {
   const aiRivals = stats.filter((s) => !s.isYou && s.domain && bare(s.domain) !== bare(site.domain)).slice(0, 8);
   const [rivals, setRivals] = useStash<string[] | null>(`rivals:${site.id}`, null);
@@ -84,23 +107,29 @@ export function KeywordGap({
   const lists: Record<Tab, GapRow[]> = { missing: gap?.missing ?? [], shared: gap?.shared ?? [], weaker, lead, only: gap?.only ?? [] };
   const counts: Record<Tab, number> = { missing: gap?.totals.missing ?? 0, shared: gap?.totals.shared ?? 0, weaker: weaker.length, lead: lead.length, only: gap?.totals.only ?? 0 };
   const rows = lists[tab];
-  const labels = LABEL(result?.them ?? "them");
+  // Brands by name and logo: the name AI answers use when there is one, else one made from the domain.
+  const nameOf = (d: string) => stats.find((s) => s.domain && bare(s.domain) === bare(d))?.name ?? nameFromDomain(d);
+  const themName = result ? nameOf(result.them) : "them";
+  const themLogo = result ? favicon(bare(result.them)) : "";
+  const myLogo = me.logo || favicon(bare(site.domain));
+  const labels = LABEL(themName);
 
   const cols: Col<GapRow>[] = [
-    { id: "keyword", label: "Keyword", type: "text", value: (r) => r.keyword, cell: (r) => <KeywordLink keyword={r.keyword} />, width: 280 },
+    { id: "keyword", label: "Keyword", type: "text", value: (r) => r.keyword, cell: (r) => <KeywordLink keyword={r.keyword} />, width: 220 },
     { id: "volume", label: "Volume", type: "number", value: (r) => r.volume },
     { id: "kd", label: "Difficulty", type: "number", value: (r) => r.kd, cell: (r) => <Difficulty kd={r.kd} /> },
     { id: "intent", label: "Intent", type: "list", value: (r) => r.intent },
-    { id: "them", label: result?.them ?? "Them", type: "number", value: (r) => r.them, cell: (r) => rank(r.them) },
-    { id: "you", label: site.domain, type: "number", value: (r) => r.you, cell: (r) => rank(r.you) },
+    { id: "them", label: themName, head: <Brand name={themName} logo={themLogo} size={14} />, type: "number", value: (r) => r.them, cell: (r) => rank(r.them) },
+    { id: "you", label: me.name, head: <Brand name={me.name} logo={myLogo} size={14} />, type: "number", value: (r) => r.you, cell: (r) => rank(r.you) },
     {
       id: "url",
-      label: "Their page",
+      label: `${themName}'s page`,
       type: "text",
       value: (r) => r.url,
+      // The whole address, wrapped onto more lines when it is long.
       cell: (r) =>
         r.url ? (
-          <a href={r.url} target="_blank" rel="noopener noreferrer" className="block max-w-64 truncate" title={r.url}>
+          <a href={r.url} target="_blank" rel="noopener noreferrer" className="block max-w-sm whitespace-normal break-all" title={r.url}>
             {r.url.replace(/^https?:\/\/(www\.)?/, "")}
           </a>
         ) : (
@@ -115,7 +144,7 @@ export function KeywordGap({
       const n = await addCalendarItems(
         sb,
         auth.workspaceId,
-        list.map((r) => ({ site_id: site.id, keyword: r.keyword, secondary: [], stage: stageFromIntent(r.intent), theme: null, volume: r.volume, difficulty: r.kd, intent: r.intent, cpc: null, source: `keyword gap: ${result?.them}` })),
+        list.map((r) => ({ site_id: site.id, keyword: r.keyword, secondary: [], stage: stageFromIntent(r.intent), theme: null, volume: r.volume, difficulty: r.kd, intent: r.intent, cpc: null, source: `keyword gap: ${themName}` })),
       );
       setPicked(new Set());
       setNotice(n ? `${n} added to the Content Plan.` : "Already in the Content Plan.");
@@ -133,9 +162,8 @@ export function KeywordGap({
           run(query);
         }}
       >
-        <span className="flex h-12 items-center gap-2 px-2 text-[15px] font-medium text-ink">
-          <img src={favicon(site.domain)} alt="" width={18} height={18} className="rounded-[4px]" />
-          {site.domain}
+        <span className="flex h-12 items-center gap-2 px-2 text-[15px] font-medium text-ink" title={site.domain}>
+          <Brand name={me.name} logo={myLogo} size={18} />
           <span className="text-muted">vs</span>
         </span>
         <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="competitor.com" aria-label="Competitor domain" className={BAR_INPUT} />
@@ -147,7 +175,7 @@ export function KeywordGap({
             <span className="aw-label w-24 shrink-0">In AI answers</span>
             {aiRivals.map((r) => (
               <button key={r.name} type="button" className={`aw-chip ${bare(result?.them) === bare(r.domain) ? "aw-chip--brand" : ""}`} onClick={() => run(r.domain!)} disabled={!canEdit || busy}>
-                <img src={favicon(r.domain!)} alt="" width={14} height={14} className="rounded-[3px]" />
+                <BrandLogo src={favicon(bare(r.domain))} name={r.name} size={14} />
                 {r.name}
                 <span className="text-muted">{Math.round(r.visibility)}%</span>
               </button>
@@ -161,9 +189,9 @@ export function KeywordGap({
               .filter((d) => !aiRivals.some((r) => bare(r.domain) === bare(d)))
               .slice(0, 6)
               .map((d) => (
-                <button key={d} type="button" className={`aw-chip ${bare(result?.them) === bare(d) ? "aw-chip--brand" : ""}`} onClick={() => run(d)} disabled={!canEdit || busy}>
-                  <img src={favicon(d)} alt="" width={14} height={14} className="rounded-[3px]" />
-                  {d}
+                <button key={d} type="button" title={d} className={`aw-chip ${bare(result?.them) === bare(d) ? "aw-chip--brand" : ""}`} onClick={() => run(d)} disabled={!canEdit || busy}>
+                  <BrandLogo src={favicon(bare(d))} name={nameOf(d)} size={14} />
+                  {nameOf(d)}
                 </button>
               ))}
           </div>
@@ -172,13 +200,15 @@ export function KeywordGap({
 
       {error ? <p className="aw-error">{error}</p> : null}
       {notice ? <div className="aw-callout">{notice}</div> : null}
-      {busy ? <Thinking text={`Comparing ${site.domain} with ${query}...`} /> : null}
+      {busy ? <Thinking text={`Comparing ${me.name} with ${nameOf(query)}...`} /> : null}
 
       {!busy && gap ? (
         <>
           <Venn
-            them={result!.them}
-            you={site.domain}
+            them={themName}
+            you={me.name}
+            themLogo={themLogo}
+            youLogo={myLogo}
             counts={counts}
             tab={tab}
             onTab={(t) => {
@@ -193,7 +223,7 @@ export function KeywordGap({
                 type="button"
                 className="aw-btn aw-btn--secondary aw-btn--sm"
                 onClick={() =>
-                  downloadCsv(`keyword-gap-${site.domain}-${result!.them}-${tab}.csv`, ["keyword", "volume", "difficulty", "intent", result!.them, site.domain, "their page"], rows.map((r) => [r.keyword, r.volume, r.kd, r.intent, r.them, r.you, r.url]))
+                  downloadCsv(`keyword-gap-${site.domain}-${result!.them}-${tab}.csv`, ["keyword", "volume", "difficulty", "intent", themName, me.name, `${themName} page`], rows.map((r) => [r.keyword, r.volume, r.kd, r.intent, r.them, r.you, r.url]))
                 }
               >
                 Export CSV
@@ -229,7 +259,7 @@ export function KeywordGap({
 }
 
 /** You vs one competitor as two circles. Each region is a button that filters the table below. */
-export function Venn({ them, you, counts, tab, onTab }: { them: string; you: string; counts: Record<Tab, number>; tab: Tab; onTab: (t: Tab) => void }) {
+export function Venn({ them, you, themLogo, youLogo, counts, tab, onTab }: { them: string; you: string; themLogo: string; youLogo: string; counts: Record<Tab, number>; tab: Tab; onTab: (t: Tab) => void }) {
   const id = useId().replace(/:/g, "");
   const L = LABEL(them);
   const on = (t: Tab) => tab === t || (tab === "shared" && (t === "weaker" || t === "lead"));
@@ -262,11 +292,11 @@ export function Venn({ them, you, counts, tab, onTab }: { them: string; you: str
         <span className="flex items-center gap-4 text-[13px] text-body">
           <span className="flex items-center gap-1.5">
             <i className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: RIVAL_COLOR }} aria-hidden="true" />
-            {them}
+            <Brand name={them} logo={themLogo} />
           </span>
           <span className="flex items-center gap-1.5">
             <i className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: YOU_COLOR }} aria-hidden="true" />
-            {you}
+            <Brand name={you} logo={youLogo} />
           </span>
         </span>
       </div>

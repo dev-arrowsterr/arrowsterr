@@ -458,6 +458,11 @@ export async function deleteCalendarItems(sb: SupabaseClient, ids: string[]) {
   check(await sb.from("calendar_items").delete().in("id", ids));
 }
 
+/** Put deleted items back exactly as they were, for Undo. Their written drafts stay unlinked. */
+export async function restoreCalendarItems(sb: SupabaseClient, items: CalendarItem[]) {
+  check(await sb.from("calendar_items").upsert(items));
+}
+
 /** A content plan run. The full result is large, so lists only carry whether it was copied into the Topic Bank. */
 export type KeywordRun = { id: string; status: "running" | "done" | "failed"; step: string; error: string | null; banked: boolean | null; created_at: string; finished_at: string | null };
 

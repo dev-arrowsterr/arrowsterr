@@ -2,6 +2,7 @@
 
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { quietly, recordUndo } from "@/lib/undo";
 import { sortRows, useSort, type Sort } from "./ui";
 
 // A spreadsheet that works like Google Sheets.
@@ -32,6 +33,8 @@ export type Col<T> = {
   type: "text" | "number" | "list" | "date";
   value: (row: T) => Value;
   cell?: (row: T) => React.ReactNode;
+  /** What the column's header shows, like a logo and a name. Defaults to label. */
+  head?: React.ReactNode;
   width?: number;
   /** Choices for a list filter. Defaults to every value in the column. */
   options?: string[];
@@ -502,7 +505,7 @@ function ColumnMenu<T>({
 }
 
 /** The text editor for one cell: the cell itself becomes the input. Enter or Tab saves and moves, Escape cancels. */
-function TextEditor<T>({ row, col, init, onDone }: { row: T; col: Col<T>; init: string | null; onDone: (move?: [number, number]) => void }) {
+function TextEditor<T>({ row, col, init, onSave, onDone }: { row: T; col: Col<T>; init: string | null; onSave: (value: string | null) => void; onDone: (move?: [number, number]) => void }) {
   const e = col.edit!;
   const start = e.value ? e.value(row) : keyOf(col.value(row));
   const [v, setV] = useState(init ?? start);
@@ -510,7 +513,7 @@ function TextEditor<T>({ row, col, init, onDone }: { row: T; col: Col<T>; init: 
   const save = (next: string, move?: [number, number]) => {
     if (done.current) return;
     done.current = true;
-    if (next !== start) e.save(row, next.trim() === "" ? null : next.trim());
+    if (next !== start) onSave(next.trim() === "" ? null : next.trim());
     onDone(move);
   };
   return (
@@ -572,7 +575,7 @@ function pasteValue<T>(col: Col<T>, raw: string): string | null | undefined {
 
 type Pos = { r: number; c: number };
 const PICK = "__pick"; // the checkbox column, as a grid column
-type Change<T> = { key: string; col: Col<T>; before: string | null };
+type Change<T> = { key: string; col: Col<T>; before: string | null; after: string | null };
 
 export function Sheet<T>({
   id,
@@ -636,7 +639,11 @@ export function Sheet<T>({
   const [keysOpen, setKeysOpen] = useState(false);
   const [flash, setFlash] = useState("");
   const drag = useRef<{ from: Pos; moved: boolean } | null>(null);
-  const history = useRef<Change<T>[][]>([]);
+  // The latest rows and selection, for undo and redo steps that run later.
+  const live = useRef({ rows, selected, onSelect });
+  useEffect(() => {
+    live.current = { rows, selected, onSelect };
+  });
   const pasted = useRef(false);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -822,30 +829,55 @@ export function Sheet<T>({
     const v = col.edit?.value ? col.edit.value(row) : col.value(row);
     return v === null || v === undefined || v === "" ? null : String(v);
   };
-  /** Save many cells at once, kept together for one Undo. */
+  /** Put a batch of cells back to how they were before it (or after it, for redo). */
+  const setBack = (batch: Change<T>[], which: "before" | "after") => {
+    const { rows: now, selected: sel, onSelect: pick } = live.current;
+    let picks: Set<string> | null = null;
+    for (const x of batch) {
+      if (x.col.id === PICK) {
+        picks ??= new Set(sel);
+        if (x[which] === "TRUE") picks.add(x.key);
+        else picks.delete(x.key);
+        continue;
+      }
+      const row = now.find((r) => rowKey(r) === x.key);
+      if (row && x.col.edit) x.col.edit.save(row, x[which]);
+    }
+    if (picks && pick) pick(picks);
+  };
+  /** Save many cells at once, kept together as one step for the app's Undo (Ctrl + Z). */
   const apply = (list: { row: T; col: Col<T>; value: string | null | undefined }[]) => {
     const batch: Change<T>[] = [];
     let picks: Set<string> | null = null;
-    for (const x of list) {
-      if (!x.col.edit || x.value === undefined) continue;
-      if (x.col.id === PICK) {
-        if (!canSelect(x.row)) continue;
-        picks ??= new Set(selected);
-        const key = rowKey(x.row);
-        const want = x.value === "TRUE";
-        if (picks.has(key) === want) continue;
-        batch.push({ key, col: x.col, before: picks.has(key) ? "TRUE" : "FALSE" });
-        if (want) picks.add(key);
-        else picks.delete(key);
-        continue;
+    // The saves are this one step, so whatever they change does not record steps of its own.
+    quietly(() => {
+      for (const x of list) {
+        if (!x.col.edit || x.value === undefined) continue;
+        if (x.col.id === PICK) {
+          if (!canSelect(x.row)) continue;
+          picks ??= new Set(selected);
+          const key = rowKey(x.row);
+          const want = x.value === "TRUE";
+          if (picks.has(key) === want) continue;
+          batch.push({ key, col: x.col, before: picks.has(key) ? "TRUE" : "FALSE", after: want ? "TRUE" : "FALSE" });
+          if (want) picks.add(key);
+          else picks.delete(key);
+          continue;
+        }
+        const before = beforeOf(x.row, x.col);
+        if (before === x.value) continue;
+        batch.push({ key: rowKey(x.row), col: x.col, before, after: x.value });
+        x.col.edit.save(x.row, x.value);
       }
-      const before = beforeOf(x.row, x.col);
-      if (before === x.value) continue;
-      batch.push({ key: rowKey(x.row), col: x.col, before });
-      x.col.edit.save(x.row, x.value);
-    }
+    });
     if (picks && onSelect) onSelect(picks);
-    if (batch.length) history.current.push(batch);
+    if (batch.length)
+      recordUndo({
+        label: `${batch.length === 1 ? "a change" : `${batch.length} changes`} in ${label}`,
+        undo: () => setBack(batch, "before"),
+        redo: () => setBack(batch, "after"),
+        key: batch.length === 1 ? `sheet:${label}:${batch[0].key}:${batch[0].col.id}` : undefined,
+      });
     return batch.length;
   };
   const textOf = (row: T, col: Col<T>) => keyOf(col.value(row)).replace(/[\t\n]+/g, " ");
@@ -906,23 +938,6 @@ export function Sheet<T>({
       setAnchor(at);
       setCur(clamp({ r: at.r + grid.length - 1, c: at.c + grid[0].length - 1 }));
     }
-  };
-  const undo = () => {
-    const batch = history.current.pop();
-    if (!batch) return say("Nothing to undo");
-    let picks: Set<string> | null = null;
-    for (const x of batch) {
-      if (x.col.id === PICK) {
-        picks ??= new Set(selected);
-        if (x.before === "TRUE") picks.add(x.key);
-        else picks.delete(x.key);
-        continue;
-      }
-      const row = rows.find((r) => rowKey(r) === x.key);
-      if (row && x.col.edit) x.col.edit.save(row, x.before);
-    }
-    if (picks && onSelect) onSelect(picks);
-    say(`Undid ${batch.length} ${batch.length === 1 ? "change" : "changes"}`);
   };
   const pickRows = () => {
     if (!box || !onSelect || !selected) return;
@@ -1009,7 +1024,6 @@ export function Sheet<T>({
     }
     if (mod && k.toLowerCase() === "c") return (e.preventDefault(), void copy(false));
     if (mod && k.toLowerCase() === "x") return (e.preventDefault(), void copy(true));
-    if (mod && k.toLowerCase() === "z") return (e.preventDefault(), undo());
     if (mod && k.toLowerCase() === "v") {
       // The paste event brings the text. Read the clipboard only if it does not come.
       pasted.current = false;
@@ -1126,6 +1140,7 @@ export function Sheet<T>({
                     ["Page Up, Down", "Move 15 rows"],
                     ["Ctrl + C, X, V", "Copy, cut, paste"],
                     ["Ctrl + Z", "Undo"],
+                    ["Ctrl + Shift + Z", "Redo"],
                     ["Ctrl + A", "Select all"],
                     ["Shift + Space", "Pick the rows"],
                     ["Delete", "Clear cells, or delete picked rows"],
@@ -1247,7 +1262,7 @@ export function Sheet<T>({
                         }}
                         title={on ? (sort.desc ? "Sorted largest first. Click to flip." : "Sorted smallest first. Click to flip.") : "Sort"}
                       >
-                        {c.label}
+                        {c.head ?? c.label}
                         <span aria-hidden="true" className="aw-sort__arrow">
                           {on ? (sort.desc ? "↓" : "↑") : "↕"}
                         </span>
@@ -1334,7 +1349,7 @@ export function Sheet<T>({
                         className={`${c.type === "number" ? "is-num" : ""} ${widthOf(c) ? "overflow-hidden text-ellipsis whitespace-nowrap" : ""} ${stickyCls(c)} ${inBox(i, g) ? "is-in-range" : ""} ${isAt ? "is-active" : ""} ${c.edit ? "is-editable" : ""} ${ed && (ed.kind === "text" || ed.kind === "number") ? "is-editing" : ""} ${opener ? "has-open" : ""}`}
                       >
                         {ed && (ed.kind === "text" || ed.kind === "number") ? (
-                          <TextEditor row={r} col={c} init={editing!.init} onDone={(mv) => endEdit({ r: i, c: g }, mv)} />
+                          <TextEditor row={r} col={c} init={editing!.init} onSave={(v) => apply([{ row: r, col: c, value: v }])} onDone={(mv) => endEdit({ r: i, c: g }, mv)} />
                         ) : (
                           <>
                             <span className="aw-sheet__val">{content}</span>

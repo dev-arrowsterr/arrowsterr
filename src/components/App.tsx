@@ -1,6 +1,8 @@
 "use client";
 
 import { withoutResearch } from "@/lib/researchUrl";
+import { recordUndo } from "@/lib/undo";
+import { UndoKeys } from "./UndoKeys";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { loadRuns, type Run } from "@/lib/chats";
@@ -127,6 +129,19 @@ function writeLocal(key: string, value: string | null) {
   } catch {
     // Storage blocked. Nothing important is lost.
   }
+}
+
+/** A few words for what changed on a brand, for the Undo message. */
+function brandChange(a: Brand, b: Brand) {
+  const n = (x: Brand) => x.prompts.length;
+  const t = (x: Brand) => (x.topics ?? []).length;
+  if (t(b) > t(a)) return "adding a topic";
+  if (t(b) < t(a)) return "removing a topic";
+  if (n(b) > n(a)) return n(b) - n(a) === 1 ? "adding a prompt" : "adding prompts";
+  if (n(b) < n(a)) return n(a) - n(b) === 1 ? "removing a prompt" : "removing prompts";
+  if (JSON.stringify(a.prompts) !== JSON.stringify(b.prompts)) return "editing a prompt";
+  if (JSON.stringify(a.topics) !== JSON.stringify(b.topics)) return "renaming a topic";
+  return `a change to ${b.name}`;
 }
 
 /** Sign-in gate. Everything after sign-in lives in Shell. */
@@ -407,6 +422,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
 
   async function update(brand: Brand) {
     const before = brands?.find((b) => b.id === brand.id);
+    // Ctrl + Z puts the brand back; Ctrl + Shift + Z makes the change again.
+    if (before) recordUndo({ label: brandChange(before, brand), undo: () => update(before), redo: () => update(brand) });
     setBrands((list) => list?.map((b) => (b.id === brand.id ? brand : b)) ?? null);
     try {
       await saveBrand(sb, brand);
@@ -512,6 +529,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
 
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
+      <UndoKeys />
       <Sidebar
         sb={sb}
         email={email}
