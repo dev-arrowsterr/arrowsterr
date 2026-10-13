@@ -14,6 +14,7 @@ import {
   getPlanUsage,
   atLeast,
   createWorkspace,
+  renameWorkspace,
   deleteBrand,
     listBrands,
   listRuns,
@@ -46,7 +47,7 @@ import { Logo } from "./Logo";
 import { MembersPage } from "./MembersPage";
 import { SettingsPage, SETTINGS_TABS, type SettingsTab } from "./SettingsPage";
 import { BillingPage, choosePlan } from "./BillingPage";
-import { Onboarding, type NewBrand } from "./Onboarding";
+import { Onboarding, type NewBrand, type Welcome } from "./Onboarding";
 import { PromptsPage } from "./PromptsPage";
 import { ResearchPage, type Tool } from "./research/ResearchPage";
 import type { SeoStart } from "./research/DomainResearch";
@@ -130,6 +131,17 @@ function writeLocal(key: string, value: string | null) {
   } catch {
     // Storage blocked. Nothing important is lost.
   }
+}
+
+/** The name a new account's first workspace gets before its owner names it. */
+const firstWorkspaceName = (email: string) => `${email.split("@")[0] || "My"}'s workspace`;
+const FREE_MAIL = /^(gmail|googlemail|yahoo|hotmail|outlook|live|icloud|me|aol|proton|protonmail|gmx|yandex|zoho)\./i;
+/** A workspace name guessed from a work email: vincent@perceptric.com → Perceptric. */
+function guessCompany(email: string) {
+  const d = email.split("@")[1] ?? "";
+  if (!d || FREE_MAIL.test(d)) return "";
+  const base = d.split(".")[0];
+  return base.charAt(0).toUpperCase() + base.slice(1);
 }
 
 /** A few words for what changed on a brand, for the Undo message. */
@@ -269,7 +281,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
       }
       let list = await listWorkspaces(sb, userId);
       if (!list.length) {
-        await createWorkspace(sb, `${email.split("@")[0] || "My"}'s workspace`);
+        await createWorkspace(sb, firstWorkspaceName(email));
         list = await listWorkspaces(sb, userId);
       }
       setWorkspaces(list);
@@ -492,9 +504,29 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
 
   const auth: RunAuth = { workspaceId: ws.id, token };
   if (onboarding) {
+    // A brand-new account first says who they are and names its workspace. Adding more brands later skips this.
+    const meta = (session.user.user_metadata ?? {}) as { first_name?: string; last_name?: string; role?: string; full_name?: string; name?: string };
+    const [gFirst = "", ...gLast] = String(meta.full_name ?? meta.name ?? "").trim().split(/\s+/);
+    const welcome: Welcome | undefined = !brands.length
+      ? {
+          you: meta.first_name ? null : { first: gFirst, last: gLast.join(" "), role: "" },
+          workspace: ws.role === "owner" && ws.name === firstWorkspaceName(email) ? guessCompany(email) : null,
+        }
+      : undefined;
     return (
       <Onboarding
         auth={auth}
+        welcome={welcome && (welcome.you || welcome.workspace != null) ? welcome : undefined}
+        onWelcome={async (w) => {
+          if (w.you) {
+            const { error: e } = await sb.auth.updateUser({ data: { first_name: w.you.first, last_name: w.you.last, role: w.you.role || null, full_name: [w.you.first, w.you.last].filter(Boolean).join(" ") } });
+            if (e) throw e;
+          }
+          if (w.workspace) {
+            await renameWorkspace(sb, ws.id, w.workspace);
+            await loadWorkspaces();
+          }
+        }}
         onDone={onboard}
         onExit={() => {
           setAdding(false);

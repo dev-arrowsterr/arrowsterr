@@ -7,11 +7,15 @@ import { flatPrompts, type Brand, type Profile, type Topic } from "@/lib/db";
 import { ANGLES, BUSINESS_TYPES, MAX_PROMPTS, TOPIC_KINDS, type Angle, type PickedTopic } from "@/lib/onboarding";
 import type { RunAuth } from "@/lib/runner";
 import { BrandLogo } from "./BrandLogo";
+import { Dropdown } from "./Pickers";
 import { Logo } from "./Logo";
 import { Thinking } from "./ui";
 
 export type NewBrand = Omit<Brand, "id" | "workspace_id" | "daily">;
-type Step = "site" | "topics" | "prompts" | "done";
+type Step = "you" | "workspace" | "site" | "topics" | "prompts" | "done";
+/** A new account's first steps: who they are and what to call the workspace. null skips that step. */
+export type Welcome = { you: { first: string; last: string; role: string } | null; workspace: string | null };
+export const ROLES = ["Founder / CEO", "Marketing lead", "SEO or content", "Growth", "Agency", "Developer", "Other"];
 type TopicPick = PickedTopic & { on: boolean };
 type PromptPick = { text: string; angle: Angle; on: boolean };
 type PlanTopic = { name: string; prompts: PromptPick[] };
@@ -66,7 +70,12 @@ export function Onboarding({
   engines = [],
   checkEvery = 1,
   seo = false,
+  welcome,
+  onWelcome,
 }: {
+  /** First onboarding of a new account: ask for a profile and a workspace name first. */
+  welcome?: Welcome;
+  onWelcome?: (w: { you?: { first: string; last: string; role: string }; workspace?: string }) => Promise<void>;
   seo?: boolean; // Starter on Organic Research: no prompts to set up
   promptRoom?: number; // prompts the workspace's plan still has room for
   engines?: string[]; // AI engines the first check runs on
@@ -88,7 +97,7 @@ export function Onboarding({
       return null;
     }
   });
-  const [step, setStep] = useState<Step>(saved?.step ?? "site");
+  const [step, setStep] = useState<Step>(welcome?.you ? "you" : welcome?.workspace != null ? "workspace" : (saved?.step ?? "site"));
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [website, setWebsite] = useState(saved?.website ?? "");
@@ -213,7 +222,7 @@ export function Onboarding({
     <main className="aw-onb flex min-h-screen flex-col">
       <header className="sticky top-0 z-20 flex flex-wrap items-center justify-between gap-3 border-b border-rule bg-white/95 px-5 py-3 backdrop-blur">
         <Logo size="sm" />
-        {step !== "site" && !seo ? (
+        {step !== "site" && step !== "you" && step !== "workspace" && !seo ? (
           <ol className="aw-steps" aria-label="Steps">
             {steps.map((s, i) => (
               <li key={s.id} className={`aw-steps__item ${i === at ? "is-on" : i < at ? "is-done" : ""}`}>
@@ -253,6 +262,28 @@ export function Onboarding({
               <p className="aw-small">This takes about a minute. Keep this tab open.</p>
             </Thinking>
           </div>
+        ) : null}
+
+        {step === "you" && !busy && welcome?.you ? (
+          <YouStep
+            step={welcome.workspace != null ? "Welcome · 1 of 2" : "Welcome"}
+            init={welcome.you}
+            onNext={(you) => run("Saving your profile...", async () => {
+              await onWelcome?.({ you });
+              go(welcome.workspace != null ? "workspace" : (saved?.step ?? "site"));
+            })}
+          />
+        ) : null}
+        {step === "workspace" && !busy && welcome?.workspace != null ? (
+          <WorkspaceStep
+            step={welcome.you ? "Welcome · 2 of 2" : "Welcome"}
+            init={welcome.workspace}
+            onBack={welcome.you ? () => go("you") : undefined}
+            onNext={(name) => run("Creating your workspace...", async () => {
+              await onWelcome?.({ workspace: name });
+              go(saved?.step ?? "site");
+            })}
+          />
         ) : null}
 
         {step === "site" && !busy ? <SiteStep seo={seo} website={website} setWebsite={setWebsite} onSubmit={readSite} importCount={importCount} onImport={onImport} /> : null}
@@ -332,6 +363,67 @@ function Footer({ onBack, next, onNext, disabled, note, quick }: { onBack?: () =
         </button>
       </div>
     </div>
+  );
+}
+
+/** A small centered card for the welcome steps. */
+function WelcomeCard({ step, title, lead, children, onSubmit }: { step: string; title: string; lead?: string; children: React.ReactNode; onSubmit: () => void }) {
+  return (
+    <form
+      className="mx-auto flex w-full max-w-md flex-col gap-5 pt-[12vh]"
+      onSubmit={(e) => {
+        e.preventDefault();
+        onSubmit();
+      }}
+    >
+      <span className="aw-onb__kicker">{step}</span>
+      <div className="flex flex-col gap-2">
+        <h1 className="aw-h2 mb-0!">{title}</h1>
+        {lead ? <p className="text-[15px] text-body">{lead}</p> : null}
+      </div>
+      {children}
+    </form>
+  );
+}
+
+function YouStep({ step, init, onNext }: { step: string; init: { first: string; last: string; role: string }; onNext: (v: { first: string; last: string; role: string }) => void }) {
+  const [first, setFirst] = useState(init.first);
+  const [last, setLast] = useState(init.last);
+  const [role, setRole] = useState(init.role);
+  return (
+    <WelcomeCard step={step} title="Create your profile" onSubmit={() => first.trim() && onNext({ first: first.trim(), last: last.trim(), role })}>
+      <div className="flex flex-col gap-1.5">
+        <span className="aw-label">Name</span>
+        <div className="grid grid-cols-2 gap-3">
+          <input value={first} onChange={(e) => setFirst(e.target.value)} placeholder="First name" aria-label="First name" required autoFocus className="aw-input" />
+          <input value={last} onChange={(e) => setLast(e.target.value)} placeholder="Last name" aria-label="Last name" className="aw-input" />
+        </div>
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <span className="aw-label">What&apos;s your role?</span>
+        <Dropdown label="Your role" value={role} onChange={setRole} placeholder="Pick one" className="aw-dropdown--field h-11! w-full" options={ROLES.map((r) => ({ id: r, label: r }))} />
+      </div>
+      <button type="submit" className="aw-btn aw-btn--accent aw-btn--lg w-full" disabled={!first.trim()}>
+        Continue
+      </button>
+    </WelcomeCard>
+  );
+}
+
+function WorkspaceStep({ step, init, onBack, onNext }: { step: string; init: string; onBack?: () => void; onNext: (name: string) => void }) {
+  const [name, setName] = useState(init);
+  return (
+    <WelcomeCard step={step} title="Create your workspace" lead="Your team shares one workspace: brands, prompts, research and the Content Plan." onSubmit={() => name.trim() && onNext(name.trim())}>
+      <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Company or team name" aria-label="Workspace name" required autoFocus className="aw-input" />
+      <button type="submit" className="aw-btn aw-btn--accent aw-btn--lg w-full" disabled={!name.trim()}>
+        Continue
+      </button>
+      {onBack ? (
+        <button type="button" className="aw-text-link self-start text-muted!" onClick={onBack}>
+          ← Back
+        </button>
+      ) : null}
+    </WelcomeCard>
   );
 }
 
