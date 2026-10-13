@@ -2,6 +2,7 @@
 
 // Bulk analysis, the way Semrush does it: paste or upload up to 500 keywords or sites and get their
 // numbers side by side in one sheet. Click a row to research it on its own.
+import { Dropdown } from "../Pickers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { addCalendarItems, type Site } from "@/lib/db";
@@ -78,13 +79,7 @@ function BulkInput({ value, onChange, noun, placeholder, disabled }: { value: st
 
 function CountrySelect({ value, onChange }: { value: string; onChange: (c: string) => void }) {
   return (
-    <select aria-label="Country" value={value} onChange={(e) => onChange(e.target.value)} className={BAR_FIELD}>
-      {Object.keys(MARKETS).map((c) => (
-        <option key={c} value={c}>
-          {flag(c)} {c}
-        </option>
-      ))}
-    </select>
+    <Dropdown label="Country" value={value} onChange={onChange} className={BAR_FIELD} options={Object.keys(MARKETS).map((c) => ({ id: c, label: `${flag(c)} ${c}` }))} />
   );
 }
 

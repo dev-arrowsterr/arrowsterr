@@ -1,5 +1,6 @@
 "use client";
 
+import { Dropdown } from "../Pickers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useRef, useState } from "react";
 import { preinit } from "react-dom";
@@ -379,11 +380,7 @@ export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; a
   const fontPick = (label: string, k: "heading" | "body" | "label") => (
     <label className="flex items-center justify-between gap-2 text-[13px] text-body">
       {label}
-      <select value={theme[k]} onChange={(e) => setTheme({ [k]: e.target.value as Font })} className="aw-input w-44! py-1.5! text-[13px]!">
-        {FONTS.map((f) => (
-          <option key={f}>{f}</option>
-        ))}
-      </select>
+      <Dropdown<Font> label={label} value={theme[k]} onChange={(f) => setTheme({ [k]: f })} className="aw-dropdown--sm w-44" options={FONTS.map((f) => ({ id: f, label: f }))} />
     </label>
   );
 
@@ -504,21 +501,11 @@ export function ReportsPage({ sb, auth, view, canEdit }: { sb: SupabaseClient; a
                 {fontPick("Labels", "label")}
                 <label className="flex items-center justify-between gap-2 text-[13px] text-body">
                   Cover
-                  <select value={theme.hero} onChange={(e) => setTheme({ hero: e.target.value as Hero })} className="aw-input w-44! py-1.5! text-[13px]!">
-                    <option value="dark">Dark</option>
-                    <option value="gradient">Gradient</option>
-                    <option value="light">Light</option>
-                    <option value="split">Split</option>
-                  </select>
+                  <Dropdown<Hero> label="Cover" value={theme.hero} onChange={(hero) => setTheme({ hero })} className="aw-dropdown--sm w-44" options={[{ id: "dark", label: "Dark" }, { id: "gradient", label: "Gradient" }, { id: "light", label: "Light" }, { id: "split", label: "Split" }]} />
                 </label>
                 <label className="flex items-center justify-between gap-2 text-[13px] text-body">
                   Cards
-                  <select value={theme.cards} onChange={(e) => setTheme({ cards: e.target.value as Cards })} className="aw-input w-44! py-1.5! text-[13px]!">
-                    <option value="elevated">Shadow</option>
-                    <option value="outline">Outline</option>
-                    <option value="tinted">Tinted</option>
-                    <option value="flat">Flat</option>
-                  </select>
+                  <Dropdown<Cards> label="Cards" value={theme.cards} onChange={(cards) => setTheme({ cards })} className="aw-dropdown--sm w-44" options={[{ id: "elevated", label: "Shadow" }, { id: "outline", label: "Outline" }, { id: "tinted", label: "Tinted" }, { id: "flat", label: "Flat" }]} />
                 </label>
                 <label className="flex items-center justify-between gap-2 text-[13px] text-body">
                   Corners

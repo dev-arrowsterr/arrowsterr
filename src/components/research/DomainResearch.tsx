@@ -1,5 +1,6 @@
 "use client";
 
+import { Dropdown } from "../Pickers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useRef, useState } from "react";
 import { addCalendarItems, type Site } from "@/lib/db";
@@ -207,26 +208,14 @@ export function DomainResearch({ sb, auth, site, canEdit, start, onStarted }: { 
           analyze(domain);
         }}
       >
-        <select aria-label="Look at" value={scope} onChange={(e) => setScope(e.target.value as Scope)} className={BAR_FIELD}>
-          {SCOPES.map((x) => (
-            <option key={x.id} value={x.id}>
-              {x.label}
-            </option>
-          ))}
-        </select>
+        <Dropdown<Scope> label="Look at" value={scope} onChange={setScope} className={BAR_FIELD} options={SCOPES.map((x) => ({ id: x.id, label: x.label }))} />
         <input value={domain} onChange={(e) => {
             setDomain(e.target.value);
             const s = scopeOf(e.target.value);
             if (s) setScope(s);
           }}
           placeholder={SCOPES.find((x) => x.id === scope)!.hint} aria-label="Address" className={BAR_INPUT} />
-        <select aria-label="Country" value={country} onChange={(e) => setCountry(e.target.value)} className={BAR_FIELD}>
-          {Object.keys(MARKETS).map((c) => (
-            <option key={c} value={c}>
-              {flag(c)} {c}
-            </option>
-          ))}
-        </select>
+        <Dropdown label="Country" value={country} onChange={setCountry} className={BAR_FIELD} options={Object.keys(MARKETS).map((c) => ({ id: c, label: `${flag(c)} ${c}` }))} />
         <button type="submit" className={BAR_BUTTON} disabled={!canEdit || Boolean(busy) || !domain.trim()}>
           Analyze
         </button>

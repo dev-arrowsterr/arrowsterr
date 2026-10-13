@@ -1,5 +1,6 @@
 "use client";
 
+import { Dropdown } from "./Pickers";
 import { recordUndo } from "@/lib/undo";
 import { CmsSettings } from "./CmsSettings";
 import { IntegrationsSettings } from "./IntegrationsSettings";
@@ -246,13 +247,12 @@ export function MembersPage({
                     </td>
                     <td>
                       {editable ? (
-                        <select
-                          aria-label={`Role for ${m.email ?? "member"}`}
-                          className="aw-select py-1!"
+                        <Dropdown<Role>
+                          label={`Role for ${m.email ?? "member"}`}
+                          className="aw-dropdown--sm"
                           value={m.role}
-                          onChange={(e) => {
+                          onChange={(next) => {
                             const was = m.role;
-                            const next = e.target.value as Role;
                             const who = m.email ?? "a member";
                             recordUndo({
                               label: `the role change for ${who}`,
@@ -261,13 +261,8 @@ export function MembersPage({
                             });
                             act(() => setMemberRole(sb, ws.id, m.user_id, next), "Role updated.");
                           }}
-                        >
-                          {ROLES.filter((r) => r.id !== "owner").map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.label}
-                            </option>
-                          ))}
-                        </select>
+                          options={ROLES.filter((r) => r.id !== "owner").map((r) => ({ id: r.id, label: r.label }))}
+                        />
                       ) : (
                         <span className="aw-tag">{label(m.role)}</span>
                       )}
@@ -326,13 +321,7 @@ export function MembersPage({
               required
               className="aw-input"
             />
-            <select aria-label="Role" className="aw-select sm:w-40" value={role} onChange={(e) => setRole(e.target.value as Role)}>
-              {ROLES.filter((r) => r.id !== "owner").map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.label}
-                </option>
-              ))}
-            </select>
+            <Dropdown<Role> label="Role" className="aw-dropdown--field sm:w-40" value={role} onChange={setRole} options={ROLES.filter((r) => r.id !== "owner").map((r) => ({ id: r.id, label: r.label }))} />
             <button type="submit" className="aw-btn aw-btn--primary">
               Create invite
             </button>

@@ -1,5 +1,6 @@
 "use client";
 
+import { DateField, Dropdown } from "../Pickers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { addCalendarItems, deleteCalendarItems, keywordRunResult, restoreCalendarItems, listCalendar, listMembers, saveSite, updateCalendarItem, type BankRow, type CalendarItem, type CalendarStatus, type KeywordRun, type NewCalendarItem, type SheetColumn, type Site } from "@/lib/db";
@@ -568,17 +569,11 @@ export function ContentCalendar({
         <section className="aw-frame flex flex-wrap items-end gap-4 px-4 py-4">
           <label className="flex flex-col gap-1">
             <span className="aw-label">Posts per week</span>
-            <select value={perWeek} onChange={(e) => setPerWeek(Number(e.target.value))} className={FIELD}>
-              {[1, 2, 3, 4, 5].map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
+            <Dropdown label="Pieces a week" value={perWeek} onChange={setPerWeek} className={FIELD} options={[1, 2, 3, 4, 5].map((n) => ({ id: n, label: String(n) }))} />
           </label>
           <label className="flex flex-col gap-1">
             <span className="aw-label">Start on</span>
-            <input type="date" value={start} onChange={(e) => setStart(e.target.value)} className={FIELD} />
+            <DateField label="Start on" value={start} onChange={(v) => v && setStart(v)} className={FIELD} clearable={false} />
           </label>
           <button type="button" className="aw-btn aw-btn--accent aw-btn--sm" onClick={plan} disabled={!undated}>
             Set dates
@@ -641,24 +636,7 @@ export function ContentCalendar({
         {picked.size && canEdit ? (
           <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint bg-brand-pale px-5 py-2.5">
             <span className="text-[13px] font-medium text-ink">{picked.size} selected</span>
-            <select
-              aria-label="Set status"
-              value=""
-              onChange={(e) => {
-                const st = e.target.value as CalendarStatus;
-                [...picked].forEach((id) => patch(id, { status: st }));
-              }}
-              className={FIELD}
-            >
-              <option value="" disabled>
-                Set status
-              </option>
-              {STATUSES.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.label}
-                </option>
-              ))}
-            </select>
+            <Dropdown<CalendarStatus | ""> label="Set status" value="" placeholder="Set status" onChange={(st) => st && [...picked].forEach((id) => patch(id, { status: st }))} className={FIELD} options={STATUSES.map((s) => ({ id: s.id, label: s.label }))} />
             <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => remove([...picked])}>
               Delete
             </button>
@@ -677,11 +655,7 @@ export function ContentCalendar({
             }}
           >
             <input autoFocus value={colName} onChange={(e) => setColName(e.target.value)} placeholder="Column name, like Writer or Word count" aria-label="Column name" className={`${FIELD} w-64`} />
-            <select value={colType} onChange={(e) => setColType(e.target.value as SheetColumn["type"])} aria-label="Column type" className={FIELD}>
-              <option value="text">Text</option>
-              <option value="number">Number</option>
-              <option value="date">Date</option>
-            </select>
+            <Dropdown<SheetColumn["type"]> label="Column type" value={colType} onChange={setColType} className={FIELD} options={[{ id: "text", label: "Text" }, { id: "number", label: "Number" }, { id: "date", label: "Date" }]} />
             <button type="submit" className="aw-btn aw-btn--primary aw-btn--sm" disabled={!colName.trim()}>
               Add column
             </button>

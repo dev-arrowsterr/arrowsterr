@@ -1,5 +1,6 @@
 "use client";
 
+import { Dropdown } from "./Pickers";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { EVENTS } from "@/lib/integrationTypes";
 import type { RunAuth } from "@/lib/runner";
@@ -190,13 +191,7 @@ export function IntegrationsSettings({ auth, isAdmin }: { auth: RunAuth; isAdmin
             <div className="flex flex-wrap items-center gap-2">
               <label className="flex items-center gap-2 text-[13px] text-body">
                 Alert when visibility moves
-                <select value={points} onChange={(e) => setPoints(Number(e.target.value))} className="aw-input w-auto! py-1.5! text-[13px]!">
-                  {[3, 5, 10, 15].map((p) => (
-                    <option key={p} value={p}>
-                      {p} points
-                    </option>
-                  ))}
-                </select>
+                <Dropdown label="Points" value={points} onChange={setPoints} className="aw-dropdown--sm" options={[3, 5, 10, 15].map((p) => ({ id: p, label: `${p} points` }))} />
               </label>
               {s.slack ? (
                 <>

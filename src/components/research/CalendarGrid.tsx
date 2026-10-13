@@ -1,5 +1,6 @@
 "use client";
 
+import { Dropdown } from "../Pickers";
 import { useState } from "react";
 import type { CalendarItem } from "@/lib/db";
 import { Pop } from "../Sheet";
@@ -316,12 +317,7 @@ function BankMenu({ anchor, items, value, onApply, onClose }: { anchor: DOMRect;
           "vol",
           "Filter by search volume",
           <>
-            <select value={d.vol.op} onChange={(e) => setD((x) => ({ ...x, vol: { ...x.vol, op: e.target.value as VolOp } }))} aria-label="Search volume condition" className="aw-pop__field">
-              <option value="any">Any volume</option>
-              <option value="gte">Greater than or equal to</option>
-              <option value="lte">Less than or equal to</option>
-              <option value="between">Is between</option>
-            </select>
+            <Dropdown<VolOp> label="Search volume condition" value={d.vol.op} onChange={(op) => setD((x) => ({ ...x, vol: { ...x.vol, op } }))} className="aw-pop__field" options={[{ id: "any", label: "Any volume" }, { id: "gte", label: "Greater than or equal to" }, { id: "lte", label: "Less than or equal to" }, { id: "between", label: "Is between" }]} />
             {d.vol.op !== "any" ? (
               <span className="flex items-center gap-1.5">
                 <input autoFocus inputMode="numeric" value={d.vol.a} onChange={(e) => setD((x) => ({ ...x, vol: { ...x.vol, a: e.target.value } }))} placeholder="e.g. 100" aria-label="Volume" className="aw-pop__field" />

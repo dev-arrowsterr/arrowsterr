@@ -1,5 +1,6 @@
 "use client";
 
+import { Dropdown } from "./Pickers";
 import type { Session } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 import { listWorkspaces, type Workspace } from "@/lib/db";
@@ -138,13 +139,7 @@ export function Authorize({ config }: { config: SupaConfig }) {
       ) : (
         <label className="flex flex-col gap-1 text-[13px] text-body">
           Workspace
-          <select value={ws} onChange={(e) => setWs(e.target.value)} className="aw-input py-2! text-[14px]!" disabled={spaces.length === 1}>
-            {spaces.map((w) => (
-              <option key={w.id} value={w.id}>
-                {w.name}
-              </option>
-            ))}
-          </select>
+          <Dropdown label="Workspace" value={ws} onChange={setWs} className="aw-dropdown--field w-full" disabled={spaces.length === 1} options={spaces.map((w) => ({ id: w.id, label: w.name }))} />
         </label>
       )}
       <div className="flex gap-2">

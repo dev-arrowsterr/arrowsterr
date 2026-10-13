@@ -1,5 +1,6 @@
 "use client";
 
+import { Dropdown } from "../Pickers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useContext, useEffect, useRef, useState } from "react";
 import { addCalendarItems, type Site } from "@/lib/db";
@@ -384,13 +385,7 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
           aria-label="Keyword"
           className={BAR_INPUT}
         />
-        <select aria-label="Country" value={country} onChange={(e) => setCountry(e.target.value)} className={BAR_FIELD}>
-          {Object.keys(MARKETS).map((c) => (
-            <option key={c} value={c}>
-              {flag(c)} {c}
-            </option>
-          ))}
-        </select>
+        <Dropdown label="Country" value={country} onChange={setCountry} className={BAR_FIELD} options={Object.keys(MARKETS).map((c) => ({ id: c, label: `${flag(c)} ${c}` }))} />
         <button type="submit" className={BAR_BUTTON} disabled={!canEdit || Boolean(busy) || waiting.length > 0 || !query.trim()}>
           Analyze
         </button>

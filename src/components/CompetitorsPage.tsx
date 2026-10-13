@@ -1,5 +1,6 @@
 "use client";
 
+import { Dropdown } from "./Pickers";
 import { useState } from "react";
 import { answered, battle, brandStats, rankOf, rankTrend, topicGrid, trend, type BattleRow, type BrandStat } from "@/lib/metrics";
 import type { CompetitorsSnapshot } from "@/lib/reportTypes";
@@ -339,16 +340,7 @@ export function CompetitorsPage({
   );
 
   const picker = (value: string, onPick: (v: string) => void, label: string, not?: string) => (
-    <select aria-label={label} value={value} onChange={(e) => onPick(e.target.value)} className="max-w-56 border border-rule bg-white px-2.5 py-1.5 text-[14px] text-ink focus:border-brand focus:outline-none">
-      {top
-        .filter((s) => s.name !== not)
-        .map((s) => (
-          <option key={s.name} value={s.name}>
-            {s.name}
-            {s.isYou ? " (you)" : ""}
-          </option>
-        ))}
-    </select>
+    <Dropdown label={label} value={value} onChange={onPick} className="aw-dropdown--field max-w-56" options={top.filter((s) => s.name !== not).map((s) => ({ id: s.name, label: s.isYou ? `${s.name} (you)` : s.name }))} />
   );
 
   return (

@@ -1,5 +1,6 @@
 "use client";
 
+import { Dropdown } from "./Pickers";
 import { useCallback, useEffect, useState } from "react";
 import { answered, ownsDomain } from "@/lib/metrics";
 import type { RunAuth } from "@/lib/runner";
@@ -98,13 +99,7 @@ export function Ga4Connect({ status, canEdit, call, onDone }: { status: Status; 
         <p className="aw-small">Loading your properties...</p>
       ) : props.length ? (
         <div className="flex flex-wrap items-center gap-2">
-          <select value={pick} onChange={(e) => setPick(e.target.value)} aria-label="GA4 property" className="aw-input h-11! w-auto! min-w-72 py-0!">
-            {props.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} · {p.account}
-              </option>
-            ))}
-          </select>
+          <Dropdown label="GA4 property" value={pick} onChange={setPick} className="aw-dropdown--field h-11! min-w-72" options={props.map((p) => ({ id: p.id, label: `${p.name} · ${p.account}` }))} />
           <button type="button" className="aw-btn aw-btn--primary h-11! py-0!" onClick={choose} disabled={busy || !pick}>
             Use this property
           </button>

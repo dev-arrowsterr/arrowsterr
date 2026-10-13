@@ -1,5 +1,6 @@
 "use client";
 
+import { Dropdown } from "./Pickers";
 import { withoutResearch } from "@/lib/researchUrl";
 import { recordUndo } from "@/lib/undo";
 import { UndoKeys } from "./UndoKeys";
@@ -1133,29 +1134,9 @@ function TopBar(p: {
       </div>
       {!p.visibility ? null : (
         <>
-      <select aria-label="Time period" value={p.days} onChange={(e) => p.onDays(Number(e.target.value))} className={`${pill} pr-7`}>
-        {TIMEFRAMES.map((d) => (
-          <option key={d} value={d}>
-            Last {d} days
-          </option>
-        ))}
-      </select>
-      <select aria-label="Topic" value={p.topic} onChange={(e) => p.onTopic(e.target.value)} className={`${pill} max-w-56 pr-7`}>
-        <option value="All">All topics</option>
-        {p.topics.map((t) => (
-          <option key={t} value={t}>
-            {t}
-          </option>
-        ))}
-      </select>
-      <select aria-label="Model" value={p.model} onChange={(e) => p.onModel(e.target.value)} className={`${pill} pr-7`}>
-        <option value="All">All models</option>
-        {p.models.map((m) => (
-          <option key={m} value={m}>
-            {m}
-          </option>
-        ))}
-      </select>
+      <Dropdown label="Time period" value={p.days} onChange={p.onDays} className={pill} options={TIMEFRAMES.map((d) => ({ id: d, label: `Last ${d} days` }))} />
+      <Dropdown label="Topic" value={p.topic} onChange={p.onTopic} className={`${pill} max-w-56`} options={[{ id: "All", label: "All topics" }, ...p.topics.map((t) => ({ id: t, label: t }))]} />
+      <Dropdown label="Model" value={p.model} onChange={p.onModel} className={pill} options={[{ id: "All", label: "All models" }, ...p.models.map((m) => ({ id: m, label: m }))]} />
         </>
       )}
       <div className="ml-auto flex items-center gap-3">

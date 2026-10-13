@@ -1,8 +1,8 @@
 "use client";
 
-import { Fragment, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { quietly, recordUndo } from "@/lib/undo";
+import { DateField, DatePop, Dropdown, Pop, SelectPop, type Option } from "./Pickers";
 import { sortRows, useSort, type Sort } from "./ui";
 
 // A spreadsheet that works like Google Sheets.
@@ -14,12 +14,8 @@ import { sortRows, useSort, type Sort } from "./ui";
 // Show, hide, move and resize columns. The layout is saved per sheet in this browser.
 
 type Value = string | number | null | undefined;
-export type Option = {
-  id: string;
-  label: string;
-  /** Other words that mean this option when pasted. */ aliases?: string[];
-  /** A status class for the chip. */ tone?: string;
-};
+export type { Option } from "./Pickers";
+export { Pop } from "./Pickers";
 export type Edit<T> = {
   kind: "text" | "number" | "date" | "select";
   options?: Option[];
@@ -106,6 +102,14 @@ const CONDS: { id: CondOp; label: string; args: 0 | 1 | 2 }[] = [
   { id: "notBetween", label: "Is not between", args: 2 },
 ];
 type Cond = { op: CondOp; a: string; b: string };
+/** The conditions that make sense for each kind of column. */
+const CONDS_FOR: Record<"text" | "number" | "list" | "date", CondOp[]> = {
+  text: ["empty", "notEmpty", "contains", "notContains", "starts", "ends", "exactly"],
+  list: ["empty", "notEmpty", "contains", "notContains", "starts", "ends", "exactly"],
+  number: ["empty", "notEmpty", "gt", "gte", "lt", "lte", "eq", "neq", "between", "notBetween"],
+  date: ["empty", "notEmpty", "dateIs", "dateBefore", "dateAfter", "between", "notBetween"],
+};
+const FIRST_COND: Record<"text" | "number" | "list" | "date", CondOp> = { text: "contains", list: "contains", number: "gt", date: "dateIs" };
 type Filter = { cond?: Cond; vals?: string[] };
 
 function condMatch(v: Value, c: Cond): boolean {
@@ -158,175 +162,6 @@ const condReady = (c?: Cond) => Boolean(c && (CONDS.find((x) => x.id === c.op)?.
 const filterOn = (f?: Filter) => Boolean(f && (condReady(f.cond) || f.vals));
 
 /** The root that holds Arrowsterr's styles, so pop-ups opened in a portal look right. */
-const portalRoot = () => (typeof document === "undefined" ? null : ((document.querySelector(".aw") as HTMLElement | null) ?? document.body));
-
-/** A pop-up under a cell or a column name, kept on screen. Closes on a click outside or Escape. */
-export function Pop({ anchor, onClose, children, width = 260, label }: { anchor: DOMRect; onClose: () => void; children: React.ReactNode; width?: number; label: string }) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  const [pos, setPos] = useState({ left: anchor.left, top: anchor.bottom + 4 });
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const h = el.offsetHeight;
-    const left = Math.max(8, Math.min(anchor.left, window.innerWidth - width - 8));
-    const below = anchor.bottom + 4;
-    const top = below + h > window.innerHeight - 8 && anchor.top - h - 4 > 8 ? anchor.top - h - 4 : Math.max(8, Math.min(below, window.innerHeight - h - 8));
-    setPos({ left, top });
-  }, [anchor, width]);
-  useEffect(() => {
-    const down = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && onClose();
-    const key = (e: KeyboardEvent) => e.key === "Escape" && (e.stopPropagation(), onClose());
-    const t = setTimeout(() => document.addEventListener("mousedown", down), 0);
-    document.addEventListener("keydown", key, true);
-    return () => {
-      clearTimeout(t);
-      document.removeEventListener("mousedown", down);
-      document.removeEventListener("keydown", key, true);
-    };
-  }, [onClose]);
-  const root = portalRoot();
-  if (!root) return null;
-  return createPortal(
-    <div ref={ref} role="dialog" aria-label={label} className="aw-pop" style={{ left: pos.left, top: pos.top, width }} onMouseDown={(e) => e.stopPropagation()}>
-      {children}
-    </div>,
-    root,
-  );
-}
-
-/** Pick one option, in Arrowsterr's style. Type to narrow, arrows to move, Enter to pick. */
-function SelectPop({ anchor, options, value, onPick, onClose, label }: { anchor: DOMRect; options: Option[]; value: string; onPick: (id: string) => void; onClose: () => void; label: string }) {
-  const [q, setQ] = useState("");
-  const list = options.filter((o) => !q || o.label.toLowerCase().includes(q.toLowerCase()));
-  const [i, setI] = useState(
-    Math.max(
-      0,
-      list.findIndex((o) => o.id === value),
-    ),
-  );
-  return (
-    <Pop anchor={anchor} onClose={onClose} label={label} width={Math.max(200, anchor.width)}>
-      {options.length > 7 ? (
-        <input
-          autoFocus
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setI(0);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "ArrowDown") {
-              e.preventDefault();
-              setI((x) => Math.min(list.length - 1, x + 1));
-            }
-            if (e.key === "ArrowUp") {
-              e.preventDefault();
-              setI((x) => Math.max(0, x - 1));
-            }
-            if (e.key === "Enter" && list[i]) onPick(list[i].id);
-          }}
-          placeholder="Search"
-          aria-label="Search options"
-          className="aw-pop__search"
-        />
-      ) : null}
-      <ul
-        role="listbox"
-        aria-label={label}
-        tabIndex={options.length > 7 ? -1 : 0}
-        ref={(el) => {
-          if (el && options.length <= 7 && document.activeElement !== el) el.focus();
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "ArrowDown") {
-            e.preventDefault();
-            setI((x) => Math.min(list.length - 1, x + 1));
-          }
-          if (e.key === "ArrowUp") {
-            e.preventDefault();
-            setI((x) => Math.max(0, x - 1));
-          }
-          if (e.key === "Enter" && list[i]) {
-            e.preventDefault();
-            onPick(list[i].id);
-          }
-        }}
-        className="aw-pop__list outline-none"
-      >
-        {list.map((o, k) => (
-          <li key={o.id || "none"} role="option" aria-selected={o.id === value}>
-            <button type="button" className={`aw-pop__opt ${k === i ? "is-hot" : ""}`} onMouseEnter={() => setI(k)} onClick={() => onPick(o.id)}>
-              {o.tone ? <span className={`aw-status ${o.tone}`}>{o.label}</span> : <span>{o.label}</span>}
-              {o.id === value ? <span className="aw-pop__check">✓</span> : null}
-            </button>
-          </li>
-        ))}
-        {!list.length ? <li className="px-3 py-2 text-[12px] text-muted">No match</li> : null}
-      </ul>
-    </Pop>
-  );
-}
-
-/** A month to pick a date from, in Arrowsterr's style. */
-function DatePop({ anchor, value, onPick, onClose, label }: { anchor: DOMRect; value: string; onPick: (v: string | null) => void; onClose: () => void; label: string }) {
-  const start = value ? new Date(`${value}T00:00:00`) : new Date();
-  const [month, setMonth] = useState(new Date(start.getFullYear(), start.getMonth(), 1));
-  const first = new Date(month);
-  first.setDate(1 - ((month.getDay() + 6) % 7));
-  const days = Array.from({ length: 42 }, (_, i) => {
-    const d = new Date(first);
-    d.setDate(first.getDate() + i);
-    return d;
-  });
-  const today = iso(new Date());
-  return (
-    <Pop anchor={anchor} onClose={onClose} label={label} width={264}>
-      <div className="flex items-center justify-between px-2 pt-1 pb-2">
-        <button type="button" className="aw-pop__nav" aria-label="Previous month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>
-          ‹
-        </button>
-        <span className="text-[13px] font-medium text-ink">
-          {month.toLocaleDateString("en-US", {
-            month: "long",
-            year: "numeric",
-          })}
-        </span>
-        <button type="button" className="aw-pop__nav" aria-label="Next month" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}>
-          ›
-        </button>
-      </div>
-      <div className="grid grid-cols-7 gap-0.5 px-2 text-center">
-        {["M", "T", "W", "T", "F", "S", "S"].map((d, i) => (
-          <span key={i} className="py-1 text-[11px] text-muted">
-            {d}
-          </span>
-        ))}
-        {days.map((d) => {
-          const k = iso(d);
-          return (
-            <button
-              key={k}
-              type="button"
-              onClick={() => onPick(k)}
-              className={`aw-pop__day ${d.getMonth() === month.getMonth() ? "" : "is-out"} ${k === value ? "is-on" : ""} ${k === today ? "is-today" : ""}`}
-            >
-              {d.getDate()}
-            </button>
-          );
-        })}
-      </div>
-      <div className="mt-2 flex justify-between border-t border-rule-faint px-2 pt-2">
-        <button type="button" className="aw-text-link text-[12px]" onClick={() => onPick(today)}>
-          Today
-        </button>
-        <button type="button" className="aw-text-link text-[12px] text-neg!" onClick={() => onPick(null)}>
-          Clear date
-        </button>
-      </div>
-    </Pop>
-  );
-}
-
 /** The column menu: sort, filter by condition, filter by values. Like Google Sheets, without color. */
 function ColumnMenu<T>({
   anchor,
@@ -350,14 +185,13 @@ function ColumnMenu<T>({
   onClose: () => void;
 }) {
   const all = [...new Set(rows.map((r) => keyOf(col.value(r))))].sort((a, b) => (a === "" ? -1 : b === "" ? 1 : a.localeCompare(b, undefined, { numeric: true })));
-  const [cond, setCond] = useState<Cond>(filter?.cond ?? { op: "contains", a: "", b: "" });
+  const [cond, setCond] = useState<Cond>(filter?.cond ?? { op: FIRST_COND[col.type], a: "", b: "" });
   const [useCond, setUseCond] = useState(Boolean(filter?.cond));
   const [picked, setPicked] = useState<Set<string>>(new Set(filter?.vals ?? all));
   const [q, setQ] = useState("");
   const [open, setOpen] = useState<"cond" | "vals" | null>(filter?.cond ? "cond" : "vals");
   const listed = all.filter((v) => !q || v.toLowerCase().includes(q.toLowerCase()));
   const args = CONDS.find((c) => c.id === cond.op)?.args ?? 1;
-  const inputType = col.type === "date" ? "date" : "text";
   const apply = () => {
     const f: Filter = {};
     if (useCond && condReady(cond)) f.cond = cond;
@@ -386,45 +220,47 @@ function ColumnMenu<T>({
             </button>
             {open === "cond" ? (
               <div className="flex flex-col gap-2 px-3 pb-2">
-                <select
-                  aria-label="Condition"
-                  value={useCond ? cond.op : ""}
-                  onChange={(e) => {
-                    if (!e.target.value) return setUseCond(false);
-                    setUseCond(true);
-                    setCond({ ...cond, op: e.target.value as CondOp });
-                  }}
+                <Dropdown<CondOp | "">
+                  label="Condition"
                   className="aw-pop__field"
-                >
-                  <option value="">None</option>
-                  {CONDS.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.label}
-                    </option>
-                  ))}
-                </select>
+                  value={useCond ? cond.op : ""}
+                  onChange={(v) => {
+                    if (!v) return setUseCond(false);
+                    setUseCond(true);
+                    setCond({ ...cond, op: v });
+                  }}
+                  options={[{ id: "" as const, label: "None" }, ...CONDS.filter((c) => CONDS_FOR[col.type].includes(c.id)).map((c) => ({ id: c.id, label: c.label }))]}
+                />
                 {useCond && args >= 1 ? (
-                  <input
-                    autoFocus
-                    type={inputType}
-                    value={cond.a}
-                    onChange={(e) => setCond({ ...cond, a: e.target.value })}
-                    onKeyDown={(e) => e.key === "Enter" && apply()}
-                    placeholder="Value"
-                    aria-label="Value"
-                    className="aw-pop__field"
-                  />
+                  col.type === "date" ? (
+                    <DateField label="Date" className="aw-pop__field" value={cond.a} clearable={false} onChange={(v) => setCond({ ...cond, a: v ?? "" })} />
+                  ) : (
+                    <input
+                      autoFocus
+                      inputMode={col.type === "number" ? "decimal" : undefined}
+                      value={cond.a}
+                      onChange={(e) => setCond({ ...cond, a: e.target.value })}
+                      onKeyDown={(e) => e.key === "Enter" && apply()}
+                      placeholder="Value"
+                      aria-label="Value"
+                      className="aw-pop__field"
+                    />
+                  )
                 ) : null}
                 {useCond && args === 2 ? (
-                  <input
-                    type={inputType}
-                    value={cond.b}
-                    onChange={(e) => setCond({ ...cond, b: e.target.value })}
-                    onKeyDown={(e) => e.key === "Enter" && apply()}
-                    placeholder="And"
-                    aria-label="Second value"
-                    className="aw-pop__field"
-                  />
+                  col.type === "date" ? (
+                    <DateField label="And" placeholder="And" className="aw-pop__field" value={cond.b} clearable={false} onChange={(v) => setCond({ ...cond, b: v ?? "" })} />
+                  ) : (
+                    <input
+                      inputMode={col.type === "number" ? "decimal" : undefined}
+                      value={cond.b}
+                      onChange={(e) => setCond({ ...cond, b: e.target.value })}
+                      onKeyDown={(e) => e.key === "Enter" && apply()}
+                      placeholder="And"
+                      aria-label="Second value"
+                      className="aw-pop__field"
+                    />
+                  )
                 ) : null}
               </div>
             ) : null}
@@ -1405,22 +1241,16 @@ export function Sheet<T>({
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-rule px-4 py-2.5 text-[12px] text-muted">
           <label className="flex items-center gap-2">
             Rows per page
-            <select
+            <Dropdown
+              label="Rows per page"
+              className="aw-dropdown--sm"
               value={per}
-              onChange={(e) => {
-                setPer(Number(e.target.value));
+              onChange={(n) => {
+                setPer(n);
                 setPage(0);
               }}
-              className="h-8 border border-rule bg-white px-2 text-[12px] text-ink focus:border-brand focus:outline-none"
-            >
-              {[...new Set([25, 50, 100, 250, 500, pageSize ?? 100])]
-                .sort((a, b) => a - b)
-                .map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
-                ))}
-            </select>
+              options={[...new Set([25, 50, 100, 250, 500, pageSize ?? 100])].sort((a, b) => a - b).map((n) => ({ id: n, label: String(n) }))}
+            />
           </label>
           <span className="flex items-center gap-2">
             <span className="aw-num">{sorted.length ? `${(first + 1).toLocaleString("en-US")}–${(first + shown.length).toLocaleString("en-US")} of ${sorted.length.toLocaleString("en-US")}` : "0 rows"}</span>

@@ -1,5 +1,6 @@
 "use client";
 
+import { DateField, Dropdown } from "../Pickers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import Link from "@tiptap/extension-link";
 import Table from "@tiptap/extension-table";
@@ -498,52 +499,30 @@ function Overview({
         )}
         {field(
           "Stage",
-          <select value={item.stage ?? ""} disabled={!canEdit} onChange={(e) => onPatch({ stage: (e.target.value || null) as CalendarItem["stage"] })} className={box}>
-            {STAGES.map((x) => (
-              <option key={x.id} value={x.id}>
-                {STAGE_LABEL[x.id]}
-              </option>
-            ))}
-            <option value="">None</option>
-          </select>,
+          <Dropdown label="Stage" value={item.stage ?? ""} disabled={!canEdit} onChange={(v) => onPatch({ stage: (v || null) as CalendarItem["stage"] })} className={box} options={[...STAGES.map((x) => ({ id: x.id as string, label: STAGE_LABEL[x.id] })), { id: "", label: "None" }]} />,
         )}
         {field(
           "Status",
-          <select
+          <Dropdown
+            label="Status"
             value={status}
             disabled={!canEdit}
-            onChange={(e) => {
-              const v = e.target.value;
+            onChange={(v) => {
               if (v === "idea") onPatch({ status: "planned", due_date: null });
               else onPatch(v === "planned" && !item.due_date ? { status: "planned", due_date: isoDay(nextMonday()) } : { status: v as CalendarStatus });
             }}
             className={box}
-          >
-            {STATUS_PICK.map((x) => (
-              <option key={x.id} value={x.id}>
-                {x.label}
-              </option>
-            ))}
-          </select>,
+            options={STATUS_PICK.map((x) => ({ id: x.id as string, label: x.label }))}
+          />,
         )}
-        {field("Publish date", <input type="date" value={item.due_date ?? ""} disabled={!canEdit} onChange={(e) => onPatch({ due_date: e.target.value || null })} className={box} />)}
+        {field("Publish date", <DateField label="Publish date" value={item.due_date ?? ""} disabled={!canEdit} onChange={(v) => onPatch({ due_date: v })} className={box} placeholder="Not scheduled" />)}
         {field(
           "Owner",
-          <select value={item.owner ?? ""} disabled={!canEdit} onChange={(e) => onPatch({ owner: e.target.value || null })} className={box}>
-            <option value="">Unassigned</option>
-            {owners.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>,
+          <Dropdown label="Owner" value={item.owner ?? ""} disabled={!canEdit} onChange={(v) => onPatch({ owner: v || null })} className={box} options={[{ id: "", label: "Unassigned" }, ...owners.map((m) => ({ id: m, label: m }))]} />,
         )}
         {field(
           "Job",
-          <select value={item.action} disabled={!canEdit} onChange={(e) => onPatch({ action: e.target.value as CalendarItem["action"] })} className={box}>
-            <option value="new">New page</option>
-            <option value="update">Update page</option>
-          </select>,
+          <Dropdown label="Job" value={item.action} disabled={!canEdit} onChange={(v) => onPatch({ action: v })} className={box} options={[{ id: "new" as const, label: "New page" }, { id: "update" as const, label: "Update page" }]} />,
         )}
         {field("Theme", <input value={theme} disabled={!canEdit} onChange={(e) => setTheme(e.target.value)} onBlur={() => theme !== (item.theme ?? "") && onPatch({ theme: theme.trim() || null })} placeholder="A group of related topics" className={box} />)}
         {item.action === "update" && item.current_url

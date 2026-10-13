@@ -1,5 +1,6 @@
 "use client";
 
+import { Dropdown } from "../Pickers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { CMS, type CmsConnection, type Published } from "@/lib/cmsTypes";
@@ -77,13 +78,7 @@ export function PublishPanel({ sb, auth, docId, title, html, onClose }: { sb: Su
           {conns.length ? (
             <label className="flex flex-col gap-1.5">
               <span className="aw-label">Publish to</span>
-              <select value={to} onChange={(e) => setTo(e.target.value)} className="aw-input py-2! text-[14px]!">
-                {conns.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name} · {CMS.find((x) => x.id === c.kind)?.label}
-                  </option>
-                ))}
-              </select>
+              <Dropdown label="Publish to" value={to} onChange={setTo} className="aw-dropdown--field w-full" options={conns.map((c) => ({ id: c.id, label: `${c.name} · ${CMS.find((x) => x.id === c.kind)?.label ?? ""}` }))} />
             </label>
           ) : (
             <div className="aw-callout">No CMS connected yet. An admin can connect WordPress, Webflow, Shopify, HubSpot or Ghost in Settings → Workspace & members.</div>
