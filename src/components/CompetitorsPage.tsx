@@ -458,8 +458,8 @@ export function CompetitorsPage({
               <tbody>
                 {grid.map((g) => (
                   <tr key={g.topic}>
-                    <td className="max-w-72">
-                      <button type="button" onClick={() => onTopic(g.topic)} className="aw-text-link truncate text-left" title={`Open ${g.topic} on the Prompts page`}>
+                    <td className="min-w-48 max-w-80 whitespace-normal!">
+                      <button type="button" onClick={() => onTopic(g.topic)} className="aw-text-link line-clamp-2 text-left leading-snug break-words" title={`Open ${g.topic} on the Prompts page`}>
                         {g.topic}
                       </button>
                     </td>
