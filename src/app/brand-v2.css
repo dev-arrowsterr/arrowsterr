@@ -197,7 +197,7 @@ html, body { background: #F8F8FF; }
 .aw .aw-sheet td.aw-sheet__n.is-row-on { background: #DCE5F8 !important; color: var(--aw-brand) !important; }
 .aw .aw-sheet__cell { cursor: cell; }
 .aw .aw-sheet__flash { padding: 2px 8px; border-radius: 4px; background: var(--aw-ink); color: #fff; font-size: 12px; }
-.aw .aw-sheet__pick input, .aw .aw-sheet input[type=checkbox] { accent-color: #16A34A; }
+.aw .aw-sheet__pick input, .aw .aw-sheet input[type=checkbox] { accent-color: var(--aw-brand); }
 .aw .aw-tick { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 50%; background: #16A34A; color: #fff; font-size: 10px; font-weight: 700; line-height: 1; }
 .aw .aw-cal-card__st--idea { color: var(--aw-muted); background: transparent; box-shadow: inset 0 0 0 1px var(--aw-rule); }
 
@@ -215,7 +215,7 @@ html, body { background: #F8F8FF; }
 .aw .aw-pop__opt.is-hot { background: var(--aw-surface-2); }
 .aw .aw-pop__check { color: #16A34A; font-weight: 700; }
 .aw .aw-pop__check-row { display: flex; align-items: center; gap: 8px; padding: 4px 2px; font-size: 13px; cursor: pointer; }
-.aw .aw-pop__check-row input { width: 15px; height: 15px; accent-color: #16A34A; }
+.aw .aw-pop__check-row input { width: 15px; height: 15px; accent-color: var(--aw-brand); }
 .aw .aw-pop__nav { width: 28px; height: 28px; border: 0; border-radius: 6px; background: none; font-size: 18px; color: var(--aw-body); cursor: pointer; }
 .aw .aw-pop__nav:hover { background: var(--aw-surface-2); }
 .aw .aw-pop__day { height: 30px; border: 0; border-radius: 6px; background: none; font-size: 12px; font-family: var(--aw-mono); color: var(--aw-ink); cursor: pointer; }
