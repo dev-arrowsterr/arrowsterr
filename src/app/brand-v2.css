@@ -245,6 +245,11 @@ html, body { background: #F8F8FF; }
 .aw .aw-sheet__openbtn:hover { border-color: var(--aw-brand); }
 .aw .aw-sheet .aw-sort { display: inline-flex; align-items: center; gap: 4px; width: 100%; }
 .aw .aw-sheet .aw-sort__arrow { margin-left: auto; }
+.aw .aw-sheet .aw-sort { flex: 1; min-width: 0; }
+.aw .aw-sheet__filter { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 4px; color: var(--aw-muted); opacity: .45; cursor: pointer; }
+.aw .aw-sheet thead th:hover .aw-sheet__filter, .aw .aw-sheet__filter:focus-visible { opacity: 1; }
+.aw .aw-sheet__filter:hover, .aw .aw-sheet__filter.is-open { opacity: 1; color: var(--aw-ink); background: var(--aw-surface-2); }
+.aw .aw-sheet__filter.is-on { opacity: 1; color: #fff; background: var(--aw-brand); }
 .aw .aw-cellpick { display: inline-flex; align-items: center; gap: 6px; }
 .aw .aw-cellpick__caret { color: var(--aw-faint); font-size: 10px; }
 .aw .aw-avatar-xs { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--aw-brand-pale); color: var(--aw-brand); font-size: 10px; font-weight: 600; text-transform: uppercase; }

@@ -6,7 +6,8 @@ import { sortRows, useSort, type Sort } from "./ui";
 
 // A spreadsheet that works like Google Sheets.
 // Click a cell to edit it. Lists and dates open a picker in Arrowsterr's style.
-// Click a column name for its menu: sort A to Z or Z to A, filter by condition, filter by values.
+// Click a column name to sort it, and again to flip the order. The funnel beside it filters by condition or by values.
+// With pageSize, rows come in pages with a rows-per-page picker.
 // The keyboard works like Sheets: arrows, Tab, Enter, Home, End, Page Up and Down, Shift to select a range,
 // Ctrl or Cmd with C, X, V, Z and A, Delete to clear, and Shift+Space to pick rows.
 // Show, hide, move and resize columns. The layout is saved per sheet in this browser.
@@ -588,6 +589,7 @@ export function Sheet<T>({
   onDeleteRows,
   onAppend,
   height = "72vh",
+  pageSize,
   showFilters = true,
   label,
   toolbar,
@@ -609,6 +611,8 @@ export function Sheet<T>({
   /** Pasted rows that run past the last row, as column id to text. */
   onAppend?: (rows: Record<string, string>[]) => void;
   height?: string;
+  /** Show rows in pages of this many, with a rows-per-page picker. Leave out for one long scroll. */
+  pageSize?: number;
   /** False leaves only sorting in the column menu, for read-only examples. */
   showFilters?: boolean;
   label: string;
@@ -616,6 +620,8 @@ export function Sheet<T>({
   toolbar?: React.ReactNode;
 }) {
   const [sort, setSort] = useSort(initial.key, initial.desc);
+  const [per, setPer] = useState(pageSize ?? 0);
+  const [page, setPage] = useState(0);
   const [filters, setFilters] = useState<Record<string, Filter>>({});
   const [layout, setLayoutState] = useState<Layout>(() => readLayout(id));
   const [menu, setMenu] = useState(false);
@@ -711,12 +717,16 @@ export function Sheet<T>({
       if (f.cond && condReady(f.cond) && !condMatch(v, f.cond)) return false;
       return !f.vals || f.vals.includes(keyOf(v));
     });
-  const shown = sortRows(
+  const sorted = sortRows(
     rows.filter((r) => passes(r)),
     sort,
     Object.fromEntries(allCols.map((c) => [c.id, (r: T) => (c.type === "text" ? String(c.value(r) ?? "").toLowerCase() || null : c.value(r))])),
   );
-  const pickable = shown.filter(canSelect);
+  const pages = per ? Math.max(1, Math.ceil(sorted.length / per)) : 1;
+  const pg = Math.min(page, pages - 1);
+  const first = per ? pg * per : 0;
+  const shown = per ? sorted.slice(first, first + per) : sorted;
+  const pickable = sorted.filter(canSelect);
   const allOn = pickable.length > 0 && pickable.every((r) => selected?.has(rowKey(r)));
   const someOn = pickable.some((r) => selected?.has(rowKey(r)));
   const flip = (key: string, on: boolean) => {
@@ -727,8 +737,8 @@ export function Sheet<T>({
     onSelect(next);
   };
   // The first column (the keyword) stays in view while the sheet scrolls sideways.
-  const first = cols[0]?.id;
-  const stickyCls = (c: Col<T>) => (c.id === first ? `aw-sheet__key ${onSelect ? "is-after-pick" : ""}` : "");
+  const keyCol = cols[0]?.id;
+  const stickyCls = (c: Col<T>) => (c.id === keyCol ? `aw-sheet__key ${onSelect ? "is-after-pick" : ""}` : "");
   const sized = (c: Col<T>) => {
     const w = widthOf(c);
     return w ? { width: w, minWidth: w, maxWidth: w } : c.width ? { minWidth: c.width } : undefined;
@@ -1076,10 +1086,17 @@ export function Sheet<T>({
     <div className="flex flex-col">
       <div className="flex flex-wrap items-center gap-3 px-4 py-2 text-[12px] text-muted">
         {toolbar}
-        <span className="aw-num">{shown.length === rows.length ? `${rows.length} rows` : `${shown.length} of ${rows.length} rows`}</span>
+        <span className="aw-num">{sorted.length === rows.length ? `${rows.length} rows` : `${sorted.length} of ${rows.length} rows`}</span>
         {box && (box.r1 > box.r0 || box.c1 > box.c0) ? <span className="aw-num text-ink">{(box.r1 - box.r0 + 1) * (box.c1 - box.c0 + 1)} cells selected</span> : null}
         {active.length ? (
-          <button type="button" className="aw-text-link text-[12px]" onClick={() => setFilters({})}>
+          <button
+            type="button"
+            className="aw-text-link text-[12px]"
+            onClick={() => {
+              setFilters({});
+              setPage(0);
+            }}
+          >
             Clear {active.length} {active.length === 1 ? "filter" : "filters"}
           </button>
         ) : null}
@@ -1193,7 +1210,7 @@ export function Sheet<T>({
                 <th className={`aw-sheet__pick ${box && box.c0 === 0 ? "is-col-on" : ""}`}>
                   <input
                     type="checkbox"
-                    aria-label="Select all shown rows"
+                    aria-label="Select all rows"
                     checked={allOn}
                     ref={(el) => {
                       if (el) el.indeterminate = someOn && !allOn;
@@ -1219,26 +1236,38 @@ export function Sheet<T>({
                     className={`relative ${stickyCls(c)} ${box && j + off >= box.c0 && j + off <= box.c1 ? "is-col-on" : ""}`}
                     aria-sort={on ? (sort.desc ? "descending" : "ascending") : "none"}
                   >
-                    <button
-                      type="button"
-                      className={`aw-sort ${on || filtered ? "is-on" : ""}`}
-                      aria-haspopup="dialog"
-                      onClick={(e) => {
-                        const rect = (e.currentTarget.closest("th") as HTMLElement).getBoundingClientRect();
-                        setColMenu(colMenu?.id === c.id ? null : { id: c.id, rect });
-                      }}
-                      title="Sort and filter"
-                    >
-                      {c.label}
-                      {filtered ? (
-                        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-label="Filtered" className="text-pos">
+                    <span className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        className={`aw-sort ${on ? "is-on" : ""}`}
+                        onClick={() => {
+                          // Numbers start largest first, words start A to Z. Click again to flip.
+                          setSort({ key: c.id, desc: on ? !sort.desc : c.type === "number" || c.type === "date" });
+                          setPage(0);
+                        }}
+                        title={on ? (sort.desc ? "Sorted largest first. Click to flip." : "Sorted smallest first. Click to flip.") : "Sort"}
+                      >
+                        {c.label}
+                        <span aria-hidden="true" className="aw-sort__arrow">
+                          {on ? (sort.desc ? "↓" : "↑") : "↕"}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        className={`aw-sheet__filter ${filtered ? "is-on" : ""} ${colMenu?.id === c.id ? "is-open" : ""}`}
+                        aria-haspopup="dialog"
+                        aria-label={`Filter ${c.label}`}
+                        title={filtered ? "Filtered. Click to change." : "Filter"}
+                        onClick={(e) => {
+                          const rect = (e.currentTarget.closest("th") as HTMLElement).getBoundingClientRect();
+                          setColMenu(colMenu?.id === c.id ? null : { id: c.id, rect });
+                        }}
+                      >
+                        <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true">
                           <path d="M3 5h18l-7 8v6l-4-2v-4z" />
                         </svg>
-                      ) : null}
-                      <span aria-hidden="true" className="aw-sort__arrow">
-                        {on ? (sort.desc ? "↓" : "↑") : "▾"}
-                      </span>
-                    </button>
+                      </button>
+                    </span>
                     <span role="separator" aria-label={`Resize ${c.label}`} onPointerDown={(e) => resize(c, e)} className="absolute top-0 right-0 h-full w-1.5 cursor-col-resize hover:bg-brand" />
                   </th>
                 );
@@ -1253,7 +1282,7 @@ export function Sheet<T>({
               return (
                 <tr key={key} className={on ? "is-picked" : ""}>
                   <td className={`aw-sheet__n ${rowOn ? "is-row-on" : ""}`} onMouseDown={(e) => rowNumberDown(e, i)} title="Select this row">
-                    {i + 1}
+                    {first + i + 1}
                   </td>
                   {onSelect ? (
                     <td
@@ -1277,7 +1306,7 @@ export function Sheet<T>({
                       <input
                         type="checkbox"
                         tabIndex={-1}
-                        aria-label={`Select row ${i + 1}`}
+                        aria-label={`Select row ${first + i + 1}`}
                         checked={on}
                         disabled={!canSelect(r)}
                         onChange={(e) => {
@@ -1357,6 +1386,41 @@ export function Sheet<T>({
           </tbody>
         </table>
       </div>
+      {per ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-rule px-4 py-2.5 text-[12px] text-muted">
+          <label className="flex items-center gap-2">
+            Rows per page
+            <select
+              value={per}
+              onChange={(e) => {
+                setPer(Number(e.target.value));
+                setPage(0);
+              }}
+              className="h-8 border border-rule bg-white px-2 text-[12px] text-ink focus:border-brand focus:outline-none"
+            >
+              {[...new Set([25, 50, 100, 250, 500, pageSize ?? 100])]
+                .sort((a, b) => a - b)
+                .map((n) => (
+                  <option key={n} value={n}>
+                    {n}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <span className="flex items-center gap-2">
+            <span className="aw-num">{sorted.length ? `${(first + 1).toLocaleString("en-US")}–${(first + shown.length).toLocaleString("en-US")} of ${sorted.length.toLocaleString("en-US")}` : "0 rows"}</span>
+            <button type="button" className="aw-chip aw-chip--btn disabled:opacity-40" disabled={pg === 0} onClick={() => setPage(pg - 1)}>
+              ‹ Prev
+            </button>
+            <span className="aw-num">
+              Page {pg + 1} of {pages}
+            </span>
+            <button type="button" className="aw-chip aw-chip--btn disabled:opacity-40" disabled={pg >= pages - 1} onClick={() => setPage(pg + 1)}>
+              Next ›
+            </button>
+          </span>
+        </div>
+      ) : null}
       {colMenu && menuCol ? (
         <ColumnMenu
           key={colMenu.id}
@@ -1365,8 +1429,14 @@ export function Sheet<T>({
           rows={rows.filter((r) => passes(r, colMenu.id))}
           filter={filters[colMenu.id]}
           canFilter={showFilters}
-          onSort={(desc) => setSort({ key: colMenu.id, desc })}
-          onApply={(f) => setFilters((x) => ({ ...x, [colMenu.id]: f ?? {} }))}
+          onSort={(desc) => {
+            setSort({ key: colMenu.id, desc });
+            setPage(0);
+          }}
+          onApply={(f) => {
+            setFilters((x) => ({ ...x, [colMenu.id]: f ?? {} }));
+            setPage(0);
+          }}
           onHide={() => toggle(colMenu.id)}
           onClose={() => setColMenu(null)}
         />

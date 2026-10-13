@@ -2,7 +2,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect } from "react";
-import { useStash } from "@/lib/stash";
+import { putStash, useStash } from "@/lib/stash";
 import { siteForBrand, type Site } from "@/lib/db";
 import { answered, brandStats } from "@/lib/metrics";
 import type { View } from "@/lib/view";
@@ -12,7 +12,7 @@ import { ContentCalendar, type Refresh } from "./ContentCalendar";
 import { DomainResearch, type SeoStart } from "./DomainResearch";
 import { KeywordGap } from "./KeywordGap";
 import { KeywordOverview } from "./KeywordOverview";
-import { AnalyzeSeo } from "./shared";
+import { AnalyzeSeo, ResearchKeyword } from "./shared";
 import { ContentIntel } from "./ContentIntel";
 import type { WriterAccess } from "./ContentPiece";
 
@@ -72,6 +72,16 @@ export function ResearchPage({
 
   return (
     <AnalyzeSeo.Provider value={onSeo ?? null}>
+    <ResearchKeyword.Provider
+      value={
+        site && canEdit
+          ? (keyword) => {
+              putStash(`kw:${site.id}:seed`, keyword);
+              onTool("keywords");
+            }
+          : null
+      }
+    >
     <div className="flex flex-col gap-5">
       {/* The Content Plan draws its own header, with the view switch beside the title. */}
       {tool === "calendar" ? null : <h1 className="aw-h2">{TITLES[tool]}</h1>}
@@ -81,7 +91,7 @@ export function ResearchPage({
       ) : !site ? (
         error ? null : <div className="aw-callout max-w-xl">Ask an editor to open Research once for {brand.domain} to set it up.</div>
       ) : tool === "keywords" ? (
-        <KeywordOverview sb={sb} auth={auth} site={site} canEdit={canEdit} onSite={setSite} />
+        <KeywordOverview sb={sb} auth={auth} site={site} canEdit={canEdit} />
       ) : tool === "domain" ? (
         <DomainResearch sb={sb} auth={auth} site={site} canEdit={canEdit} start={seoStart} onStarted={onSeoStarted} />
       ) : tool === "gap" ? (
@@ -90,7 +100,6 @@ export function ResearchPage({
           auth={auth}
           site={site}
           canEdit={canEdit}
-          onSite={setSite}
           stats={brandStats(answered(view.current, view.filter), { name: brand.name, domain: brand.domain })}
         />
       ) : tool === "intel" ? (
@@ -99,6 +108,7 @@ export function ResearchPage({
         <ContentCalendar sb={sb} auth={auth} site={site} canEdit={canEdit} refresh={refresh} writer={writer} onImport={() => onTool("keywords")} results={{ brandId: brand.id, brandName: brand.name, days: view.days, chats: answered(view.current, view.filter) }} onSite={setSite} />
       )}
     </div>
+    </ResearchKeyword.Provider>
     </AnalyzeSeo.Provider>
   );
 }

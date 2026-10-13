@@ -10,8 +10,7 @@ import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
 import { Sheet, type Col } from "../Sheet";
 import { CalendarIcon, Card, favicon, RIVAL_COLOR, Thinking, YOU_COLOR } from "../ui";
-import { BAR_BUTTON, BAR_INPUT, Difficulty, downloadCsv, fmtNum, post } from "./shared";
-import { KeywordPanel } from "./KeywordPanel";
+import { BAR_BUTTON, BAR_INPUT, Difficulty, downloadCsv, fmtNum, KeywordLink, post } from "./shared";
 
 type Tab = "missing" | "shared" | "weaker" | "lead" | "only";
 const LABEL = (them: string): Record<Tab, string> => ({
@@ -31,17 +30,14 @@ export function KeywordGap({
   auth,
   site,
   canEdit,
-  onSite,
   stats,
 }: {
   sb: SupabaseClient;
   auth: RunAuth;
   site: Site;
   canEdit: boolean;
-  onSite: (s: Site) => void;
   stats: BrandStat[];
 }) {
-  const [open, setOpen] = useState<GapRow | null>(null);
   const aiRivals = stats.filter((s) => !s.isYou && s.domain && bare(s.domain) !== bare(site.domain)).slice(0, 8);
   const [rivals, setRivals] = useStash<string[] | null>(`rivals:${site.id}`, null);
   const [result, setResult] = useStash<{ gap: Gap; them: string } | null>(`gap:${site.id}`, null);
@@ -91,7 +87,7 @@ export function KeywordGap({
   const labels = LABEL(result?.them ?? "them");
 
   const cols: Col<GapRow>[] = [
-    { id: "keyword", label: "Keyword", type: "text", value: (r) => r.keyword, width: 280 },
+    { id: "keyword", label: "Keyword", type: "text", value: (r) => r.keyword, cell: (r) => <KeywordLink keyword={r.keyword} />, width: 280 },
     { id: "volume", label: "Volume", type: "number", value: (r) => r.volume },
     { id: "kd", label: "Difficulty", type: "number", value: (r) => r.kd, cell: (r) => <Difficulty kd={r.kd} /> },
     { id: "intent", label: "Intent", type: "list", value: (r) => r.intent },
@@ -219,16 +215,15 @@ export function KeywordGap({
               rows={rows}
               cols={cols}
               rowKey={(r) => r.keyword}
-              onOpen={setOpen}
               sort={{ key: "volume", desc: true }}
               selected={canEdit ? picked : undefined}
               onSelect={canEdit ? setPicked : undefined}
-              height="60vh"
+              pageSize={100}
+              height="none"
             />
           </Card>
         </>
       ) : null}
-      {open ? <KeywordPanel sb={sb} auth={auth} site={site} keyword={open.keyword} seed={{ volume: open.volume, kd: open.kd, intent: open.intent }} canEdit={canEdit} onSite={onSite} onClose={() => setOpen(null)} /> : null}
     </div>
   );
 }

@@ -1,9 +1,8 @@
 "use client";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import { addCalendarItems, type Site } from "@/lib/db";
-import { KeywordPanel } from "./KeywordPanel";
 import { MARKETS, stageFromIntent, type KeywordReport, type KwList, type KwSummary } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
 import { peek, putStash, useStash } from "@/lib/stash";
@@ -11,7 +10,7 @@ import { BrandLogo } from "../BrandLogo";
 import { Sheet } from "../Sheet";
 import { SampleBars, SampleChips, SampleRing, SampleRows, SampleStats, ToolIntro } from "../ToolIntro";
 import { CalendarIcon, Card, favicon, Seg, Thinking } from "../ui";
-import { BAR_BUTTON, BAR_FIELD, BAR_INPUT, downloadCsv, fmtCpc, post, postLines, Sparkline } from "./shared";
+import { BAR_BUTTON, BAR_FIELD, BAR_INPUT, AnalyzeSeo, downloadCsv, fmtCpc, post, postLines, Sparkline } from "./shared";
 
 export const ISO: Record<string, string> = {
   "United States": "US", "United Kingdom": "GB", Canada: "CA", Australia: "AU", Germany: "DE", France: "FR", Spain: "ES", Netherlands: "NL",
@@ -37,8 +36,9 @@ export const KdDot = ({ kd }: { kd: number | null }) =>
   );
 
 /** One keyword at a glance: its numbers, ideas around it and who ranks. Paste several to compare them. */
-export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: SupabaseClient; auth: RunAuth; site: Site; canEdit: boolean; onSite: (s: Site) => void }) {
-  const [open, setOpen] = useState<KwSummary | null>(null);
+export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClient; auth: RunAuth; site: Site; canEdit: boolean }) {
+  const toDomain = useContext(AnalyzeSeo);
+  const top = useRef<HTMLFormElement | null>(null);
   const k = (name: string) => `kw:${site.id}:${name}`;
   const [query, setQuery] = useStash(k("q"), "");
   const [country, setCountry] = useStash(k("country"), site.profile.country && MARKETS[site.profile.country] ? site.profile.country : "United States");
@@ -66,12 +66,44 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // The full list fills the screen. Esc closes it.
+  useEffect(() => {
+    if (!all) return;
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && !(e.target as HTMLElement).closest?.("[role=dialog]") && setAll(null);
+    window.addEventListener("keydown", esc);
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      window.removeEventListener("keydown", esc);
+      document.body.style.overflow = overflow;
+    };
+  }, [all, setAll]);
+
+  /** A keyword that researches itself when clicked. */
+  const kwLink = (keyword: string) =>
+    canEdit ? (
+      <button
+        type="button"
+        className="aw-text-link text-left"
+        title={`Research "${keyword}"`}
+        onClick={() => {
+          setAll(null);
+          analyze(keyword);
+        }}
+      >
+        {keyword}
+      </button>
+    ) : (
+      keyword
+    );
+
   const many = (q: string) => q.split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
 
   async function analyze(input: string) {
     const list = many(input);
     if (!list.length) return;
     setQuery(input);
+    top.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     setError("");
     setNotice("");
     setPicked(new Set());
@@ -175,10 +207,10 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
         sort={{ key: "volume", desc: true }}
         selected={canEdit ? picked : undefined}
         onSelect={canEdit ? setPicked : undefined}
-        onOpen={(r) => setOpen(r)}
-        height="60vh"
+        pageSize={100}
+        height="none"
         cols={[
-          { id: "keyword", label: "Keyword", type: "text", value: (r) => r.keyword, width: 240 },
+          { id: "keyword", label: "Keyword", type: "text", value: (r) => r.keyword, cell: (r) => kwLink(r.keyword), width: 240 },
           { id: "volume", label: "Volume", type: "number", value: (r) => r.volume },
           { id: "kd", label: "KD %", type: "number", value: (r) => r.kd, cell: (r) => <KdDot kd={r.kd} /> },
           { id: "intent", label: "Intent", type: "list", value: (r) => r.intent },
@@ -198,7 +230,8 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
   return (
     <div className="flex flex-col gap-5">
       <form
-        className="aw-frame flex flex-wrap items-center gap-3 p-3"
+        ref={top}
+        className="aw-frame flex flex-wrap scroll-mt-6 items-center gap-3 p-3"
         onSubmit={(e) => {
           e.preventDefault();
           analyze(query);
@@ -355,9 +388,7 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
                       {list.rows.slice(0, 10).map((r) => (
                         <tr key={r.keyword}>
                           <td>
-                            <button type="button" className="aw-text-link text-left" onClick={() => setOpen(r)}>
-                              {r.keyword}
-                            </button>
+                            {kwLink(r.keyword)}
                           </td>
                           <td className="aw-num">{short(r.volume)}</td>
                           <td>
@@ -409,14 +440,30 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
                       <li key={r.url} className={`flex items-center gap-3 px-5 py-2.5 ${r.domain === site.domain.replace(/^www\./, "") ? "bg-brand-pale" : ""}`}>
                         <span className="aw-num w-5 text-[12px] text-muted">{r.rank}</span>
                         <BrandLogo src={favicon(r.domain)} name={r.domain} size={16} />
-                        <a href={r.url} target="_blank" rel="noopener noreferrer nofollow" className="min-w-0 flex-1 truncate text-[14px]" title={r.url}>
-                          {r.domain}
-                          <span className="text-muted">{new URL(r.url).pathname.replace(/\/$/, "")}</span>
-                        </a>
+                        {toDomain ? (
+                          <span className="flex min-w-0 flex-1 items-baseline text-[14px]">
+                            <button type="button" className="aw-text-link shrink-0" title={`Domain Research for ${r.domain}`} onClick={() => toDomain(r.domain, "domain")}>
+                              {r.domain}
+                            </button>
+                            <button type="button" className="min-w-0 truncate text-left text-muted hover:text-brand hover:underline" title={`Domain Research for ${r.url}`} onClick={() => toDomain(r.url, "url")}>
+                              {new URL(r.url).pathname.replace(/\/$/, "")}
+                            </button>
+                          </span>
+                        ) : (
+                          <span className="min-w-0 flex-1 truncate text-[14px]" title={r.url}>
+                            {r.domain}
+                            <span className="text-muted">{new URL(r.url).pathname.replace(/\/$/, "")}</span>
+                          </span>
+                        )}
                         {r.aiCited ? <span className="aw-badge">AI cited</span> : null}
                         <span className="aw-num w-14 text-right text-[12px] text-ink" title="Estimated monthly visits from Google">
                           {short(r.traffic)}
                         </span>
+                        <a href={r.url} target="_blank" rel="noopener noreferrer nofollow" aria-label={`Open ${r.url} in a new tab`} title="Open in a new tab" className="shrink-0 p-1 text-muted hover:text-brand">
+                          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" />
+                          </svg>
+                        </a>
                       </li>
                     ))}
                   </ol>
@@ -426,9 +473,16 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
           </div>
 
           {all ? (
-            <Card
-              title={`${all.questions ? "Questions" : "Variations"} for "${report.keyword}"`}
-              action={
+            <div role="region" aria-label="All keywords" className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-white">
+              <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-rule bg-white px-6 py-4">
+                <div className="flex flex-col gap-0.5">
+                  <h2 className="aw-h3">
+                    {all.questions ? "Questions" : "Variations"} for &ldquo;{report.keyword}&rdquo;
+                  </h2>
+                  <span className="text-[13px] text-muted">
+                    {flag(report.country)} {report.country} · {all.list.rows.length.toLocaleString("en-US")} keywords{canEdit ? " · click one to research it" : ""}
+                  </span>
+                </div>
                 <span className="flex items-center gap-2">
                   <button
                     type="button"
@@ -437,14 +491,15 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
                   >
                     Export CSV
                   </button>
-                  <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => setAll(null)}>
+                  <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => setAll(null)} title="Close (Esc)">
                     Close
                   </button>
                 </span>
-              }
-            >
-              {sheet(all.list.rows, "All keywords")}
-            </Card>
+              </div>
+              <div className="px-6 py-4">
+                <div className="aw-frame">{sheet(all.list.rows, "All keywords")}</div>
+              </div>
+            </div>
           ) : null}
         </>
       ) : null}
@@ -489,7 +544,6 @@ export function KeywordOverview({ sb, auth, site, canEdit, onSite }: { sb: Supab
           ]}
         />
       ) : null}
-      {open ? <KeywordPanel sb={sb} auth={auth} site={site} keyword={open.keyword} seed={open} canEdit={canEdit} onSite={onSite} onClose={() => setOpen(null)} /> : null}
     </div>
   );
 }

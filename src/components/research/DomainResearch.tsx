@@ -12,7 +12,7 @@ import { Sheet } from "../Sheet";
 import { SampleLine, SampleRows, SampleStats, ToolIntro } from "../ToolIntro";
 import { CalendarIcon, Card, favicon, Seg, Thinking } from "../ui";
 import { flag, KdDot, short } from "./KeywordOverview";
-import { BAR_BUTTON, BAR_FIELD, BAR_INPUT, downloadCsv, post } from "./shared";
+import { BAR_BUTTON, BAR_FIELD, BAR_INPUT, downloadCsv, KeywordLink, post } from "./shared";
 
 export type Scope = NonNullable<DomainReport["scope"]>;
 const SCOPES: { id: Scope; label: string; hint: string }[] = [
@@ -254,9 +254,10 @@ export function DomainResearch({ sb, auth, site, canEdit, start, onStarted }: { 
                   sort={{ key: "traffic", desc: true }}
                   selected={canEdit ? picked : undefined}
                   onSelect={canEdit ? setPicked : undefined}
-                  height="60vh"
+                  pageSize={100}
+                  height="none"
                   cols={[
-                    { id: "keyword", label: "Keyword", type: "text", value: (r) => r.keyword, width: 220 },
+                    { id: "keyword", label: "Keyword", type: "text", value: (r) => r.keyword, cell: (r) => <KeywordLink keyword={r.keyword} />, width: 220 },
                     { id: "rank", label: "Position", type: "number", value: (r) => r.rank },
                     { id: "volume", label: "Volume", type: "number", value: (r) => r.volume },
                     { id: "traffic", label: "Visits / mo", type: "number", value: (r) => (r.etv === null || r.etv === undefined ? null : Math.round(r.etv)) },
@@ -286,7 +287,8 @@ export function DomainResearch({ sb, auth, site, canEdit, start, onStarted }: { 
                 rows={report.pages}
                 rowKey={(p) => p.url}
                 sort={{ key: "traffic", desc: true }}
-                height="60vh"
+                pageSize={100}
+                height="none"
                 cols={[
                   {
                     id: "url",
@@ -302,7 +304,7 @@ export function DomainResearch({ sb, auth, site, canEdit, start, onStarted }: { 
                   },
                   { id: "traffic", label: "Visits / mo", type: "number", value: (p) => p.traffic },
                   { id: "keywords", label: "Keywords", type: "number", value: (p) => p.keywords },
-                  { id: "top", label: "Top keyword", type: "text", value: (p) => p.top },
+                  { id: "top", label: "Top keyword", type: "text", value: (p) => p.top, cell: (p) => <KeywordLink keyword={p.top} /> },
                 ]}
               />
             ) : (
