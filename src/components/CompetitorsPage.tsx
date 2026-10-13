@@ -377,13 +377,16 @@ export function CompetitorsPage({
           <div className="flex min-h-[520px] flex-col max-xl:border-t max-xl:border-rule">
             {topics.length > 1 ? (
               <div className="flex flex-col gap-2 border-b border-rule-faint px-4 pt-3 pb-2.5">
-                <div className="flex gap-1.5 overflow-x-auto pb-0.5" role="tablist" aria-label="Quadrant topic">
-                  {[null, ...topics.map((t) => t.name)].map((n) => (
-                    <button key={n ?? "all"} type="button" role="tab" aria-selected={quadTopic === n} className={`aw-chip aw-chip--btn shrink-0 whitespace-nowrap ${quadTopic === n ? "is-on" : ""}`} onClick={() => setQuadTopic(n)}>
-                      {n ?? "All topics"}
-                    </button>
-                  ))}
-                </div>
+                <label className="flex min-w-0 items-center gap-2">
+                  <span className="aw-label shrink-0">Topic</span>
+                  <Dropdown
+                    label="Quadrant topic"
+                    value={quadTopic ?? ""}
+                    onChange={(v) => setQuadTopic(v || null)}
+                    className="aw-dropdown--sm min-w-0 max-w-full"
+                    options={[{ id: "", label: "All topics" }, ...topics.map((t) => ({ id: t.name, label: t.name }))]}
+                  />
+                </label>
                 {qTopic ? (
                   <p className="aw-small">
                     The top {SHOWN} brands AI names for {qTopic.name}
