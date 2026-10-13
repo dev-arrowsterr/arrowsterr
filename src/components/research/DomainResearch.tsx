@@ -5,8 +5,9 @@ import { useEffect, useRef, useState } from "react";
 import { addCalendarItems, type Site } from "@/lib/db";
 import { MARKETS, stageFromIntent, type DomainReport, type Keyword } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
+import { countryOf, dbOf, setUrl, urlParams } from "@/lib/researchUrl";
 import { scopeOf } from "@/lib/scope";
-import { useStash } from "@/lib/stash";
+import { peek, useStash } from "@/lib/stash";
 import { BrandLogo } from "../BrandLogo";
 import { Sheet } from "../Sheet";
 import { SampleLine, SampleRows, SampleStats, ToolIntro } from "../ToolIntro";
@@ -51,8 +52,18 @@ export function DomainResearch({ sb, auth, site, canEdit, start, onStarted }: { 
     }
   }
 
-  async function analyze(d: string, as: Scope = scope) {
+  /**
+   * Research one site or page. history "auto" puts it in the address bar (a new Back step when it
+   * replaces another search); "none" is for searches the address bar asked for.
+   */
+  async function analyze(d: string, as: Scope = scope, opts: { country?: string; history?: "auto" | "none" } = {}) {
     if (!d.trim()) return;
+    const c = opts.country ?? country;
+    if (c !== country) setCountry(c);
+    if (opts.history !== "none") {
+      const at = urlParams();
+      setUrl({ q: d.trim(), scope: as === "domain" ? null : as, db: dbOf(c) }, Boolean(at.get("q") || at.get("mode")));
+    }
     setMode("single");
     setDomain(d);
     setScope(as);
@@ -61,7 +72,7 @@ export function DomainResearch({ sb, auth, site, canEdit, start, onStarted }: { 
     setNotice("");
     setPicked(new Set());
     try {
-      setReport(await post<DomainReport>(auth, "/api/research/domain", { domain: d, scope: as, country }));
+      setReport(await post<DomainReport>(auth, "/api/research/domain", { domain: d, scope: as, country: c }));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -69,7 +80,7 @@ export function DomainResearch({ sb, auth, site, canEdit, start, onStarted }: { 
     }
   }
 
-  // Opened from Sources with a site or link to analyze: run it once.
+  // Opened from another tool with a site or link to analyze: run it once.
   const began = useRef(false);
   useEffect(() => {
     if (!start || began.current) return;
@@ -83,6 +94,49 @@ export function DomainResearch({ sb, auth, site, canEdit, start, onStarted }: { 
       setScope(start.scope);
     }
   }, [start]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Show what the address bar asks for: a site or page, or Bulk analysis. */
+  function sync(how: "load" | "pop") {
+    const p = urlParams();
+    if (p.get("mode") === "bulk" || p.get("bulk")) return setMode("bulk");
+    const q = p.get("q");
+    if (!q) {
+      if (how === "pop") setMode("single");
+      else if (mode === "bulk") setUrl({ mode: "bulk", bulk: peek<{ id?: string } | null>(`domb:${site.id}:result`)?.id }, false);
+      // Opening the page plainly shows the last search, so put it in the address.
+      else if (report) setUrl({ q: report.domain, scope: report.scope && report.scope !== "domain" ? report.scope : null, db: dbOf(report.country) }, false);
+      return;
+    }
+    const as = (["domain", "subdomain", "subfolder", "url"].includes(p.get("scope") ?? "") ? p.get("scope") : (scopeOf(q) ?? "domain")) as Scope;
+    const c = countryOf(p.get("db")) ?? country;
+    const bare = (x: string) => x.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/+$/, "");
+    setMode("single");
+    if (report && bare(report.domain) === bare(q) && (report.scope ?? "domain") === as && report.country === c) {
+      setDomain(q);
+      setScope(as);
+      return;
+    }
+    analyze(q, as, { country: c, history: "none" });
+  }
+  const syncRef = useRef(sync);
+  useEffect(() => {
+    syncRef.current = sync;
+  });
+  useEffect(() => {
+    // A search sent from another tool runs from the effect above.
+    if (!start) syncRef.current("load");
+    const pop = () => syncRef.current("pop");
+    window.addEventListener("popstate", pop);
+    return () => window.removeEventListener("popstate", pop);
+    // Only on first load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function switchMode(m: "single" | "bulk") {
+    setMode(m);
+    if (m === "bulk") setUrl({ mode: "bulk", bulk: peek<{ id?: string } | null>(`domb:${site.id}:result`)?.id }, true);
+    else setUrl(report ? { q: report.domain, scope: report.scope && report.scope !== "domain" ? report.scope : null, db: dbOf(report.country) } : {}, true);
+  }
 
   const own = (report?.scope ?? "domain") === "domain" && report?.domain === site.domain.replace(/^www\./, "");
   async function addToCalendar(rows: Keyword[]) {
@@ -127,7 +181,7 @@ export function DomainResearch({ sb, auth, site, canEdit, start, onStarted }: { 
       <Seg
         label="Mode"
         value={mode}
-        onChange={setMode}
+        onChange={switchMode}
         options={[
           { id: "single", label: "Domain overview" },
           { id: "bulk", label: "Bulk analysis" },
@@ -139,7 +193,7 @@ export function DomainResearch({ sb, auth, site, canEdit, start, onStarted }: { 
     return (
       <div className="flex flex-col gap-5">
         {modeBar}
-        <BulkDomains auth={auth} site={site} canEdit={canEdit} onOpen={(target, as) => analyze(target, as)} />
+        <BulkDomains sb={sb} auth={auth} site={site} canEdit={canEdit} onOpen={(target, as) => analyze(target, as)} />
       </div>
     );
 

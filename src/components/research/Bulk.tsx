@@ -3,11 +3,12 @@
 // Bulk analysis, the way Semrush does it: paste or upload up to 500 keywords or sites and get their
 // numbers side by side in one sheet. Click a row to research it on its own.
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { addCalendarItems, type Site } from "@/lib/db";
 import { TASK_COST } from "@/lib/plans";
 import { BULK_LIMIT, bulkList, MARKETS, stageFromIntent, type DomainBulkRow, type KwSummary } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
+import { domainHref, keywordHref, plainClick, setUrl, urlParams } from "@/lib/researchUrl";
 import { useStash } from "@/lib/stash";
 import { BrandLogo } from "../BrandLogo";
 import { Sheet } from "../Sheet";
@@ -116,7 +117,92 @@ const NewTab = ({ href }: { href: string }) => (
   </a>
 );
 
-type KwResult = { rows: KwSummary[]; cost: number; country: string };
+type Recent = { id: string; count: number; country: string; created_at: string };
+
+const ago = (iso: string) => {
+  const m = Math.max(1, Math.round((Date.now() - Date.parse(iso)) / 60000));
+  return m < 60 ? `${m}m ago` : m < 1440 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`;
+};
+
+/**
+ * Saved runs: each finished run has its own link (?mode=bulk&bulk=id). Opens the run the address bar
+ * names, follows Back and Forward, and lists this site's latest runs.
+ */
+function useSavedRuns<R extends { id?: string | null }>(
+  sb: SupabaseClient,
+  site: Site,
+  kind: "keywords" | "domains",
+  result: R | null,
+  show: (items: string[], country: string, result: R) => void,
+) {
+  const [recent, setRecent] = useState<Recent[] | null>(null);
+  const [error, setError] = useState("");
+  const refresh = useCallback(async () => {
+    const { data, error: e } = await sb.from("bulk_runs").select("id, count, country, created_at").eq("site_id", site.id).eq("kind", kind).order("created_at", { ascending: false }).limit(8);
+    // Before supabase/033_bulk_runs.sql there is no list, and nothing else changes.
+    setRecent(e ? null : (data as Recent[]));
+  }, [sb, site.id, kind]);
+
+  async function open(id: string, push: boolean) {
+    setError("");
+    if (push) setUrl({ mode: "bulk", bulk: id }, true);
+    if (result?.id === id) return;
+    const { data, error: e } = await sb.from("bulk_runs").select("items, country, result").eq("id", id).maybeSingle();
+    if (e || !data) return setError("This bulk analysis was deleted, or it belongs to another workspace.");
+    show(data.items as string[], data.country as string, { ...(data.result as R), id, country: data.country });
+  }
+  const openRef = useRef(open);
+  useEffect(() => {
+    openRef.current = open;
+  });
+
+  useEffect(() => {
+    const fromUrl = () => {
+      const id = urlParams().get("bulk");
+      if (id) openRef.current(id, false);
+    };
+    const id = urlParams().get("bulk");
+    if (id) fromUrl();
+    // Showing a saved run without its link: put the link in the address bar.
+    else if (result?.id) setUrl({ mode: "bulk", bulk: result.id }, false);
+    // The list arrives later, from the database.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    refresh();
+    window.addEventListener("popstate", fromUrl);
+    return () => window.removeEventListener("popstate", fromUrl);
+    // Only on first load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return { recent, refresh, open, error };
+}
+
+/** The latest saved runs, as links. */
+function RecentRuns({ runs, current, noun, path, onOpen }: { runs: Recent[] | null; current?: string | null; noun: string; path: string; onOpen: (id: string) => void }) {
+  if (!runs?.length) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-[12px]">
+      <span className="text-muted">Recent runs</span>
+      {runs.map((r) => (
+        <a
+          key={r.id}
+          href={`${path}?mode=bulk&bulk=${r.id}`}
+          className={`aw-chip aw-chip--btn ${r.id === current ? "is-on" : ""}`}
+          title={new Date(r.created_at).toLocaleString()}
+          onClick={(e) => {
+            if (!plainClick(e)) return;
+            e.preventDefault();
+            onOpen(r.id);
+          }}
+        >
+          {r.count.toLocaleString("en-US")} {noun} · {flag(r.country)} · {ago(r.created_at)}
+        </a>
+      ))}
+    </div>
+  );
+}
+
+type KwResult = { rows: KwSummary[]; cost: number; country: string; id?: string | null };
 
 /** Up to 500 keywords: volume, difficulty, intent, CPC, trend and SERP features side by side. */
 export function BulkKeywords({ sb, auth, site, canEdit, onResearch }: { sb: SupabaseClient; auth: RunAuth; site: Site; canEdit: boolean; onResearch: (keyword: string) => void }) {
@@ -129,6 +215,12 @@ export function BulkKeywords({ sb, auth, site, canEdit, onResearch }: { sb: Supa
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const list = bulkList(text);
+  const saved = useSavedRuns<KwResult>(sb, site, "keywords", result, (items, c, r) => {
+    setText(items.join("\n"));
+    setCountry(c);
+    setResult(r);
+    setPicked(new Set());
+  });
 
   async function run() {
     if (!list.length || list.length > BULK_LIMIT) return;
@@ -137,8 +229,10 @@ export function BulkKeywords({ sb, auth, site, canEdit, onResearch }: { sb: Supa
     setPicked(new Set());
     setBusy(`Checking ${list.length.toLocaleString("en-US")} keywords...`);
     try {
-      const r = await post<{ rows: KwSummary[]; cost: number }>(auth, "/api/research/report", { action: "bulk", keywords: list, country });
+      const r = await post<{ rows: KwSummary[]; cost: number; id?: string | null }>(auth, "/api/research/report", { action: "bulk", keywords: list, country, siteId: site.id });
       setResult({ ...r, country });
+      setUrl({ mode: "bulk", bulk: r.id }, true);
+      saved.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -188,9 +282,10 @@ export function BulkKeywords({ sb, auth, site, canEdit, onResearch }: { sb: Supa
           </button>
           <span className="text-[12px] text-muted">{costNote(list.length)}</span>
         </div>
+        <RecentRuns runs={saved.recent} current={result?.id} noun="keywords" path="/keywords" onOpen={(id) => saved.open(id, true)} />
       </form>
 
-      {error ? <p className="aw-error">{error}</p> : null}
+      {error || saved.error ? <p className="aw-error">{error || saved.error}</p> : null}
       {notice ? <div className="aw-callout">{notice}</div> : null}
       {busy ? <Thinking text={busy} /> : null}
 
@@ -247,9 +342,18 @@ export function BulkKeywords({ sb, auth, site, canEdit, onResearch }: { sb: Supa
                   width: 260,
                   cell: (r) =>
                     canEdit ? (
-                      <button type="button" className="aw-text-link text-left" title={`Research "${r.keyword}"`} onClick={() => onResearch(r.keyword)}>
+                      <a
+                        href={keywordHref(r.keyword, result.country)}
+                        className="aw-text-link text-left"
+                        title={`Research "${r.keyword}"`}
+                        onClick={(e) => {
+                          if (!plainClick(e)) return;
+                          e.preventDefault();
+                          onResearch(r.keyword);
+                        }}
+                      >
                         {r.keyword}
-                      </button>
+                      </a>
                     ) : (
                       r.keyword
                     ),
@@ -286,7 +390,7 @@ export function BulkKeywords({ sb, auth, site, canEdit, onResearch }: { sb: Supa
   );
 }
 
-type DomResult = { rows: DomainBulkRow[]; cost: number; country: string; skipped: number };
+type DomResult = { rows: DomainBulkRow[]; cost: number; country: string; skipped: number; id?: string | null };
 const KIND: Record<DomainBulkRow["kind"], { label: string; scope: "domain" | "subdomain" | "url" }> = {
   domain: { label: "Domain", scope: "domain" },
   subdomain: { label: "Subdomain", scope: "subdomain" },
@@ -294,7 +398,7 @@ const KIND: Record<DomainBulkRow["kind"], { label: string; scope: "domain" | "su
 };
 
 /** Up to 500 sites or pages: keywords, visits and traffic value side by side. */
-export function BulkDomains({ auth, site, canEdit, onOpen }: { auth: RunAuth; site: Site; canEdit: boolean; onOpen: (target: string, scope: "domain" | "subdomain" | "url") => void }) {
+export function BulkDomains({ sb, auth, site, canEdit, onOpen }: { sb: SupabaseClient; auth: RunAuth; site: Site; canEdit: boolean; onOpen: (target: string, scope: "domain" | "subdomain" | "url") => void }) {
   const k = (name: string) => `domb:${site.id}:${name}`;
   const [text, setText] = useStash(k("text"), "");
   const [country, setCountry] = useStash(k("country"), site.profile.country && MARKETS[site.profile.country] ? site.profile.country : "United States");
@@ -302,14 +406,21 @@ export function BulkDomains({ auth, site, canEdit, onOpen }: { auth: RunAuth; si
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const list = bulkList(text);
+  const saved = useSavedRuns<DomResult>(sb, site, "domains", result, (items, c, r) => {
+    setText(items.join("\n"));
+    setCountry(c);
+    setResult(r);
+  });
 
   async function run() {
     if (!list.length || list.length > BULK_LIMIT) return;
     setError("");
     setBusy(`Sizing up ${list.length.toLocaleString("en-US")} ${list.length === 1 ? "site" : "sites"} on Google...`);
     try {
-      const r = await post<Omit<DomResult, "country">>(auth, "/api/research/domain", { action: "bulk", targets: list, country });
+      const r = await post<Omit<DomResult, "country">>(auth, "/api/research/domain", { action: "bulk", targets: list, country, siteId: site.id });
       setResult({ ...r, country });
+      setUrl({ mode: "bulk", bulk: r.id }, true);
+      saved.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -339,9 +450,10 @@ export function BulkDomains({ auth, site, canEdit, onOpen }: { auth: RunAuth; si
           </button>
           <span className="text-[12px] text-muted">{costNote(list.length)}</span>
         </div>
+        <RecentRuns runs={saved.recent} current={result?.id} noun="sites" path="/domain-research" onOpen={(id) => saved.open(id, true)} />
       </form>
 
-      {error ? <p className="aw-error">{error}</p> : null}
+      {error || saved.error ? <p className="aw-error">{error || saved.error}</p> : null}
       {busy ? <Thinking text={busy} /> : null}
 
       {!busy && result ? (
@@ -393,9 +505,18 @@ export function BulkDomains({ auth, site, canEdit, onOpen }: { auth: RunAuth; si
                       <span className="flex min-w-0 items-center gap-2">
                         <BrandLogo src={favicon(host)} name={host} size={14} />
                         {canEdit ? (
-                          <button type="button" className="aw-text-link min-w-0 truncate text-left" title={`Domain Research for ${label}`} onClick={() => onOpen(r.target, KIND[r.kind].scope)}>
+                          <a
+                            href={domainHref(r.target, KIND[r.kind].scope, result.country)}
+                            className="aw-text-link min-w-0 truncate text-left"
+                            title={`Domain Research for ${label}`}
+                            onClick={(e) => {
+                              if (!plainClick(e)) return;
+                              e.preventDefault();
+                              onOpen(r.target, KIND[r.kind].scope);
+                            }}
+                          >
                             {label}
-                          </button>
+                          </a>
                         ) : (
                           <span className="min-w-0 truncate">{label}</span>
                         )}

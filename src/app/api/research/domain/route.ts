@@ -1,26 +1,34 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { cached, DAY } from "@/lib/cache";
-import { dfsReady } from "@/lib/dataforseo";
+import { dfsReady, NOT_SAVED, savedOnly } from "@/lib/dataforseo";
+import { saveBulkRun } from "@/lib/bulkRuns";
 import { bulkDomains, competitors, domainOverview, parseTarget, rankedFor, Spend, targetLabel, type Scope } from "@/lib/keywords";
 import { BULK_LIMIT, bulkList, MARKETS, pagesOf, type DomainBulkRow, type DomainReport } from "@/lib/research";
 import { scopeOf } from "@/lib/scope";
-import { requireRole } from "@/lib/serverAuth";
+import { isEditor, requireRole } from "@/lib/serverAuth";
 import { meteredRoute } from "@/lib/meter";
 import { requireTrack, take } from "@/lib/entitlements";
 import { TASK_COST } from "@/lib/plans";
 
 // Domain research: how big a domain, subdomain, folder or page is on Google, its top keywords and pages, and its competitors.
 // Shared and cached for 30 days, so the same domain again is free.
+// Editors run lookups, which can cost money. Viewers opening a shared link see saved results only.
 //   { domain, scope, country, more? }  one site in depth
-//   { action: "bulk", targets: string[], country }  up to 500 sites or pages, their size on Google side by side
+//   { action: "bulk", targets: string[], country, siteId }  up to 500 sites or pages side by side (editors only; saved with its own link)
 async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
-  const auth = await requireRole(request, body.workspaceId, "editor");
+  const auth = await requireRole(request, body.workspaceId, "viewer");
   if ("denied" in auth) return auth.denied;
-  const paid = await requireTrack(body.workspaceId, "seo");
+  const [editor, paid] = await Promise.all([isEditor(auth.sb, body.workspaceId), requireTrack(body.workspaceId, "seo")]);
   if (paid) return paid;
-  if (body.action === "bulk") return bulk(body);
-  const took = await take(body.workspaceId, "tasks", TASK_COST.domain);
-  if (!took.ok) return took.response;
+  if (body.action === "bulk") {
+    if (!editor) return Response.json({ error: "You need editor access in this workspace to run a bulk analysis." }, { status: 403 });
+    return bulk(auth.sb, body);
+  }
+  if (editor) {
+    const took = await take(body.workspaceId, "tasks", TASK_COST.domain);
+    if (!took.ok) return took.response;
+  }
   if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });
   const scope: Scope = ["domain", "subdomain", "subfolder", "url"].includes(body.scope) ? body.scope : "domain";
   const target = parseTarget(String(body.domain ?? ""), scope);
@@ -37,13 +45,20 @@ async function handle(request: Request) {
     const spend = new Spend();
     const key = (part: string) => `dom:${scope}:${part}:${m.location}:${m.language}:${domain}`;
     const whole = scope === "domain";
-    const [ranked, overview, rivals] = await Promise.all([
+    // Viewers only read what is saved: the keywords must be there, the rest may come back empty.
+    const run = async <T>(fn: () => Promise<T>): Promise<T> => {
+      if (editor) return fn();
+      const r = await savedOnly(fn);
+      if (r.data === null) throw new Error(NOT_SAVED);
+      return r.data;
+    };
+    const [ranked, overview, rivals] = await run(() => Promise.all([
       // 100 keywords up front. "Load more" asks for 500, cached separately.
       cached(key(more ? "kw500" : "kw"), 30 * DAY, () => rankedFor(target, m, spend, more ? 500 : 100)).then((r) => r.data),
       // A subdomain, folder or page gets its size from the ranked keywords call.
       whole ? cached(key("ov"), 30 * DAY, () => domainOverview(target.host, m, spend)).then((r) => r.data).catch(() => null) : null,
       cached(`dom:comp:${m.location}:${m.language}:${target.host}`, 30 * DAY, () => competitors(target.host, m, spend, 10)).then((r) => r.data).catch(() => []),
-    ]);
+    ]));
     const keywords = ranked.keywords;
     const report: DomainReport = {
       domain,
@@ -60,6 +75,7 @@ async function handle(request: Request) {
     return Response.json(report);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
+    if (message === NOT_SAVED) return Response.json({ error: message, notSaved: true }, { status: 404 });
     console.error("Domain research failed:", message);
     return Response.json({ error: message }, { status: 500 });
   }
@@ -76,7 +92,7 @@ function bulkTarget(input: string): { target: string; kind: DomainBulkRow["kind"
   return { target: `https://${t.host}${t.path}`, kind: "page" };
 }
 
-async function bulk(body: { workspaceId: string; targets?: unknown; country?: string }) {
+async function bulk(sb: SupabaseClient, body: { workspaceId: string; targets?: unknown; country?: string; siteId?: unknown }) {
   const lines = bulkList(Array.isArray(body.targets) ? body.targets.map(String) : String(body.targets ?? ""));
   const targets = [...new Map(lines.map(bulkTarget).filter((t): t is NonNullable<typeof t> => Boolean(t)).map((t) => [t.target, t])).values()];
   const skipped = lines.length - targets.length;
@@ -89,7 +105,9 @@ async function bulk(body: { workspaceId: string; targets?: unknown; country?: st
   try {
     const spend = new Spend();
     const rows = await bulkDomains(targets, MARKETS[country], spend);
-    return Response.json({ rows, country, skipped, cost: Math.round(spend.total * 10000) / 10000 });
+    const result = { rows, country, skipped, cost: Math.round(spend.total * 10000) / 10000 };
+    const id = await saveBulkRun(sb, { workspaceId: body.workspaceId, siteId: body.siteId, kind: "domains", country, items: lines, result });
+    return Response.json({ ...result, id });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     console.error("Bulk domain analysis failed:", message);

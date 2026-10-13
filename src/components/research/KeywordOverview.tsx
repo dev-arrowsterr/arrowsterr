@@ -5,6 +5,7 @@ import { useContext, useEffect, useRef, useState } from "react";
 import { addCalendarItems, type Site } from "@/lib/db";
 import { MARKETS, stageFromIntent, type KeywordReport, type KwList, type KwSummary } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
+import { countryOf, dbOf, domainHref, keywordHref, plainClick, setUrl, urlParams } from "@/lib/researchUrl";
 import { peek, putStash, useStash } from "@/lib/stash";
 import { BrandLogo } from "../BrandLogo";
 import { Sheet } from "../Sheet";
@@ -55,21 +56,69 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
-  // A topic sent from Prompts: fill it in and, for editors, run it once.
+  /** Show what the address bar asks for: a keyword (and its full list), or Bulk analysis. */
+  async function sync(how: "load" | "pop") {
+    const p = urlParams();
+    if (p.get("mode") === "bulk" || p.get("bulk")) return setMode("bulk");
+    const q = p.get("q");
+    if (!q) {
+      if (how === "pop") {
+        setMode("single");
+        setAll(null);
+      } else if (mode === "bulk") setUrl({ mode: "bulk", bulk: peek<{ id?: string } | null>(`kwb:${site.id}:result`)?.id }, false);
+      // Opening the page plainly shows the last search, so put it in the address.
+      else if (saved) setUrl({ q: saved.keyword, db: dbOf(saved.country) }, false);
+      return;
+    }
+    setMode("single");
+    const c = countryOf(p.get("db")) ?? country;
+    const view = p.get("view");
+    const same = saved && saved.keyword === q.trim().toLowerCase().replace(/\s+/g, " ") && saved.country === c;
+    if (same) setQuery(q);
+    const r = same ? saved : await analyze(q, { country: c, history: "none" });
+    if (r && view) {
+      if (!all || all.questions !== (view === "questions")) viewAll(view === "questions", r, "none");
+    } else setAll(null);
+  }
+  const syncRef = useRef(sync);
+  useEffect(() => {
+    syncRef.current = sync;
+  });
+
+  // On first load: a keyword sent from another tool runs; otherwise the address bar decides.
   useEffect(() => {
     const seed = peek<string | null>(k("seed"));
-    if (!seed) return;
-    putStash(k("seed"), null);
-    if (canEdit && seed !== query) analyze(seed);
-    else setQuery(seed);
+    if (seed) {
+      putStash(k("seed"), null);
+      if (canEdit) analyze(seed);
+      else setQuery(seed);
+    } else syncRef.current("load");
+    const pop = () => syncRef.current("pop");
+    window.addEventListener("popstate", pop);
+    return () => window.removeEventListener("popstate", pop);
     // Only on first load.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  function switchMode(m: "single" | "bulk") {
+    setMode(m);
+    if (m === "bulk") setUrl({ mode: "bulk", bulk: peek<{ id?: string } | null>(`kwb:${site.id}:result`)?.id }, true);
+    else setUrl(saved ? { q: saved.keyword, db: dbOf(saved.country) } : {}, true);
+  }
+
+  /** Close the full list. When opening it added a Back step, step back so Back does not reopen it. */
+  function closeAll() {
+    if (window.history.state?.aw === "view") window.history.back();
+    else {
+      setAll(null);
+      if (report) setUrl({ q: report.keyword, db: dbOf(report.country) }, false);
+    }
+  }
+
   // The full list fills the screen. Esc closes it.
   useEffect(() => {
     if (!all) return;
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && !(e.target as HTMLElement).closest?.("[role=dialog]") && setAll(null);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && !(e.target as HTMLElement).closest?.("[role=dialog]") && closeAll();
     window.addEventListener("keydown", esc);
     const overflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -79,35 +128,50 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
     };
   }, [all, setAll]);
 
-  /** A keyword that researches itself when clicked. */
+  /** A keyword that researches itself when clicked. Cmd or Ctrl click opens it in a new tab. */
   const kwLink = (keyword: string) =>
     canEdit ? (
-      <button
-        type="button"
+      <a
+        href={keywordHref(keyword, report?.country ?? country)}
         className="aw-text-link text-left"
         title={`Research "${keyword}"`}
-        onClick={() => {
+        onClick={(e) => {
+          if (!plainClick(e)) return;
+          e.preventDefault();
           setAll(null);
           analyze(keyword);
         }}
       >
         {keyword}
-      </button>
+      </a>
     ) : (
       keyword
     );
 
   const many = (q: string) => q.split(/[,\n]/).map((x) => x.trim()).filter(Boolean);
 
-  async function analyze(input: string) {
+  /**
+   * Research one keyword. history "auto" puts it in the address bar (a new Back step when it replaces
+   * another search); "none" is for searches the address bar asked for. Returns the finished report.
+   */
+  async function analyze(input: string, opts: { country?: string; history?: "auto" | "none" } = {}): Promise<KeywordReport | null> {
     const list = many(input);
-    if (!list.length) return;
+    if (!list.length) return null;
     // Several keywords go to Bulk analysis, ready to run.
     if (list.length > 1) {
       putStash(`kwb:${site.id}:text`, list.join("\n"));
+      putStash(`kwb:${site.id}:result`, null);
       setMode("bulk");
-      return;
+      setUrl({ mode: "bulk" }, true);
+      return null;
     }
+    const c = opts.country ?? country;
+    if (c !== country) setCountry(c);
+    if (opts.history !== "none") {
+      const at = urlParams();
+      setUrl({ q: list[0], db: dbOf(c) }, Boolean(at.get("q") || at.get("mode")));
+    }
+    let done: KeywordReport | null = null;
     setQuery(input);
     top.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     setError("");
@@ -119,7 +183,7 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
       const none: KwList = { total: 0, volume: 0, rows: [] };
       let cur: KeywordReport = {
         keyword: list[0].toLowerCase().replace(/\s+/g, " "),
-        country,
+        country: c,
         device: "desktop",
         overview: null,
         byCountry: [],
@@ -133,10 +197,11 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
       let left = ["overview", "ideas", "serp"];
       setWaiting(left);
       // Each piece shows the moment it lands, so the numbers come up before Google's results.
-      await postLines(auth, "/api/research/report", { action: "report", keyword: list[0], country, stream: true }, (x) => {
+      await postLines(auth, "/api/research/report", { action: "report", keyword: list[0], country: c, stream: true }, (x) => {
         if (x.part === "error") throw new Error(String(x.error));
         if (x.part === "done") {
-          setReport(x.report as KeywordReport);
+          done = x.report as KeywordReport;
+          setReport(done);
           setLive(null);
           return;
         }
@@ -154,13 +219,16 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
       setLive(null);
       setWaiting([]);
     }
+    return done;
   }
 
-  async function viewAll(questions: boolean) {
-    if (!report) return;
+  /** Open the full list of variations or questions. It gets its own address, so Back closes it. */
+  async function viewAll(questions: boolean, r: KeywordReport | null = report, history: "push" | "none" = "push") {
+    if (!r) return;
+    if (history === "push") setUrl({ q: r.keyword, db: dbOf(r.country), view: questions ? "questions" : "variations" }, true, "view");
     setBusy("Loading the full list...");
     try {
-      setAll({ questions, list: await post<KwList>(auth, "/api/research/report", { action: "all", keyword: report.keyword, country, questions }) });
+      setAll({ questions, list: await post<KwList>(auth, "/api/research/report", { action: "all", keyword: r.keyword, country: r.country, questions }) });
       setPicked(new Set());
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -273,7 +341,7 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
       <Seg
         label="Mode"
         value={mode}
-        onChange={setMode}
+        onChange={switchMode}
         options={[
           { id: "single", label: "Keyword overview" },
           { id: "bulk", label: "Bulk analysis" },
@@ -462,9 +530,18 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
                       <td className="max-w-0">
                         <div className="flex min-w-0 flex-col gap-1">
                           {toDomain ? (
-                            <button type="button" className="aw-text-link block truncate text-left" title={`Domain Research for ${r.url}`} onClick={() => toDomain(r.url, "url")}>
+                            <a
+                              href={domainHref(r.url, "url", report.country)}
+                              className="aw-text-link block truncate text-left"
+                              title={`Domain Research for ${r.url}`}
+                              onClick={(e) => {
+                                if (!plainClick(e)) return;
+                                e.preventDefault();
+                                toDomain(r.url, "url");
+                              }}
+                            >
                               {r.url}
-                            </button>
+                            </a>
                           ) : (
                             <span className="block truncate" title={r.url}>
                               {r.url}
@@ -473,9 +550,18 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
                           <span className="flex flex-wrap items-center gap-2 text-[13px]">
                             <BrandLogo src={favicon(r.domain)} name={r.domain} size={14} />
                             {toDomain ? (
-                              <button type="button" className="font-medium text-ink hover:text-brand hover:underline" title={`Domain Research for ${r.domain}`} onClick={() => toDomain(r.domain, "domain")}>
+                              <a
+                                href={domainHref(r.domain, "domain", report.country)}
+                                className="font-medium text-ink hover:text-brand hover:underline"
+                                title={`Domain Research for ${r.domain}`}
+                                onClick={(e) => {
+                                  if (!plainClick(e)) return;
+                                  e.preventDefault();
+                                  toDomain(r.domain, "domain");
+                                }}
+                              >
                                 {r.domain}
-                              </button>
+                              </a>
                             ) : (
                               <span className="font-medium text-ink">{r.domain}</span>
                             )}
@@ -523,7 +609,7 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
                   >
                     Export CSV
                   </button>
-                  <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => setAll(null)} title="Close (Esc)">
+                  <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={closeAll} title="Close (Esc)">
                     Close
                   </button>
                 </span>

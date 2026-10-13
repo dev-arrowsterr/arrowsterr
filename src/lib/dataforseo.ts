@@ -1,4 +1,5 @@
 import "server-only";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { charge } from "./meter";
 import { cleanSources, linksInText, type Source } from "./sources";
 
@@ -23,7 +24,30 @@ const GOOGLE: DfsEngine[] = ["AI Overview", "AI Mode"];
 
 export const dfsReady = () => Boolean(process.env.DFS_LOGIN?.trim() && process.env.DFS_PASSWORD?.trim());
 
+const offline = new AsyncLocalStorage<{ blocked: boolean }>();
+
+/**
+ * Run work that may only read saved results, for viewers opening a shared link. Any paid call
+ * inside fails instead of running. blocked says whether something was missing.
+ */
+export async function savedOnly<T>(fn: () => Promise<T>): Promise<{ data: T | null; blocked: boolean }> {
+  const box = { blocked: false };
+  try {
+    const data = await offline.run(box, fn);
+    return { data, blocked: box.blocked };
+  } catch (e) {
+    if (box.blocked) return { data: null, blocked: true };
+    throw e;
+  }
+}
+export const NOT_SAVED = "Nobody has run this search in the last 30 days. Ask an editor to run it.";
+
 export async function call(path: string, body?: unknown) {
+  const box = offline.getStore();
+  if (box) {
+    box.blocked = true;
+    throw new Error(NOT_SAVED);
+  }
   const auth = Buffer.from(`${process.env.DFS_LOGIN?.trim()}:${process.env.DFS_PASSWORD?.trim()}`).toString("base64");
   const res = await fetch(`${API}/${path}`, {
     method: body ? "POST" : "GET",

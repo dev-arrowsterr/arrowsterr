@@ -1,6 +1,7 @@
 "use client";
 
 // Small pieces the Research pages share.
+import { keywordHref, plainClick } from "@/lib/researchUrl";
 import { createContext, useContext } from "react";
 import type { Stage } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
@@ -233,14 +234,23 @@ export const FIELD = "border border-rule bg-white px-2.5 py-1.5 text-[13px] text
 /** Opens Keyword Research and researches a keyword. Set by the Research page. */
 export const ResearchKeyword = createContext<((keyword: string) => void) | null>(null);
 
-/** A keyword that opens in Keyword Research when clicked, or plain text when nothing can research it. */
+/** A keyword that opens in Keyword Research when clicked (Cmd or Ctrl click: a new tab), or plain text when nothing can research it. */
 export function KeywordLink({ keyword }: { keyword: string }) {
   const go = useContext(ResearchKeyword);
   if (!go) return <>{keyword}</>;
   return (
-    <button type="button" className="aw-text-link text-left" title={`Research "${keyword}"`} onClick={() => go(keyword)}>
+    <a
+      href={keywordHref(keyword)}
+      className="aw-text-link text-left"
+      title={`Research "${keyword}"`}
+      onClick={(e) => {
+        if (!plainClick(e)) return;
+        e.preventDefault();
+        go(keyword);
+      }}
+    >
       {keyword}
-    </button>
+    </a>
   );
 }
 

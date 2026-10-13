@@ -1,5 +1,6 @@
 "use client";
 
+import { withoutResearch } from "@/lib/researchUrl";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { loadRuns, type Run } from "@/lib/chats";
@@ -173,7 +174,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   // Keep the address bar in step with the page, and follow the back and forward buttons.
   const go = useCallback((p: Page) => {
     setPage(p);
-    if (window.location.pathname !== SLUGS[p]) window.history.pushState(null, "", SLUGS[p] + window.location.search);
+    // A search belongs to the page it was made on, so it stays behind.
+    if (window.location.pathname !== SLUGS[p]) window.history.pushState(null, "", SLUGS[p] + withoutResearch(window.location.search));
   }, []);
   useEffect(() => {
     if (window.location.pathname !== SLUGS[page] && !onOnboarding()) window.history.replaceState(null, "", SLUGS[page] + window.location.search);

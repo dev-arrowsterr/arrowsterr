@@ -30,6 +30,12 @@ export async function requireRole(request: Request, workspaceId: unknown, min: M
   return { sb };
 }
 
+/** True when the signed-in person can make changes (and spend) in the workspace. */
+export async function isEditor(sb: SupabaseClient, workspaceId: string): Promise<boolean> {
+  const { data } = await sb.rpc("has_role", { ws: workspaceId, min: "editor" });
+  return Boolean(data);
+}
+
 /** Count one AI answer against the workspace's daily limit. Returns a Response when the limit is used up. */
 export async function takeAnswer(sb: SupabaseClient, workspaceId: string): Promise<Response | null> {
   const { data, error } = await sb.rpc("take_answer", { p_ws: workspaceId });
