@@ -50,6 +50,13 @@ jobs:
         if: env.FLY_API_TOKEN != ''
         # --ha=false: one machine per app. Fly would start two on the first deploy, which doubles the bill.
         run: flyctl deploy --remote-only --ha=false --config ${{ matrix.config }} --app ${{ matrix.app }}
+      # A deploy keeps a stopped machine stopped. This app should always run, so start any that are stopped.
+      - name: Start ${{ matrix.app }} if it is stopped
+        if: env.FLY_API_TOKEN != ''
+        run: |
+          for id in $(flyctl machines list --app ${{ matrix.app }} --quiet); do
+            flyctl machine start "$id" --app ${{ matrix.app }} || true
+          done
       - name: No Fly token yet
         if: env.FLY_API_TOKEN == ''
         run: echo "::notice::Add the FLY_API_TOKEN repository secret to deploy ${{ matrix.app }} to Fly.io."
