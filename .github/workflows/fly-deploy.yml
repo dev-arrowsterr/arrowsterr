@@ -32,9 +32,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # The app stays on Render for now, so only the worker deploys to Fly.
+        # To move the app too, add: - app: arrowsterr-web / config: fly.toml
         include:
-          - app: arrowsterr-web
-            config: fly.toml
           - app: arrowsterr-worker
             config: fly.worker.toml
     env:
