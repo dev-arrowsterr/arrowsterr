@@ -59,9 +59,10 @@ import { SourcesPage } from "./SourcesPage";
 import { TrafficPage } from "./TrafficPage";
 import { ReportsPage } from "./reports/ReportsPage";
 import { VisitorsPage } from "./VisitorsPage";
+import { AskPage } from "./AskPage";
 
 export type { Brand } from "@/lib/db";
-type Page = "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "gap" | "calendar" | "intel" | "summary" | SettingsTab;
+type Page = "ask" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "gap" | "calendar" | "intel" | "summary" | SettingsTab;
 const RESEARCH: Page[] = ["keywords", "domain", "gap", "calendar", "intel"];
 /** Website analytics is still in testing: only this account sees it. */
 const WEBSITE_TESTER = "vincent@perceptric.com";
@@ -69,6 +70,7 @@ const VISIBILITY: Page[] = ["prompts", "competitors", "domains", "urls"]; // the
 
 /** Each page's address. "/" opens Prompts. */
 const SLUGS: Record<Page, string> = {
+  ask: "/ask",
   prompts: "/prompts",
   competitors: "/competitors",
   domains: "/sources",
@@ -773,6 +775,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             </SettingsPage>
           ) : !view ? (
             <div className="aw-callout max-w-xl">This workspace has no brands yet. Ask an editor or admin to add one.</div>
+          ) : page === "ask" ? (
+            <AskPage key={ws.id} auth={auth} canEdit={canEdit} domain={view.brand.domain ?? ""} />
           ) : plan && trackOf(page) && !plan.open[trackOf(page)!] ? (
             <Glimpse
               track={trackOf(page)!}
@@ -910,6 +914,7 @@ const trackOf = (page: Page): Track | null =>
 
 /** The big modules of the app. Each opens to its own pages. */
 const NAV: { group: string; icon: string; tester?: boolean; items: { id: Page; label: string; icon: string; also?: Page[] }[] }[] = [
+  { group: "Ask Arrowsterr", icon: "spark", items: [{ id: "ask", label: "Ask Arrowsterr", icon: "spark" }] },
   {
     group: "AI Visibility",
     icon: "radar",

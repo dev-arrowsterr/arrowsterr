@@ -83,6 +83,17 @@ export function CmsSettings({ auth, isAdmin }: { auth: RunAuth; isAdmin: boolean
           ))}
         </ul>
       ) : null}
+      {list?.some((c) => c.kind === "wordpress") || kind === "wordpress" ? (
+        <div className="aw-callout flex max-w-2xl flex-col gap-2 text-[14px]">
+          <span className="font-medium text-ink">Let Ask Arrowsterr fix your WordPress pages</span>
+          <span>
+            Install the Arrowsterr Connector plugin so Ask Arrowsterr can set SEO titles, meta descriptions and structured data. It works with Yoast SEO and Rank Math. Alt text, FAQ sections and internal links work without it. In WordPress, open Plugins → Add New → Upload Plugin, pick the file, then Activate.
+          </span>
+          <a href="/downloads/arrowsterr-connector.zip" download className="aw-btn aw-btn--secondary aw-btn--sm self-start">
+            Download the plugin
+          </a>
+        </div>
+      ) : null}
 
       {isAdmin && !setup ? (
         <div className="flex flex-wrap gap-2">

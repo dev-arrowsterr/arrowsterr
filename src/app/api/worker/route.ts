@@ -6,15 +6,15 @@ import { metered } from "@/lib/meter";
 import { sendNudges } from "@/lib/nudges";
 import { sendWeekly } from "@/lib/notify";
 import { adminClient } from "@/lib/serverAuth";
-import { brief, check, plan, rollup, schedule } from "@/lib/worker/handlers";
+import { apply, audit, brief, check, plan, play, rollup, schedule } from "@/lib/worker/handlers";
 
 // One worker tick. scripts/worker.mjs calls this over and over.
 // Each tick queues the scheduler for this 10-minute window, then claims a batch of jobs and runs them a few at a time.
 
 export const maxDuration = 300;
 
-const HANDLERS: Record<JobKind, (db: SupabaseClient, job: Job) => Promise<void>> = { schedule, check, brief, plan, rollup };
-const ACTION: Record<JobKind, string> = { schedule: "daily check", check: "daily check", brief: "content brief", plan: "content plan", rollup: "daily numbers" };
+const HANDLERS: Record<JobKind, (db: SupabaseClient, job: Job) => Promise<void>> = { schedule, check, brief, plan, rollup, audit, play, apply };
+const ACTION: Record<JobKind, string> = { schedule: "daily check", check: "daily check", brief: "content brief", plan: "content plan", rollup: "daily numbers", audit: "site audit", play: "ask arrowsterr", apply: "ask arrowsterr apply" };
 const WORKER = `web-${randomUUID().slice(0, 8)}`;
 const CONCURRENCY = Math.max(1, Number(process.env.WORKER_CONCURRENCY) || 8);
 

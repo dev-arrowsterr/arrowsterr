@@ -11,6 +11,8 @@ import { entitlement } from "../entitlements";
 import { enqueue, enqueueMany, finish, rateOk, retry, type Job } from "../jobs";
 import { afterDaily, dispatch } from "../integrations";
 import { emailJob } from "../notify";
+import { runAudit } from "../audit";
+import { applySet, preparePlay, undoSet } from "../plays";
 import { checkDue, promptAllowance } from "../plans";
 import type { PlanBrief } from "../research";
 
@@ -235,5 +237,23 @@ export async function plan(db: SupabaseClient, job: Job) {
       path: "/content-plan",
     }).catch((e) => console.error("Plan email failed:", e instanceof Error ? e.message : e));
   }
+  await finish(job.id);
+}
+
+// ─────────────── Ask Arrowsterr: site audits and change sets ───────────────
+export async function audit(db: SupabaseClient, job: Job) {
+  const { auditId, domain } = job.payload as { auditId: string; domain: string };
+  await runAudit(db, auditId, domain);
+  await finish(job.id);
+}
+
+export async function play(db: SupabaseClient, job: Job) {
+  await preparePlay(db, (job.payload as { setId: string }).setId);
+  await finish(job.id);
+}
+
+export async function apply(db: SupabaseClient, job: Job) {
+  const { setId, undo } = job.payload as { setId: string; undo?: boolean };
+  await (undo ? undoSet(db, setId) : applySet(db, setId));
   await finish(job.id);
 }
