@@ -9,13 +9,9 @@ npm install
 npm run dev      # http://localhost:3000
 ```
 
-## Deploy on Render
+## Deploy on Fly.io
 
-Web Service settings:
-
-- Build command: `npm ci && npm run build`
-- Start command: `npm start`
-- Health check path: `/api/health`
+Two Fly apps in Tokyo: `arrowsterr-web` (the app, `fly.toml`) and `arrowsterr-worker` (the job worker, `fly.worker.toml`). Every push to the production branch deploys both through `.github/workflows/fly-deploy.yml`. Setup and the move from Render: [docs/fly.md](docs/fly.md).
 
 ## Brand
 

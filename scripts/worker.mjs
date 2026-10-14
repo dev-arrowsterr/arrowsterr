@@ -1,6 +1,6 @@
 // The job worker: node scripts/worker.mjs
-// Run it as a Render Background Worker. It calls the app's /api/worker forever.
-// Needs APP_URL (like https://arrowsterr.onrender.com) and CRON_SECRET (the same value as on the web service).
+// Runs on Fly.io as arrowsterr-worker (fly.worker.toml). It calls the app's /api/worker forever.
+// Needs APP_URL (like https://app.arrowsterr.com) and CRON_SECRET (the same value as the app's).
 // Optional: LIMIT (jobs per tick, default 20), IDLE_MS (wait when there is nothing to do, default 20000).
 
 const url = (process.env.APP_URL ?? "").trim().replace(/\/+$/, "");

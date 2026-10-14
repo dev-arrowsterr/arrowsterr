@@ -31,7 +31,7 @@ async function handle(request: Request) {
   if (!TASKS.includes(task)) return Response.json({ error: "Unknown task." }, { status: 400 });
   const took = await take(body.workspaceId, "tasks", task === "widget" ? TASK_COST.widget : task === "stats" ? TASK_COST.stats : task === "alt" ? TASK_COST.ai : TASK_COST.agent);
   if (!took.ok) return took.response;
-  if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
+  if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on the server." }, { status: 500 });
 
   const { data: site } = await auth.sb.from("sites").select("id, name, domain, guideline, profile").eq("id", body.siteId).eq("workspace_id", body.workspaceId).maybeSingle();
   if (!site) return Response.json({ error: "Website not found." }, { status: 404 });

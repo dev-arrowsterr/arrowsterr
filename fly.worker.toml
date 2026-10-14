@@ -1,0 +1,19 @@
+# The Arrowsterr job worker on Fly.io. It calls the app's /api/worker in a loop (scripts/worker.mjs).
+#   fly deploy --config fly.worker.toml
+# It has no web address: nothing calls it, it only calls the app. Its one secret is CRON_SECRET.
+app = "arrowsterr-worker"
+primary_region = "nrt" # Tokyo, next to the app
+
+[build]
+  dockerfile = "Dockerfile.worker"
+
+[env]
+  APP_URL = "https://app.arrowsterr.com"
+
+# If it ever stops, Fly starts it again.
+[[restart]]
+  policy = "always"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

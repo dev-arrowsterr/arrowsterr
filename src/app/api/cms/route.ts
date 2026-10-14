@@ -19,7 +19,7 @@ export async function POST(request: Request) {
   const auth = await requireRole(request, body.workspaceId, min);
   if ("denied" in auth) return auth.denied;
   const db = adminClient();
-  if (!db) return err("Add SUPABASE_SECRET_KEY on Render to connect a CMS.", 500);
+  if (!db) return err("Add SUPABASE_SECRET_KEY to the server's settings to connect a CMS.", 500);
   const ws = String(body.workspaceId);
   const missing = (e: { message: string } | null) => e && /cms_connections|meta/.test(e.message);
 

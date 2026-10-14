@@ -27,7 +27,7 @@ async function handle(request: Request) {
   if ("denied" in auth) return auth.denied;
   const took = await take(body.workspaceId, "tasks", TASK_COST.ai);
   if (!took.ok) return took.response;
-  if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
+  if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on the server." }, { status: 500 });
   const brand = String(body.brand ?? "").slice(0, 100);
   const domain = String(body.domain ?? "").replace(/^https?:\/\//, "").replace(/\/.*$/, "").slice(0, 120);
   const ask = String(body.ask ?? "").slice(0, 600);

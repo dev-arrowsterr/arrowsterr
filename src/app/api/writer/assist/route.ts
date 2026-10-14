@@ -18,7 +18,7 @@ async function handle(request: Request) {
   if (paid) return paid;
   const took = await take(body.workspaceId, "tasks", TASK_COST.agent);
   if (!took.ok) return took.response;
-  if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
+  if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on the server." }, { status: 500 });
   const message = String(body.message ?? "").trim().slice(0, 4000);
   if (!message) return Response.json({ error: "Type a message." }, { status: 400 });
 

@@ -11,7 +11,7 @@ async function handle(request: Request) {
   if ("denied" in auth) return auth.denied;
   const took = await take(body.workspaceId, "tasks", TASK_COST.ai);
   if (!took.ok) return took.response;
-  if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
+  if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on the server." }, { status: 500 });
   const limited = await takeAnswer(auth.sb, body.workspaceId);
   if (limited) return limited;
   const data = JSON.stringify(body.data ?? {}).slice(0, 12000);

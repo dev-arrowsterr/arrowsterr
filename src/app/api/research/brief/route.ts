@@ -21,8 +21,8 @@ async function handle(request: Request) {
   if (paid) return paid;
   const took = await take(body.workspaceId, "tasks", TASK_COST.brief, { refundIfFree: false });
   if (!took.ok) return took.response;
-  if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });
-  if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
+  if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD to the server's settings." }, { status: 500 });
+  if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on the server." }, { status: 500 });
 
   const { data: item, error } = await auth.sb.from("calendar_items").select("id, brief_status, brief_at").eq("id", body.itemId).eq("workspace_id", body.workspaceId).maybeSingle();
   if (error) return Response.json({ error: error.message + (/brief/.test(error.message) ? " Run supabase/007_briefs_and_pages.sql in Supabase." : "") }, { status: 500 });

@@ -27,7 +27,7 @@ async function workspaceOf(sub: Subscription) {
 /** Write a subscription's plan, limits and dates to its workspace. */
 export async function syncSubscription(sub: Subscription) {
   const db = adminClient();
-  if (!db) throw new Error("Add SUPABASE_SECRET_KEY on Render.");
+  if (!db) throw new Error("Add SUPABASE_SECRET_KEY to the server's settings.");
   const ws = await workspaceOf(sub);
   if (!ws) return null;
   const status = statusOf(sub.status);

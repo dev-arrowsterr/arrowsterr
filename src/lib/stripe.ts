@@ -25,7 +25,7 @@ function encode(params: Params, prefix = "", out = new URLSearchParams()) {
 
 export async function stripe<T = Record<string, unknown>>(method: "GET" | "POST" | "DELETE", path: string, params: Params = {}, idempotencyKey?: string): Promise<T> {
   const key = process.env.STRIPE_SECRET_KEY?.trim();
-  if (!key) throw new Error("STRIPE_SECRET_KEY is not set on Render.");
+  if (!key) throw new Error("STRIPE_SECRET_KEY is not set on the server.");
   const body = encode(params);
   const url = `https://api.stripe.com/v1/${path}${method === "GET" && body.size ? `?${body}` : ""}`;
   const res = await fetch(url, {

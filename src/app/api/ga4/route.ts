@@ -10,7 +10,7 @@ export async function POST(request: Request) {
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
   const db = adminClient();
-  if (!db) return Response.json({ error: "Add SUPABASE_SECRET_KEY on Render." }, { status: 500 });
+  if (!db) return Response.json({ error: "Add SUPABASE_SECRET_KEY to the server's settings." }, { status: 500 });
   const { data: brand } = await auth.sb.from("brands").select("id").eq("id", body.brandId).eq("workspace_id", body.workspaceId).maybeSingle();
   if (!brand) return Response.json({ error: "Brand not found." }, { status: 404 });
 

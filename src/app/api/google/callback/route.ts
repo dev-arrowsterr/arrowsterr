@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   if (url.searchParams.get("error")) return go(state.back, { ga4: "error", reason: "Google access was not allowed." });
 
   const db = adminClient();
-  if (!db) return go(state.back, { ga4: "error", reason: "Add SUPABASE_SECRET_KEY on Render." });
+  if (!db) return go(state.back, { ga4: "error", reason: "Add SUPABASE_SECRET_KEY to the server's settings." });
   try {
     // The person who started must still be an editor of the brand's workspace.
     const { data: member } = await db.from("workspace_members").select("role").eq("workspace_id", state.workspaceId).eq("user_id", state.userId).maybeSingle();

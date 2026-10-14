@@ -74,7 +74,7 @@ function todo(run: Row, engines: Engine[]) {
 export async function POST(request: Request) {
   if (!allowed(request)) return Response.json({ error: "Wrong or missing CRON_SECRET." }, { status: 401 });
   const sb = adminClient();
-  if (!sb) return Response.json({ error: "Add SUPABASE_SECRET_KEY on Render." }, { status: 500 });
+  if (!sb) return Response.json({ error: "Add SUPABASE_SECRET_KEY to the server's settings." }, { status: 500 });
   // About once an hour: emails for tasks running low and trials ending.
   if (Math.floor(Date.now() / 600_000) % 6 === 0) {
     await sendNudges(sb).catch((e) => console.error("Nudges failed:", e instanceof Error ? e.message : e));

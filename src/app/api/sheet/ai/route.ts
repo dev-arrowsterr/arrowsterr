@@ -13,7 +13,7 @@ async function handle(request: Request) {
   if ("denied" in auth) return auth.denied;
   const took = await take(body.workspaceId, "tasks", TASK_COST.ai);
   if (!took.ok) return took.response;
-  if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
+  if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on the server." }, { status: 500 });
   const kind: SheetKind = body.kind === "plan" ? "plan" : "calendar";
   const instruction = String(body.instruction ?? "").trim().slice(0, 1000);
   if (!instruction) return Response.json({ error: "Type what you want done." }, { status: 400 });

@@ -14,7 +14,7 @@ async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
-  if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
+  if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on the server." }, { status: 500 });
   const site = normalizeSite(String(body.website ?? ""));
   if (!site) return Response.json({ error: "Enter your agency's website, like agency.com." }, { status: 400 });
   const limited = await takeAnswer(auth.sb, body.workspaceId);

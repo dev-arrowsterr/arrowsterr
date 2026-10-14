@@ -18,7 +18,7 @@ async function handle(request: Request) {
   if (!took.ok) return took.response;
   const limited = await takeAnswer(auth.sb, body.workspaceId);
   if (limited) return limited;
-  if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
+  if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on the server." }, { status: 500 });
 
   try {
     const page = await fetchSitePages(site.url);

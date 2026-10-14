@@ -1,0 +1,54 @@
+# Deploy to Fly.io on every push to the production branch: the checks first, then the app and the worker.
+# Needs one repository secret, FLY_API_TOKEN (from `fly tokens create org`). Without it, the deploy steps are skipped.
+name: Deploy to Fly.io
+
+on:
+  push:
+    branches: [claude/arrowsterr-ai-visibility-ft7nva]
+  workflow_dispatch:
+
+# One deploy at a time. A newer push waits for the one in progress, so deploys never overlap.
+concurrency:
+  group: fly-deploy
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+  deploy:
+    needs: checks
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - app: arrowsterr-web
+            config: fly.toml
+          - app: arrowsterr-worker
+            config: fly.worker.toml
+    env:
+      FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+        if: env.FLY_API_TOKEN != ''
+      - name: Create ${{ matrix.app }} if it doesn't exist yet
+        if: env.FLY_API_TOKEN != ''
+        run: flyctl status --app ${{ matrix.app }} >/dev/null 2>&1 || flyctl apps create ${{ matrix.app }}
+      - name: Deploy ${{ matrix.app }}
+        if: env.FLY_API_TOKEN != ''
+        run: flyctl deploy --remote-only --config ${{ matrix.config }} --app ${{ matrix.app }}
+      - name: No Fly token yet
+        if: env.FLY_API_TOKEN == ''
+        run: echo "::notice::Add the FLY_API_TOKEN repository secret to deploy ${{ matrix.app }} to Fly.io."

@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   const auth = await requireRole(request, body.workspaceId, "admin");
   if ("denied" in auth) return auth.denied;
   const db = adminClient();
-  if (!db) return Response.json({ error: "Add SUPABASE_SECRET_KEY on Render." }, { status: 500 });
+  if (!db) return Response.json({ error: "Add SUPABASE_SECRET_KEY to the server's settings." }, { status: 500 });
   const track = body.track as Track;
   if (!TRACKS[track]) return Response.json({ error: "Pick AI Visibility or SEO." }, { status: 400 });
 

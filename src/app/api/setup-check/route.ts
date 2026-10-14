@@ -1,7 +1,7 @@
 import { availableEngines, ENGINES, viaDfs } from "@/lib/engines";
 import { supabaseUrl } from "@/lib/serverAuth";
 
-// Open /api/setup-check to test the settings on Render. Secrets are never shown, only whether they work.
+// Open /api/setup-check to test the server's settings. Secrets are never shown, only whether they work.
 export async function GET() {
   const url = supabaseUrl();
   const key = (process.env.SUPABASE_PUBLISHABLE_KEY ?? "").trim();

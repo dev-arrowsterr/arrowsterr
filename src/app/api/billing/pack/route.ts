@@ -8,9 +8,9 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "admin");
   if ("denied" in auth) return auth.denied;
-  if (!stripeReady()) return Response.json({ error: "STRIPE_SECRET_KEY is not set on Render." }, { status: 500 });
+  if (!stripeReady()) return Response.json({ error: "STRIPE_SECRET_KEY is not set on the server." }, { status: 500 });
   const db = adminClient();
-  if (!db) return Response.json({ error: "Add SUPABASE_SECRET_KEY on Render." }, { status: 500 });
+  if (!db) return Response.json({ error: "Add SUPABASE_SECRET_KEY to the server's settings." }, { status: 500 });
   const pack = TASK_PACKS.find((p) => p.id === body.pack);
   if (!pack) return Response.json({ error: "Pick a task pack." }, { status: 400 });
 

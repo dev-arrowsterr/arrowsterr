@@ -1,6 +1,6 @@
 import "server-only";
 
-// Sends email through Resend. Needs RESEND_API_KEY and EMAIL_FROM (like "Arrowsterr <hello@arrowsterr.com>") on Render.
+// Sends email through Resend. Needs RESEND_API_KEY and EMAIL_FROM (like "Arrowsterr <hello@arrowsterr.com>") on the server.
 
 export const emailReady = () => Boolean(process.env.RESEND_API_KEY?.trim());
 
