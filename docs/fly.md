@@ -76,8 +76,8 @@ fly secrets set --app arrowsterr-worker CRON_SECRET=...
 ## 4. Deploy
 
 ```bash
-fly deploy                              # the app
-fly deploy --config fly.worker.toml     # the worker
+fly deploy --ha=false                    # the app
+fly deploy --ha=false --config fly.worker.toml # the worker
 ```
 
 Check `https://arrowsterr-web.fly.dev/api/health` answers `{"ok":true}`, and `https://arrowsterr-web.fly.dev/api/setup-check` shows every setting as OK.
@@ -105,4 +105,4 @@ Every push to `claude/arrowsterr-ai-visibility-ft7nva` deploys both apps, throug
 1. Make a token: `fly tokens create org` (one token works for both apps).
 2. In GitHub → the `arrowsterr` repo → Settings → Secrets and variables → Actions → New repository secret, name it `FLY_API_TOKEN` and paste the token.
 
-Until the secret is there, the workflow runs the checks and skips the deploy. To deploy by hand, run `fly deploy` and `fly deploy --config fly.worker.toml`. Turn off Render's auto deploy (or delete the Render services) so pushes don't deploy to both.
+Until the secret is there, the workflow runs the checks and skips the deploy. To deploy by hand, run `fly deploy --ha=false` and `fly deploy --ha=false --config fly.worker.toml`. Turn off Render's auto deploy (or delete the Render services) so pushes don't deploy to both.
