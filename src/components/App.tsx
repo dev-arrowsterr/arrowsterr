@@ -59,7 +59,7 @@ import { SourcesPage } from "./SourcesPage";
 import { TrafficPage } from "./TrafficPage";
 import { ReportsPage } from "./reports/ReportsPage";
 import { VisitorsPage } from "./VisitorsPage";
-import { AskPage } from "./AskPage";
+import { ZippiePage } from "./ZippiePage";
 
 export type { Brand } from "@/lib/db";
 type Page = "ask" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "gap" | "calendar" | "intel" | "summary" | SettingsTab;
@@ -631,11 +631,6 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       <UndoKeys />
-      {navHidden ? (
-        <button type="button" onClick={toggleNav} className="aw-nav-toggle fixed top-2.5 left-2 z-30 hidden md:inline-flex print:hidden" aria-label="Show sidebar" title={`Show sidebar (${NAV_KEY})`}>
-          <PanelIcon />
-        </button>
-      ) : null}
       <Sidebar
         hidden={navHidden}
         onHide={toggleNav}
@@ -665,8 +660,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           go(p);
         }}
       />
-      <div className={`flex min-w-0 flex-1 flex-col ${navHidden ? "md:pl-11" : ""}`}>
-        {!isSettings(page) ? (
+      <div className="flex min-w-0 flex-1 flex-col">
+        {!isSettings(page) && page !== "ask" ? (
           <TopBar
             visibility={VISIBILITY.includes(page)}
             brands={brands}
@@ -693,7 +688,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             hasRuns={brandRuns.length > 0}
           />
         ) : null}
-        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6">
+        <main className={`min-w-0 flex-1 ${page === "ask" ? "" : "px-4 py-6 sm:px-6"}`}>
           {limitHit || (plan && plan.status === "read_only" && page !== "billing") ? (
             <div className="aw-callout aw-callout--warn mb-5 flex flex-wrap items-center justify-between gap-3">
               <span>{limitHit?.error || (plan?.plan === "trial" ? "Your free trial has ended. Your data is safe." : "This workspace is read-only. Your data is safe.")}</span>
@@ -806,7 +801,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           ) : !view ? (
             <div className="aw-callout max-w-xl">This workspace has no brands yet. Ask an editor or admin to add one.</div>
           ) : page === "ask" ? (
-            <AskPage key={ws.id} auth={auth} canEdit={canEdit} domain={view.brand.domain ?? ""} />
+            <ZippiePage key={ws.id} auth={auth} canEdit={canEdit} />
           ) : plan && trackOf(page) && !plan.open[trackOf(page)!] ? (
             <Glimpse
               track={trackOf(page)!}
@@ -1054,7 +1049,32 @@ function Sidebar({
   const { open, setOpen, ref } = useMenu();
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [closedGroups, setClosedGroups] = useState<Set<string>>(new Set());
+  const groups = NAV.filter((g) => !g.tester || email.toLowerCase() === WEBSITE_TESTER);
   return (
+    <>
+    {hidden ? (
+      // Collapsed: a slim rail of module icons. Names show on hover.
+      <nav className="aw-rail hidden print:hidden md:flex" aria-label="Modules">
+        <button type="button" onClick={onHide} className="aw-rail__btn" aria-label="Show sidebar" data-tip={`Show sidebar (${NAV_KEY})`}>
+          <PanelIcon />
+        </button>
+        <span className="aw-rail__ws" data-tip={ws.name}>
+          <WorkspaceAvatar ws={ws} brandLogo={brandLogo} />
+        </span>
+        {groups.map((g) => {
+          const on = g.items.some((item) => page === item.id || item.also?.includes(page));
+          return (
+            <button key={g.group} type="button" onClick={() => (on ? null : onPage(g.items[0].id))} aria-current={on ? "page" : undefined} className={`aw-rail__btn ${on ? "is-on" : ""}`} aria-label={g.group} data-tip={g.group}>
+              <NavIcon name={g.icon} />
+            </button>
+          );
+        })}
+        <span className="flex-1" />
+        <button type="button" onClick={() => onPage("settings")} className={`aw-rail__btn ${isSettings(page) ? "is-on" : ""}`} aria-label="Settings" data-tip="Settings">
+          <NavIcon name="gear" />
+        </button>
+      </nav>
+    ) : null}
     <aside className={`aw-sidebar flex shrink-0 flex-col gap-5 border-b border-rule px-3 py-4 print:hidden md:sticky md:top-0 md:h-screen md:w-60 md:border-r md:border-b-0 ${hidden ? "md:hidden" : ""}`}>
       <div className="flex items-center justify-between gap-2 px-2">
         <Logo size="sm" />
@@ -1110,7 +1130,7 @@ function Sidebar({
       </div>
 
       <nav className="flex flex-col gap-1" aria-label="Modules">
-        {NAV.filter((g) => !g.tester || email.toLowerCase() === WEBSITE_TESTER).map((g) => {
+        {groups.map((g) => {
           const on = g.items.some((item) => page === item.id || item.also?.includes(page));
           const shown = openGroups.has(g.group) || (on && !closedGroups.has(g.group));
           return (
@@ -1190,6 +1210,7 @@ function Sidebar({
         </button>
       </div>
     </aside>
+    </>
   );
 }
 

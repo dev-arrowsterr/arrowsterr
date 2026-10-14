@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 /** Bold, italic and links inside one line. */
 function inline(text: string, key: string): ReactNode[] {
   const out: ReactNode[] = [];
-  const re = /\*\*([^*]+)\*\*|\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|\*([^*]+)\*/g;
+  const re = /\*\*([^*]+)\*\*|\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|\*([^*]+)\*|`([^`]+)`/g;
   let last = 0;
   let i = 0;
   for (const m of text.matchAll(re)) {
@@ -18,6 +18,7 @@ function inline(text: string, key: string): ReactNode[] {
           {m[2]}
         </a>,
       );
+    else if (m[5]) out.push(<code key={k} className="aw-md-inline">{m[5]}</code>);
     else out.push(<em key={k}>{m[4]}</em>);
     last = m.index! + m[0].length;
   }
@@ -41,6 +42,18 @@ export function Markdown({ text }: { text: string }) {
     const k = `b${i}`;
     if (!line.trim()) {
       i++;
+      continue;
+    }
+    if (/^\s*```/.test(line)) {
+      const code: string[] = [];
+      i++;
+      while (i < lines.length && !/^\s*```/.test(lines[i])) code.push(lines[i++]);
+      i++;
+      blocks.push(
+        <pre key={k} className="aw-md-code">
+          <code>{code.join("\n")}</code>
+        </pre>,
+      );
       continue;
     }
     const h = line.match(/^(#{1,6})\s+(.*)/);

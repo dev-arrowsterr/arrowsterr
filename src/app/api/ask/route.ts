@@ -11,7 +11,8 @@ const err = (error: string, status = 400) => Response.json({ error }, { status }
 const missing = (e: { message: string } | null) => e && /ask_threads|ask_messages|site_audits|change_sets/.test(e.message);
 const SETUP = "Run supabase/036_ask.sql in Supabase to turn on Zippie.";
 
-type Block = { type: string; text?: string; name?: string };
+type Block = { type: string; text?: string; name?: string; content?: unknown };
+type Card = { kind: "changeset" | "audit"; id: string };
 
 // Zippie. Everyone in the workspace can chat and read; only editors start audits or prepare changes.
 //   threads: {}                       the workspace's chats, newest first
@@ -30,15 +31,15 @@ async function handle(request: Request) {
   const userId = me.user?.id ?? "";
 
   if (body.action === "threads") {
-    const { data, error } = await db.from("ask_threads").select("id, title, created_by, updated_at").eq("workspace_id", ws).order("updated_at", { ascending: false }).limit(100);
+    const { data, error } = await db.from("ask_threads").select("id, title, created_by, updated_at, project_id").eq("workspace_id", ws).order("updated_at", { ascending: false }).limit(100);
     if (missing(error)) return Response.json({ threads: [], setup: SETUP });
     if (error) return err(error.message, 500);
     return Response.json({ threads: data });
   }
 
   const threadOf = async (id: unknown) => {
-    const { data } = await db.from("ask_threads").select("id, title, created_by").eq("id", str(id, 60)).eq("workspace_id", ws).maybeSingle();
-    return data as { id: string; title: string; created_by: string | null } | null;
+    const { data } = await db.from("ask_threads").select("id, title, created_by, project_id").eq("id", str(id, 60)).eq("workspace_id", ws).maybeSingle();
+    return data as { id: string; title: string; created_by: string | null; project_id: string | null } | null;
   };
 
   if (body.action === "thread") {
@@ -46,25 +47,55 @@ async function handle(request: Request) {
     if (!t) return err("Chat not found.", 404);
     const { data, error } = await db.from("ask_messages").select("id, role, content, text, created_at").eq("thread_id", t.id).order("id").limit(400);
     if (error) return err(error.message, 500);
-    // Show people the words and which tools ran. Tool results stay on the server.
-    const messages = (data ?? [])
-      .map((m) => {
-        const blocks = (typeof m.content === "string" ? [{ type: "text", text: m.content }] : (m.content as Block[])) ?? [];
-        return { id: m.id, role: m.role, text: m.text, tools: blocks.filter((b) => b.type === "tool_use").map((b) => b.name ?? ""), created_at: m.created_at };
-      })
-      .filter((m) => m.text || m.tools.length);
-    const [{ data: sets }, { data: audits }] = await Promise.all([
-      db.from("change_sets").select("id, title, status").eq("thread_id", t.id).order("created_at"),
-      db.from("site_audits").select("id, domain, status").eq("workspace_id", ws).order("created_at", { ascending: false }).limit(1),
-    ]);
-    return Response.json({ thread: t, messages, changeSets: sets ?? [], audit: audits?.[0] ?? null });
+    // Show people the words and which tools ran. Tool results stay on the server, except the change sets
+    // and audits they started, which show as cards under the reply that started them.
+    type Out = { id: number; role: string; text: string; tools: string[]; cards: Card[]; created_at: string };
+    const messages: Out[] = [];
+    for (const m of data ?? []) {
+      const blocks = (typeof m.content === "string" ? [{ type: "text", text: m.content }] : (m.content as Block[])) ?? [];
+      const results = blocks.filter((b) => b.type === "tool_result");
+      if (results.length) {
+        const owner = [...messages].reverse().find((x) => x.role === "assistant");
+        for (const r of results) {
+          const raw = typeof r.content === "string" ? r.content : "";
+          const set = raw.match(/"change_set_id":"([0-9a-f-]{36})"/)?.[1];
+          const audit = raw.match(/"audit_id":"([0-9a-f-]{36})"/)?.[1];
+          if (owner && set) owner.cards.push({ kind: "changeset", id: set });
+          if (owner && audit) owner.cards.push({ kind: "audit", id: audit });
+        }
+        continue;
+      }
+      messages.push({ id: m.id, role: m.role, text: m.text, tools: blocks.filter((b) => b.type === "tool_use").map((b) => b.name ?? ""), cards: [], created_at: m.created_at });
+    }
+    // Several tool turns make one reply on screen: fold assistant turns that follow each other.
+    const shown: Out[] = [];
+    for (const m of messages) {
+      const prev = shown[shown.length - 1];
+      if (prev && prev.role === "assistant" && m.role === "assistant") {
+        prev.text = [prev.text, m.text].filter(Boolean).join("\n\n");
+        prev.tools.push(...m.tools);
+        prev.cards.push(...m.cards);
+      } else shown.push({ ...m, tools: [...m.tools], cards: [...m.cards] });
+    }
+    return Response.json({ thread: t, messages: shown.filter((m) => m.text || m.tools.length || m.cards.length) });
   }
 
-  if (body.action === "rename" || body.action === "delete") {
+  if (body.action === "rename" || body.action === "delete" || body.action === "move") {
     const t = await threadOf(body.threadId);
     if (!t) return err("Chat not found.", 404);
     if (t.created_by !== userId && !(await isEditor(auth.sb, ws))) return err("Only the person who started this chat can change it.", 403);
-    const q = body.action === "delete" ? db.from("ask_threads").delete() : db.from("ask_threads").update({ title: str(body.title, 80) || "New chat" });
+    let projectId: string | null = null;
+    if (body.action === "move" && body.projectId) {
+      const { data: p } = await db.from("ask_projects").select("id").eq("id", str(body.projectId, 60)).eq("workspace_id", ws).maybeSingle();
+      if (!p) return err("Project not found.", 404);
+      projectId = p.id;
+    }
+    const q =
+      body.action === "delete"
+        ? db.from("ask_threads").delete()
+        : body.action === "move"
+          ? db.from("ask_threads").update({ project_id: projectId })
+          : db.from("ask_threads").update({ title: str(body.title, 80) || "New chat" });
     const { error } = await q.eq("id", t.id);
     if (error) return err(error.message, 500);
     return Response.json({ ok: true });
@@ -109,7 +140,12 @@ async function handle(request: Request) {
     if (!took.ok) return took.response;
     if (!thread) {
       const title = message.replace(/\s+/g, " ").slice(0, 60) + (message.length > 60 ? "…" : "");
-      const { data, error } = await db.from("ask_threads").insert({ workspace_id: ws, title, created_by: userId }).select("id, title, created_by").single();
+      let projectId: string | null = null;
+      if (body.projectId) {
+        const { data: p } = await db.from("ask_projects").select("id").eq("id", str(body.projectId, 60)).eq("workspace_id", ws).maybeSingle();
+        projectId = p?.id ?? null;
+      }
+      const { data, error } = await db.from("ask_threads").insert({ workspace_id: ws, title, created_by: userId, project_id: projectId }).select("id, title, created_by, project_id").single();
       if (missing(error)) return err(SETUP, 500);
       if (error || !data) return err(error?.message ?? "Could not start a chat.", 500);
       thread = data;
@@ -117,9 +153,10 @@ async function handle(request: Request) {
     const canEdit = await isEditor(auth.sb, ws);
     const out = new TransformStream<string, string>();
     const writer = out.writable.getWriter();
-    const line = (x: AskEvent | { type: "thread"; id: string; title: string }) => void writer.write(JSON.stringify(x) + "\n").catch(() => {});
-    line({ type: "thread", id: thread.id, title: thread.title });
-    const work = answer({ db, ws, userId, canEdit, threadId: thread.id }, message, line)
+    const line = (x: AskEvent | { type: "thread"; id: string; title: string; projectId: string | null }) => void writer.write(JSON.stringify(x) + "\n").catch(() => {});
+    line({ type: "thread", id: thread.id, title: thread.title, projectId: thread.project_id });
+    if (thread.project_id) void db.from("ask_projects").update({ updated_at: new Date().toISOString() }).eq("id", thread.project_id);
+    const work = answer({ db, ws, userId, canEdit, threadId: thread.id, projectId: thread.project_id }, message, line, str(body.skill, 80) || null)
       .then(() => true)
       .catch((e) => {
         const error = e instanceof Error ? e.message : String(e);
