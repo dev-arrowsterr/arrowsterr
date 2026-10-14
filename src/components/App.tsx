@@ -70,7 +70,7 @@ const VISIBILITY: Page[] = ["prompts", "competitors", "domains", "urls"]; // the
 
 /** Each page's address. "/" opens Prompts. */
 const SLUGS: Record<Page, string> = {
-  ask: "/ask",
+  ask: "/agent",
   prompts: "/prompts",
   competitors: "/competitors",
   domains: "/sources",
@@ -99,6 +99,7 @@ const SLUGS: Record<Page, string> = {
 };
 /** Older addresses still open the right page. */
 const ALIASES: Record<string, Page> = {
+  "/ask": "ask",
   "/overview": "prompts",
   "/domains": "domains",
   "/urls": "urls",
@@ -942,7 +943,6 @@ const trackOf = (page: Page): Track | null =>
 
 /** The big modules of the app. Each opens to its own pages. */
 const NAV: { group: string; icon: string; tester?: boolean; items: { id: Page; label: string; icon: string; also?: Page[] }[] }[] = [
-  { group: "Ask Arrowsterr", icon: "spark", items: [{ id: "ask", label: "Ask Arrowsterr", icon: "spark" }] },
   {
     group: "AI Visibility",
     icon: "radar",
@@ -965,6 +965,7 @@ const NAV: { group: string; icon: string; tester?: boolean; items: { id: Page; l
     group: "Agentic Content",
     icon: "pen",
     items: [
+      { id: "ask", label: "Mr. Agent", icon: "spark" },
       { id: "calendar", label: "Content Plan", icon: "calendar" },
       { id: "intel", label: "Content Intelligence", icon: "trend" },
     ],

@@ -240,7 +240,7 @@ export async function plan(db: SupabaseClient, job: Job) {
   await finish(job.id);
 }
 
-// ─────────────── Ask Arrowsterr: site audits and change sets ───────────────
+// ─────────────── Mr. Agent: site audits and change sets ───────────────
 export async function audit(db: SupabaseClient, job: Job) {
   const { auditId, domain } = job.payload as { auditId: string; domain: string };
   await runAudit(db, auditId, domain);

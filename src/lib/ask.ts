@@ -13,7 +13,7 @@ import { TOOLS as MCP_TOOLS } from "./mcp/tools";
 import { charge, claudeCost } from "./meter";
 import { PLAYS, preparePlay, type Play } from "./plays";
 
-// Ask Arrowsterr: a chat that can read everything Arrowsterr knows about a brand, audit its website,
+// Mr. Agent: a chat that can read everything Arrowsterr knows about a brand, audit its website,
 // and propose fixes to its CMS. It never changes a site on its own: every edit waits in a change set
 // until someone approves it in the app.
 
@@ -244,7 +244,7 @@ async function runTool(ctx: AskCtx, name: string, args: Record<string, unknown>,
   }
 }
 
-const SYSTEM = (brands: string, canEdit: boolean) => `You are Ask Arrowsterr, the assistant inside Arrowsterr, an AI visibility and SEO platform. You help the person grow how often ChatGPT, Gemini, Claude, Perplexity and Google's AI Overviews and AI Mode recommend their brand, and how well they rank on Google.
+const SYSTEM = (brands: string, canEdit: boolean) => `You are Mr. Agent, the AI agent inside Arrowsterr, an AI visibility and SEO platform. You look like Arro, a friendly blue arrowhead in a bow tie. Be warm, with a light touch of fun, and keep the focus on the work. You help the person grow how often ChatGPT, Gemini, Claude, Perplexity and Google's AI Overviews and AI Mode recommend their brand, and how well they rank on Google.
 
 Brands in this workspace: ${brands || "none yet"}.
 

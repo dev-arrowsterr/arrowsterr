@@ -4,14 +4,35 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { AuditIssue, AuditResult } from "@/lib/audit";
 import type { RunAuth } from "@/lib/runner";
 import { Markdown } from "./Markdown";
+import { MrAgent } from "./MrAgent";
 import { Card, Empty, Seg, Thinking } from "./ui";
 
 type Tab = "chat" | "audit" | "changes";
 type Thread = { id: string; title: string; updated_at: string };
 type Msg = { id: number | string; role: "user" | "assistant"; text: string; tools: string[]; working?: string };
 type Audit = { id: string; domain: string; status: "running" | "done" | "failed"; step: string; pages: number; score: number | null; error: string | null; created_at: string; result?: AuditResult };
-type SetRow = { id: string; title: string; play: string; status: string; step: string; error: string | null; created_at: string; applied_at: string | null; cms_connections: { name: string; kind: string } | null };
-type Change = { id: number; url: string | null; label: string; field: string; before: Record<string, unknown> | null; after: Record<string, unknown>; note: string; status: string; error: string | null };
+type SetRow = {
+  id: string;
+  title: string;
+  play: string;
+  status: string;
+  step: string;
+  error: string | null;
+  created_at: string;
+  applied_at: string | null;
+  cms_connections: { name: string; kind: string } | null;
+};
+type Change = {
+  id: number;
+  url: string | null;
+  label: string;
+  field: string;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown>;
+  note: string;
+  status: string;
+  error: string | null;
+};
 
 const STARTERS = [
   "How visible is my brand in AI answers this month, and what should I fix first?",
@@ -70,21 +91,39 @@ function useApi(auth: RunAuth) {
   );
 }
 
-/** Ask Arrowsterr: chat with your data, audit your site, and review changes before they go live. */
+/** Mr. Agent: chat with your data, audit your site, and review changes before they go live. */
 export function AskPage({ auth, canEdit, domain }: { auth: RunAuth; canEdit: boolean; domain: string }) {
   const [tab, setTab] = useState<Tab>("chat");
   const [focusSet, setFocusSet] = useState<string | null>(null);
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="aw-h2">Ask Arrowsterr</h1>
-          <p className="mt-1 text-[14px] text-muted">Ask about your AI visibility and SEO, audit your site, and let Arrowsterr prepare fixes. Nothing goes live until you approve it.</p>
+        <div className="flex items-center gap-3">
+          <MrAgent size={44} />
+          <div>
+            <h1 className="aw-h2">Mr. Agent</h1>
+            <p className="mt-1 text-[14px] text-muted">Your AI agent for SEO and AI visibility. He audits your site and prepares fixes. Nothing goes live until you approve it.</p>
+          </div>
         </div>
-        <Seg label="Ask Arrowsterr" value={tab} onChange={setTab} options={[{ id: "chat", label: "Chat" }, { id: "audit", label: "Site audit" }, { id: "changes", label: "Changes" }]} />
+        <Seg
+          label="Mr. Agent"
+          value={tab}
+          onChange={setTab}
+          options={[
+            { id: "chat", label: "Chat" },
+            { id: "audit", label: "Site audit" },
+            { id: "changes", label: "Changes" },
+          ]}
+        />
       </div>
       {tab === "chat" ? (
-        <Chat auth={auth} onOpen={(t, id) => { setTab(t); if (id) setFocusSet(id); }} />
+        <Chat
+          auth={auth}
+          onOpen={(t, id) => {
+            setTab(t);
+            if (id) setFocusSet(id);
+          }}
+        />
       ) : tab === "audit" ? (
         <AuditTab auth={auth} canEdit={canEdit} domain={domain} />
       ) : (
@@ -225,8 +264,12 @@ function Chat({ auth, onOpen }: { auth: RunAuth; onOpen: (tab: Tab, id?: string)
 
       <section className="flex min-h-[60vh] flex-col gap-4">
         {!messages.length ? (
-          <div className="flex flex-col gap-3 py-6">
-            <p className="aw-h3">What should we work on?</p>
+          <div className="flex flex-col gap-4 py-6">
+            <div className="flex flex-col items-center gap-3 pb-2 text-center">
+              <MrAgent size={112} mood="happy" />
+              <p className="aw-h3">Hi, I&apos;m Mr. Agent. What should we work on?</p>
+              <p className="max-w-md text-[14px] text-muted">I can read your Arrowsterr data, audit your website, and prepare fixes for your CMS. You approve every change.</p>
+            </div>
             <div className="grid gap-2 sm:grid-cols-2">
               {STARTERS.map((s) => (
                 <button key={s} type="button" className="aw-frame px-4 py-3 text-left text-[14px] text-body hover:text-ink" onClick={() => send(s)}>
@@ -243,22 +286,29 @@ function Chat({ auth, onOpen }: { auth: RunAuth; onOpen: (tab: Tab, id?: string)
                   {m.text}
                 </div>
               ) : (
-                <div key={m.id} className="flex max-w-[90%] flex-col gap-2">
-                  {m.tools.length ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {m.tools.map((t, i) => (
-                        <span key={i} className="aw-chip">
-                          ✓ {toolLabel(t)}
-                        </span>
-                      ))}
-                    </div>
-                  ) : null}
-                  {m.text ? (
-                    <div className="text-[14px] leading-relaxed">
-                      <Markdown text={m.text} />
-                    </div>
-                  ) : null}
-                  {m.working ? <Thinking text={`${m.working}...`} /> : null}
+                <div key={m.id} className="flex max-w-[90%] gap-3">
+                  <MrAgent size={32} mood={m.working ? "thinking" : "idle"} className="mt-0.5" />
+                  <div className="flex min-w-0 flex-1 flex-col gap-2">
+                    {m.tools.length ? (
+                      <div className="flex flex-wrap gap-1.5">
+                        {m.tools.map((t, i) => (
+                          <span key={i} className="aw-chip">
+                            ✓ {toolLabel(t)}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    {m.text ? (
+                      <div className="text-[14px] leading-relaxed">
+                        <Markdown text={m.text} />
+                      </div>
+                    ) : null}
+                    {m.working ? (
+                      <span className="aw-agent-working text-[13px] text-muted" role="status" aria-live="polite">
+                        {m.working}...
+                      </span>
+                    ) : null}
+                  </div>
                 </div>
               ),
             )}
@@ -367,11 +417,16 @@ function AuditTab({ auth, canEdit, domain }: { auth: RunAuth; canEdit: boolean; 
       </div>
       {error ? <div className="aw-error">{error}</div> : null}
       {!audit ? (
-        <Empty>No audit yet. Arrowsterr crawls up to 200 pages and checks what hurts you in Google and AI answers: blocked AI crawlers, missing titles, descriptions, alt text and structured data, broken links, slow and thin pages.</Empty>
+        <Empty>
+          No audit yet. Arrowsterr crawls up to 200 pages and checks what hurts you in Google and AI answers: blocked AI crawlers, missing titles, descriptions, alt text and structured data, broken
+          links, slow and thin pages.
+        </Empty>
       ) : audit.status === "running" ? (
         <Thinking text={`${audit.step || "Crawling"}... ${audit.pages ? `${audit.pages} pages so far` : ""}`} />
       ) : audit.status === "failed" ? (
-        <div className="aw-error">The audit of {audit.domain} failed: {audit.error}</div>
+        <div className="aw-error">
+          The audit of {audit.domain} failed: {audit.error}
+        </div>
       ) : r ? (
         <>
           <div className="grid gap-3 sm:grid-cols-4">
@@ -396,7 +451,7 @@ function AuditTab({ auth, canEdit, domain }: { auth: RunAuth; canEdit: boolean; 
                     {open === i.id ? (
                       <div className="mt-2 flex flex-col gap-2 pl-1 text-[13px] text-body">
                         <p>{i.why}</p>
-                        {i.play ? <p className="text-muted">Ask Arrowsterr can fix this through your CMS. Try: “Fix the {i.title.toLowerCase()}”.</p> : null}
+                        {i.play ? <p className="text-muted">Mr. Agent can fix this through your CMS. Try: “Fix the {i.title.toLowerCase()}”.</p> : null}
                         <ul className="flex flex-col gap-1">
                           {i.pages.slice(0, 10).map((p) => (
                             <li key={p} className="truncate">
@@ -452,7 +507,18 @@ function ChangesTab({ auth, canEdit, focus }: { auth: RunAuth; canEdit: boolean;
 
   if (setup) return <Empty>{setup}</Empty>;
   if (!sets) return <Thinking text="Loading..." />;
-  if (openId) return <SetView auth={auth} canEdit={canEdit} id={openId} onBack={() => { setOpenId(null); load(); }} />;
+  if (openId)
+    return (
+      <SetView
+        auth={auth}
+        canEdit={canEdit}
+        id={openId}
+        onBack={() => {
+          setOpenId(null);
+          load();
+        }}
+      />
+    );
   return (
     <div className="flex flex-col gap-3">
       {error ? <div className="aw-error">{error}</div> : null}
@@ -553,12 +619,22 @@ function SetView({ auth, canEdit, id, onBack }: { auth: RunAuth; canEdit: boolea
               </button>
             ) : null}
             {approved.length ? (
-              <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" disabled={busy} onClick={() => act({ action: "apply" }, `Make ${approved.length} change${approved.length === 1 ? "" : "s"} live on ${set.cms_connections?.name ?? "your site"}? You can undo them.`)}>
+              <button
+                type="button"
+                className="aw-btn aw-btn--primary aw-btn--sm"
+                disabled={busy}
+                onClick={() => act({ action: "apply" }, `Make ${approved.length} change${approved.length === 1 ? "" : "s"} live on ${set.cms_connections?.name ?? "your site"}? You can undo them.`)}
+              >
                 Apply {approved.length} to the site
               </button>
             ) : null}
             {live.length ? (
-              <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" disabled={busy} onClick={() => act({ action: "undo" }, `Put ${live.length} page${live.length === 1 ? "" : "s"} back the way they were?`)}>
+              <button
+                type="button"
+                className="aw-btn aw-btn--secondary aw-btn--sm"
+                disabled={busy}
+                onClick={() => act({ action: "undo" }, `Put ${live.length} page${live.length === 1 ? "" : "s"} back the way they were?`)}
+              >
                 Undo
               </button>
             ) : null}

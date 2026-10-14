@@ -25,6 +25,7 @@ export default function Error({ error, retry }: { error: Error & { digest?: stri
       }
     >
       We&apos;ve been told about it. Try again, and if it keeps happening, email support@arrowsterr.com
+      {error.message ? <span className="mt-3 block font-mono text-[12px] break-words text-muted">{String(error.message).slice(0, 300)}</span> : null}
       {error.digest ? <span className="mt-2 block font-mono text-[12px] text-muted">Ref {error.digest}</span> : null}
     </ErrorScreen>
   );

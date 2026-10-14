@@ -7,7 +7,7 @@ import type { CmsKind } from "./cmsTypes";
 import { take } from "./entitlements";
 import { charge, claudeCost } from "./meter";
 
-// Plays: Ask Arrowsterr's site-wide fixes. Each one reads the CMS, proposes a change per page,
+// Plays: Mr. Agent's site-wide fixes. Each one reads the CMS, proposes a change per page,
 // and waits in a change set until someone approves it. Applying and undoing also live here.
 
 export type Play = "alt" | "meta" | "schema" | "faq" | "links";

@@ -9,11 +9,11 @@ export const maxDuration = 300;
 const str = (v: unknown, n: number) => String(v ?? "").trim().slice(0, n);
 const err = (error: string, status = 400) => Response.json({ error }, { status });
 const missing = (e: { message: string } | null) => e && /ask_threads|ask_messages|site_audits|change_sets/.test(e.message);
-const SETUP = "Run supabase/036_ask.sql in Supabase to turn on Ask Arrowsterr.";
+const SETUP = "Run supabase/036_ask.sql in Supabase to turn on Mr. Agent.";
 
 type Block = { type: string; text?: string; name?: string };
 
-// Ask Arrowsterr. Everyone in the workspace can chat and read; only editors start audits or prepare changes.
+// Mr. Agent. Everyone in the workspace can chat and read; only editors start audits or prepare changes.
 //   threads: {}                       the workspace's chats, newest first
 //   thread: { threadId }              one chat's messages
 //   send: { threadId?, message }      answer one message, streamed as one JSON event per line
@@ -24,7 +24,7 @@ async function handle(request: Request) {
   const auth = await requireRole(request, body.workspaceId, body.action === "audit_start" ? "editor" : "viewer");
   if ("denied" in auth) return auth.denied;
   const db = adminClient();
-  if (!db) return err("Add SUPABASE_SECRET_KEY to the server's settings to use Ask Arrowsterr.", 500);
+  if (!db) return err("Add SUPABASE_SECRET_KEY to the server's settings to use Mr. Agent.", 500);
   const ws = String(body.workspaceId);
   const { data: me } = await auth.sb.auth.getUser();
   const userId = me.user?.id ?? "";
@@ -102,7 +102,7 @@ async function handle(request: Request) {
   if (body.action === "send") {
     const message = str(body.message, 4000);
     if (!message) return err("Type a message.");
-    if (!process.env.ANTHROPIC_API_KEY) return err("Add ANTHROPIC_API_KEY to the server's settings to use Ask Arrowsterr.", 500);
+    if (!process.env.ANTHROPIC_API_KEY) return err("Add ANTHROPIC_API_KEY to the server's settings to use Mr. Agent.", 500);
     let thread = body.threadId ? await threadOf(body.threadId) : null;
     if (body.threadId && !thread) return err("Chat not found.", 404);
     const took = await take(ws, "tasks", TASK_COST.ai, { refundIfFree: false });
@@ -135,4 +135,4 @@ async function handle(request: Request) {
   return err("Unknown action.");
 }
 
-export const POST = meteredRoute("Ask Arrowsterr", handle);
+export const POST = meteredRoute("Mr. Agent", handle);
