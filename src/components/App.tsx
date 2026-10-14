@@ -1050,27 +1050,35 @@ function Sidebar({
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [closedGroups, setClosedGroups] = useState<Set<string>>(new Set());
   const groups = NAV.filter((g) => !g.tester || email.toLowerCase() === WEBSITE_TESTER);
+  // From the rail: show the full sidebar, with that module's pages open.
+  const expand = (group?: string) => {
+    if (group) {
+      setOpenGroups((x) => new Set(x).add(group));
+      setClosedGroups((x) => new Set([...x].filter((n) => n !== group)));
+    }
+    onHide();
+  };
   return (
     <>
     {hidden ? (
-      // Collapsed: a slim rail of module icons. Names show on hover.
+      // Collapsed: a slim rail of module icons. Names show on hover; a click opens the full sidebar.
       <nav className="aw-rail hidden print:hidden md:flex" aria-label="Modules">
-        <button type="button" onClick={onHide} className="aw-rail__btn" aria-label="Show sidebar" data-tip={`Show sidebar (${NAV_KEY})`}>
+        <button type="button" onClick={() => expand()} className="aw-rail__btn" aria-label="Show sidebar" data-tip={`Show sidebar (${NAV_KEY})`}>
           <PanelIcon />
         </button>
-        <span className="aw-rail__ws" data-tip={ws.name}>
+        <button type="button" onClick={() => expand()} className="aw-rail__ws" aria-label={ws.name} data-tip={ws.name}>
           <WorkspaceAvatar ws={ws} brandLogo={brandLogo} />
-        </span>
+        </button>
         {groups.map((g) => {
           const on = g.items.some((item) => page === item.id || item.also?.includes(page));
           return (
-            <button key={g.group} type="button" onClick={() => (on ? null : onPage(g.items[0].id))} aria-current={on ? "page" : undefined} className={`aw-rail__btn ${on ? "is-on" : ""}`} aria-label={g.group} data-tip={g.group}>
+            <button key={g.group} type="button" onClick={() => expand(g.group)} aria-current={on ? "page" : undefined} className={`aw-rail__btn ${on ? "is-on" : ""}`} aria-label={g.group} data-tip={g.group}>
               <NavIcon name={g.icon} />
             </button>
           );
         })}
         <span className="flex-1" />
-        <button type="button" onClick={() => onPage("settings")} className={`aw-rail__btn ${isSettings(page) ? "is-on" : ""}`} aria-label="Settings" data-tip="Settings">
+        <button type="button" onClick={() => { onPage("settings"); expand(); }} className={`aw-rail__btn ${isSettings(page) ? "is-on" : ""}`} aria-label="Settings" data-tip="Settings">
           <NavIcon name="gear" />
         </button>
       </nav>
