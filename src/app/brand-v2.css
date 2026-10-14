@@ -393,3 +393,6 @@ html, body { background: #F8F8FF; }
 .aw .aw-pending__note { animation: aw-pulse 1.8s ease-in-out infinite; }
 .aw .aw-pending__dot { display: inline-block; width: 6px; height: 6px; border-radius: 999px; background: var(--aw-brand); animation: aw-pulse 1.2s ease-in-out infinite; }
 .aw .aw-think.is-done .aw-think__icon svg { animation: none; }
+.aw .aw-nav-toggle { align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 6px; color: var(--aw-muted, #5C6B89); background: transparent; }
+.aw .aw-nav-toggle:hover { background: var(--aw-surface-2, #EEF1FA); color: var(--aw-ink, #0B1B3F); }
+.aw .aw-nav-toggle:focus-visible { outline: 2px solid var(--aw-brand); outline-offset: 1px; }

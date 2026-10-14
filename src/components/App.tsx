@@ -130,6 +130,8 @@ const ONBOARDING = "/onboarding";
 const onOnboarding = () => window.location.pathname.replace(/\/+$/, "") === ONBOARDING;
 
 const INVITE_KEY = "arrowsterr.invite";
+const NAV_HIDDEN = "arrowsterr.navHidden";
+const NAV_KEY = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘B" : "Ctrl+B";
 const LEGACY_BRANDS = "arrowsterr.brands";
 
 function readLocal(key: string) {
@@ -227,6 +229,25 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   // Website pages are for the tester only: everyone else lands on Prompts.
   const allowed = useCallback((p: Page): Page => (!tester && (p === "traffic" || p === "visitors") ? "prompts" : p), [tester]);
   const [page, setPage] = useState<Page>(() => allowed(pageFromPath(window.location.pathname)));
+  // Hide the sidebar for more room. Remembered on this device. ⌘B / Ctrl+B toggles it outside text fields.
+  const [navHidden, setNavHidden] = useState(() => readLocal(NAV_HIDDEN) === "1");
+  const toggleNav = useCallback(() => {
+    setNavHidden((h) => {
+      writeLocal(NAV_HIDDEN, h ? null : "1");
+      return !h;
+    });
+  }, []);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== "b") return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      e.preventDefault();
+      toggleNav();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [toggleNav]);
   // Keep the address bar in step with the page, and follow the back and forward buttons.
   const go = useCallback((p: Page) => {
     setPage(p);
@@ -608,7 +629,14 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   return (
     <div className="flex min-h-screen flex-col md:flex-row">
       <UndoKeys />
+      {navHidden ? (
+        <button type="button" onClick={toggleNav} className="aw-nav-toggle fixed top-2.5 left-2 z-30 hidden md:inline-flex print:hidden" aria-label="Show sidebar" title={`Show sidebar (${NAV_KEY})`}>
+          <PanelIcon />
+        </button>
+      ) : null}
       <Sidebar
+        hidden={navHidden}
+        onHide={toggleNav}
         sb={sb}
         email={email}
         workspaces={workspaces}
@@ -635,7 +663,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           go(p);
         }}
       />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className={`flex min-w-0 flex-1 flex-col ${navHidden ? "md:pl-11" : ""}`}>
         {!isSettings(page) ? (
           <TopBar
             visibility={VISIBILITY.includes(page)}
@@ -984,7 +1012,19 @@ function TaskBar({ plan, onOpen }: { plan: PlanUsage; onOpen: () => void }) {
 }
 
 /** The workspace switcher and the page menu. */
+/** A panel with its sidebar, for the hide and show sidebar buttons. */
+function PanelIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2.5" />
+      <path d="M9.5 4.5v15" />
+    </svg>
+  );
+}
+
 function Sidebar({
+  hidden,
+  onHide,
   sb,
   email,
   workspaces,
@@ -1006,14 +1046,19 @@ function Sidebar({
   page: Page;
   plan: PlanUsage | null;
   onPage: (p: Page) => void;
+  hidden: boolean;
+  onHide: () => void;
 }) {
   const { open, setOpen, ref } = useMenu();
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [closedGroups, setClosedGroups] = useState<Set<string>>(new Set());
   return (
-    <aside className="aw-sidebar flex shrink-0 flex-col gap-5 border-b border-rule px-3 py-4 print:hidden md:sticky md:top-0 md:h-screen md:w-60 md:border-r md:border-b-0">
-      <div className="px-2">
+    <aside className={`aw-sidebar flex shrink-0 flex-col gap-5 border-b border-rule px-3 py-4 print:hidden md:sticky md:top-0 md:h-screen md:w-60 md:border-r md:border-b-0 ${hidden ? "md:hidden" : ""}`}>
+      <div className="flex items-center justify-between gap-2 px-2">
         <Logo size="sm" />
+        <button type="button" onClick={onHide} className="aw-nav-toggle hidden md:inline-flex" aria-label="Hide sidebar" title={`Hide sidebar (${NAV_KEY})`}>
+          <PanelIcon />
+        </button>
       </div>
       <div className="relative" ref={ref}>
         <button
