@@ -35,6 +35,9 @@ export async function POST(request: Request) {
       const sub = await getSubscription(ws.stripe_subscription_id).catch(() => null);
       if (sub && !["canceled", "incomplete_expired"].includes(sub.status)) {
         const item = sub.items.data[0];
+        // A downgrade scheduled from the billing portal would switch the plan back at the end of the period. Picking a plan here replaces it.
+        const schedule = typeof sub.schedule === "string" ? sub.schedule : sub.schedule?.id;
+        if (schedule) await stripe("POST", `subscription_schedules/${schedule}/release`);
         const updated = await stripe<Subscription>("POST", `subscriptions/${sub.id}`, {
           items: [{ id: item.id, price: price.id }],
           proration_behavior: "always_invoice",

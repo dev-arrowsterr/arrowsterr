@@ -35,9 +35,15 @@ export async function syncSubscription(sub: Subscription) {
   const item = sub.items.data[0];
   const found = planOfLookup(item?.price.lookup_key);
   const { data: w } = await db.from("workspaces").select("plan, extras, stripe_subscription_id").eq("id", ws).maybeSingle();
-  // An old subscription ending never undoes a newer one.
-  if (w?.stripe_subscription_id && w.stripe_subscription_id !== sub.id && status === "canceled") return ws;
-  const plan = found?.plan ?? w?.plan ?? "scale";
+  // An older subscription changing or ending never undoes the workspace's current one.
+  if (w?.stripe_subscription_id && w.stripe_subscription_id !== sub.id) {
+    if (status === "canceled") return ws;
+    const current = await getSubscription(w.stripe_subscription_id).catch(() => null);
+    if (current && statusOf(current.status) !== "canceled" && current.created > sub.created) return ws;
+  }
+  // A price with no Arrowsterr lookup key keeps the plan as it is, so nobody gets a plan they didn't pay for.
+  if (!found && status !== "canceled") console.error(`Subscription ${sub.id} has a price with no Arrowsterr lookup key. Plan left as ${w?.plan ?? "trial"}.`);
+  const plan = found?.plan ?? w?.plan ?? "trial";
   const limits = limitsFor(plan, (w?.extras ?? {}) as Extras);
   const { error } = await db
     .from("workspaces")
