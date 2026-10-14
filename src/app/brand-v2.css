@@ -397,20 +397,20 @@ html, body { background: #F8F8FF; }
 .aw .aw-nav-toggle:hover { background: var(--aw-surface-2, #EEF1FA); color: var(--aw-ink, #0B1B3F); }
 .aw .aw-nav-toggle:focus-visible { outline: 2px solid var(--aw-brand); outline-offset: 1px; }
 
-/* Mr. Agent, the mascot */
-.mr-agent { overflow: visible; flex-shrink: 0; }
-.mr-agent__body, .mr-agent__spark, .mr-agent__eyes { transform-box: fill-box; transform-origin: center; }
-.mr-agent__body { animation: mr-bob 3.2s ease-in-out infinite; }
-.mr-agent__eyes { animation: mr-blink 4.6s infinite; }
-.mr-agent__spark { animation: mr-twinkle 2.4s ease-in-out infinite; }
-.mr-agent--thinking .mr-agent__spark { animation: mr-spin 1.1s linear infinite; }
-.mr-agent--thinking .mr-agent__body { animation-duration: 1.2s; }
-.mr-agent--happy .mr-agent__body { animation: mr-hop 0.9s ease-out 2; }
-@keyframes mr-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3%); } }
-@keyframes mr-hop { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-9%); } }
-@keyframes mr-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
-@keyframes mr-twinkle { 0%, 100% { transform: scale(1) rotate(0); opacity: 1; } 50% { transform: scale(0.8) rotate(20deg); opacity: 0.85; } }
-@keyframes mr-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .mr-agent * { animation: none !important; } }
-.aw .aw-agent-working { background: linear-gradient(90deg, var(--aw-muted) 0%, var(--aw-brand) 50%, var(--aw-muted) 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent !important; animation: mr-shimmer 1.6s linear infinite; }
-@keyframes mr-shimmer { to { background-position: -200% 0; } }
+/* Zippie, the mascot */
+.zippie { overflow: visible; flex-shrink: 0; }
+.zippie__body, .zippie__spark, .zippie__eyes { transform-box: fill-box; transform-origin: center; }
+.zippie__body { animation: zippie-bob 3.2s ease-in-out infinite; }
+.zippie__eyes { animation: zippie-blink 4.6s infinite; }
+.zippie__spark { animation: zippie-twinkle 2.4s ease-in-out infinite; }
+.zippie--thinking .zippie__spark { animation: zippie-spin 1.1s linear infinite; }
+.zippie--thinking .zippie__body { animation-duration: 1.2s; }
+.zippie--happy .zippie__body { animation: zippie-hop 0.9s ease-out 2; }
+@keyframes zippie-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3%); } }
+@keyframes zippie-hop { 0%, 100% { transform: translateY(0); } 40% { transform: translateY(-9%); } }
+@keyframes zippie-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+@keyframes zippie-twinkle { 0%, 100% { transform: scale(1) rotate(0); opacity: 1; } 50% { transform: scale(0.8) rotate(20deg); opacity: 0.85; } }
+@keyframes zippie-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .zippie * { animation: none !important; } }
+.aw .aw-agent-working { background: linear-gradient(90deg, var(--aw-muted) 0%, var(--aw-brand) 50%, var(--aw-muted) 100%); background-size: 200% 100%; -webkit-background-clip: text; background-clip: text; color: transparent !important; animation: zippie-shimmer 1.6s linear infinite; }
+@keyframes zippie-shimmer { to { background-position: -200% 0; } }

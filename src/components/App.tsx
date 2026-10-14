@@ -70,7 +70,7 @@ const VISIBILITY: Page[] = ["prompts", "competitors", "domains", "urls"]; // the
 
 /** Each page's address. "/" opens Prompts. */
 const SLUGS: Record<Page, string> = {
-  ask: "/agent",
+  ask: "/zippie",
   prompts: "/prompts",
   competitors: "/competitors",
   domains: "/sources",
@@ -100,6 +100,7 @@ const SLUGS: Record<Page, string> = {
 /** Older addresses still open the right page. */
 const ALIASES: Record<string, Page> = {
   "/ask": "ask",
+  "/agent": "ask",
   "/overview": "prompts",
   "/domains": "domains",
   "/urls": "urls",
@@ -965,7 +966,7 @@ const NAV: { group: string; icon: string; tester?: boolean; items: { id: Page; l
     group: "Agentic Content",
     icon: "pen",
     items: [
-      { id: "ask", label: "Mr. Agent", icon: "spark" },
+      { id: "ask", label: "Zippie", icon: "spark" },
       { id: "calendar", label: "Content Plan", icon: "calendar" },
       { id: "intel", label: "Content Intelligence", icon: "trend" },
     ],

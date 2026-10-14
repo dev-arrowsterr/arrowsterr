@@ -85,9 +85,9 @@ export function CmsSettings({ auth, isAdmin }: { auth: RunAuth; isAdmin: boolean
       ) : null}
       {list?.some((c) => c.kind === "wordpress") || kind === "wordpress" ? (
         <div className="aw-callout flex max-w-2xl flex-col gap-2 text-[14px]">
-          <span className="font-medium text-ink">Let Mr. Agent fix your WordPress pages</span>
+          <span className="font-medium text-ink">Let Zippie fix your WordPress pages</span>
           <span>
-            Install the Arrowsterr Connector plugin so Mr. Agent can set SEO titles, meta descriptions and structured data. It works with Yoast SEO and Rank Math. Alt text, FAQ sections and internal links work without it. In WordPress, open Plugins → Add New → Upload Plugin, pick the file, then Activate.
+            Install the Arrowsterr Connector plugin so Zippie can set SEO titles, meta descriptions and structured data. It works with Yoast SEO and Rank Math. Alt text, FAQ sections and internal links work without it. In WordPress, open Plugins → Add New → Upload Plugin, pick the file, then Activate.
           </span>
           <a href="/downloads/arrowsterr-connector.zip" download className="aw-btn aw-btn--secondary aw-btn--sm self-start">
             Download the plugin

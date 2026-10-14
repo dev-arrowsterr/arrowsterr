@@ -9,7 +9,7 @@ export const maxDuration = 300;
 const str = (v: unknown, n: number) => String(v ?? "").trim().slice(0, n);
 const err = (error: string, status = 400) => Response.json({ error }, { status });
 
-// Change sets from Mr. Agent. Nothing reaches a website until an editor approves it and presses Apply.
+// Change sets from Zippie. Nothing reaches a website until an editor approves it and presses Apply.
 //   list: {}                                    viewers
 //   get: { setId }                              viewers, with every change
 //   review: { setId, approve: id[], reject: id[] }   editors
@@ -31,7 +31,7 @@ export async function POST(request: Request) {
       .eq("workspace_id", ws)
       .order("created_at", { ascending: false })
       .limit(50);
-    if (error && /change_sets/.test(error.message)) return Response.json({ sets: [], setup: "Run supabase/036_ask.sql in Supabase to turn on Mr. Agent." });
+    if (error && /change_sets/.test(error.message)) return Response.json({ sets: [], setup: "Run supabase/036_ask.sql in Supabase to turn on Zippie." });
     if (error) return err(error.message, 500);
     return Response.json({ sets: data });
   }

@@ -2,7 +2,7 @@ import "server-only";
 import { createHmac } from "node:crypto";
 import type { CmsKind } from "./cmsTypes";
 
-// Reading and editing pages that already live in a CMS, for Mr. Agent's change sets.
+// Reading and editing pages that already live in a CMS, for Zippie's change sets.
 // WordPress and Ghost for now. Every write returns the page's new "modified" stamp, and undo only
 // restores a page nobody has edited since, so Arrowsterr never overwrites someone's later work.
 
@@ -188,7 +188,7 @@ async function ghWrite(c: Config, type: ItemType, id: string, f: Fields): Promis
 
 export const EDITABLE: CmsKind[] = ["wordpress", "ghost"];
 
-/** What Mr. Agent can change through this connection. */
+/** What Zippie can change through this connection. */
 export async function capsOf(kind: CmsKind, c: Config): Promise<Caps> {
   if (kind === "ghost") return { alt: true, meta: true, schema: true, faq: true, links: true };
   if (kind === "wordpress") {

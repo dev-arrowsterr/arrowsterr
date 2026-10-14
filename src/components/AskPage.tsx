@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { AuditIssue, AuditResult } from "@/lib/audit";
 import type { RunAuth } from "@/lib/runner";
 import { Markdown } from "./Markdown";
-import { MrAgent } from "./MrAgent";
+import { Zippie } from "./Zippie";
 import { Card, Empty, Seg, Thinking } from "./ui";
 
 type Tab = "chat" | "audit" | "changes";
@@ -91,7 +91,7 @@ function useApi(auth: RunAuth) {
   );
 }
 
-/** Mr. Agent: chat with your data, audit your site, and review changes before they go live. */
+/** Zippie: chat with your data, audit your site, and review changes before they go live. */
 export function AskPage({ auth, canEdit, domain }: { auth: RunAuth; canEdit: boolean; domain: string }) {
   const [tab, setTab] = useState<Tab>("chat");
   const [focusSet, setFocusSet] = useState<string | null>(null);
@@ -99,14 +99,14 @@ export function AskPage({ auth, canEdit, domain }: { auth: RunAuth; canEdit: boo
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex items-center gap-3">
-          <MrAgent size={44} />
+          <Zippie size={44} />
           <div>
-            <h1 className="aw-h2">Mr. Agent</h1>
+            <h1 className="aw-h2">Zippie</h1>
             <p className="mt-1 text-[14px] text-muted">Your AI agent for SEO and AI visibility. He audits your site and prepares fixes. Nothing goes live until you approve it.</p>
           </div>
         </div>
         <Seg
-          label="Mr. Agent"
+          label="Zippie"
           value={tab}
           onChange={setTab}
           options={[
@@ -266,8 +266,8 @@ function Chat({ auth, onOpen }: { auth: RunAuth; onOpen: (tab: Tab, id?: string)
         {!messages.length ? (
           <div className="flex flex-col gap-4 py-6">
             <div className="flex flex-col items-center gap-3 pb-2 text-center">
-              <MrAgent size={112} mood="happy" />
-              <p className="aw-h3">Hi, I&apos;m Mr. Agent. What should we work on?</p>
+              <Zippie size={112} mood="happy" />
+              <p className="aw-h3">Hi, I&apos;m Zippie. What should we work on?</p>
               <p className="max-w-md text-[14px] text-muted">I can read your Arrowsterr data, audit your website, and prepare fixes for your CMS. You approve every change.</p>
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
@@ -287,7 +287,7 @@ function Chat({ auth, onOpen }: { auth: RunAuth; onOpen: (tab: Tab, id?: string)
                 </div>
               ) : (
                 <div key={m.id} className="flex max-w-[90%] gap-3">
-                  <MrAgent size={32} mood={m.working ? "thinking" : "idle"} className="mt-0.5" />
+                  <Zippie size={32} mood={m.working ? "thinking" : "idle"} className="mt-0.5" />
                   <div className="flex min-w-0 flex-1 flex-col gap-2">
                     {m.tools.length ? (
                       <div className="flex flex-wrap gap-1.5">
@@ -451,7 +451,7 @@ function AuditTab({ auth, canEdit, domain }: { auth: RunAuth; canEdit: boolean; 
                     {open === i.id ? (
                       <div className="mt-2 flex flex-col gap-2 pl-1 text-[13px] text-body">
                         <p>{i.why}</p>
-                        {i.play ? <p className="text-muted">Mr. Agent can fix this through your CMS. Try: “Fix the {i.title.toLowerCase()}”.</p> : null}
+                        {i.play ? <p className="text-muted">Zippie can fix this through your CMS. Try: “Fix the {i.title.toLowerCase()}”.</p> : null}
                         <ul className="flex flex-col gap-1">
                           {i.pages.slice(0, 10).map((p) => (
                             <li key={p} className="truncate">
