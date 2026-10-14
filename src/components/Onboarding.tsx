@@ -297,7 +297,7 @@ export function Onboarding({
                 <Musing />
               )}
               {playing ? <DinoGame onGameOver={onGameOver} /> : null}
-              <p className="aw-small">{ready ? "Keep playing as long as you like. When Arro trips, we open them for you." : playing ? "This takes about a minute. Play while you wait." : "This takes a few seconds."}</p>
+              <p className="aw-small">{ready ? "Keep playing as long as you like. When Zippie trips, we open them for you." : playing ? "This takes about a minute. Play while you wait." : "This takes a few seconds."}</p>
             </Thinking>
           </div>
         ) : null}
