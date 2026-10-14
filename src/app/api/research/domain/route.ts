@@ -29,7 +29,7 @@ async function handle(request: Request) {
     const took = await take(body.workspaceId, "tasks", TASK_COST.domain);
     if (!took.ok) return took.response;
   }
-  if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });
+  if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD to the server's settings." }, { status: 500 });
   const scope: Scope = ["domain", "subdomain", "subfolder", "url"].includes(body.scope) ? body.scope : "domain";
   const target = parseTarget(String(body.domain ?? ""), scope);
   if (!target) {
@@ -100,7 +100,7 @@ async function bulk(sb: SupabaseClient, body: { workspaceId: string; targets?: u
   if (targets.length > BULK_LIMIT) return Response.json({ error: `Up to ${BULK_LIMIT} sites at a time. This list has ${targets.length}.` }, { status: 400 });
   const took = await take(body.workspaceId, "tasks", TASK_COST.bulk(targets.length));
   if (!took.ok) return took.response;
-  if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });
+  if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD to the server's settings." }, { status: 500 });
   const country = body.country && MARKETS[body.country] ? body.country : "United States";
   try {
     const spend = new Spend();

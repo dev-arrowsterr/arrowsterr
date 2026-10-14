@@ -9,9 +9,9 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "admin");
   if ("denied" in auth) return auth.denied;
-  if (!stripeReady()) return Response.json({ error: "STRIPE_SECRET_KEY is not set on Render." }, { status: 500 });
+  if (!stripeReady()) return Response.json({ error: "STRIPE_SECRET_KEY is not set on the server." }, { status: 500 });
   const db = adminClient();
-  if (!db) return Response.json({ error: "Add SUPABASE_SECRET_KEY on Render." }, { status: 500 });
+  if (!db) return Response.json({ error: "Add SUPABASE_SECRET_KEY to the server's settings." }, { status: 500 });
   const plan = body.plan as PlanId;
   const interval: Interval = body.interval === "year" ? "year" : "month";
   if (!SELF_SERVE.includes(plan)) return Response.json({ error: "Pick Starter, Pro or Agency." }, { status: 400 });

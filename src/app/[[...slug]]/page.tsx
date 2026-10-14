@@ -3,7 +3,7 @@ import { ClientApp } from "@/components/ClientApp";
 import { Logo } from "@/components/Logo";
 
 export default async function Home() {
-  // Read settings when the page is requested, so changes on Render apply without a rebuild.
+  // Read settings when the page is requested, so changed settings apply without a rebuild.
   await connection();
   const url = (process.env.SUPABASE_URL ?? "").trim().replace(/\/+$/, "");
   const key = (process.env.SUPABASE_PUBLISHABLE_KEY ?? "").trim();
@@ -20,7 +20,7 @@ export default async function Home() {
               <h1 className="aw-h3 mb-0!">Connect Supabase</h1>
               {missing.length ? (
                 <>
-                  <p className="text-[16px]">Add these in Render under Environment, then redeploy:</p>
+                  <p className="text-[16px]">Add these to the server settings, then redeploy:</p>
                   <ul className="aw-list aw-list--tight aw-list--dots">
                     {missing.map((m) => (
                       <li key={m}>

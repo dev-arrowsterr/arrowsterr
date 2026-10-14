@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   if (!event) return Response.json({ error: "Bad signature." }, { status: 400 });
   if (!EVENTS.has(event.type)) return Response.json({ ok: true, skipped: event.type });
   const db = adminClient();
-  if (!db) return Response.json({ error: "Add SUPABASE_SECRET_KEY on Render." }, { status: 500 });
+  if (!db) return Response.json({ error: "Add SUPABASE_SECRET_KEY to the server's settings." }, { status: 500 });
 
   // Each event once. Stripe resends until it gets a 2xx, so a failure below removes the mark.
   const { error: dupe } = await db.from("stripe_events").insert({ id: event.id, type: event.type });

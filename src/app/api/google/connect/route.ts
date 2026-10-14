@@ -6,7 +6,7 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
-  if (!googleReady()) return Response.json({ error: "Google sign-in is not set up. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on Render." }, { status: 500 });
+  if (!googleReady()) return Response.json({ error: "Google sign-in is not set up. Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET to the server's settings." }, { status: 500 });
   const { data: user } = await auth.sb.auth.getUser(request.headers.get("authorization")!.replace(/^Bearer\s+/i, ""));
   const { data: brand } = await auth.sb.from("brands").select("id").eq("id", body.brandId).eq("workspace_id", body.workspaceId).maybeSingle();
   if (!brand || !user?.user) return Response.json({ error: "Brand not found." }, { status: 404 });

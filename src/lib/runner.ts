@@ -1,7 +1,7 @@
 // Sends every prompt to every engine from the browser, a few at a time.
 import type { Chat, Run } from "./chats";
 
-const CONCURRENCY = 3; // Few at once keeps the small Render server from running out of memory.
+const CONCURRENCY = 3; // Few at once keeps the small server from running out of memory.
 
 export type RunAuth = { workspaceId: string; token: () => Promise<string> };
 
@@ -18,12 +18,12 @@ async function askOne(engine: string, prompt: string, brand: string, domain: str
     });
     const data = await res.json().catch(() => null);
     if (data === null) {
-      // Render answered instead of the app: the server restarted or was busy. Try once more.
+      // The host answered instead of the app: the server restarted or was busy. Try once more.
       if (attempt === 0) {
         await new Promise((r) => setTimeout(r, 5000));
         return askOne(engine, prompt, brand, domain, auth, 1);
       }
-      return fail(`The server returned ${res.status}. Check Render Logs for a crash or out of memory message.`);
+      return fail(`The server returned ${res.status}. Check the server logs for a crash or out of memory message.`);
     }
     const chat: Chat = { engine, prompt, text: data.text ?? "", sources: data.sources ?? [], brands: data.brands ?? [], error: data.error ?? null };
     if (typeof data.shown === "boolean") chat.shown = data.shown;

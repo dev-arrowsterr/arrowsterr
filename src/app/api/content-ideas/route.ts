@@ -49,7 +49,7 @@ async function handle(request: Request) {
   if (paid) return paid;
   const took = await take(body.workspaceId, "tasks", TASK_COST.ai);
   if (!took.ok) return took.response;
-  if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });
+  if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD to the server's settings." }, { status: 500 });
 
   const { data: site, error } = await auth.sb.from("sites").select("id, domain, profile, pages").eq("id", body.siteId).eq("workspace_id", body.workspaceId).maybeSingle();
   if (error || !site) return Response.json({ error: error?.message ?? "Website not found." }, { status: 404 });

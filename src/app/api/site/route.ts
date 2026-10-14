@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   const g = data as SiteRow | null;
   const ga4 = g?.ga4_email ? { email: g.ga4_email, property: g.ga4_property ?? null, name: g.ga4_property_name ?? null } : null;
   if (action === "status" && ga4?.property) return Response.json({ connected: true, live: true, source: "ga4", domain: g!.domain, ga4 });
-  if (!umamiReady()) return action === "status" ? Response.json({ connected: false, ga4 }) : Response.json({ error: "Website tracking is not set up yet. Add UMAMI_API_KEY on Render." }, { status: 500 });
+  if (!umamiReady()) return action === "status" ? Response.json({ connected: false, ga4 }) : Response.json({ error: "Website tracking is not set up yet. Add UMAMI_API_KEY to the server's settings." }, { status: 500 });
   if (error) {
     const hint = /umami_website_id|install_token|site_platform/.test(error.message) ? " Run supabase/005_website_tracking.sql in Supabase." : "";
     return Response.json({ error: error.message + hint }, { status: 500 });

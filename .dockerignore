@@ -1,0 +1,17 @@
+node_modules
+.next
+.git
+.github
+.claude
+.env*
+!.env.example
+tests
+docs
+brand
+supabase
+coverage
+*.tsbuildinfo
+next-env.d.ts
+npm-debug.log*
+Dockerfile*
+fly*.toml

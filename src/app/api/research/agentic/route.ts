@@ -31,8 +31,8 @@ async function handle(request: Request) {
   // The first Content Plan is free on every plan. Paid plans can refresh it once a month.
   const e = await entitlement(body.workspaceId);
   if (e.readOnly) return Response.json({ error: "This workspace is read-only." }, { status: 402 });
-  if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });
-  if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
+  if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD to the server's settings." }, { status: 500 });
+  if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on the server." }, { status: 500 });
 
   const { data: site, error } = await auth.sb
     .from("sites")

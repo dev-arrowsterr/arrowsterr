@@ -18,7 +18,7 @@ export async function POST(request: Request) {
   const auth = await requireRole(request, body.workspaceId, body.action === "get" ? "viewer" : "admin");
   if ("denied" in auth) return auth.denied;
   const db = adminClient();
-  if (!db) return err("Add SUPABASE_SECRET_KEY on Render.", 500);
+  if (!db) return err("Add SUPABASE_SECRET_KEY to the server's settings.", 500);
   const ws = String(body.workspaceId);
   const e = await entitlement(ws);
 

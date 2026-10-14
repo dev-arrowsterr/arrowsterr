@@ -27,7 +27,7 @@ async function handle(request: Request) {
     const took = await take(body.workspaceId, "tasks", body.action === "bulk" ? TASK_COST.bulk(list.length) : TASK_COST.keyword);
     if (!took.ok) return took.response;
   }
-  if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });
+  if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD to the server's settings." }, { status: 500 });
   const country = MARKETS[body.country] ? String(body.country) : "United States";
   // Viewers only read what is saved. Pieces that are missing come back empty; nothing saved at all is an error.
   const run = async <T>(fn: () => Promise<T>): Promise<T> => {

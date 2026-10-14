@@ -8,7 +8,7 @@ export type Job = { id: number; kind: JobKind; key: string | null; workspace_id:
 
 const db = () => {
   const c = adminClient();
-  if (!c) throw new Error("Add SUPABASE_SECRET_KEY on Render.");
+  if (!c) throw new Error("Add SUPABASE_SECRET_KEY to the server's settings.");
   return c;
 };
 
@@ -60,7 +60,7 @@ export async function retry(id: number, error: string, seconds: number, opts: { 
 
 export const prune = async () => void (await db().rpc("prune_jobs"));
 
-// Calls per minute each provider may take, across every worker. Set RATE_<NAME> on Render to change one.
+// Calls per minute each provider may take, across every worker. Set RATE_<NAME> on the server to change one.
 const RATES: Record<string, number> = { anthropic: 300, openai: 300, gemini: 300, perplexity: 120, dataforseo: 1500 };
 
 /** True when this call fits under the provider's per-minute limit. Fails open if the limiter is missing. */

@@ -13,7 +13,7 @@ async function handle(request: Request) {
   if (paid) return paid;
   const took = await take(body.workspaceId, "tasks", TASK_COST.guideline);
   if (!took.ok) return took.response;
-  if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on Render." }, { status: 500 });
+  if (!process.env.ANTHROPIC_API_KEY) return Response.json({ error: "ANTHROPIC_API_KEY is not set on the server." }, { status: 500 });
   const { data: site, error } = await auth.sb.from("sites").select("id, domain, name").eq("id", body.siteId).eq("workspace_id", body.workspaceId).maybeSingle();
   if (error) return Response.json({ error: error.message }, { status: 500 });
   if (!site) return Response.json({ error: "Website not found." }, { status: 404 });

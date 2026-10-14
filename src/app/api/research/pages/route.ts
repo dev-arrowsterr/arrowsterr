@@ -19,7 +19,7 @@ async function handle(request: Request) {
   if ("denied" in auth) return auth.denied;
   const paid = await requireTrack(body.workspaceId, "seo");
   if (paid) return paid;
-  if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD on Render." }, { status: 500 });
+  if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD to the server's settings." }, { status: 500 });
 
   const { data: site, error } = await auth.sb.from("sites").select("domain, profile").eq("id", body.siteId).eq("workspace_id", body.workspaceId).maybeSingle();
   if (error) return Response.json({ error: error.message }, { status: 500 });
