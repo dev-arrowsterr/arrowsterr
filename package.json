@@ -9,6 +9,7 @@
     "lint": "eslint",
     "typecheck": "next typegen && tsc --noEmit",
     "test": "node --test tests/*.test.ts",
+    "test:db": "bash scripts/test-db.sh",
     "stripe:setup": "node scripts/stripe-setup.mjs"
   },
   "dependencies": {
