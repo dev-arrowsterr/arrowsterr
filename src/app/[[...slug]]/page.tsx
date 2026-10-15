@@ -41,5 +41,7 @@ export default async function Home() {
       </main>
     );
   }
-  return <ClientApp config={{ url, key }} />;
+  // Google's own button shows arrowsterr.com on Google's screen. Use the client ID from Supabase's Google provider.
+  const googleClientId = (process.env.GOOGLE_SIGNIN_CLIENT_ID ?? process.env.GOOGLE_CLIENT_ID ?? "").trim() || null;
+  return <ClientApp config={{ url, key }} googleClientId={googleClientId} />;
 }
