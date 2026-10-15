@@ -2,13 +2,14 @@ import { CMS_API } from "@/lib/cms";
 import { CMS, type CmsKind, type Published, type PublishInput } from "@/lib/cmsTypes";
 import { adminClient, requireRole } from "@/lib/serverAuth";
 import { requireWriter } from "@/lib/entitlements";
+import { openConfig, sealConfig } from "@/lib/secretBox";
 import { dispatch } from "@/lib/integrations";
 import type { DocPublishMeta } from "@/lib/writerAgent";
 
 const str = (v: unknown, n: number) => String(v ?? "").trim().slice(0, n);
 const err = (error: string, status = 400) => Response.json({ error }, { status });
 
-// CMS connections and publishing. Keys stay on the server: the browser only sees each connection's name and kind.
+// CMS connections and publishing. Keys stay on the server, encrypted: the browser only sees each connection's name and kind.
 //   list: {}                                   viewers
 //   connect: { kind, name, config }            admins, tested before it is saved
 //   remove: { id }                             admins
@@ -46,7 +47,7 @@ export async function POST(request: Request) {
       return err(`${spec.label} said no: ${e instanceof Error ? e.message : String(e)}`);
     }
     const name = str(body.name, 80) || config.siteUrl || config.shop || spec.label;
-    const { data, error } = await db.from("cms_connections").insert({ workspace_id: ws, kind: spec.id, name, config }).select("id, kind, name, created_at").single();
+    const { data, error } = await db.from("cms_connections").insert({ workspace_id: ws, kind: spec.id, name, config: sealConfig(config) }).select("id, kind, name, created_at").single();
     if (missing(error)) return err("Run supabase/021_doc_meta.sql in Supabase first.", 500);
     if (error) return err(error.message, 500);
     return Response.json({ connection: data, check });
@@ -79,7 +80,7 @@ export async function POST(request: Request) {
     };
     const before = meta.published?.find((p) => p.connectionId === conn.id);
     try {
-      const out = await CMS_API[conn.kind as CmsKind].publish(conn.config as Record<string, string>, input, before?.id);
+      const out = await CMS_API[conn.kind as CmsKind].publish(openConfig(conn.config), input, before?.id);
       const rec: Published = { connectionId: conn.id, kind: conn.kind as CmsKind, id: out.id, url: out.url, live: input.live, at: new Date().toISOString() };
       const next = { ...meta, title: input.title, slug: input.slug, description: input.description, image: input.image, schema: input.schema, published: [...(meta.published ?? []).filter((p) => p.connectionId !== conn.id), rec] };
       await auth.sb.from("docs").update({ meta: next }).eq("id", doc.id);

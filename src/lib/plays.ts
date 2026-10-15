@@ -6,6 +6,7 @@ import { addLink, capsOf, faqHtml, faqsIn, getItem, imagesWithoutAlt, linksIn, l
 import type { CmsKind } from "./cmsTypes";
 import { take } from "./entitlements";
 import { charge, claudeCost } from "./meter";
+import { isSealed, openConfig, sealConfig } from "./secretBox";
 
 // Plays: Zippie's site-wide fixes. Each one reads the CMS, proposes a change per page,
 // and waits in a change set until someone approves it. Applying and undoing also live here.
@@ -40,7 +41,20 @@ const abs = (src: string, page: string) => {
 async function connection(db: SupabaseClient, ws: string, id: string): Promise<Conn> {
   const { data } = await db.from("cms_connections").select("id, kind, name, config").eq("id", id).eq("workspace_id", ws).maybeSingle();
   if (!data) throw new Error("That CMS connection is gone. Connect it again in Settings → Publishing.");
-  return data as Conn;
+  return { ...(data as Conn), config: openConfig(data.config) };
+}
+
+/** Encrypt website logins saved before encryption. The worker runs this about once an hour; it does nothing once all are sealed. */
+export async function sealOldConfigs(db: SupabaseClient) {
+  const { data, error } = await db.from("cms_connections").select("id, config").is("config->>sealed", null).limit(500);
+  if (error) return 0;
+  let n = 0;
+  for (const row of data ?? []) {
+    if (isSealed(row.config)) continue;
+    const { error: e } = await db.from("cms_connections").update({ config: sealConfig(openConfig(row.config)) }).eq("id", row.id).is("config->>sealed", null);
+    if (!e) n++;
+  }
+  return n;
 }
 
 async function brandOf(db: SupabaseClient, ws: string) {

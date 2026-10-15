@@ -12,6 +12,7 @@ import { ToolError } from "./mcp/protocol";
 import { TOOLS as MCP_TOOLS } from "./mcp/tools";
 import { charge, claudeCost } from "./meter";
 import { PLAYS, preparePlay, type Play } from "./plays";
+import { openConfig } from "./secretBox";
 import { BUILTIN_SKILLS, type Skill } from "./zippieSkills";
 
 // Zippie: a chat that can read everything Arrowsterr knows about a brand, audit its website,
@@ -39,7 +40,15 @@ async function brandDomain(ctx: AskCtx) {
 
 async function connections(ctx: AskCtx) {
   const { data } = await ctx.db.from("cms_connections").select("id, kind, name, config").eq("workspace_id", ctx.ws).order("created_at");
-  return (data ?? []) as { id: string; kind: CmsKind; name: string; config: Record<string, string> }[];
+  // A login that can't be opened comes back empty, so the CMS call says what's wrong and the others still work.
+  const open = (raw: unknown) => {
+    try {
+      return openConfig(raw);
+    } catch {
+      return {};
+    }
+  };
+  return ((data ?? []) as { id: string; kind: CmsKind; name: string; config: unknown }[]).map((c) => ({ ...c, config: open(c.config) }));
 }
 
 async function pickConnection(ctx: AskCtx, arg: unknown) {
