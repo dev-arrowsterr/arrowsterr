@@ -4,6 +4,7 @@ import { GoogleGenAI } from "@google/genai";
 import { askClaude } from "./claude";
 import { charge } from "./meter";
 import { askLive, dfsReady, type DfsAnswer, type DfsEngine } from "./dataforseo";
+import { failureOf, retryable } from "./retryPolicy";
 import { cleanSources, linksInText, type Source } from "./sources";
 
 export const ENGINES = ["ChatGPT", "Claude", "Gemini", "Perplexity", "AI Overview", "AI Mode"] as const;
@@ -126,7 +127,7 @@ function askApi(engine: Engine, prompt: string): Promise<Answer> {
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** Ask one engine one prompt with web search on, in the shared answer layout. Tries twice. */
+/** Ask one engine one prompt with web search on, in the shared answer layout. Tries up to three times. */
 export async function askEngine(engine: Engine, userPrompt: string): Promise<Answer> {
   // DataForSEO reads the real apps and Google, so they get the plain prompt, the way a person types it.
   // API engines get the shared layout.
@@ -134,16 +135,17 @@ export async function askEngine(engine: Engine, userPrompt: string): Promise<Ans
   // Job-to-be-done prompts ("How can we...") get a nudge to name tools, so the answer shows which brands win.
   const asked = /^\s*how\b/i.test(userPrompt) && !/\btools?\b.*\?\s*$/i.test(userPrompt) ? `${userPrompt.trim()} Name the specific tools you would use.` : userPrompt;
   const prompt = dfs ? asked : asked + ANSWER_FORMAT;
-  let lastError: unknown;
-  for (let attempt = 0; attempt < 2; attempt++) {
+  // A blip (rate limit, server error, dropped connection) gets two more tries a few seconds apart.
+  // A spent account, a refused key or a bad request fails at once: the queue decides what to do with those.
+  for (let attempt = 0; ; attempt++) {
     try {
       const a = dfs ? await askLive(engine, prompt) : await askApi(engine, prompt);
       const text = a.text.replace(/\[\d+\]/g, "");
       return { ...a, text, sources: cleanSources([...a.sources, ...linksInText(text)]) };
     } catch (e) {
-      lastError = e;
-      await sleep(2000);
+      const f = failureOf(e);
+      if (attempt >= 2 || !retryable(f.kind)) throw e;
+      await sleep(Math.min(30, f.retryAfter ?? 2 * 4 ** attempt) * 1000);
     }
   }
-  throw lastError;
 }

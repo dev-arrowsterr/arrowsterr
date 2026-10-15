@@ -10,6 +10,7 @@ const CHECKS = [/requireRole\(/, /allowed\(request\)/, /apiAuth\(/];
 const PUBLIC: Record<string, string> = {
   "billing/webhook": "Stripe signature",
   "google/callback": "signed sign-in state",
+  "health": "answers up or down, a time and a count; no customer data",
   "notifications/unsubscribe": "signed unsubscribe link",
   "oauth/client": "reads public app names only",
   "oauth/register": "open app registration, the MCP way",

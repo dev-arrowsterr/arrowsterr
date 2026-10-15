@@ -191,7 +191,15 @@ select pg_temp.fails($$select add_usage('11111111-0000-0000-0000-000000000000', 
 select pg_temp.fails($$select apply_plan('11111111-0000-0000-0000-000000000000', 'scale', 'active', 999, 999, 999, '{}', now() + interval '1 year', null)$$, 'Ann gives herself a paid plan');
 select pg_temp.fails($$select * from claim_jobs('x', 10, 60, null)$$, 'Ann claims queued jobs');
 select pg_temp.fails($$select take_rate('anthropic', 999999, -1000)$$, 'Ann changes the shared rate limits');
+select pg_temp.fails($$select retry_dead_jobs()$$, 'Ann reruns dead jobs');
 reset role;
+
+-- The server can run dead jobs again, and new jobs get the longer retry schedule.
+update jobs set status = 'dead', attempts = 8, finished_at = now() where kind = 'check';
+select pg_temp.check(retry_dead_jobs('check') = 1, 'Dead jobs didn''t go back in the queue');
+select pg_temp.check(exists (select 1 from jobs where kind = 'check' and status = 'queued' and attempts = 0), 'A rerun job didn''t start over');
+insert into jobs (kind) values ('brief');
+select pg_temp.check((select max_attempts from jobs where kind = 'brief') = 8, 'New jobs don''t get 8 tries');
 
 \o
 \pset tuples_only on

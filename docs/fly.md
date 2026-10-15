@@ -57,11 +57,11 @@ These are all the settings the app reads. Copy the ones you have on Render.
 | Email | `RESEND_API_KEY`, `EMAIL_FROM` |
 | Google Analytics | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_TOKEN_KEY` |
 | Website tracking | `UMAMI_URL`, `UMAMI_API_KEY`, `UMAMI_USERNAME`, `UMAMI_PASSWORD` |
-| Errors | `SENTRY_DSN` |
+| Errors and alerts | `SENTRY_DSN`, `ALERT_EMAIL` (where the hourly check sends jobs that gave up or wait on you; commas for more than one) |
 | Models | `CLAUDE_MODEL`, `CLAUDE_ENGINE_MODEL`, `EXTRACT_MODEL`, `PROMPTS_MODEL`, `OPENAI_MODEL`, `GEMINI_MODEL`, `PERPLEXITY_MODEL` |
 | Limits and prices | `WORKER_CONCURRENCY`, `SNAPSHOT_DAILY_CAP`, `RATE_ANTHROPIC`, `RATE_OPENAI`, `RATE_GEMINI`, `RATE_PERPLEXITY`, `RATE_DATAFORSEO`, `PRICE_OPENAI`, `PRICE_GEMINI`, `PRICE_PERPLEXITY` |
 
-`GOOGLE_TOKEN_KEY` and `SUPABASE_SECRET_KEY` must be exactly the same as on Render. Saved Google sign-ins are locked with them.
+`GOOGLE_TOKEN_KEY` and `SUPABASE_SECRET_KEY` must be exactly the same as on Render. Saved Google sign-ins and website logins (WordPress, Shopify, Webflow, HubSpot, Ghost) are locked with them. Change them and every customer has to connect again.
 
 Skip `RENDER_SERVICE_NAME` and `NODE_ENV`. Render and the Dockerfile set those.
 

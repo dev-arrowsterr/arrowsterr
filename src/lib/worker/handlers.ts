@@ -8,7 +8,8 @@ import { getTask, postTasks, type DfsAnswer, type DfsEngine } from "../dataforse
 import { answerRows, saveAnswers, type Profile } from "../db";
 import { askEngine, availableEngines, viaDfs, WEEKLY_ENGINES, type Engine } from "../engines";
 import { entitlement } from "../entitlements";
-import { enqueue, enqueueMany, finish, rateOk, retry, type Job } from "../jobs";
+import { enqueue, enqueueMany, finish, rateOk, retry, retryAfter, type Job } from "../jobs";
+import { failureOf, needsPerson } from "../retryPolicy";
 import { afterDaily, dispatch } from "../integrations";
 import { emailJob } from "../notify";
 import { runAudit } from "../audit";
@@ -113,7 +114,8 @@ async function counted(db: SupabaseClient, job: Job, p: CheckPayload) {
 
 export async function check(db: SupabaseClient, job: Job) {
   const p = job.payload as unknown as CheckPayload;
-  if (job.attempts >= job.max_attempts) return record(db, job, p, failed(p.engine, p.prompt, `${p.engine}: gave up after ${job.attempts} tries.`));
+  // A worker that crashed mid-check can leave a job past its last try. Close it, so the day's numbers still add up.
+  if (job.attempts > job.max_attempts) return record(db, job, p, failed(p.engine, p.prompt, `${p.engine}: gave up after ${job.attempts - 1} tries.`));
 
   let answer = await shared(db, p);
   if (!answer && viaDfs(p.engine)) {
@@ -141,8 +143,14 @@ export async function check(db: SupabaseClient, job: Job) {
     try {
       answer = await askEngine(p.engine, p.prompt);
     } catch (e) {
+      // The last try saves a failed answer instead of dying, so the run still gets its daily numbers.
+      // A spent account or a refused key waits for a person instead, without using up a try.
+      if (!needsPerson(failureOf(e).kind) && job.attempts >= job.max_attempts) {
+        await db.from("jobs").update({ last_error: (e instanceof Error ? e.message : String(e)).slice(0, 1000) }).eq("id", job.id);
+        return record(db, job, p, failed(p.engine, p.prompt, `${p.engine}: gave up after ${job.attempts} tries.`));
+      }
       // Keep the counted flag, so the retry does not count this answer twice.
-      await retry(job.id, e instanceof Error ? e.message : String(e), 30 * 2 ** job.attempts, { payload: { ...p } });
+      await retryAfter(job, e, { ...p });
       return;
     }
     await share(db, p, answer);

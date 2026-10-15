@@ -1,20 +1,22 @@
 import { randomUUID } from "node:crypto";
+import * as Sentry from "@sentry/nextjs";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { allowed } from "@/lib/cronAuth";
-import { claim, enqueue, prune, queueReady, retry, type Job, type JobKind } from "@/lib/jobs";
+import { claim, enqueue, prune, queueReady, retryAfter, type Job, type JobKind } from "@/lib/jobs";
 import { metered } from "@/lib/meter";
 import { sendNudges } from "@/lib/nudges";
 import { sendWeekly } from "@/lib/notify";
 import { adminClient } from "@/lib/serverAuth";
 import { apply, audit, brief, check, plan, play, rollup, schedule } from "@/lib/worker/handlers";
+import { watch } from "@/lib/watch";
 
 // One worker tick. scripts/worker.mjs calls this over and over.
 // Each tick queues the scheduler for this 10-minute window, then claims a batch of jobs and runs them a few at a time.
 
 export const maxDuration = 300;
 
-const HANDLERS: Record<JobKind, (db: SupabaseClient, job: Job) => Promise<void>> = { schedule, check, brief, plan, rollup, audit, play, apply };
-const ACTION: Record<JobKind, string> = { schedule: "daily check", check: "daily check", brief: "content brief", plan: "content plan", rollup: "daily numbers", audit: "site audit", play: "ask arrowsterr", apply: "ask arrowsterr apply" };
+const HANDLERS: Record<JobKind, (db: SupabaseClient, job: Job) => Promise<void>> = { schedule, check, brief, plan, rollup, audit, play, apply, watch };
+const ACTION: Record<JobKind, string> = { schedule: "daily check", check: "daily check", brief: "content brief", plan: "content plan", rollup: "daily numbers", audit: "site audit", play: "ask arrowsterr", apply: "ask arrowsterr apply", watch: "hourly check" };
 const WORKER = `web-${randomUUID().slice(0, 8)}`;
 const CONCURRENCY = Math.max(1, Number(process.env.WORKER_CONCURRENCY) || 8);
 
@@ -36,6 +38,8 @@ export async function POST(request: Request) {
   try {
     const window = Math.floor(Date.now() / 600_000);
     await enqueue("schedule", {}, { key: `schedule:${window}`, maxAttempts: 2 });
+    // Once an hour: tell the team about jobs that gave up or wait on a person (src/lib/watch.ts).
+    await enqueue("watch", {}, { key: `watch:${Math.floor(window / 6)}`, maxAttempts: 2 });
     if (window % 36 === 0) await prune();
     // About once an hour: emails for tasks running low and trials ending.
     if (window % 6 === 0) {
@@ -55,7 +59,8 @@ export async function POST(request: Request) {
         failed++;
         const message = e instanceof Error ? e.message : String(e);
         console.error(`Job ${job.id} (${job.kind}) failed:`, message);
-        await retry(job.id, message, Math.min(3600, 30 * 2 ** job.attempts)).catch(() => {});
+        const last = await retryAfter(job, e).catch(() => false);
+        if (last) Sentry.captureException(e, { tags: { job: job.kind }, extra: { jobId: job.id, workspace: job.workspace_id, attempts: job.attempts } });
       }
     });
     return Response.json({ claimed: jobs.length, done, failed, idle: !jobs.length });
