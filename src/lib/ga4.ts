@@ -33,9 +33,12 @@ const n = (r: ReportRow, i: number) => Number(r.metricValues?.[i]?.value ?? 0);
 const d = (r: ReportRow, i: number) => r.dimensionValues?.[i]?.value ?? "";
 const ymd = (s: string) => `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
 
-export async function ga4Traffic(token: string, property: string, days: number) {
-  const cur = { startDate: `${days - 1}daysAgo`, endDate: "today", name: "cur" };
-  const prev = { startDate: `${days * 2 - 1}daysAgo`, endDate: `${days}daysAgo`, name: "prev" };
+/** span: the last N days and the N before them, or exact dates (YYYY-MM-DD) for reports. */
+export async function ga4Traffic(token: string, property: string, span: number | { cur: [string, string]; prev: [string, string] }) {
+  const exact = typeof span === "number" ? null : span;
+  const days = exact ? Math.round((Date.parse(exact.cur[1]) - Date.parse(exact.cur[0])) / 864e5) + 1 : (span as number);
+  const cur = exact ? { startDate: exact.cur[0], endDate: exact.cur[1], name: "cur" } : { startDate: `${days - 1}daysAgo`, endDate: "today", name: "cur" };
+  const prev = exact ? { startDate: exact.prev[0], endDate: exact.prev[1], name: "prev" } : { startDate: `${days * 2 - 1}daysAgo`, endDate: `${days}daysAgo`, name: "prev" };
   const names = Object.keys(BREAKDOWNS).filter((k) => BREAKDOWNS[k]);
   const requests: ReportRequest[] = [
     // 0: totals now and before

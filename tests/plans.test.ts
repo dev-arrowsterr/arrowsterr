@@ -130,3 +130,17 @@ test("after a downgrade, prompts past the plan are paused in the order brands we
   const m = promptAllowance(brands, { brands: 2, prompts: 20 });
   assert.deepEqual([m.get("a"), m.get("b"), m.get("c")], [15, 5, 0]);
 });
+
+test("report limits grow up the ladder, and only Agency and up get white label", async () => {
+  const { reportLimits } = await import("../src/lib/plans.ts");
+  let last = 0;
+  for (const id of LADDER) {
+    const r = reportLimits(id);
+    assert.ok(r.saved >= last, `${id} should keep at least as many reports`);
+    last = r.saved;
+    assert.equal(r.whiteLabel, id === "agency" || id === "enterprise");
+  }
+  assert.deepEqual(reportLimits("free"), { saved: 1, live: false, secure: false, whiteLabel: false });
+  assert.equal(reportLimits("foundation").secure, false);
+  assert.equal(reportLimits("scale").secure, true);
+});

@@ -1,6 +1,7 @@
 "use client";
 
 import { preinit } from "react-dom";
+import { blocksFromSections, BLOCKS, type BlockId } from "@/lib/reportDoc";
 import type { ReportSnapshot } from "@/lib/reportTypes";
 import { fontStack, fontsUrl, themeOf, type ReportTheme } from "@/lib/reportTheme";
 
@@ -133,15 +134,32 @@ function SectionHead({ n, title, note }: { n: number; title: string; note?: stri
   );
 }
 
-/** A designed client report. The same component renders the preview, the PDF, the downloaded HTML and the shared link. */
-export function ReportDoc({ r, id = "report" }: { r: ReportSnapshot; id?: string }) {
+/** Why a block that is switched on shows nothing, for the editor. Outputs hide it instead. */
+const EMPTY: Partial<Record<BlockId, string>> = {
+  kpis: "No AI answers in these dates yet.",
+  summary: "No AI summary for these dates yet. Write one from the Blocks panel.",
+  wins: "Nothing moved enough to flag, or there is no earlier period to compare with.",
+  models: "No AI answers in these dates yet.",
+  competitors: "No AI answers in these dates yet.",
+  traffic: "Connect Google Analytics or the tracking script to show website traffic.",
+  visitors: "Connect the tracking script to show visitors and leads.",
+  content: "No Content Plan for this brand yet.",
+};
+
+/**
+ * A designed client report. The same component renders the preview, the PDF, the downloaded HTML and the shared link.
+ * editing shows a note for each block that is on but has nothing to show; everywhere else such blocks are left out.
+ */
+export function ReportDoc({ r, id = "report", editing = false }: { r: ReportSnapshot; id?: string; editing?: boolean }) {
   const t = themeOf(r.style);
   // Load the fonts once into <head>. A <link precedence> here would hold the whole report back until a new font sheet arrives.
   preinit(fontsUrl(t), { as: "style", precedence: "default" });
-  const has = (s: ReportSnapshot["sections"][number]) => r.sections.includes(s);
+  const order = (r.blocks ?? blocksFromSections(r.sections)).filter((b) => b.on).map((b) => b.id);
   const date = new Date(r.at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
   const title = r.style.title?.trim() || "AI Visibility Report";
   const ai = r.ai;
+  const period = r.period ? r.period.label : `Last ${r.days} days`;
+  const periodLine = r.period ? (r.period.compareLabel ? `${r.period.label}, compared with ${r.period.compareLabel}.` : `${r.period.label}.`) : `Last ${r.days} days, compared with the ${r.days} days before.`;
   let n = 0;
   const brandLine = (
     <div className="brandrow">
@@ -162,7 +180,7 @@ export function ReportDoc({ r, id = "report" }: { r: ReportSnapshot; id?: string
         Prepared for {r.brand.name} · {r.brand.domain}
       </span>
       <h1>{title}</h1>
-      <span style={{ fontSize: 17, opacity: 0.85, maxWidth: 620 }}>{r.summary?.headline ?? `Last ${r.days} days, compared with the ${r.days} days before.`}</span>
+      <span style={{ fontSize: 17, opacity: 0.85, maxWidth: 620 }}>{r.summary?.headline ?? periodLine}</span>
     </>
   );
   const heroStats = ai ? (
@@ -178,50 +196,19 @@ export function ReportDoc({ r, id = "report" }: { r: ReportSnapshot; id?: string
     </div>
   ) : null;
 
-  return (
-    <article id={id} className="rp">
-      <style>{reportCss(t)}</style>
-
-      {/* Cover */}
-      {t.hero === "split" ? (
-        <header className="hero hero-split">
-          <div className="l">
-            <div className="in">
-              {brandLine}
-              {heroText}
-            </div>
-          </div>
-          <div className="r">
-            <span className="lab">Last {r.days} days</span>
-            {heroStats}
-          </div>
-        </header>
-      ) : (
-        <header className={`hero hero-${t.hero}`}>
-          <div className="in">
-            {brandLine}
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.5fr) auto", gap: 28, alignItems: "end" }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>{heroText}</div>
-              {heroStats}
-            </div>
-          </div>
-        </header>
-      )}
-
-      {/* Scores */}
-      {has("ai") && ai ? (
+  // Each block draws itself given its section number, or returns null when it has nothing to show.
+  const blocks: Record<BlockId, (n: number) => React.ReactNode> = {
+    kpis: () => ai ? (
         <div className="grid g4">
           <Kpi label="Visibility" value={pctOf(ai.visibility)} change={<Change now={ai.visibility} before={ai.visibilityBefore} unit=" pts" />} sub="of AI answers" />
           <Kpi label="Sentiment" value={ai.sentiment === null ? "–" : Math.round(ai.sentiment)} sub="out of 100" />
           <Kpi label="Avg. position" value={ai.position === null ? "–" : `#${ai.position.toFixed(1)}`} sub="in AI lists" />
           <Kpi label="Rank" value={ai.rank ? `#${ai.rank}` : "–"} sub={`of ${ai.brands} brands`} />
         </div>
-      ) : null}
-
-      {/* Summary */}
-      {r.summary ? (
+    ) : null,
+    summary: (n) => r.summary ? (
         <section className="sec">
-          <SectionHead n={++n} title="The short version" />
+          <SectionHead n={n} title="The short version" />
           <div className="grid g2">
             <div className="card" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <p className="quote">{r.summary.headline}</p>
@@ -243,12 +230,10 @@ export function ReportDoc({ r, id = "report" }: { r: ReportSnapshot; id?: string
             ) : null}
           </div>
         </section>
-      ) : null}
-
-      {/* Wins and watch list */}
-      {r.wins.length || r.drops.length ? (
+    ) : null,
+    wins: (n) => r.wins.length || r.drops.length ? (
         <section className="sec">
-          <SectionHead n={++n} title="Wins and watch list" />
+          <SectionHead n={n} title="Wins and watch list" />
           <div className="grid g2">
             {[
               { title: "Top wins", list: r.wins, cls: "up" },
@@ -278,12 +263,10 @@ export function ReportDoc({ r, id = "report" }: { r: ReportSnapshot; id?: string
             ))}
           </div>
         </section>
-      ) : null}
-
-      {/* AI visibility by model */}
-      {has("ai") && ai && ai.byModel.length ? (
+    ) : null,
+    models: (n) => ai && ai.byModel.length ? (
         <section className="sec">
-          <SectionHead n={++n} title="Visibility on each AI" note={`${num(ai.answers)} answers checked`} />
+          <SectionHead n={n} title="Visibility on each AI" note={`${num(ai.answers)} answers checked`} />
           <div className="card" style={{ display: "flex", flexDirection: "column", gap: 18 }}>
             {[...ai.byModel]
               .sort((a, b) => (b.now ?? 0) - (a.now ?? 0))
@@ -304,12 +287,10 @@ export function ReportDoc({ r, id = "report" }: { r: ReportSnapshot; id?: string
               ))}
           </div>
         </section>
-      ) : null}
-
-      {/* Competitors */}
-      {has("competitors") && r.competitors?.length ? (
+    ) : null,
+    competitors: (n) => r.competitors?.length ? (
         <section className="sec">
-          <SectionHead n={++n} title="Who AI recommends" note="Share of AI answers that name each brand" />
+          <SectionHead n={n} title="Who AI recommends" note="Share of AI answers that name each brand" />
           <div className="card">
             <table>
               <thead>
@@ -344,12 +325,10 @@ export function ReportDoc({ r, id = "report" }: { r: ReportSnapshot; id?: string
             </table>
           </div>
         </section>
-      ) : null}
-
-      {/* Traffic */}
-      {has("traffic") && r.traffic ? (
+    ) : null,
+    traffic: (n) => r.traffic ? (
         <section className="sec">
-          <SectionHead n={++n} title="Website traffic" />
+          <SectionHead n={n} title="Website traffic" />
           <div className="grid g3">
             <Kpi label="Visits" value={num(r.traffic.visits)} change={<Change now={r.traffic.visits} before={r.traffic.visitsBefore} />} />
             <Kpi label="From AI assistants" value={num(r.traffic.ai)} change={<Change now={r.traffic.ai} before={r.traffic.aiBefore} />} />
@@ -384,12 +363,10 @@ export function ReportDoc({ r, id = "report" }: { r: ReportSnapshot; id?: string
             </div>
           ) : null}
         </section>
-      ) : null}
-
-      {/* Visitors */}
-      {has("visitors") && r.visitors ? (
+    ) : null,
+    visitors: (n) => r.visitors ? (
         <section className="sec">
-          <SectionHead n={++n} title="Visitors and leads" />
+          <SectionHead n={n} title="Visitors and leads" />
           <div className="grid g3">
             <Kpi label="Visitors" value={num(r.visitors.total)} />
             <Kpi label="Hot buyers" value={num(r.visitors.hot)} />
@@ -424,12 +401,10 @@ export function ReportDoc({ r, id = "report" }: { r: ReportSnapshot; id?: string
             </div>
           ) : null}
         </section>
-      ) : null}
-
-      {/* Content */}
-      {has("content") && r.content ? (
+    ) : null,
+    content: (n) => r.content ? (
         <section className="sec">
-          <SectionHead n={++n} title="Content" />
+          <SectionHead n={n} title="Content" />
           <div className="grid g4">
             <Kpi label="Published" value={r.content.published} />
             <Kpi label="Writing" value={r.content.writing} />
@@ -464,7 +439,53 @@ export function ReportDoc({ r, id = "report" }: { r: ReportSnapshot; id?: string
             </div>
           ) : null}
         </section>
-      ) : null}
+    ) : null,
+  };
+
+  return (
+    <article id={id} className="rp">
+      <style>{reportCss(t)}</style>
+
+      {/* Cover */}
+      {t.hero === "split" ? (
+        <header className="hero hero-split">
+          <div className="l">
+            <div className="in">
+              {brandLine}
+              {heroText}
+            </div>
+          </div>
+          <div className="r">
+            <span className="lab">{period}</span>
+            {heroStats}
+          </div>
+        </header>
+      ) : (
+        <header className={`hero hero-${t.hero}`}>
+          <div className="in">
+            {brandLine}
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.5fr) auto", gap: 28, alignItems: "end" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>{heroText}</div>
+              {heroStats}
+            </div>
+          </div>
+        </header>
+      )}
+
+      {order.map((b) => {
+        const out = blocks[b](n + 1);
+        if (out && b !== "kpis") n++;
+        return out ? (
+          <div key={b} style={{ display: "contents" }}>
+            {out}
+          </div>
+        ) : editing ? (
+          <div key={b} className="card" style={{ display: "flex", justifyContent: "space-between", gap: 16, color: "var(--muted)", fontSize: 14, borderStyle: "dashed" }}>
+            <span style={{ color: "var(--ink)", fontWeight: 500 }}>{BLOCKS.find((x) => x.id === b)?.label}</span>
+            <span>{EMPTY[b]}</span>
+          </div>
+        ) : null;
+      })}
 
       <footer className="foot">
         <span>{r.style.footer?.trim() || (r.style.agency ? `Prepared by ${r.style.agency}` : r.brand.domain)}</span>

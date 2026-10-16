@@ -5,8 +5,8 @@ Two Fly apps, both in Tokyo (`nrt`). Tokyo is the closest Fly region to the Supa
 | App | Config | Machine | Cost a month (check) |
 |---|---|---|---|
 | `arrowsterr-web` (app.arrowsterr.com) | `fly.toml`, `Dockerfile` | shared-cpu-1x, 512 MB, always on | about $3.20 |
-| `arrowsterr-worker` (runs the job queue) | `fly.worker.toml`, `Dockerfile.worker` | shared-cpu-1x, 256 MB, always on | about $2 |
-| **Total** | | | **about $5** |
+| `arrowsterr-worker` (runs the job queue, prints report PDFs) | `fly.worker.toml`, `Dockerfile.worker` | shared-cpu-1x, 1 GB, always on | about $5.70 |
+| **Total** | | | **about $9** |
 
 Render today: about $8 (web $0 on the free plan, worker $7, daily cron about $1). Once the web needs Render's Starter plan, about $15.
 
@@ -16,6 +16,7 @@ Fly's prices are for US East. Tokyo costs a little more. Fly bills by the second
 
 - The web app never sleeps. The worker calls it every 20 seconds, so it would never sleep anyway.
 - The worker calls `https://app.arrowsterr.com/api/worker` in a loop. That runs queued jobs, the daily checks, nudges and weekly emails.
+- The worker also prints report PDFs. It asks `/api/pdf/next` every few seconds, opens the report's print page in Chromium and sends the file to `/api/pdf/done`. Chromium needs the 1 GB.
 - Render's daily cron (`scripts/daily-run.mjs`) doesn't move to Fly. The job queue does its work now. The script stays in the repo until Render is gone.
 - arrowsterr.com stays on WordPress at Hostinger. Only `app.arrowsterr.com` moves.
 

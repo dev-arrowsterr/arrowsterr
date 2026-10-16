@@ -856,7 +856,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
               }}
             />
           ) : page === "summary" ? (
-            <ReportsPage key={view.brand.id} sb={sb} auth={auth} view={view} canEdit={canEdit} />
+            <ReportsPage key={view.brand.id} sb={sb} auth={auth} view={view} canEdit={canEdit} onPlans={() => go("billing")} />
           ) : page === "visitors" ? (
             <VisitorsPage key={view.brand.id} view={view} auth={auth} />
           ) : page === "traffic" ? (
@@ -989,7 +989,7 @@ const NAV: { group: string; icon: string; tester?: boolean; items: { id: Page; l
   {
     group: "Reports",
     icon: "report",
-    items: [{ id: "summary", label: "Client report", icon: "report" }],
+    items: [{ id: "summary", label: "Reports", icon: "report" }],
   },
 ];
 /** Tasks left this month, with the reset date. Opens Plans & billing. */
