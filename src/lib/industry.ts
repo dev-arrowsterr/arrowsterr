@@ -16,11 +16,11 @@ export type Research = {
 /** The sections, in the order they show. paths: where SparkToro serves each one (the docs list two styles). credits: SparkToro's price. */
 export const SECTIONS: { id: SectionId; label: string; paths: string[]; credits: number }[] = [
   { id: "websites", label: "Websites", paths: ["/v3/websites", "/v3/search/websites"], credits: 2 },
-  { id: "press", label: "Press", paths: ["/v3/press", "/v3/search/press"], credits: 2 },
-  { id: "reddit", label: "Reddit", paths: ["/v3/reddit", "/v3/search/reddit"], credits: 2 },
-  { id: "social", label: "Social accounts", paths: ["/v3/social", "/v3/search/social-new"], credits: 2 },
   { id: "youtube", label: "YouTube", paths: ["/v3/youtube", "/v3/search/youtube"], credits: 1 },
   { id: "podcasts", label: "Podcasts", paths: ["/v3/podcasts", "/v3/search/podcasts"], credits: 1 },
+  { id: "press", label: "Press", paths: ["/v3/press", "/v3/search/press"], credits: 2 },
+  { id: "social", label: "Social accounts", paths: ["/v3/social", "/v3/search/social-new"], credits: 2 },
+  { id: "reddit", label: "Reddit", paths: ["/v3/reddit", "/v3/search/reddit"], credits: 2 },
 ];
 export const CREATE_CREDITS = 10;
 export const REFRESH_DAYS = 30;

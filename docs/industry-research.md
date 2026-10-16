@@ -1,9 +1,9 @@
 # Industry Research
 
-A page under Organic Research. It shows the websites, press, subreddits, social accounts, YouTube channels and podcasts that people who visit the brand's site use, from SparkToro. Websites, press and subreddits also show how many AI answers in the period cite them. Those are the places to get mentioned first.
+The Audience tab of Competitive Analysis (Organic Research). It shows the websites, YouTube channels, podcasts, press, social accounts and subreddits that people who visit the brand's site use, from SparkToro, in that order. Every row except subreddits can be added to an outreach list. Websites, press and subreddits also show how many AI answers in the period cite them. Those are the places to get mentioned first.
 
 ## How it works
-- An editor clicks Run Industry Research. `/api/industry` saves a `running` row in `industry_research` and queues an `industry` job.
+- An editor clicks Research my audience. `/api/industry` saves a `running` row in `industry_research` and queues an `industry` job.
 - The job asks SparkToro for a report on "People who visit {domain}", then reads the 6 sections as they become ready. It checks back every minute and gives up after 45 minutes.
 - A refresh is allowed once every 30 days per brand. It's part of the plan, so it never costs tasks.
 - Every call's cost goes to `cost_ledger` as "industry research", at `SPARKTORO_CREDIT_USD` a credit ($0.10 by default).

@@ -3,7 +3,7 @@
 Get mentioned on the websites, press, podcasts and channels your audience uses and AI cites. UI plan: the "Arrowsterr Outreach UI" design canvas.
 
 ## Build order
-1. **Sort and filter on Industry Research.** Done.
+1. **Sort and filter on the audience research.** Done.
 2. **Lists, Add to list and contact finding.** Done.
 2b. **Craft emails** with Open in Gmail. Done.
 3. Connect Gmail (`gmail.send`), drafting by purpose with review.
@@ -12,8 +12,8 @@ Get mentioned on the websites, press, podcasts and channels your audience uses a
 6. Zippie insights on campaigns.
 
 ## Step 2: what's in it
-- **Outreach › Lists** (`/outreach/lists`): make, rename and delete lists. Each list shows its targets with type, contact email and where it came from, status and date added. Filter by type, select rows to find emails again or remove them.
-- **Add to list:** select rows on Industry Research (websites, press, social accounts, YouTube, podcasts; subreddits aren't emailed) or click Add to list on a site in Sources. Pick a list or name a new one.
+- **Outreach** (Agentic Content › Outreach, `/outreach`): lists on the left; on the right, the open list's Emails tab (first when it has drafts) and Targets tab. Make, rename and delete lists. Each list shows its targets with type, contact email and where it came from, status and date added. Filter by type, select rows to find emails again or remove them.
+- **Add to Outreach List:** in Sources by link (each cited page, in its row and in its side panel), and in Competitive Analysis › Audience (websites, YouTube, podcasts, press, social accounts; subreddits aren't emailed). Pick a list or name a new one. Sources by site keeps only Analyze SEO.
 - **Finding emails** (`contact` job, `src/lib/contactFinder.ts`):
   - Websites and press: the homepage, then its contact, about, "write for us", advertise and press pages (up to 6). Mailto links, Cloudflare-protected emails and plain text. Only the site's own domain counts, except on a contact page. Pitch inboxes (editor, partnerships, press) beat general ones (hello, info), and support and sales come last.
   - Podcasts: Apple's free podcast search finds the show's RSS feed, which lists the owner's email.
@@ -22,7 +22,7 @@ Get mentioned on the websites, press, podcasts and channels your audience uses a
 - **Do not contact:** targets on a blocked domain or address are marked Do not contact when added.
 
 ## Step 2b: Craft emails
-- **Add to list from Sources by link:** each cited page (not your own) has Add to list. The page itself becomes the target, so the writer can quote it and the email search starts from it.
+- **Add to Outreach List from Sources by link:** each cited page (not your own) has the button, in its row and in its side panel. The page itself becomes the target, so the writer can quote it and the email search starts from it.
 - **Write emails** (Lists, on the selected targets or every target without a draft): pick what the email is for, add an optional note, and Zippie writes one draft per target (`draft` job, `src/lib/drafts.ts`). Purposes by type: website (listicle, link, guest post, review), press (story, expert quote, link), podcast (guest, sponsorship), YouTube (guest, review, sponsorship), social (review, sponsorship, collaboration), or your own ask.
 - Before writing, it reads the target: the page for websites and press, the latest 3 episodes from the RSS feed for podcasts. The email opens with one true detail from that reading and uses only facts from it and the brand profile. "Why it's written this way" says which detail it used.
 - **Emails tab:** drafts on the left, the editor on the right. Save changes, Rewrite, Copy, Open in Gmail (a prefilled compose window), and Mark as sent. Real sending from Arrowsterr comes with step 3.

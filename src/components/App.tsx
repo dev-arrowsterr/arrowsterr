@@ -35,11 +35,11 @@ import {
 } from "@/lib/db";
 import { PLANS, promptAllowance, type PlanId, type Track } from "@/lib/plans";
 import { Glimpse } from "./Glimpse";
-import { answered, splitPeriods, type Filter } from "@/lib/metrics";
+import { splitPeriods, type Filter } from "@/lib/metrics";
 import type { View } from "@/lib/view";
 import { runAll, type RunAuth } from "@/lib/runner";
 import { getSupabase, type SupaConfig } from "@/lib/supa";
-import { clearStash, primeStash } from "@/lib/stash";
+import { clearStash, primeStash, putStash } from "@/lib/stash";
 import { AuthScreen, CodeCheck, NewPassword } from "./AuthScreen";
 import { WorkspaceAvatar } from "./WorkspaceAvatar";
 import { BrandLogo } from "./BrandLogo";
@@ -55,7 +55,6 @@ import { Onboarding, type Checking, type NewBrand, type Welcome } from "./Onboar
 import { PromptsPage } from "./PromptsPage";
 import { ResearchPage, type Tool } from "./research/ResearchPage";
 import type { SeoStart } from "./research/DomainResearch";
-import { IndustryResearch } from "./IndustryResearch";
 import { ListsPage } from "./outreach/ListsPage";
 import { SourcesPage } from "./SourcesPage";
 import { TrafficPage } from "./TrafficPage";
@@ -64,7 +63,7 @@ import { VisitorsPage } from "./VisitorsPage";
 import { ZippiePage } from "./ZippiePage";
 
 export type { Brand } from "@/lib/db";
-type Page = "ask" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "gap" | "calendar" | "intel" | "industry" | "lists" | "summary" | SettingsTab;
+type Page = "ask" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "gap" | "calendar" | "intel" | "lists" | "summary" | SettingsTab;
 const RESEARCH: Page[] = ["keywords", "domain", "gap", "calendar", "intel"];
 /** Website analytics is still in testing: only this account sees it. */
 const WEBSITE_TESTER = "vincent@perceptric.com";
@@ -84,8 +83,7 @@ const SLUGS: Record<Page, string> = {
   gap: "/competitive-analysis",
   calendar: "/content-plan",
   intel: "/content-intelligence",
-  industry: "/industry-research",
-  lists: "/outreach/lists",
+  lists: "/outreach",
   summary: "/reports",
   profile: "/settings/profile",
   security: "/settings/security",
@@ -114,6 +112,8 @@ const ALIASES: Record<string, Page> = {
   "/topic-bank": "calendar",
   "/calendar": "calendar",
   "/keyword-gap": "gap",
+  "/industry-research": "gap",
+  "/outreach/lists": "lists",
   "/ai-gap": "gap",
   "/planner": "calendar",
   "/writer": "calendar",
@@ -828,9 +828,16 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
               onPlans={() => go("billing")}
             />
           ) : page === "lists" ? (
-            <ListsPage key={ws.id} sb={sb} auth={auth} canEdit={canEdit} onResearch={() => go("industry")} />
-          ) : page === "industry" ? (
-            <IndustryResearch key={view.brand.id} sb={sb} brandId={view.brand.id} domain={view.brand.domain} chats={answered(view.current, view.filter)} auth={canEdit ? auth : null} />
+            <ListsPage
+              key={ws.id}
+              sb={sb}
+              auth={auth}
+              canEdit={canEdit}
+              onResearch={() => {
+                putStash("gap-tab", "audience");
+                go("gap");
+              }}
+            />
           ) : RESEARCH.includes(page) ? (
             <ResearchPage key={view.brand.id} sb={sb} auth={auth} view={view} canEdit={canEdit} tool={page as Tool} onTool={(t) => go(t)} seoStart={seoStart}
               refresh={{ paid: Boolean(plan && plan.plan !== "free" && plan.plan !== "trial"), onUpgrade: () => go("billing") }}
@@ -937,8 +944,6 @@ const ICONS: Record<string, string> = {
   report: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M4.2 6.2l2.1 2.1M17.7 15.7l2.1 2.1M2.5 12h3M18.5 12h3M4.2 17.8l2.1-2.1M17.7 8.3l2.1-2.1"/>',
   send: '<path d="M21 3L3 10.5l7 3 3 7L21 3z"/><path d="M10 13.5L21 3"/>',
-  list: '<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h1M4 12h1M4 18h1"/>',
-  audience: '<circle cx="12" cy="7.5" r="3"/><path d="M6.5 19c.6-3 2.8-5 5.5-5s4.9 2 5.5 5"/><circle cx="4.5" cy="10" r="2"/><circle cx="19.5" cy="10" r="2"/><path d="M1.5 18c.3-1.8 1.4-3 3-3.3M22.5 18c-.3-1.8-1.4-3-3-3.3"/>',
   radar: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><path d="M12 12l6-6"/><circle cx="12" cy="12" r="1"/>',
   card: '<rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6.5 15h4"/>',
 };
@@ -948,7 +953,7 @@ function NavIcon({ name }: { name: string }) {
 
 /** The toolset a page belongs to. Starter opens one of them. */
 const trackOf = (page: Page): Track | null =>
-  ["prompts", "competitors", "domains", "urls"].includes(page) ? "visibility" : ["keywords", "domain", "gap", "calendar", "intel", "industry"].includes(page) ? "seo" : null;
+  ["prompts", "competitors", "domains", "urls"].includes(page) ? "visibility" : ["keywords", "domain", "gap", "calendar", "intel"].includes(page) ? "seo" : null;
 
 /** The big modules of the app. Each opens to its own pages. */
 const NAV: { group: string; icon: string; tester?: boolean; items: { id: Page; label: string; icon: string; also?: Page[] }[] }[] = [
@@ -968,13 +973,7 @@ const NAV: { group: string; icon: string; tester?: boolean; items: { id: Page; l
       { id: "keywords", label: "Keyword Research", icon: "search" },
       { id: "domain", label: "Domain Research", icon: "globe" },
       { id: "gap", label: "Competitive Analysis", icon: "gap" },
-      { id: "industry", label: "Industry Research", icon: "audience" },
     ],
-  },
-  {
-    group: "Outreach",
-    icon: "send",
-    items: [{ id: "lists", label: "Lists", icon: "list" }],
   },
   {
     group: "Agentic Content",
@@ -983,6 +982,7 @@ const NAV: { group: string; icon: string; tester?: boolean; items: { id: Page; l
       { id: "ask", label: "Zippie", icon: "spark" },
       { id: "calendar", label: "Content Plan", icon: "calendar" },
       { id: "intel", label: "Content Intelligence", icon: "trend" },
+      { id: "lists", label: "Outreach", icon: "send" },
     ],
   },
   {

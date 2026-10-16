@@ -79,9 +79,9 @@ export function AddToList({
   const label = items.length === 1 ? items[0].name : `${items.length} ${items.every((i) => i.kind === items[0].kind) ? plural[items[0].kind] : "targets"}`;
   return (
     <div className="fixed inset-0 z-[80] flex items-start justify-center bg-[rgba(16,20,30,0.45)] p-4 pt-[12vh]" onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-label="Add to list" onClick={(e) => e.stopPropagation()} className="aw-frame flex max-h-[80vh] w-full max-w-lg flex-col gap-4 overflow-y-auto bg-white p-6">
+      <div role="dialog" aria-modal="true" aria-label="Add to Outreach List" onClick={(e) => e.stopPropagation()} className="aw-frame flex max-h-[80vh] w-full max-w-lg flex-col gap-4 overflow-y-auto bg-white p-6">
         <div className="flex items-start justify-between gap-4">
-          <h2 className="aw-h4 mb-0!">Add {label} to a list</h2>
+          <h2 className="aw-h4 mb-0!">Add {label} to an outreach list</h2>
           <button type="button" aria-label="Close" onClick={onClose} className="px-1 text-[24px] leading-none text-body hover:text-ink">
             ×
           </button>
@@ -118,7 +118,7 @@ export function AddToList({
             Cancel
           </button>
           <button type="button" className="aw-btn aw-btn--accent" onClick={add} disabled={busy || (!picked && !draft.trim())}>
-            {busy ? "Adding…" : "Add to list"}
+            {busy ? "Adding…" : "Add to Outreach List"}
           </button>
         </div>
       </div>

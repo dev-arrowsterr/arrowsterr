@@ -102,7 +102,7 @@ const linkTarget = (u: UrlRow): NewTarget => ({ kind: "website", name: pageTitle
 export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseClient; view: View; auth: RunAuth | null; reader: RunAuth; onSeo: (target: string, scope: Scope) => void }) {
   const { brand, current, filter, days, topics, engines } = view;
   const [group, setGroup] = useState<Group>("third");
-  const [list, setList] = useState<"sites" | "links">("sites");
+  const [list, setList] = useState<"sites" | "links">("links");
   const [focus, setFocus] = useState<string | null>(null);
   const [sort, setSort] = useSort("used");
   const [linkSort, setLinkSort] = useSort("used");
@@ -231,7 +231,7 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
                     Pages
                     <Tip text={TIPS.pages} />
                   </SortTh>
-                  <th className="w-60" aria-label="Actions" />
+                  <th className="w-40" aria-label="Actions" />
                 </tr>
               </thead>
               <tbody>
@@ -254,18 +254,6 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
                         <td className="aw-num">{g.chats}</td>
                         <td className="aw-num">{g.pages.length}</td>
                         <td className="text-right whitespace-nowrap">
-                          {auth && g.type !== "You" ? (
-                            <button
-                              type="button"
-                              className="aw-text-link mr-3 text-[13px]"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setAdding({ kind: "website", name: g.domain, url: `https://${g.domain}` });
-                              }}
-                            >
-                              Add to list
-                            </button>
-                          ) : null}
                           <button
                             type="button"
                             className="aw-text-link mr-3 text-[13px]"
@@ -311,7 +299,7 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
                     Prompts
                     <Tip text="How many of your prompts got an answer citing this link." />
                   </SortTh>
-                  <th className={auth ? "w-36" : "w-10"} aria-label="Actions" />
+                  <th className={auth ? "w-48" : "w-10"} aria-label="Actions" />
                 </tr>
               </thead>
               <tbody>
@@ -437,8 +425,8 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
               value={list}
               onChange={setList}
               options={[
-                { id: "sites", label: "By site" },
                 { id: "links", label: "By link" },
+                { id: "sites", label: "By site" },
               ]}
             />
           </div>
@@ -475,7 +463,7 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
         </SidePanel>
       ) : null}
 
-      {deep ? <LinkPanel sb={sb} brandId={brand.id} aiVisits={deep.type === "You" ? aiVisitsOf(deep.url) : null} u={deep} runs={current} filter={filter} topics={topics} days={days} onSeo={onSeo} onClose={() => setDeep(null)} /> : null}
+      {deep ? <LinkPanel sb={sb} brandId={brand.id} aiVisits={deep.type === "You" ? aiVisitsOf(deep.url) : null} u={deep} runs={current} filter={filter} topics={topics} days={days} onSeo={onSeo} onAdd={auth ? () => setAdding(linkTarget(deep)) : undefined} onClose={() => setDeep(null)} /> : null}
 
       <Card
         title="Executive summary"
@@ -556,7 +544,7 @@ function LinkRow({ u, n, note, indent = false, ai, onOpen, onAdd }: { u: UrlRow;
               onAdd();
             }}
           >
-            Add to list
+            Add to Outreach List
           </button>
         ) : null}
         <span aria-hidden="true">›</span>
@@ -578,10 +566,12 @@ function LinkPanel({
   topics,
   days,
   onSeo,
+  onAdd,
   onClose,
 }: {
   sb: SupabaseClient;
   brandId: string;
+  onAdd?: () => void;
   aiVisits: number | null;
   u: UrlRow;
   runs: Run[];
@@ -642,9 +632,16 @@ function LinkPanel({
           {u.url.replace(/^https?:\/\//, "")} ↗
         </a>
         <TypeTag type={u.type} />
-        <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm ml-auto" onClick={() => onSeo(u.url, "url")}>
-          Analyze SEO performance
-        </button>
+        <span className="ml-auto flex flex-wrap gap-2">
+          {onAdd && u.type !== "You" ? (
+            <button type="button" className="aw-btn aw-btn--accent aw-btn--sm" onClick={onAdd}>
+              Add to Outreach List
+            </button>
+          ) : null}
+          <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => onSeo(u.url, "url")}>
+            Analyze SEO performance
+          </button>
+        </span>
       </div>
 
       <div className="aw-stats aw-stats--tight" style={{ ["--cols" as string]: aiVisits === null ? 5 : 6 }}>
