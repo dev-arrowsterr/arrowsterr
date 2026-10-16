@@ -7,6 +7,7 @@ import { aiCites, REFRESH_DAYS, SECTIONS, type Research, type SectionId } from "
 import type { RunAuth } from "@/lib/runner";
 import { BrandLogo } from "./BrandLogo";
 import { post } from "./research/shared";
+import { SampleRows, ToolIntro } from "./ToolIntro";
 import { favicon, Thinking, Tip } from "./ui";
 
 const COLUMN: Record<SectionId, string> = { websites: "Website", press: "Publication", reddit: "Subreddit", social: "Account", youtube: "Channel", podcasts: "Podcast" };
@@ -21,7 +22,7 @@ const hostOf = (url: string | null) => {
 };
 
 /**
- * Industry Research: the websites, press, subreddits, social accounts, YouTube channels and podcasts
+ * Industry Research (Organic Research): the websites, press, subreddits, social accounts, YouTube channels and podcasts
  * the brand's audience uses (SparkToro), with how often AI cites each one.
  */
 export function IndustryResearch({ sb, brandId, domain, chats, auth }: { sb: SupabaseClient; brandId: string; domain: string; chats: Chat[]; auth: RunAuth | null }) {
@@ -77,127 +78,174 @@ export function IndustryResearch({ sb, brandId, domain, chats, auth }: { sb: Sup
   const showScore = rows.some((r) => r.score !== null);
   const showReach = rows.some((r) => r.reach !== null);
 
-  return (
-    <section className="aw-frame">
-      <div className="aw-frame__head flex-wrap justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <h2 className="aw-h4">Industry Research</h2>
-          {data?.audience ? (
-            <span className="aw-micro">
-              {data.audience}
-              {data.updated_at ? ` · updated ${date(data.updated_at)}` : ""}
-            </span>
-          ) : null}
-        </div>
-        {auth && data ? (
-          <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={start} disabled={busy || !canRefresh} title={data.status === "done" && !canRefresh ? `Refreshes once every ${REFRESH_DAYS} days` : undefined}>
-            {busy ? "Starting…" : "Refresh"}
-          </button>
-        ) : null}
+  const hasRows = Boolean(data && Object.keys(data.sections ?? {}).length);
+  const runButton = auth ? (
+    <button type="button" className="aw-btn aw-btn--accent" onClick={start} disabled={busy}>
+      {busy ? "Starting…" : "Run Industry Research"}
+    </button>
+  ) : null;
+
+  if (data === undefined) return <Thinking text="Loading Industry Research" />;
+  if (!data)
+    return (
+      <div className="flex flex-col gap-6">
+        <h1 className="aw-h2">Industry Research</h1>
+        {error ? <p className="aw-error max-w-2xl">{error}</p> : null}
+        <ToolIntro
+          title={`Where people who visit ${domain} spend their time`}
+          lead="The websites, press, subreddits, social accounts, YouTube channels and podcasts your audience uses, and which of them AI cites. Get mentioned there first."
+          action={runButton ?? <span className="aw-small">An editor can run Industry Research.</span>}
+          features={[
+            {
+              title: "Websites and press",
+              text: "The sites and publications your buyers read, with how often ChatGPT, Gemini and Google AI cite each one.",
+              visual: (
+                <SampleRows
+                  rows={[
+                    ["techcrunch.com", 42, "AI cites"],
+                    ["theverge.com", 31],
+                    ["wired.com", 18],
+                  ]}
+                />
+              ),
+            },
+            {
+              title: "Reddit",
+              text: "The subreddits your audience visits. Threads there feed AI answers.",
+              visual: (
+                <SampleRows
+                  rows={[
+                    ["r/SaaS", 38],
+                    ["r/marketing", 24],
+                    ["r/startups", 15],
+                  ]}
+                />
+              ),
+            },
+            { title: "Social accounts and YouTube", text: "The people and channels your audience follows, for partnerships and guest spots." },
+            { title: "Podcasts", text: "The shows your audience listens to, for guest pitches." },
+          ]}
+        />
       </div>
+    );
 
-      {error ? <p className="aw-error mx-5 mt-4">{error}</p> : null}
-
-      {data === undefined ? (
-        <p className="aw-small px-5 py-4">Loading…</p>
-      ) : !data ? (
-        <div className="flex flex-col items-start gap-3 px-5 py-5">
-          <p className="max-w-2xl text-[14px] text-body">The websites, press, subreddits, social accounts, YouTube channels and podcasts people who visit {domain} use, and which of them AI cites.</p>
+  return (
+    <div className="flex flex-col gap-6">
+      <h1 className="aw-h2">Industry Research</h1>
+      <section className="aw-frame">
+        <div className="aw-frame__head flex-wrap justify-between gap-3">
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <span className="aw-label">Audience</span>
+            <span className="text-[14px] text-ink">
+              {data.audience}
+              {data.updated_at ? <span className="text-muted"> · updated {date(data.updated_at)}</span> : null}
+            </span>
+          </div>
           {auth ? (
-            <button type="button" className="aw-btn aw-btn--accent" onClick={start} disabled={busy}>
-              {busy ? "Starting…" : "Run Industry Research"}
+            <button
+              type="button"
+              className="aw-btn aw-btn--secondary aw-btn--sm"
+              onClick={start}
+              disabled={busy || !canRefresh}
+              title={data.status === "done" && !canRefresh ? `Refreshes once every ${REFRESH_DAYS} days` : undefined}
+            >
+              {busy ? "Starting…" : "Refresh"}
             </button>
           ) : null}
         </div>
-      ) : data.status === "running" && !Object.keys(data.sections ?? {}).length ? (
-        <div className="p-5">
-          <Thinking text="Researching your audience. This takes a few minutes." />
-        </div>
-      ) : data.status === "failed" && !Object.keys(data.sections ?? {}).length ? (
-        <p className="aw-error mx-5 my-4">{data.error ?? "Industry Research didn't finish."}</p>
-      ) : (
-        <>
-          <div className="flex flex-wrap border-b border-rule" role="tablist" aria-label="Audience section">
-            {SECTIONS.map((s) => (
-              <button
-                key={s.id}
-                type="button"
-                role="tab"
-                aria-selected={tab === s.id}
-                onClick={() => setTab(s.id)}
-                className={`-mb-px flex items-center gap-2 border-b-2 px-4 py-3 text-[14px] ${tab === s.id ? "border-ink font-medium text-ink" : "border-transparent text-body hover:text-ink"}`}
-              >
-                {s.label}
-                <span className="aw-num text-[12px] text-muted">{data.sections?.[s.id]?.length ?? (data.status === "running" ? "…" : 0)}</span>
-              </button>
-            ))}
+
+        {error ? <p className="aw-error mx-5 mt-4">{error}</p> : null}
+
+        {data.status === "running" && !hasRows ? (
+          <div className="p-5">
+            <Thinking text="Researching your audience. This takes a few minutes." />
           </div>
-          {rows.length ? (
-            <div className="overflow-x-auto">
-              <table className="aw-table">
-                <thead>
-                  <tr>
-                    <th className="w-10">#</th>
-                    <th>{COLUMN[tab]}</th>
-                    {showScore ? (
-                      <th className="w-36">
-                        Audience
-                        <Tip text="How strongly this audience uses it, from SparkToro." />
-                      </th>
-                    ) : null}
-                    {showReach ? <th className="w-32">Reach</th> : null}
-                    {showCites ? (
-                      <th className="w-32">
-                        AI cites
-                        <Tip text="AI answers in this period that cite it." />
-                      </th>
-                    ) : null}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((r, i) => {
-                    const host = hostOf(r.url);
-                    const c = cites[i];
-                    return (
-                      <tr key={r.name}>
-                        <td className="aw-num text-muted">{i + 1}</td>
-                        <td>
-                          <span className="flex min-w-0 items-center gap-2.5">
-                            {host ? <BrandLogo src={favicon(host)} name={r.name} size={18} /> : null}
-                            {r.url ? (
-                              <a href={r.url} target="_blank" rel="noopener noreferrer" className="aw-text-link truncate font-medium">
-                                {r.name}
-                              </a>
-                            ) : (
-                              <span className="truncate font-medium text-ink">{r.name}</span>
-                            )}
-                          </span>
-                        </td>
-                        {showScore ? <td className="aw-num">{r.score ?? "–"}</td> : null}
-                        {showReach ? <td className="aw-num">{r.reach !== null ? compact(r.reach) : "–"}</td> : null}
-                        {showCites ? (
-                          <td className="aw-num">
-                            {c ? (
-                              <span className="flex items-center gap-2">
-                                {c}
-                                <span className="aw-status aw-status--ranked">AI cites</span>
-                              </span>
-                            ) : (
-                              "–"
-                            )}
-                          </td>
-                        ) : null}
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+        ) : data.status === "failed" && !hasRows ? (
+          <p className="aw-error mx-5 my-4">{data.error ?? "Industry Research didn't finish."}</p>
+        ) : (
+          <>
+            <div className="flex flex-wrap border-b border-rule" role="tablist" aria-label="Audience section">
+              {SECTIONS.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === s.id}
+                  onClick={() => setTab(s.id)}
+                  className={`-mb-px flex items-center gap-2 border-b-2 px-4 py-3 text-[14px] ${tab === s.id ? "border-ink font-medium text-ink" : "border-transparent text-body hover:text-ink"}`}
+                >
+                  {s.label}
+                  <span className="aw-num text-[12px] text-muted">{data.sections?.[s.id]?.length ?? (data.status === "running" ? "…" : 0)}</span>
+                </button>
+              ))}
             </div>
-          ) : (
-            <p className="aw-small px-5 py-4">{data.status === "running" ? "Still loading this section." : "SparkToro found nothing for this section."}</p>
-          )}
-        </>
-      )}
-    </section>
+            {rows.length ? (
+              <div className="overflow-x-auto">
+                <table className="aw-table">
+                  <thead>
+                    <tr>
+                      <th className="w-10">#</th>
+                      <th>{COLUMN[tab]}</th>
+                      {showScore ? (
+                        <th className="w-36">
+                          Audience
+                          <Tip text="How strongly this audience uses it, from SparkToro." />
+                        </th>
+                      ) : null}
+                      {showReach ? <th className="w-32">Reach</th> : null}
+                      {showCites ? (
+                        <th className="w-32">
+                          AI cites
+                          <Tip text="AI answers in this period that cite it." />
+                        </th>
+                      ) : null}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rows.map((r, i) => {
+                      const host = hostOf(r.url);
+                      const c = cites[i];
+                      return (
+                        <tr key={r.name}>
+                          <td className="aw-num text-muted">{i + 1}</td>
+                          <td>
+                            <span className="flex min-w-0 items-center gap-2.5">
+                              {host ? <BrandLogo src={favicon(host)} name={r.name} size={18} /> : null}
+                              {r.url ? (
+                                <a href={r.url} target="_blank" rel="noopener noreferrer" className="aw-text-link truncate font-medium">
+                                  {r.name}
+                                </a>
+                              ) : (
+                                <span className="truncate font-medium text-ink">{r.name}</span>
+                              )}
+                            </span>
+                          </td>
+                          {showScore ? <td className="aw-num">{r.score ?? "–"}</td> : null}
+                          {showReach ? <td className="aw-num">{r.reach !== null ? compact(r.reach) : "–"}</td> : null}
+                          {showCites ? (
+                            <td className="aw-num">
+                              {c ? (
+                                <span className="flex items-center gap-2">
+                                  {c}
+                                  <span className="aw-status aw-status--ranked">AI cites</span>
+                                </span>
+                              ) : (
+                                "–"
+                              )}
+                            </td>
+                          ) : null}
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="aw-small px-5 py-4">{data.status === "running" ? "Still loading this section." : "SparkToro found nothing for this section."}</p>
+            )}
+          </>
+        )}
+      </section>
+    </div>
   );
 }

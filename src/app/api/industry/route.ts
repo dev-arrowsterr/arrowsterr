@@ -1,4 +1,4 @@
-import { entitlement, requireActive, requireTrack } from "@/lib/entitlements";
+import { requireActive, requireTrack } from "@/lib/entitlements";
 import { REFRESH_DAYS } from "@/lib/industry";
 import { enqueue } from "@/lib/jobs";
 import { adminClient, requireRole } from "@/lib/serverAuth";
@@ -12,9 +12,8 @@ export async function POST(request: Request) {
   if (typeof body.brandId !== "string") return Response.json({ error: "Bad request" }, { status: 400 });
   const auth = await requireRole(request, body.workspaceId, "editor");
   if ("denied" in auth) return auth.denied;
-  const locked = (await requireTrack(body.workspaceId, "visibility")) ?? (await requireActive(body.workspaceId));
+  const locked = (await requireTrack(body.workspaceId, "seo")) ?? (await requireActive(body.workspaceId));
   if (locked) return locked;
-  if ((await entitlement(body.workspaceId)).limits.listenNames <= 0) return Response.json({ error: "Your plan doesn't include Industry Research.", limit: true }, { status: 429 });
   if (!sparktoroReady()) return Response.json({ error: NO_KEY }, { status: 500 });
   const db = adminClient();
   if (!db) return Response.json({ error: "Add SUPABASE_SECRET_KEY to the server's settings." }, { status: 500 });
