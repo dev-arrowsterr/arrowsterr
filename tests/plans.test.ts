@@ -12,11 +12,17 @@ test("every sold plan costs more and gives more prompts, more often checks or mo
   }
 });
 
-test("every plan opens both toolsets; every plan has more tasks than the one before; trials and cancels drop to Free", async () => {
+test("Starter opens the toolset picked, every other plan opens both; more tasks up the ladder; trials and cancels drop to Free", async () => {
   const { TASK_PACKS, effectivePlan, access } = await import("../src/lib/plans.ts");
   assert.equal(LADDER[0], "free");
-  for (const id of LADDER) assert.deepEqual(access(id, "seo"), { visibility: true, seo: true }, id);
-  assert.equal(limitsFor("foundation", { track: "seo" }).prompts, 50); // an old toolset pick no longer cuts anything
+  for (const id of LADDER.filter((x) => x !== "foundation")) assert.deepEqual(access(id, "seo"), { visibility: true, seo: true }, id);
+  assert.deepEqual(access("foundation", "seo"), { visibility: false, seo: true });
+  assert.deepEqual(access("foundation"), { visibility: true, seo: false });
+  const vis = limitsFor("foundation", { track: "visibility" });
+  const seo = limitsFor("foundation", { track: "seo" });
+  assert.deepEqual([vis.prompts, vis.tasksPerMonth, vis.listenBrands, vis.audiencePerMonth], [50, 300, 1, 0]);
+  assert.deepEqual([seo.prompts, seo.tasksPerMonth, seo.listenBrands, seo.audiencePerMonth], [0, 3000, 0, 1]);
+  assert.equal(dailyAnswers(seo), 0);
   for (let i = 1; i < LADDER.length; i++) assert.ok(PLANS[LADDER[i]].tasksPerMonth > PLANS[LADDER[i - 1]].tasksPerMonth, LADDER[i]);
   for (let i = 1; i < TASK_PACKS.length; i++) assert.ok(TASK_PACKS[i].price / TASK_PACKS[i].tasks < TASK_PACKS[i - 1].price / TASK_PACKS[i - 1].tasks);
   assert.deepEqual(effectivePlan("trial", "trialing", "2020-01-01T00:00:00Z"), { plan: "free", status: "active" });
@@ -40,14 +46,14 @@ test("Free forever: 10 weekly prompts on 2 AIs, 200 tasks, no Content Plan, list
   for (const id of LADDER.slice(1)) assert.equal(PLANS[id].engines, null, id);
 });
 
-test("pricing v4 prices, and brands capped below Agency", () => {
+test("pricing v5 prices, and brands capped below Agency", () => {
   assert.deepEqual(
     LADDER.map((id) => [PLANS[id].price, PLANS[id].annual]),
     [
       [0, 0],
-      [49, 42],
-      [149, 127],
-      [399, 339],
+      [39, 33],
+      [179, 152],
+      [499, 424],
       [1500, 1500],
     ],
   );
@@ -56,7 +62,8 @@ test("pricing v4 prices, and brands capped below Agency", () => {
   assert.equal(PLANS.foundation.writer, "none");
   assert.equal(PLANS.scale.writer, "full");
   const extra = limitsFor("foundation", { brands: 2 });
-  assert.deepEqual([extra.brands, extra.listenBrands, extra.audiencePerMonth], [5, 3, 3]);
+  assert.deepEqual([extra.brands, extra.listenBrands, extra.audiencePerMonth], [5, 3, 0]);
+  assert.equal(limitsFor("foundation", { brands: 2, track: "seo" }).audiencePerMonth, 3);
   assert.deepEqual([limitsFor("free", { brands: 1 }).listenBrands, limitsFor("free", { brands: 1 }).audiencePerMonth], [0, 0]);
 });
 
@@ -74,7 +81,7 @@ test("white label is only on Agency and Enterprise", () => {
 test("extras add to the plan, and the daily extra overrides the schedule", () => {
   const l = limitsFor("foundation", { prompts: 10, seats: 1, daily: true });
   assert.equal(l.prompts, 60);
-  assert.equal(l.seats, 4);
+  assert.equal(l.seats, 3);
   assert.equal(l.checkEvery, 1);
   assert.equal(limitsFor("trial").checkEvery, 1);
 });
@@ -110,7 +117,8 @@ test("billing months start on the plan's day, and short months use their last da
   assert.deepEqual(planOfLookup(lookupKey("scale", "year")), { plan: "scale", interval: "year" });
   assert.deepEqual(planOfLookup("arrowsterr_thrive_year"), { plan: "thrive", interval: "year" });
   assert.deepEqual(planOfLookup("arrowsterr_v3_scale_month"), { plan: "scale", interval: "month" });
-  assert.equal(lookupKey("agency", "month"), "arrowsterr_v4_agency_month");
+  assert.equal(lookupKey("agency", "month"), "arrowsterr_v5_agency_month");
+  assert.deepEqual(planOfLookup("arrowsterr_v4_foundation_year"), { plan: "foundation", interval: "year" });
   assert.equal(planOfLookup("arrowsterr_enterprise_month"), null);
 });
 

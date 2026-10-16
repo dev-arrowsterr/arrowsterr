@@ -14,11 +14,20 @@ const yes = (on: boolean) => (on ? "✓" : "–");
 const COLS = ["free", ...SELF_SERVE] as const;
 const per = (v: number, unit: string) => (v <= 0 ? "–" : v >= UNLIMITED ? "Unlimited" : `${v} ${v === 1 ? unit : `${unit}s`}`);
 
+const starter = (p: Plan) => p.id === "foundation";
+
 const ROWS: { group: string; rows: { label: React.ReactNode; value: (p: Plan) => string }[] }[] = [
+  {
+    group: "Toolsets",
+    rows: [
+      { label: "AI Visibility", value: (p) => (starter(p) ? "Pick one" : "✓") },
+      { label: "Organic Research", value: (p) => (starter(p) ? "Pick one" : "✓") },
+    ],
+  },
   {
     group: "AI visibility",
     rows: [
-      { label: "Prompts", value: (p) => n(p.prompts) },
+      { label: "Prompts", value: (p) => (starter(p) ? `${n(p.prompts)} on AI Visibility` : n(p.prompts)) },
       { label: "Checks", value: (p) => (p.checkEvery === 1 ? "Daily (Claude & Perplexity weekly)" : "Weekly") },
       {
         label: (
@@ -34,16 +43,16 @@ const ROWS: { group: string; rows: { label: React.ReactNode; value: (p: Plan) =>
       { label: "History", value: (p) => (p.historyDays >= 365 ? `${Math.round(p.historyDays / 365)} yr` : `${p.historyDays} days`) },
       { label: "On-demand checks a day", value: (p) => (p.checkNowPerDay ? n(p.checkNowPerDay) : "–") },
       { label: "Sources, Competitors & Prompts", value: () => "✓" },
-      { label: "Social listening", value: (p) => (p.listenBrands <= 0 ? "–" : `${per(p.listenBrands, "brand")}, ${p.listenNames} competitors each`) },
+      { label: "Social listening", value: (p) => (p.listenBrands <= 0 ? "–" : `${per(p.listenBrands, "brand")}, ${p.listenNames} competitors each${starter(p) ? " on AI Visibility" : ""}`) },
     ],
   },
   {
     group: "Organic Research",
     rows: [
-      { label: "Tasks a month", value: (p) => n(p.tasksPerMonth) },
+      { label: "Tasks a month", value: (p) => (starter(p) ? "3,000 on Organic Research" : n(p.tasksPerMonth)) },
       { label: "Task packs to top up", value: () => "✓" },
       { label: "Keyword, Domain & Competitive Analysis", value: () => "✓" },
-      { label: "Audience research", value: (p) => (p.audiencePerMonth <= 0 ? "–" : `${per(p.audiencePerMonth, "brand")} a month`) },
+      { label: "Audience research", value: (p) => (p.audiencePerMonth <= 0 ? "–" : `${per(p.audiencePerMonth, "brand")} a month${starter(p) ? " on Organic Research" : ""}`) },
       { label: "Revenue-driven Content Plan & briefs", value: (p) => yes(p.plansPerMonth > 0) },
       { label: "Agentic Writer & publishing", value: (p) => yes(p.writer === "full") },
     ],
@@ -77,7 +86,7 @@ const FAQ: { q: string; a: string }[] = [
   { q: "Weekly or daily checks?", a: "AI answers change all the time. Weekly checks show the trend. Daily checks catch a drop the day it happens, which matters when you are shipping content to win a prompt." },
   { q: "What is a task?", a: "Every action you run costs a few tasks: a keyword lookup is 10, a domain report is 10, an outreach email draft is 3, a content brief is 100 and a writer agent job is 15. Tracking your prompts never uses tasks." },
   { q: "What if I run out of tasks?", a: "Buy a task pack from 1,000 tasks for $15. Pack tasks never expire and are used after your monthly tasks." },
-  { q: "What does Starter include?", a: "Both toolsets: AI Visibility with 50 prompts checked daily on all six AIs, and Organic Research with 2,000 tasks a month and the Content Plan. The Agentic Writer starts on Pro." },
+  { q: "What does Starter include?", a: "One toolset of your choice. AI Visibility: 50 prompts checked daily on all six AIs, plus social listening. Organic Research: 3,000 tasks a month, audience research and the Content Plan. You can switch once a month. Pro and up include both, plus the Agentic Writer." },
   { q: "What happens after the free trial?", a: "The 7-day trial includes the Agentic Writer. When it ends, your workspace moves to Free. Nothing is deleted. No card is needed to start." },
   { q: "Can I change plans later?", a: "Any time. Upgrades start right away and you only pay the difference. Downgrades credit what is left of your month." },
 ];

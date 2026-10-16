@@ -37,7 +37,7 @@ export async function entitlement(workspaceId: string): Promise<Entitlement> {
     limits: limitsFor(now.plan, now.plan === w.plan ? (w.extras ?? {}) : {}),
     readOnly: now.status === "read_only",
     credits: Number(w.task_credits ?? 0),
-    open: access(),
+    open: access(now.plan, w.extras?.track),
     trialEndsAt: w.trial_ends_at,
     periodEnd: w.period_end,
     anchor: w.billing_anchor ?? null, // before 017_stripe.sql, months follow the calendar
