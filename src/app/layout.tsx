@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Geist, Geist_Mono, IBM_Plex_Mono, Inter } from "next/font/google";
+import { Funnel_Display, Geist, Geist_Mono, IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 
 // The Arro game's pixel-style text.
@@ -23,9 +23,9 @@ const geist = Geist({
   weight: ["300", "400", "500", "600", "700"],
 });
 
-// Page titles and big headings: a little personality.
-const display = Bricolage_Grotesque({
-  variable: "--font-bricolage",
+// Headings 18px and up (brand v5).
+const display = Funnel_Display({
+  variable: "--font-funnel",
   subsets: ["latin"],
   weight: ["500", "600", "700"],
 });
