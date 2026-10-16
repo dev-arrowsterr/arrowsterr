@@ -26,7 +26,7 @@ const hostOf = (url: string | null) => {
 };
 
 /**
- * Industry Research (Organic Research): the websites, press, subreddits, social accounts, YouTube channels and podcasts
+ * Audience research (Competitive Analysis › Audience): the websites, YouTube channels, podcasts, press, social accounts and subreddits
  * the brand's audience uses (SparkToro), with how often AI cites each one.
  */
 export function IndustryResearch({ sb, brandId, domain, chats, auth }: { sb: SupabaseClient; brandId: string; domain: string; chats: Chat[]; auth: RunAuth | null }) {
@@ -100,20 +100,19 @@ export function IndustryResearch({ sb, brandId, domain, chats, auth }: { sb: Sup
   const hasRows = Boolean(data && Object.keys(data.sections ?? {}).length);
   const runButton = auth ? (
     <button type="button" className="aw-btn aw-btn--accent" onClick={start} disabled={busy}>
-      {busy ? "Starting…" : "Run Industry Research"}
+      {busy ? "Starting…" : "Research my audience"}
     </button>
   ) : null;
 
-  if (data === undefined) return <Thinking text="Loading Industry Research" />;
+  if (data === undefined) return <Thinking text="Loading your audience research" />;
   if (!data)
     return (
       <div className="flex flex-col gap-6">
-        <h1 className="aw-h2">Industry Research</h1>
         {error ? <p className="aw-error max-w-2xl">{error}</p> : null}
         <ToolIntro
           title={`Where people who visit ${domain} spend their time`}
-          lead="The websites, press, subreddits, social accounts, YouTube channels and podcasts your audience uses, and which of them AI cites. Get mentioned there first."
-          action={runButton ?? <span className="aw-small">An editor can run Industry Research.</span>}
+          lead="The websites, YouTube channels, podcasts, press, social accounts and subreddits your audience uses, and which of them AI cites. Add the best ones to an outreach list."
+          action={runButton ?? <span className="aw-small">An editor can start this research.</span>}
           features={[
             {
               title: "Websites and press",
@@ -150,7 +149,6 @@ export function IndustryResearch({ sb, brandId, domain, chats, auth }: { sb: Sup
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="aw-h2">Industry Research</h1>
       <section className="aw-frame">
         <div className="aw-frame__head flex-wrap justify-between gap-3">
           <div className="flex min-w-0 flex-col gap-0.5">
@@ -180,7 +178,7 @@ export function IndustryResearch({ sb, brandId, domain, chats, auth }: { sb: Sup
             <Thinking text="Researching your audience. This takes a few minutes." />
           </div>
         ) : data.status === "failed" && !hasRows ? (
-          <p className="aw-error mx-5 my-4">{data.error ?? "Industry Research didn't finish."}</p>
+          <p className="aw-error mx-5 my-4">{data.error ?? "The audience research didn't finish."}</p>
         ) : (
           <>
             <div className="flex flex-wrap border-b border-rule" role="tablist" aria-label="Audience section">
@@ -220,7 +218,7 @@ export function IndustryResearch({ sb, brandId, domain, chats, auth }: { sb: Sup
               <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint bg-brand-pale px-5 py-2.5">
                 <span className="text-[14px] font-medium text-ink">{picked.size} selected</span>
                 <button type="button" className="aw-btn aw-btn--accent aw-btn--sm" onClick={() => setAdding(rows.filter((r) => picked.has(r.name)).map(toTarget))}>
-                  Add to list
+                  Add to Outreach List
                 </button>
                 <button type="button" className="aw-text-link text-[14px]" onClick={() => setPicked(new Set())}>
                   Clear

@@ -7,6 +7,7 @@ import type { RunAuth } from "@/lib/runner";
 import { BrandLogo } from "../BrandLogo";
 import { post } from "../research/shared";
 import { ToolIntro } from "../ToolIntro";
+import { CraftDialog, EmailsView } from "./Emails";
 import { favicon, Thinking } from "../ui";
 
 type List = OutreachList & { count: number };
@@ -20,7 +21,7 @@ const STATUS_CLASS: Record<TargetStatus, string> = {
 };
 const date = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
-/** Outreach › Lists: the lists of websites, press, podcasts and channels to contact, with their emails. */
+/** Outreach: lists on the left; on the right, the open list's emails and its targets. */
 export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClient; auth: RunAuth; canEdit: boolean; onResearch: () => void }) {
   const [lists, setLists] = useState<List[] | null>(null);
   const [open, setOpen] = useState<string | null>(null);
@@ -31,6 +32,9 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
   const [renaming, setRenaming] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: string; email: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // Emails first when the list has drafts, else its targets.
+  const [pickedView, setView] = useState<"targets" | "emails" | null>(null);
+  const [crafting, setCrafting] = useState<OutreachTarget[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -64,7 +68,7 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
   }, [loadTargets]);
 
   // While emails are being looked up, check back every 8 seconds.
-  const looking = (targets ?? []).some((t) => t.email_status === "pending");
+  const looking = (targets ?? []).some((t) => t.email_status === "pending" || t.draft_status === "pending");
   useEffect(() => {
     if (!looking) return;
     const t = setInterval(() => void loadTargets(), 8000);
@@ -90,7 +94,7 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
   if (!lists.length)
     return (
       <div className="flex flex-col gap-6">
-        <h1 className="aw-h2">Lists</h1>
+        <h1 className="aw-h2">Outreach</h1>
         {error ? <p className="aw-error max-w-2xl">{error}</p> : null}
         <ToolIntro
           title="Lists of people to reach out to"
@@ -98,7 +102,7 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
           action={
             <>
               <button type="button" className="aw-btn aw-btn--accent" onClick={onResearch}>
-                Find targets in Industry Research
+                Find targets in Competitive Analysis
               </button>
               {canEdit ? (
                 <form
@@ -117,7 +121,7 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
             </>
           }
           features={[
-            { title: "Add from your research", text: "Pick websites, press, podcasts and channels in Industry Research and add them in one click." },
+            { title: "Add from your research", text: "Add the pages AI cites from Sources, and the websites, YouTube channels and podcasts your audience uses from Competitive Analysis." },
             { title: "Emails found for you", text: "Arrowsterr reads each site's contact pages and each podcast's RSS feed. It never guesses an address." },
             { title: "Do not contact", text: "Opt-outs and bounces are never emailed again, on any list." },
             { title: "Ready for campaigns", text: "Each list becomes a campaign: drafts, slow random sending and an inbox for replies." },
@@ -131,12 +135,23 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
   const kinds = [...new Set((targets ?? []).map((t) => t.kind))];
   const withEmail = (targets ?? []).filter((t) => t.email).length;
   const missing = (targets ?? []).filter((t) => t.email_status === "not_found" && (t.kind === "website" || t.kind === "press" || t.kind === "podcast"));
+  const drafts = (targets ?? []).filter((t) => t.draft_status !== "none");
+  const view = pickedView ?? (drafts.length ? "emails" : "targets");
+  const writable = (targets ?? []).filter((t) => t.status !== "do_not_contact");
+  const startDrafts = async (purpose: string, note: string) => {
+    const ids = (crafting ?? []).map((t) => t.id);
+    await act({ action: "draft", targetIds: ids, purpose, note }, () => {
+      setCrafting(null);
+      setPicked(new Set());
+      setView("emails");
+    });
+  };
   const flip = (id: string) => setPicked(picked.has(id) ? new Set([...picked].filter((x) => x !== id)) : new Set([...picked, id]));
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="aw-h2 mb-0!">Lists</h1>
+        <h1 className="aw-h2 mb-0!">Outreach</h1>
         {canEdit ? (
           <form
             className="flex gap-2"
@@ -166,6 +181,7 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
                 setPicked(new Set());
                 setKind("");
                 setConfirmDelete(false);
+                setView(null);
               }}
               className={`aw-frame flex flex-col gap-1 px-4 py-3 text-left ${l.id === list.id ? "border-brand! bg-brand-pale" : "hover:bg-surface-2"}`}
             >
@@ -208,6 +224,14 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
                     Look again ({missing.length})
                   </button>
                 ) : null}
+                <button
+                  type="button"
+                  className="aw-btn aw-btn--accent aw-btn--sm"
+                  disabled={!writable.length}
+                  onClick={() => setCrafting(picked.size ? writable.filter((t) => picked.has(t.id)) : writable.filter((t) => t.draft_status === "none"))}
+                >
+                  Write emails
+                </button>
                 <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => setRenaming(list.name)}>
                   Rename
                 </button>
@@ -230,7 +254,43 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
             ) : null}
           </div>
 
-          {kinds.length > 1 ? (
+          <div role="tablist" aria-label="List view" className="flex border-b border-rule px-3">
+            {(
+              [
+                ["emails", `Emails ${drafts.length}`],
+                ["targets", `Targets ${targets?.length ?? 0}`],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={view === id}
+                onClick={() => setView(id)}
+                className={`-mb-px border-b-2 px-3 py-2.5 text-[14px] ${view === id ? "border-ink font-medium text-ink" : "border-transparent text-body hover:text-ink"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {view === "emails" ? (
+            <EmailsView
+              key={list.id}
+              targets={drafts}
+              canEdit={canEdit}
+              busy={busy}
+              onSave={(t, subject, body) => act({ action: "saveDraft", targetId: t.id, subject, body })}
+              onRewrite={(t) => void act({ action: "draft", targetIds: [t.id], purpose: t.draft_purpose, note: t.draft_note ?? "" })}
+              onSent={(t, undo) => void act({ action: "markSent", targetIds: [t.id], undo })}
+              onAddEmail={(t) => {
+                setView("targets");
+                setEditing({ id: t.id, email: "" });
+              }}
+            />
+          ) : null}
+
+          {view === "targets" && kinds.length > 1 ? (
             <div role="group" aria-label="Filter by type" className="flex flex-wrap gap-2 border-b border-rule-faint px-5 py-3">
               {(["", ...kinds] as (TargetKind | "")[]).map((k) => (
                 <button key={k || "all"} type="button" aria-pressed={kind === k} onClick={() => setKind(k)} className={`aw-chip aw-chip--btn ${kind === k ? "is-on" : ""}`}>
@@ -240,9 +300,12 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
             </div>
           ) : null}
 
-          {canEdit && picked.size ? (
+          {view === "targets" && canEdit && picked.size ? (
             <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint bg-brand-pale px-5 py-2.5">
               <span className="text-[14px] font-medium text-ink">{picked.size} selected</span>
+              <button type="button" className="aw-btn aw-btn--accent aw-btn--sm" disabled={busy} onClick={() => setCrafting(writable.filter((t) => picked.has(t.id)))}>
+                Write emails
+              </button>
               <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" disabled={busy} onClick={() => act({ action: "findEmails", targetIds: [...picked] }, () => setPicked(new Set()))}>
                 Find emails
               </button>
@@ -255,13 +318,13 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
             </div>
           ) : null}
 
-          {targets === null ? (
+          {view === "emails" ? null : targets === null ? (
             <p className="aw-small px-5 py-4">Loading…</p>
           ) : !shown.length ? (
             <p className="aw-small px-5 py-5">
-              This list is empty. Add websites, press, podcasts or channels from{" "}
+              This list is empty. Add cited pages from Sources, or websites, YouTube channels and podcasts from{" "}
               <button type="button" className="aw-text-link" onClick={onResearch}>
-                Industry Research
+                Competitive Analysis
               </button>
               .
             </p>
@@ -366,6 +429,7 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
           )}
         </section>
       </div>
+      {crafting ? <CraftDialog targets={crafting} busy={busy} onStart={(p, n) => void startDrafts(p, n)} onClose={() => setCrafting(null)} /> : null}
     </div>
   );
 }

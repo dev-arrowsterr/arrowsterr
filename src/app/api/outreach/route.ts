@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TargetKind } from "@/lib/contacts";
+import { getProfile } from "@/lib/db";
+import { purposeOf } from "@/lib/outreach";
 import { requireActive } from "@/lib/entitlements";
 import { enqueueMany } from "@/lib/jobs";
 import { adminClient, requireRole } from "@/lib/serverAuth";
@@ -114,6 +116,45 @@ export async function POST(request: Request) {
         if (error) throw new Error(error.message);
         await findEmails(db, ws, data ?? []);
         return Response.json({ queued: data?.length ?? 0 });
+      }
+      case "draft": {
+        const purpose = purposeOf(body.purpose);
+        const note = str(body.note, 600);
+        if (!purpose) return fail("Pick what the email is for.");
+        if (purpose.id === "custom" && !note) return fail("Say what the email should ask for.");
+        const ids = (Array.isArray(body.targetIds) ? body.targetIds : []).filter((x: unknown) => typeof x === "string").slice(0, 100);
+        // The writer signs with the person's name, else the start of their email.
+        const token = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? "";
+        const { data: who } = await auth.sb.auth.getUser(token);
+        const profile = who.user ? await getProfile(auth.sb, who.user.id).catch(() => null) : null;
+        const local = (who.user?.email ?? "").split("@")[0].split(/[._-]/)[0];
+        const sender = profile?.full_name?.trim() || (local ? local[0].toUpperCase() + local.slice(1) : "The team");
+        const { data, error } = await db
+          .from("outreach_targets")
+          .update({ draft_status: "pending", draft_purpose: purpose.id, draft_note: note || null, draft_error: null })
+          .in("id", ids)
+          .eq("workspace_id", ws)
+          .in("kind", purpose.kinds)
+          .neq("status", "do_not_contact")
+          .select("id");
+        if (error) throw new Error(error.message);
+        const now = Date.now();
+        await enqueueMany((data ?? []).map((t) => ({ kind: "draft" as const, workspace_id: ws, key: `draft:${t.id}:${now}`, payload: { targetId: t.id, sender } })));
+        return Response.json({ queued: data?.length ?? 0, skipped: ids.length - (data?.length ?? 0) });
+      }
+      case "saveDraft": {
+        const subject = str(body.subject, 200);
+        const text = typeof body.body === "string" ? body.body.slice(0, 5000) : "";
+        if (!subject || !text.trim()) return fail("The email needs a subject and some text.");
+        const { error } = await db.from("outreach_targets").update({ draft_subject: subject, draft_body: text, draft_status: "ready" }).eq("id", body.targetId).eq("workspace_id", ws);
+        if (error) throw new Error(error.message);
+        return Response.json({ ok: true });
+      }
+      case "markSent": {
+        const ids = (Array.isArray(body.targetIds) ? body.targetIds : []).filter((x: unknown) => typeof x === "string").slice(0, 500);
+        const { error } = await db.from("outreach_targets").update({ status: body.undo ? "drafted" : "sent", updated_at: new Date().toISOString() }).in("id", ids).eq("workspace_id", ws).neq("status", "do_not_contact");
+        if (error) throw new Error(error.message);
+        return Response.json({ ok: true });
       }
       default:
         return fail("Bad request");

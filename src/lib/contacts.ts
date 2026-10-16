@@ -116,3 +116,12 @@ export function sameShow(a: string, b: string): boolean {
   const [short, long] = x.length <= y.length ? [x, y] : [y, x];
   return short.length >= 6 && long.includes(short) && short.length / long.length >= 0.6;
 }
+
+/** The newest episodes in a podcast feed: titles and a short summary each, for writing a personal pitch. */
+export function rssEpisodes(xml: string, max = 3): { title: string; summary: string }[] {
+  const clean = (s: string) => s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&").replace(/&#39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ").trim();
+  return [...xml.matchAll(/<item\b[\s\S]*?<\/item>/gi)].slice(0, max).map((m) => ({
+    title: clean(m[0].match(/<title>([\s\S]*?)<\/title>/i)?.[1] ?? ""),
+    summary: clean(m[0].match(/<(?:itunes:summary|description)>([\s\S]*?)<\/(?:itunes:summary|description)>/i)?.[1] ?? "").slice(0, 300),
+  })).filter((e) => e.title);
+}

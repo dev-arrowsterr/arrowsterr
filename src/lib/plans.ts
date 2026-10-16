@@ -65,6 +65,7 @@ export const TASK_COST = {
   widget: 25, // an interactive element
   ai: 3, // a small AI job: ideas, a summary, prompt suggestions
   guideline: 10, // reading a site for its brand guideline
+  draft: 2, // one outreach email written for a target
 } as const;
 
 /** The two toolsets. Starter opens one of them; Pro and up open both. */

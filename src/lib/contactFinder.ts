@@ -50,17 +50,21 @@ async function forSite(url: string): Promise<Found | null> {
   return bestEmail(pages, site.domain);
 }
 
-async function forPodcast(name: string): Promise<Found | null> {
+/** A podcast's RSS feed, found by name through Apple's free podcast search. "" when there's no clear match. */
+export async function podcastFeed(name: string): Promise<string> {
   try {
     const res = await fetch(`https://itunes.apple.com/search?media=podcast&limit=5&term=${encodeURIComponent(name)}`, { signal: AbortSignal.timeout(12_000) });
     const data = (await res.json()) as { results?: { collectionName?: string; feedUrl?: string }[] };
     const show = (data.results ?? []).find((r) => r.feedUrl && r.collectionName && sameShow(r.collectionName, name));
-    if (!show?.feedUrl) return null;
-    const email = rssOwnerEmail(await page(show.feedUrl, "application/rss+xml,application/xml,text/xml,*/*"));
-    return email ? { email, source: "rss" } : null;
+    return show?.feedUrl ? await page(show.feedUrl, "application/rss+xml,application/xml,text/xml,*/*") : "";
   } catch {
-    return null;
+    return "";
   }
+}
+
+async function forPodcast(name: string): Promise<Found | null> {
+  const email = rssOwnerEmail(await podcastFeed(name));
+  return email ? { email, source: "rss" } : null;
 }
 
 type Target = { id: string; kind: TargetKind; name: string; url: string | null; email_status: string };
