@@ -1,7 +1,7 @@
 import "server-only";
 import { cached, DAY, readCache, writeCache } from "./cache";
 import { call } from "./dataforseo";
-import { BULK_LIMIT, clustersOf, MARKETS, type KeywordReport, type KwList, type KwSerp, type KwSummary } from "./research";
+import { broadWords, BULK_LIMIT, clustersOf, exactRegex, MARKETS, type KeywordReport, type KwList, type KwSerp, type KwSummary, type MatchType } from "./research";
 
 // One Semrush-style report for a keyword: numbers, volume by country, variations, questions,
 // clusters and Google's top 20 with traffic. Every piece is cached and shared across customers.
@@ -369,6 +369,48 @@ export async function bulkReport(keywords: string[], country: string) {
   return { rows: list.map((k) => map.get(k) ?? { keyword: k, volume: null, kd: null, cpc: null, competition: null, intent: null, otherIntents: [], trend: [], serp: [], results: null, core: null }), cost: Math.round(cost.total * 10000) / 10000 };
 }
 
-/** The full lists behind "View all". Cached 30 days. */
-export const allSuggestions = (keyword: string, country: string, questions: boolean, cost: { total: number }) =>
-  suggestions(keyword.trim().toLowerCase(), MARKETS[country] ?? MARKETS["United States"], questions, cost, 1000);
+/** DataForSEO filters joined with "and". */
+const all = (...f: unknown[][]) => f.flatMap((x, i) => (i ? ["and", x] : [x]));
+
+/**
+ * One match type of the full keyword list, up to 1,000 keywords by volume. Cached 30 days.
+ * Phrase uses keyword suggestions (the seed's words in order); exact narrows that to whole words;
+ * broad asks keyword ideas for every word in any order; related follows Google's related searches 3 steps out.
+ */
+async function matchList(keyword: string, m: Market, match: MatchType, questions: boolean, cost: { total: number }, limit = 1000): Promise<KwList> {
+  if (match === "phrase") return suggestions(keyword, m, questions, cost, limit);
+  const key = `kmt:${match}:${questions ? "q" : "a"}:${limit}:${m.location}:${m.language}:${keyword}`;
+  const hit = await readCache<KwList>(key, 30 * DAY);
+  if (hit) return hit;
+  const base = { location_code: m.location, language_code: m.language, limit, include_serp_info: true };
+  const ask: unknown[] = ["keyword", "regex", QUESTION];
+  let r: { total_count?: number; items?: unknown[] };
+  let items: Info[];
+  if (match === "related") {
+    r = await task(
+      "dataforseo_labs/google/related_keywords/live",
+      { ...base, keyword, depth: 3, order_by: ["keyword_data.keyword_info.search_volume,desc"], ...(questions ? { filters: ["keyword_data.keyword", "regex", QUESTION] } : {}) },
+      cost,
+    );
+    // Each item wraps its keyword; the seed itself comes back too and is left out.
+    items = ((r.items ?? []) as { keyword_data?: Info }[]).map((x) => x.keyword_data ?? {}).filter((x) => x.keyword && x.keyword.toLowerCase() !== keyword);
+  } else if (match === "exact") {
+    const exact: unknown[] = ["keyword", "regex", exactRegex(keyword)];
+    r = await task("dataforseo_labs/google/keyword_suggestions/live", { ...base, keyword, order_by: ["keyword_info.search_volume,desc"], filters: questions ? all(exact, ask) : exact }, cost);
+    items = (r.items ?? []) as Info[];
+  } else {
+    const words = broadWords(keyword).map((w) => ["keyword", "like", `%${w}%`]);
+    r = await task("dataforseo_labs/google/keyword_ideas/live", { ...base, keywords: [keyword], order_by: ["keyword_info.search_volume,desc"], filters: all(...words, ...(questions ? [ask] : [])) }, cost);
+    items = (r.items ?? []) as Info[];
+  }
+  const rows = [...new Map(items.map(toSummary).filter((x): x is KwSummary => Boolean(x)).map((x) => [x.keyword, x])).values()];
+  const data = { total: match === "related" ? rows.length : Number(r.total_count ?? rows.length), volume: rows.reduce((n, x) => n + (x.volume ?? 0), 0), rows };
+  // Broad match on a long seed can come back empty; phrase match is the closest next step.
+  if (!rows.length && match === "broad") return suggestions(keyword, m, questions, cost, limit);
+  if (rows.length) await writeCache(key, data);
+  return data;
+}
+
+/** The full lists behind "View all", by match type. Cached 30 days. */
+export const allSuggestions = (keyword: string, country: string, questions: boolean, cost: { total: number }, match: MatchType = "phrase") =>
+  matchList(keyword.trim().toLowerCase().replace(/\s+/g, " "), MARKETS[country] ?? MARKETS["United States"], match, questions, cost);
