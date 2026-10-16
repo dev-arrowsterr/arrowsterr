@@ -565,7 +565,7 @@ function AiCompetitors({ view, auth = null, initial, limit, onTopic }: Props) {
                   role="tab"
                   aria-selected={active}
                   onClick={() => setMetric(m.id)}
-                  className={`flex cursor-pointer flex-col gap-3 px-6 py-5 text-left transition-colors ${active ? "bg-brand-pale shadow-[inset_0_-3px_0_var(--aw-brand)]" : "bg-white hover:bg-surface-2 hover:shadow-[inset_0_-3px_0_var(--aw-rule)]"}`}
+                  className="aw-tile-pick flex flex-col gap-3 px-6 py-5"
                 >
                   {body}
                 </button>

@@ -399,6 +399,7 @@ export function TrafficPage({ view, auth, canEdit }: { view: View; auth: RunAuth
         <Ga4Connect status={status} canEdit={canEdit} call={call} onDone={check} />
         <span className="aw-label">Or use the Arrowsterr tracking script</span>
         <ToolIntro
+          eyebrow="Start here"
           title={`See every visit to ${brand.domain}, including visits from AI`}
           lead="Add one line of code to your site and see your visitors, top pages, sources, countries and devices. Arrowsterr also shows exactly how many people arrive from ChatGPT, Perplexity, Gemini and other AI assistants."
           action={

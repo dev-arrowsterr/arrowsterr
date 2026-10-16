@@ -1,11 +1,13 @@
 "use client";
 
-// The empty state of a tool before the first search: what the tool is for, the action, example searches
-// and the big picture of what it shows. Callers may still pass steps and FAQs; they are not shown.
+// The empty state of a tool before the first search, in the brand v5 layout: the Climb eyebrow with the tool's
+// name, a display title, one lead, example searches, then what the tool shows as frames with a sample view on
+// the flight grid. Callers may still pass steps and FAQs; they are not shown.
 
 export type Feature = { title: string; text: string; visual?: React.ReactNode };
 
 export function ToolIntro({
+  eyebrow,
   title,
   lead,
   examples,
@@ -13,6 +15,7 @@ export function ToolIntro({
   action,
   features,
 }: {
+  eyebrow?: string;
   title: string;
   lead?: string;
   examples?: string[];
@@ -23,29 +26,33 @@ export function ToolIntro({
   faqs?: { q: string; a: string }[];
 }) {
   return (
-    <section className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3">
-        <h2 className="aw-h3 mb-0! max-w-3xl">{title}</h2>
-        {lead ? <p className="max-w-3xl text-[16px] leading-relaxed text-body">{lead}</p> : null}
+    <section className="aw-intro">
+      <div className="aw-intro__head">
+        {eyebrow ? <span className="aw-eyebrow">{eyebrow}</span> : null}
+        <h2 className="aw-intro__title">{title}</h2>
+        {lead ? <p className="aw-intro__lead">{lead}</p> : null}
       </div>
       {action ? <div className="flex flex-wrap gap-2">{action}</div> : null}
       {examples?.length ? (
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[13px] text-muted">Try</span>
+        <div className="aw-intro__try">
+          <span>Try</span>
           {examples.map((x) => (
-            <button key={x} type="button" className="aw-chip" onClick={() => onExample?.(x)} disabled={!onExample}>
+            <button key={x} type="button" className="aw-try" onClick={() => onExample?.(x)} disabled={!onExample}>
               {x}
             </button>
           ))}
         </div>
       ) : null}
       {features?.length ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {features.map((f) => (
-            <div key={f.title} className="aw-frame flex flex-col gap-3 p-5">
-              {f.visual ? <div className="flex h-20 items-center">{f.visual}</div> : null}
-              <h3 className="aw-h4 mb-0!">{f.title}</h3>
-              <p className="text-[14px] text-body">{f.text}</p>
+        <div className="aw-intro__grid">
+          {features.map((f, i) => (
+            <div key={f.title} className="aw-intro__card">
+              {f.visual ? <div className="aw-intro__vis">{f.visual}</div> : null}
+              <div className="aw-intro__copy">
+                <span className="aw-intro__n">{String(i + 1).padStart(2, "0")}</span>
+                <h3 className="aw-intro__t">{f.title}</h3>
+                <p className="aw-intro__x">{f.text}</p>
+              </div>
             </div>
           ))}
         </div>
@@ -58,6 +65,9 @@ export function ToolIntro({
 
 const BRAND = "var(--aw-brand)";
 
+/** Older pastel fills mapped to the brand tints. */
+const TINTS: Record<string, string> = { "#FEF3C7": "var(--aw-spark-tint)", "#DBEAFE": "var(--aw-brand-pale)", "#DCFCE7": "var(--aw-pos-bg)" };
+
 /** A difficulty ring with a number and a word. */
 export function SampleRing({ value = 43, label = "Possible" }: { value?: number; label?: string }) {
   const r = 20;
@@ -67,7 +77,7 @@ export function SampleRing({ value = 43, label = "Possible" }: { value?: number;
       <span className="aw-num text-[26px] text-ink">{value}%</span>
       <svg width="50" height="50" viewBox="0 0 50 50">
         <circle cx="25" cy="25" r={r} fill="none" stroke="var(--aw-rule-faint)" strokeWidth="6" />
-        <circle cx="25" cy="25" r={r} fill="none" stroke="#F5B70A" strokeWidth="6" strokeDasharray={`${(value / 100) * c} ${c}`} transform="rotate(-90 25 25)" />
+        <circle cx="25" cy="25" r={r} fill="none" stroke="var(--aw-spark)" strokeWidth="6" strokeDasharray={`${(value / 100) * c} ${c}`} transform="rotate(-90 25 25)" />
       </svg>
       <span className="text-[12px] text-body">{label}</span>
     </span>
@@ -120,7 +130,7 @@ export function SampleChips({ items }: { items: [string, string][] }) {
   return (
     <span className="flex flex-wrap justify-center gap-1.5" aria-hidden="true">
       {items.map(([t, bg]) => (
-        <span key={t} className="px-2 py-1 text-[12px]" style={{ background: bg }}>
+        <span key={t} className="rounded-aw px-2 py-1 text-[12px] text-ink" style={{ background: TINTS[bg] ?? bg }}>
           {t}
         </span>
       ))}

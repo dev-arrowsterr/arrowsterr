@@ -55,10 +55,10 @@ export function Delta({ now, before, unit = "", lowerIsBetter = false, digits = 
   );
 }
 
-/** A row of buttons where one is picked. */
+/** A row of tabs where one is picked: text on a hairline, the picked one underlined in Signal Blue (brand v5). */
 export function Seg<T extends string>({ value, options, onChange, label }: { value: T; options: { id: T; label: React.ReactNode }[]; onChange: (v: T) => void; label: string }) {
   return (
-    <div role="tablist" aria-label={label} className="flex gap-1 rounded-aw border border-rule bg-surface-2 p-1">
+    <div role="tablist" aria-label={label} className="aw-tabs">
       {options.map((o) => (
         <button
           key={o.id}
@@ -66,7 +66,6 @@ export function Seg<T extends string>({ value, options, onChange, label }: { val
           role="tab"
           aria-selected={value === o.id}
           onClick={() => onChange(o.id)}
-          className={`flex items-center gap-1.5 px-3 py-1.5 text-[13px] font-medium ${value === o.id ? "bg-white text-ink shadow-aw-sm" : "text-muted hover:text-ink"}`}
         >
           {o.label}
         </button>

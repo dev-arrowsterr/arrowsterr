@@ -148,6 +148,7 @@ export function SocialPage({ view, sb, reader, auth }: { view: View; sb: Supabas
       <>
         {error ? <div className="aw-error max-w-2xl">{error}</div> : null}
         <ToolIntro
+          eyebrow="Start here"
           title="See what people say about you and your competitors"
           lead={`Arrowsterr reads Reddit, X, LinkedIn, YouTube, Hacker News and the news every day for ${brand.name} and the competitors AI names most next to you.`}
           action={

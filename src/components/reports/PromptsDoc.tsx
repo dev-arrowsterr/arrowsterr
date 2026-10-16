@@ -133,7 +133,7 @@ function PromptDive({ brand, prompt, topic, detail, onClose }: { brand: string; 
               role="tab"
               aria-selected={tab === e.engine}
               onClick={() => setTab(e.engine)}
-              className={`flex flex-col gap-2 p-3 text-left ${tab === e.engine ? "bg-brand-pale shadow-[inset_0_-2px_0_var(--aw-brand)]" : "bg-white hover:bg-surface-2"}`}
+              className="aw-tile-pick flex flex-col gap-2 p-3"
             >
               <EngineName engine={e.engine} size={14} />
               <span className="aw-num text-[24px] leading-none text-ink">{e.rank !== null ? `#${e.rank}` : "\u00a0"}</span>
