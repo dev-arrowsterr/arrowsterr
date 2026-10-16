@@ -119,7 +119,7 @@ function Price({ p, interval }: { p: Plan; interval: Interval }) {
     return (
       <div>
         <div className="flex items-end gap-1.5">
-          <span className="aw-num text-[44px] leading-none font-medium tracking-tight text-ink">$0</span>
+          <span className="aw-num text-[32px] leading-none font-semibold text-ink">$0</span>
           <span className="mb-1 text-[14px] text-muted">/mo</span>
         </div>
         <p className="aw-small mt-2">Free forever. No card.</p>
@@ -129,7 +129,7 @@ function Price({ p, interval }: { p: Plan; interval: Interval }) {
     <div>
       <div className="flex items-end gap-1.5">
         {interval === "year" ? <span className="aw-num mb-1.5 text-[18px] text-muted line-through">${p.price}</span> : null}
-        <span className="aw-num text-[44px] leading-none font-medium tracking-tight text-ink">${price}</span>
+        <span className="aw-num text-[32px] leading-none font-semibold text-ink">${price}</span>
         <span className="mb-1 text-[14px] text-muted">/mo</span>
       </div>
       <p className="aw-small mt-2">{interval === "year" ? `$${n(price * 12)} billed yearly` : "Billed monthly"}</p>
@@ -167,7 +167,7 @@ export function PlanGrid({ interval, current, track: start, action }: { interval
           return (
             <div
               key={id}
-              className={`relative flex flex-col rounded-[20px] border bg-white p-6 transition-shadow ${hot ? "border-brand shadow-[0_24px_60px_-24px_rgba(9,67,176,0.45)]" : mine ? "border-brand" : "border-rule shadow-aw-sm hover:shadow-aw-md"}`}
+              className={`relative flex flex-col rounded-aw-lg border bg-white p-5 ${hot || mine ? "border-brand" : "border-rule"}`}
             >
               {hot ? <span className="aw-badge absolute -top-3 left-6">Most popular</span> : null}
               <div className="flex items-center justify-between gap-2">
@@ -207,7 +207,7 @@ export function PlanGrid({ interval, current, track: start, action }: { interval
           );
         })}
       </div>
-      <div className="flex flex-col gap-5 rounded-[20px] bg-ink p-6 text-white sm:p-8 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-5 rounded-aw-lg bg-ink p-6 text-white sm:p-8 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-col gap-2">
           <span className="text-[13px] font-medium tracking-wide text-white/60 uppercase">Enterprise</span>
           <h3 className="text-[24px] font-medium text-white">{PLANS.enterprise.tagline}</h3>

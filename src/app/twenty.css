@@ -1,0 +1,247 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   ARROWSTERR PRODUCT UI · v7, in the style of Twenty
+   Inter at 13px, neutral greys, hairline rules, 4px controls and tags,
+   8px panels, no card shadows, 32px table rows. Arrowsterr Blue marks the
+   one thing to do next. Loaded after brand.css and brand-v2.css, so it wins.
+   Values follow Twenty's light theme (packages/twenty-ui/src/theme).
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ─────────────── Tokens ─────────────── */
+.aw {
+  --aw-font: var(--font-inter), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --aw-mono: var(--aw-font);
+  --aw-read: var(--aw-font);
+  --aw-display: var(--aw-font);
+
+  --aw-brand: #0943B0;
+  --aw-brand-deep: #06308A;
+  --aw-brand-lift: #2E6BE0;
+  --aw-brand-bg: #EDF1FD;
+  --aw-brand-pale: #F5F7FE;
+  --aw-brand-mist: #C5D0F5;
+
+  --aw-ink: #333333;
+  --aw-ink-hover: #1F1F1F;
+  --aw-body: #666666;
+  --aw-muted: #999999;
+  --aw-faint: #B3B3B3;
+
+  --aw-paper: #FCFCFC;
+  --aw-surface: #FFFFFF;
+  --aw-surface-2: #F5F5F5;
+  --aw-surface-3: #EBEBEB;
+  --aw-rule: #EBEBEB;
+  --aw-rule-faint: #F1F1F1;
+
+  --aw-pos: #1F7A4D;
+  --aw-pos-bg: #E6F6EC;
+  --aw-pos-rule: #BFE6D0;
+  --aw-neg: #C23B3B;
+  --aw-neg-bg: #FDECEC;
+  --aw-neg-rule: #F5C6C6;
+  --aw-warn: #A35C00;
+  --aw-warn-bg: #FFF2E0;
+  --aw-warn-rule: #F5D9A8;
+
+  --aw-r-xs: 2px;
+  --aw-r-sm: 4px;
+  --aw-r-md: 8px;
+  --aw-r-lg: 8px;
+  --aw-shadow-xs: none;
+  --aw-shadow-sm: none;
+  --aw-shadow-control: none;
+  --aw-shadow-md: 2px 4px 16px rgba(0, 0, 0, .16), 0 2px 4px rgba(0, 0, 0, .08);
+  --aw-shadow-lg: 2px 4px 16px rgba(0, 0, 0, .16), 0 2px 4px rgba(0, 0, 0, .08);
+  --aw-ring: 0 0 0 3px rgba(9, 67, 176, .14);
+
+  --aw-fs-ui: 13px;
+  --aw-fs-small: 12px;
+  --aw-fs-nano: 11px;
+
+  font-family: var(--aw-font);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--aw-ink);
+  background: var(--aw-paper);
+  -webkit-font-smoothing: antialiased;
+}
+html, body { background: #FCFCFC; }
+
+/* ─────────────── Type ─────────────── */
+.aw .aw-hero, .aw .aw-display, .aw .aw-h2, .aw .aw-h3, .aw .aw-h4, .aw .aw-onb__title { font-family: var(--aw-font) !important; letter-spacing: 0 !important; color: var(--aw-ink); }
+.aw .aw-h2 { font-size: 20px !important; line-height: 28px !important; font-weight: 600 !important; }
+.aw .aw-h3 { font-size: 16px !important; line-height: 24px !important; font-weight: 600 !important; }
+.aw .aw-h4 { font-size: 14px !important; line-height: 20px !important; font-weight: 600 !important; }
+.aw .aw-onb__title { font-size: 22px; line-height: 30px; font-weight: 600; }
+.aw .aw-small { font-size: 12px !important; color: var(--aw-muted) !important; }
+.aw .aw-label { font-size: 12px !important; font-weight: 500 !important; color: var(--aw-muted) !important; }
+.aw .aw-label--brand { color: var(--aw-brand) !important; }
+.aw .aw-num, .aw .aw-kpi__num, .aw .aw-stat__num, .aw .aw-mono { font-family: var(--aw-font) !important; font-variant-numeric: tabular-nums; letter-spacing: 0 !important; }
+.aw .aw-stat__num, .aw .aw-kpi__num { font-weight: 600 !important; }
+.aw .aw-lede { font-size: 14px !important; color: var(--aw-body) !important; }
+.aw strong, .aw b { font-weight: 600 !important; }
+.aw :focus-visible { outline: 2px solid rgba(9, 67, 176, .45); outline-offset: 1px; }
+
+/* Links */
+.aw a, .aw a:link, .aw a:visited { color: var(--aw-brand) !important; }
+.aw a:hover { color: var(--aw-brand-deep) !important; }
+.aw .aw-text-link, .aw a.aw-text-link:link, .aw a.aw-text-link:visited { color: var(--aw-brand) !important; font-weight: 500 !important; }
+
+/* ─────────────── Buttons: 28px, 4px corners, flat ─────────────── */
+.aw .aw-btn, .aw a.aw-btn, .aw a.aw-btn:link, .aw a.aw-btn:visited {
+  min-height: 28px; padding: 0 10px !important; gap: 6px; border-radius: 4px !important;
+  font-size: 13px !important; font-weight: 500 !important; box-shadow: none !important;
+  transition: background .1s ease, border-color .1s ease;
+}
+.aw .aw-btn--primary, .aw .aw-btn--accent, .aw a.aw-btn--primary:link, .aw a.aw-btn--accent:link { background: var(--aw-brand) !important; color: #fff !important; border: 1px solid var(--aw-brand) !important; }
+.aw .aw-btn--primary:hover, .aw .aw-btn--accent:hover { background: var(--aw-brand-deep) !important; border-color: var(--aw-brand-deep) !important; }
+.aw .aw-btn--secondary, .aw a.aw-btn--secondary:link { background: #fff !important; color: var(--aw-ink) !important; border: 1px solid var(--aw-rule) !important; box-shadow: none !important; }
+.aw .aw-btn--secondary:hover { background: var(--aw-surface-2) !important; }
+.aw .aw-btn--ghost { background: transparent !important; color: var(--aw-body) !important; border: 0 !important; }
+.aw .aw-btn--ghost:hover { background: rgba(0, 0, 0, .04) !important; color: var(--aw-ink) !important; }
+.aw .aw-btn--sm { min-height: 24px; padding: 0 8px !important; font-size: 13px !important; }
+.aw .aw-btn--lg { min-height: 32px; padding: 0 14px !important; font-size: 14px !important; }
+.aw .aw-btn--block { width: 100%; }
+.aw .aw-btn:disabled, .aw .aw-btn[aria-disabled="true"] { opacity: .45; }
+
+/* ─────────────── Panels: hairline border, 8px, no shadow ─────────────── */
+.aw .aw-frame, .aw .aw-stats, .aw .aw-table-wrap, .aw .aw-kpi, .aw .aw-card-stat {
+  background: #fff; border: 1px solid var(--aw-rule) !important; box-shadow: none !important; border-radius: 8px !important;
+}
+.aw .aw-frame--shadow { box-shadow: none !important; }
+.aw .aw-frame__head, .aw .aw-frame__foot { border-color: var(--aw-rule-faint) !important; }
+.aw .aw-frame__head { min-height: 40px; padding: 8px 12px !important; }
+.aw .aw-frame__body { padding: 16px !important; }
+.aw .aw-stat { padding: 12px 16px !important; }
+.aw .aw-stat__lab { font-size: 12px !important; font-weight: 500 !important; color: var(--aw-muted) !important; text-transform: none !important; letter-spacing: 0 !important; }
+.aw .aw-stat__num { font-size: 22px !important; line-height: 28px !important; color: var(--aw-ink) !important; }
+.aw .aw-callout { background: var(--aw-surface-2) !important; border: 0 !important; border-radius: 4px !important; color: var(--aw-body) !important; padding: 8px 12px !important; font-size: 13px !important; }
+.aw .aw-callout--warn { background: var(--aw-warn-bg) !important; color: var(--aw-warn) !important; }
+.aw .aw-error { background: var(--aw-neg-bg) !important; color: var(--aw-neg) !important; border: 0 !important; border-radius: 4px !important; padding: 8px 12px !important; font-size: 13px !important; }
+
+/* ─────────────── Tables: 32px rows, grid hairlines, grey headers ─────────────── */
+.aw .aw-table { font-size: 13px; border-collapse: collapse; }
+.aw .aw-table th, .aw .aw-sheet thead th {
+  height: 32px; padding: 0 8px !important; background: #fff !important;
+  font-size: 13px !important; font-weight: 500 !important; color: var(--aw-muted) !important;
+  border-bottom: 1px solid var(--aw-rule-faint) !important; border-right: 1px solid var(--aw-rule-faint) !important;
+  text-align: left; white-space: nowrap;
+}
+.aw .aw-table td {
+  height: 32px; padding: 6px 8px !important; font-size: 13px !important; color: var(--aw-ink) !important;
+  border-bottom: 1px solid var(--aw-rule-faint) !important; border-right: 1px solid var(--aw-rule-faint) !important;
+}
+.aw .aw-table th:last-child, .aw .aw-table td:last-child { border-right: 0 !important; }
+.aw .aw-table tbody tr:hover td { background: var(--aw-paper) !important; }
+.aw .aw-table tr.is-you td { background: var(--aw-brand-pale) !important; }
+.aw .aw-table td.aw-td-num, .aw .aw-table .aw-num { color: var(--aw-ink) !important; }
+.aw .aw-table--dense th, .aw .aw-table--compact th { height: 28px; font-size: 12px !important; }
+.aw .aw-table--dense td, .aw .aw-table--compact td { padding: 4px 8px !important; font-size: 13px !important; line-height: 1.4 !important; }
+.aw .bg-surface-2 > td { background: var(--aw-paper) !important; }
+.aw .aw-sheet thead th { border-right: 1px solid var(--aw-rule-faint) !important; }
+.aw .aw-sheet tbody td { border-color: var(--aw-rule-faint) !important; }
+.aw .aw-sheet td.aw-sheet__n, .aw .aw-sheet th.aw-sheet__n { background: var(--aw-paper); color: var(--aw-faint); }
+
+/* ─────────────── Tags: 20px, 4px corners ─────────────── */
+.aw .aw-chip, .aw .aw-status, .aw .aw-sbadge, .aw .aw-badge {
+  display: inline-flex; align-items: center; height: 20px; padding: 0 8px !important; border-radius: 4px !important; border: 0 !important;
+  font-family: var(--aw-font) !important; font-size: 12px !important; font-weight: 500 !important; letter-spacing: 0 !important; text-transform: none !important;
+  line-height: 20px !important; white-space: nowrap; background: var(--aw-surface-2); color: var(--aw-body) !important; box-shadow: none !important;
+}
+.aw .aw-chip--brand, .aw .aw-badge { background: var(--aw-brand-bg) !important; color: var(--aw-brand) !important; }
+.aw .aw-chip--btn { background: #fff; box-shadow: inset 0 0 0 1px var(--aw-rule) !important; }
+.aw .aw-chip--btn.is-on { background: var(--aw-ink); color: #fff !important; }
+.aw .aw-status--ranked, .aw .aw-sbadge--success { background: var(--aw-pos-bg) !important; color: var(--aw-pos) !important; }
+.aw .aw-status--missed, .aw .aw-sbadge--danger { background: var(--aw-neg-bg) !important; color: var(--aw-neg) !important; }
+.aw .aw-status--warn, .aw .aw-sbadge--warning { background: var(--aw-warn-bg) !important; color: var(--aw-warn) !important; }
+.aw .aw-status--pending { background: var(--aw-surface-2) !important; color: var(--aw-body) !important; }
+.aw .aw-tag { font-family: var(--aw-font) !important; text-transform: none !important; letter-spacing: 0 !important; font-size: 12px !important; border-radius: 4px; padding: 0 8px; height: 20px; }
+.aw .aw-pill { border-radius: 4px; font-size: 13px !important; padding: 2px 8px; }
+
+/* ─────────────── Forms: 32px, hairline, blue focus ─────────────── */
+.aw .aw-input, .aw .aw-textarea, .aw .aw-select {
+  min-height: 32px; padding: 5px 10px; border-radius: 4px !important; font-size: 13px !important; color: var(--aw-ink) !important;
+  background: #fff; border: 1px solid var(--aw-rule) !important; box-shadow: none !important;
+}
+.aw .aw-input::placeholder, .aw .aw-textarea::placeholder { color: var(--aw-faint); }
+.aw .aw-input:focus, .aw .aw-textarea:focus, .aw .aw-select:focus { border-color: var(--aw-brand) !important; box-shadow: var(--aw-ring) !important; outline: none; }
+.aw .aw-input--hero, .aw .aw-input--lg { min-height: 40px; font-size: 14px !important; }
+.aw .aw-dropdown { border-radius: 4px !important; }
+
+/* ─────────────── Switches ─────────────── */
+.aw .aw-seg { display: inline-flex; gap: 2px; padding: 2px; border: 0 !important; border-radius: 4px !important; background: #F1F1F1 !important; }
+.aw .aw-seg button { min-height: 24px; padding: 0 8px !important; border-radius: 3px !important; font-size: 13px !important; font-weight: 500 !important; color: var(--aw-body); box-shadow: none !important; }
+.aw .aw-seg button:hover { color: var(--aw-ink); }
+.aw .aw-seg button.is-on { background: #fff !important; color: var(--aw-ink) !important; box-shadow: 0 0 0 1px var(--aw-rule) !important; }
+.aw [role="tablist"].rounded-aw { border-radius: 4px; }
+
+/* ─────────────── Pop-ups ─────────────── */
+.aw .aw-pop { border-radius: 8px; border-color: var(--aw-rule); box-shadow: var(--aw-shadow-lg); padding: 4px 0; }
+.aw .aw-pop__item, .aw .aw-pop__opt { min-height: 32px; padding: 0 8px; border-radius: 4px; font-size: 13px; }
+.aw .aw-pop__item { margin: 0 4px; width: calc(100% - 8px); }
+.aw .aw-pop__item:hover, .aw .aw-pop__opt.is-hot { background: rgba(0, 0, 0, .04); }
+.aw .aw-pop__field, .aw .aw-pop__search { border-radius: 4px; height: 28px; }
+
+/* ─────────────── Progress and meters ─────────────── */
+.aw .aw-progress, .aw .aw-taskbar__track { height: 4px !important; border-radius: 2px !important; background: var(--aw-rule-faint) !important; }
+.aw .aw-progress__fill, .aw .aw-taskbar__fill { border-radius: 2px !important; background: var(--aw-brand) !important; }
+
+/* ─────────────── App shell ─────────────── */
+.aw .aw-sidebar { background: var(--aw-paper) !important; border: 0 !important; }
+.aw .aw-nav-section { display: flex; align-items: center; justify-content: space-between; width: 100%; height: 24px; margin-top: 12px; padding: 0 8px; border-radius: 4px; font-size: 12px; font-weight: 500; color: var(--aw-faint); text-align: left; }
+.aw .aw-nav-section:hover { color: var(--aw-body); }
+.aw .aw-nav-section__chev { opacity: 0; transition: opacity .1s ease, transform .1s ease; }
+.aw .aw-nav-section:hover .aw-nav-section__chev { opacity: 1; }
+.aw .aw-nav-link { display: flex; align-items: center; gap: 8px; width: 100%; height: 28px; padding: 0 8px; border-radius: 4px; font-size: 13px; font-weight: 500; color: var(--aw-body); text-align: left; transition: background .1s ease; }
+.aw .aw-nav-link:hover { background: rgba(0, 0, 0, .04); color: var(--aw-ink); }
+.aw .aw-nav-link.is-on { background: rgba(0, 0, 0, .04); color: var(--aw-ink); }
+.aw .aw-nav-link .aw-nav__icon { width: 16px; height: 16px; flex: none; color: var(--aw-body); stroke-width: 1.6; }
+.aw .aw-nav-link.is-on .aw-nav__icon { color: var(--aw-brand); }
+.aw .aw-ws-switch { display: flex; align-items: center; gap: 8px; min-width: 0; height: 32px; padding: 0 8px; border-radius: 4px; font-weight: 600; color: var(--aw-ink); text-align: left; }
+.aw .aw-ws-switch:hover { background: rgba(0, 0, 0, .04); }
+.aw .aw-nav-toggle { align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 4px; color: var(--aw-muted); }
+.aw .aw-nav-toggle:hover { background: rgba(0, 0, 0, .04); color: var(--aw-ink); }
+/* Older nav pieces (Settings tabs and module rows) in the same quiet style. */
+.aw .aw-mod, .aw .aw-mod--sm, .aw .aw-mod__item { min-height: 28px; padding: 4px 8px !important; border-radius: 4px !important; font-size: 13px !important; font-weight: 500 !important; color: var(--aw-body) !important; box-shadow: none !important; background: transparent; }
+.aw .aw-mod:hover, .aw .aw-mod__item:hover { background: rgba(0, 0, 0, .04) !important; color: var(--aw-ink) !important; }
+.aw .aw-mod.is-on, .aw .aw-mod--sm.is-on, .aw .aw-mod__item.is-on { background: rgba(0, 0, 0, .04) !important; color: var(--aw-ink) !important; box-shadow: none !important; }
+.aw .aw-mod__item.is-on::before { display: none !important; }
+.aw .aw-taskbar { display: flex; flex-direction: column; gap: 6px; width: 100%; padding: 8px; border: 0 !important; border-radius: 4px !important; background: transparent !important; box-shadow: none !important; text-align: left; }
+.aw .aw-taskbar:hover { background: rgba(0, 0, 0, .04) !important; }
+.aw .aw-rail { background: var(--aw-paper) !important; border: 0 !important; }
+.aw .aw-rail__btn { border-radius: 4px !important; }
+.aw .aw-rail__btn:hover, .aw .aw-rail__btn.is-on { background: rgba(0, 0, 0, .04) !important; }
+
+/* The page sits in a white panel beside the sidebar, like Twenty. */
+.aw .aw-page-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-height: 48px; padding: 8px 4px; }
+.aw .aw-page-title { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; font-weight: 500; color: var(--aw-ink); }
+.aw .aw-page-title__group { color: var(--aw-muted); }
+.aw .aw-page-title__sep { color: #D6D6D6; }
+.aw .aw-page-body { background: #fff; }
+@media (min-width: 768px) {
+  .aw .aw-page-body { border: 1px solid var(--aw-rule); border-radius: 8px; }
+}
+.aw .aw-ctl { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border: 1px solid var(--aw-rule); border-radius: 4px; background: #fff; font-size: 13px; font-weight: 500; color: var(--aw-ink); }
+.aw .aw-ctl:hover { background: var(--aw-surface-2); }
+.aw .aw-live { font-size: 12px; color: var(--aw-muted); }
+
+/* Read-only text styles inside the white panel keep Twenty's quiet greys. */
+.aw .md { font-size: 13px; line-height: 1.6; color: var(--aw-body); }
+
+/* Side panel: a record opens on the right, over the page, like Twenty. */
+.aw .aw-side-panel { display: flex; flex-direction: column; width: 100%; height: 100%; overflow-y: auto; background: #fff; box-shadow: var(--aw-shadow-lg); }
+@media (min-width: 768px) {
+  .aw .aw-side-panel { width: min(760px, calc(100% - 240px)); height: calc(100% - 16px); margin: 8px; border: 1px solid var(--aw-rule); border-radius: 8px; }
+}
+.aw .aw-side-panel__bar { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; padding: 0 8px 0 12px; border-bottom: 1px solid var(--aw-rule-faint); background: #fff; font-size: 13px; font-weight: 500; }
+.aw .aw-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 4px; color: var(--aw-muted); }
+.aw .aw-icon-btn:hover { background: rgba(0, 0, 0, .04); color: var(--aw-ink); }
+
+/* Views: table or board, like Twenty's view bar. */
+.aw .aw-viewbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; min-height: 40px; padding: 4px 8px; border-bottom: 1px solid var(--aw-rule-faint); }
+.aw .aw-viewbtn { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px; border-radius: 4px; font-size: 13px; font-weight: 500; color: var(--aw-body); }
+.aw .aw-viewbtn:hover, .aw .aw-viewbtn.is-on { background: rgba(0, 0, 0, .04); color: var(--aw-ink); }
+.aw .aw-board { display: flex; overflow-x: auto; min-height: 360px; }
+.aw .aw-board__col { flex: 0 0 248px; display: flex; flex-direction: column; gap: 8px; padding: 8px; border-right: 1px solid var(--aw-rule-faint); }
+.aw .aw-board__card { display: flex; flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--aw-rule); border-radius: 4px; background: #fff; text-align: left; font-size: 13px; }
+.aw .aw-board__card:hover { border-color: #D6D6D6; }

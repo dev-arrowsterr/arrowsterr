@@ -2,7 +2,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useState } from "react";
-import { KIND_LABEL, SOURCE_LABEL, STATUS_LABEL, type OutreachList, type OutreachTarget, type TargetKind, type TargetStatus } from "@/lib/outreach";
+import { KIND_LABEL, SOURCE_LABEL, STAGES, stageOf, STATUS_LABEL, type OutreachList, type OutreachTarget, type TargetKind, type TargetStatus } from "@/lib/outreach";
 import type { RunAuth } from "@/lib/runner";
 import { BrandLogo } from "../BrandLogo";
 import { post } from "../research/shared";
@@ -33,7 +33,7 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
   const [editing, setEditing] = useState<{ id: string; email: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   // Emails first when the list has drafts, else its targets.
-  const [pickedView, setView] = useState<"targets" | "emails" | null>(null);
+  const [pickedView, setView] = useState<"targets" | "emails" | "board" | null>(null);
   const [crafting, setCrafting] = useState<OutreachTarget[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -254,24 +254,21 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
             ) : null}
           </div>
 
-          <div role="tablist" aria-label="List view" className="flex border-b border-rule px-3">
-            {(
-              [
-                ["emails", `Emails ${drafts.length}`],
-                ["targets", `Targets ${targets?.length ?? 0}`],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                role="tab"
-                aria-selected={view === id}
-                onClick={() => setView(id)}
-                className={`-mb-px border-b-2 px-3 py-2.5 text-[14px] ${view === id ? "border-ink font-medium text-ink" : "border-transparent text-body hover:text-ink"}`}
-              >
-                {label}
-              </button>
-            ))}
+          <div role="tablist" aria-label="List view" className="aw-viewbar">
+            <span className="flex gap-0.5">
+              {(
+                [
+                  ["emails", "Emails", drafts.length],
+                  ["targets", "Targets", targets?.length ?? 0],
+                  ["board", "Board", null],
+                ] as const
+              ).map(([id, label, n]) => (
+                <button key={id} type="button" role="tab" aria-selected={view === id} onClick={() => setView(id)} className={`aw-viewbtn ${view === id ? "is-on" : ""}`}>
+                  {label}
+                  {n !== null ? <span className="text-faint">{n}</span> : null}
+                </button>
+              ))}
+            </span>
           </div>
 
           {view === "emails" ? (
@@ -289,6 +286,8 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
               }}
             />
           ) : null}
+
+          {view === "board" && targets ? <Board targets={targets} /> : null}
 
           {view === "targets" && kinds.length > 1 ? (
             <div role="group" aria-label="Filter by type" className="flex flex-wrap gap-2 border-b border-rule-faint px-5 py-3">
@@ -318,7 +317,7 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
             </div>
           ) : null}
 
-          {view === "emails" ? null : targets === null ? (
+          {view !== "targets" ? null : targets === null ? (
             <p className="aw-small px-5 py-4">Loading…</p>
           ) : !shown.length ? (
             <p className="aw-small px-5 py-5">
@@ -430,6 +429,33 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
         </section>
       </div>
       {crafting ? <CraftDialog targets={crafting} busy={busy} onStart={(p, n) => void startDrafts(p, n)} onClose={() => setCrafting(null)} /> : null}
+    </div>
+  );
+}
+
+/** The list as a board: one column per stage, a card per target. */
+function Board({ targets }: { targets: OutreachTarget[] }) {
+  const cols = STAGES.map((s) => ({ ...s, cards: targets.filter((t) => stageOf(t) === s.id) })).filter((c) => c.cards.length || c.id !== "stopped");
+  return (
+    <div className="aw-board" role="list" aria-label="Targets by stage">
+      {cols.map((c) => (
+        <div key={c.id} className="aw-board__col" role="listitem">
+          <div className="flex h-6 items-center justify-between gap-2">
+            <span className={`aw-status ${c.cls}`}>{c.label}</span>
+            <span className="text-[12px] text-faint">{c.cards.length}</span>
+          </div>
+          {c.cards.map((t) => (
+            <article key={t.id} className="aw-board__card">
+              <span className="truncate font-medium text-ink">{t.name}</span>
+              <span className="flex min-w-0 items-center gap-1.5 text-body">
+                <span className="aw-chip">{KIND_LABEL[t.kind]}</span>
+                <span className="truncate">{t.domain ?? ""}</span>
+              </span>
+              <span className={`truncate ${t.email ? "text-body" : "text-faint"}`}>{t.email ?? (t.email_status === "pending" ? "Looking for an email…" : "No email yet")}</span>
+            </article>
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

@@ -595,32 +595,37 @@ function Detail({
   const day = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-[rgba(16,20,30,0.45)] print:hidden" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex justify-end print:hidden" onClick={onClose}>
     <div
       role="dialog"
       aria-modal="true"
       aria-label={prompt}
       onClick={(e) => e.stopPropagation()}
-      className="flex h-full w-full max-w-[1320px] flex-col gap-6 overflow-y-auto bg-white px-6 py-6 shadow-aw-sm md:w-[calc(100%-240px)] md:px-10"
+      className="aw-side-panel"
     >
-      <div className="flex items-start justify-between gap-6">
-        <div className="flex min-w-0 flex-col gap-1.5">
-          <span className="aw-micro">
-            Prompt · {topic} · {last ? `Checked ${new Date(last).toLocaleString()}` : "Not checked yet"}
-          </span>
-          <h2 className="text-[24px] leading-snug font-medium text-ink">{prompt}</h2>
-        </div>
-        <span className="flex shrink-0 items-center gap-1">
-          <button type="button" aria-label="Previous prompt" title="Previous prompt (↑)" onClick={() => onStep(-1)} className="px-2 py-1 text-[18px] text-body hover:text-ink">
-            ↑
+      <div className="aw-side-panel__bar">
+        <span className="flex min-w-0 items-center gap-1.5 text-muted">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+            <path d="M4 5h16v11H8l-4 4z" />
+          </svg>
+          <span className="truncate">Prompt · {topic}</span>
+        </span>
+        <span className="flex shrink-0 items-center gap-0.5">
+          <button type="button" aria-label="Previous prompt" title="Previous prompt (↑)" onClick={() => onStep(-1)} className="aw-icon-btn">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg>
           </button>
-          <button type="button" aria-label="Next prompt" title="Next prompt (↓)" onClick={() => onStep(1)} className="px-2 py-1 text-[18px] text-body hover:text-ink">
-            ↓
+          <button type="button" aria-label="Next prompt" title="Next prompt (↓)" onClick={() => onStep(1)} className="aw-icon-btn">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
           </button>
-          <button type="button" aria-label="Close" title="Close (Esc)" onClick={onClose} className="px-2 py-1 text-[26px] leading-none text-body hover:text-ink">
-            ×
+          <button type="button" aria-label="Close" title="Close (Esc)" onClick={onClose} className="aw-icon-btn">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
           </button>
         </span>
+      </div>
+      <div className="flex flex-col gap-5 px-4 py-4 sm:px-5">
+      <div className="flex min-w-0 flex-col gap-1">
+        <h2 className="text-[16px] leading-snug font-semibold text-ink">{prompt}</h2>
+        <span className="aw-small">{last ? `Checked ${new Date(last).toLocaleString()}` : "Not checked yet"}</span>
       </div>
 
       {/* Rank on each model. Pick one to see its answer. */}
@@ -810,6 +815,7 @@ function Detail({
           </section>
         </>
       )}
+      </div>
     </div>
     </div>
   );

@@ -1,16 +1,17 @@
 @import "tailwindcss";
 @import "./brand.css";
 @import "./brand-v2.css";
+@import "./twenty.css";
 
 /* Point the brand font tokens at the fonts loaded by next/font in layout.tsx. */
 .aw {
-  --aw-font: var(--font-geist), "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --aw-mono: var(--font-geist-mono), "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --aw-font: var(--font-inter), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --aw-mono: var(--aw-font);
   --aw-read: var(--aw-font);
-  --aw-display: var(--font-bricolage), "Bricolage Grotesque", var(--aw-font);
+  --aw-display: var(--aw-font);
   /* Token names the app uses that the brand file names differently. */
   --aw-brand-fg: var(--aw-brand-lift);
-  --aw-brand-mist: #C9D5F0;
+  --aw-brand-mist: #C5D0F5;
   --aw-subtle: var(--aw-muted);
   --aw-label: var(--aw-ink);
   --aw-skel: var(--aw-rule-faint);
@@ -65,17 +66,18 @@
   --font-sans: var(--aw-font);
   --font-mono: var(--aw-mono);
 
+  /* Twenty: 4px controls, 8px panels, flat cards, one strong shadow for menus. */
   --radius-aw-sm: 4px;
-  --radius-aw: 6px;
+  --radius-aw: 4px;
   --radius-aw-lg: 8px;
-  --shadow-aw-sm: 0 1px 1px rgba(6, 27, 68, .06), 0 2px 5px rgba(60, 66, 87, .08);
-  --shadow-aw: 0 2px 4px rgba(15, 20, 31, .04), 0 6px 16px rgba(15, 20, 31, .07);
-  --shadow-aw-lg: 0 0 0 1px rgba(6, 27, 68, .06), 0 8px 24px rgba(6, 27, 68, .14);
+  --shadow-aw-sm: 0 0 #0000;
+  --shadow-aw: 0 0 #0000;
+  --shadow-aw-lg: 2px 4px 16px rgba(0, 0, 0, .16), 0 2px 4px rgba(0, 0, 0, .08);
 }
 
 html,
 body {
-  background: #f8f8ff; /* --aw-paper, set here because body sits outside .aw */
+  background: #fcfcfc; /* --aw-paper, set here because body sits outside .aw */
 }
 /* ─────────────── App additions built on the brand tokens ─────────────── */
 
@@ -239,8 +241,8 @@ body {
 @keyframes aw-spark { 0%, 100% { transform: scale(0.82) rotate(0deg); opacity: 0.55 } 50% { transform: scale(1) rotate(45deg); opacity: 1 } }
 @keyframes aw-sweep { from { left: -40% } to { left: 100% } }
 
-/* Page titles and big headings in Bricolage Grotesque. Small headings and everything else stay in Geist. */
-.aw .aw-hero, .aw .aw-display, .aw .aw-h2, .aw .aw-h3 { font-family: var(--aw-display) !important; letter-spacing: -0.015em !important; }
+/* Headings use the same Inter as everything else, like Twenty. */
+.aw .aw-hero, .aw .aw-display, .aw .aw-h2, .aw .aw-h3 { font-family: var(--aw-display) !important; letter-spacing: 0 !important; }
 
 /* Long reading: the document editor and the reports clients see. Same Geist as the rest of the app. */
 .aw .aw-docs,

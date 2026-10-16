@@ -44,7 +44,6 @@ import { AuthScreen, CodeCheck, NewPassword } from "./AuthScreen";
 import { WorkspaceAvatar } from "./WorkspaceAvatar";
 import { BrandLogo } from "./BrandLogo";
 import { CompetitorsPage } from "./CompetitorsPage";
-import { Logo } from "./Logo";
 import { MembersPage } from "./MembersPage";
 import { SettingsPage, SETTINGS_TABS, type SettingsTab } from "./SettingsPage";
 import { NotificationSettings, ProfileSettings, SecuritySettings } from "./AccountSettings";
@@ -667,9 +666,10 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           go(p);
         }}
       />
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col md:pr-3 md:pb-3">
         {!isSettings(page) && page !== "ask" ? (
           <TopBar
+            title={pageTitle(page)}
             visibility={VISIBILITY.includes(page)}
             brands={brands}
             active={active}
@@ -694,8 +694,12 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             progress={progress}
             hasRuns={brandRuns.length > 0}
           />
-        ) : null}
-        <main className={`min-w-0 flex-1 ${page === "ask" ? "" : "px-4 py-6 sm:px-6"}`}>
+        ) : (
+          <div className="aw-page-head print:hidden">
+            <PageTitle {...pageTitle(page)} />
+          </div>
+        )}
+        <main className={`aw-page-body min-w-0 flex-1 ${page === "ask" ? "overflow-hidden" : "px-4 py-5 sm:px-6"}`}>
           {limitHit || (plan && plan.status === "read_only" && page !== "billing") ? (
             <div className="aw-callout aw-callout--warn mb-5 flex flex-wrap items-center justify-between gap-3">
               <span>{limitHit?.error || (plan?.plan === "trial" ? "Your free trial has ended. Your data is safe." : "This workspace is read-only. Your data is safe.")}</span>
@@ -1069,15 +1073,13 @@ function Sidebar({
   onHide: () => void;
 }) {
   const { open, setOpen, ref } = useMenu();
-  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [closedGroups, setClosedGroups] = useState<Set<string>>(new Set());
+  // On a phone the pages fold into a menu button, so the page comes first.
+  const [menu, setMenu] = useState(false);
   const groups = NAV.filter((g) => !g.tester || email.toLowerCase() === WEBSITE_TESTER);
   // From the rail: show the full sidebar, with that module's pages open.
   const expand = (group?: string) => {
-    if (group) {
-      setOpenGroups((x) => new Set(x).add(group));
-      setClosedGroups((x) => new Set([...x].filter((n) => n !== group)));
-    }
+    if (group) setClosedGroups((x) => new Set([...x].filter((n) => n !== group)));
     onHide();
   };
   return (
@@ -1105,31 +1107,28 @@ function Sidebar({
         </button>
       </nav>
     ) : null}
-    <aside className={`aw-sidebar flex shrink-0 flex-col gap-5 border-b border-rule px-3 py-4 print:hidden md:sticky md:top-0 md:h-screen md:w-60 md:border-r md:border-b-0 ${hidden ? "md:hidden" : ""}`}>
-      <div className="flex items-center justify-between gap-2 px-2">
-        <Logo size="sm" />
+    <aside className={`aw-sidebar flex shrink-0 flex-col gap-0.5 px-2 py-3 print:hidden md:sticky md:top-0 md:h-screen md:w-56 md:overflow-y-auto ${hidden ? "md:hidden" : ""}`}>
+      <div className="relative flex items-center justify-between gap-1" ref={ref}>
+        <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="aw-ws-switch flex-1">
+          <WorkspaceAvatar ws={ws} brandLogo={brandLogo} />
+          <span className="min-w-0 truncate">{ws.name}</span>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true" className="shrink-0 text-faint">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
+        </button>
         <button type="button" onClick={onHide} className="aw-nav-toggle hidden md:inline-flex" aria-label="Hide sidebar" title={`Hide sidebar (${NAV_KEY})`}>
           <PanelIcon />
         </button>
-      </div>
-      <div className="relative" ref={ref}>
-        <button
-          type="button"
-          onClick={() => setOpen(!open)}
-          aria-expanded={open}
-          className="flex w-full items-center gap-2 rounded-aw border border-rule bg-white px-3 py-2 text-left shadow-aw-sm hover:border-brand-mist"
-        >
-          <WorkspaceAvatar ws={ws} brandLogo={brandLogo} />
-          <span className="min-w-0 flex-1">
-            <span className="block truncate text-[14px] font-medium text-ink">{ws.name}</span>
-            <span className="block text-[11px] text-muted">{ROLE_LABEL[ws.role]}</span>
-          </span>
-          <span aria-hidden="true" className="text-muted">
-            ▾
-          </span>
+        <button type="button" onClick={() => setMenu(!menu)} className="aw-nav-toggle inline-flex md:hidden" aria-label={menu ? "Close menu" : "Open menu"} aria-expanded={menu}>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+            {menu ? <path d="M6 6l12 12M18 6 6 18" /> : <path d="M4 7h16M4 12h16M4 17h16" />}
+          </svg>
         </button>
         {open ? (
-          <div className="absolute z-30 mt-2 w-full overflow-hidden rounded-aw border border-rule bg-white shadow-aw-lg">
+          <div className="absolute top-9 left-0 z-30 w-60 overflow-hidden rounded-aw-lg border border-rule bg-white p-1 shadow-aw-lg">
+            <div className="truncate px-2 py-1.5 text-[12px] text-muted" title={email}>
+              {email}
+            </div>
             {workspaces.map((w) => (
               <button
                 key={w.id}
@@ -1138,12 +1137,13 @@ function Sidebar({
                   onWorkspace(w.id);
                   setOpen(false);
                 }}
-                className={`flex w-full items-center justify-between gap-2 rounded-none px-3 py-2 text-left text-[14px] hover:bg-surface-2 ${w.id === ws.id ? "text-brand" : "text-ink"}`}
+                className={`flex h-8 w-full items-center justify-between gap-2 rounded-aw px-2 text-left text-[13px] hover:bg-surface-2 ${w.id === ws.id ? "font-medium text-ink" : "text-body"}`}
               >
                 <span className="truncate">{w.name}</span>
-                <span className="text-[12px] text-muted">{ROLE_LABEL[w.role]}</span>
+                <span className="text-[12px] text-faint">{ROLE_LABEL[w.role]}</span>
               </button>
             ))}
+            <div className="my-1 border-t border-rule-faint" />
             <button
               type="button"
               onClick={async () => {
@@ -1151,92 +1151,91 @@ function Sidebar({
                 if (name?.trim()) await onNewWorkspace(name.trim());
                 setOpen(false);
               }}
-              className="w-full rounded-none border-t border-rule-faint px-3 py-2 text-left text-[14px] font-medium text-brand hover:bg-surface-2"
+              className="flex h-8 w-full items-center rounded-aw px-2 text-left text-[13px] text-body hover:bg-surface-2"
             >
               + New workspace
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                clearStash();
+                sb.auth.signOut();
+              }}
+              className="flex h-8 w-full items-center rounded-aw px-2 text-left text-[13px] text-body hover:bg-surface-2"
+            >
+              Sign out
             </button>
           </div>
         ) : null}
       </div>
 
-      <nav className="flex flex-col gap-1" aria-label="Modules">
+      <nav className={`${menu ? "flex" : "hidden"} flex-col gap-0.5 md:flex`} aria-label="Modules">
         {groups.map((g) => {
-          const on = g.items.some((item) => page === item.id || item.also?.includes(page));
-          const shown = openGroups.has(g.group) || (on && !closedGroups.has(g.group));
+          const collapsed = closedGroups.has(g.group);
+          const track = trackOf(g.items[0].id);
+          const locked = Boolean(plan && track && !plan.open[track]);
           return (
-            <div key={g.group} className="flex flex-col">
+            <div key={g.group} className="flex flex-col gap-0.5">
               <button
                 type="button"
-                onClick={() => {
-                  if (g.items.length === 1) return onPage(g.items[0].id);
-                  // Modules open and close on their own: opening one leaves the others as they are.
-                  if (shown) {
-                    setOpenGroups((x) => new Set([...x].filter((n) => n !== g.group)));
-                    setClosedGroups((x) => new Set(x).add(g.group));
-                  } else {
-                    setOpenGroups((x) => new Set(x).add(g.group));
-                    setClosedGroups((x) => new Set([...x].filter((n) => n !== g.group)));
-                    if (!on) onPage(g.items[0].id);
-                  }
-                }}
-                aria-expanded={g.items.length > 1 ? shown : undefined}
-                className={`aw-mod ${on ? "is-on" : ""}`}
+                className="aw-nav-section"
+                aria-expanded={!collapsed}
+                onClick={() => setClosedGroups((x) => (x.has(g.group) ? new Set([...x].filter((n) => n !== g.group)) : new Set(x).add(g.group)))}
               >
-                <NavIcon name={g.icon} />
-                <span className="flex-1 text-left">{g.group}</span>
-                {plan && trackOf(g.items[0].id) && !plan.open[trackOf(g.items[0].id)!] ? (
-                  <span className="aw-chip px-1.5! py-0! text-[10px]!" title="On Pro">
-                    Pro
-                  </span>
-                ) : null}
-                {g.items.length > 1 ? (
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" className={`aw-mod__chev ${shown ? "rotate-90" : ""}`}>
-                    <path d="m9 6 6 6-6 6" />
-                  </svg>
-                ) : null}
+                <span className="flex items-center gap-1.5">
+                  {g.group}
+                  {locked ? (
+                    <span className="aw-chip h-4! px-1! text-[10px]!" title="On Pro">
+                      Pro
+                    </span>
+                  ) : null}
+                </span>
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" className={`aw-nav-section__chev ${collapsed ? "" : "rotate-90"}`}>
+                  <path d="m9 6 6 6-6 6" />
+                </svg>
               </button>
-              {shown && g.items.length > 1 ? (
-                <div className="aw-mod__items">
-                  {g.items.map((item) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      onClick={() => onPage(item.id)}
-                      aria-current={page === item.id || item.also?.includes(page) ? "page" : undefined}
-                      className={`aw-mod__item ${page === item.id || item.also?.includes(page) ? "is-on" : ""}`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
+              {!collapsed
+                ? g.items.map((item) => {
+                    const on = page === item.id || Boolean(item.also?.includes(page));
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setMenu(false);
+                          onPage(item.id);
+                        }}
+                        aria-current={on ? "page" : undefined} className={`aw-nav-link ${on ? "is-on" : ""}`}>
+                        <NavIcon name={item.icon} />
+                        <span className="min-w-0 truncate">{item.label}</span>
+                      </button>
+                    );
+                  })
+                : null}
             </div>
           );
         })}
       </nav>
 
-      <div className="mt-auto flex flex-col gap-2 border-t border-rule-faint px-2 pt-4">
+      <div className={`${menu ? "flex" : "hidden"} mt-auto flex-col gap-0.5 pt-4 md:flex`}>
         {plan ? <TaskBar plan={plan} onOpen={() => onPage("billing")} /> : null}
-        <div className="-mx-2 flex flex-col">
-          <button type="button" onClick={() => onPage("settings")} aria-current={isSettings(page) ? "page" : undefined} className={`aw-mod aw-mod--sm ${isSettings(page) ? "is-on" : ""}`}>
-            <NavIcon name="gear" />
-            Settings
-          </button>
-        </div>
         {plan && (plan.plan === "trial" || plan.status !== "active") ? (
-          <button type="button" onClick={() => onPage("billing")} className="flex items-center justify-between gap-2 rounded-aw border border-brand-mist bg-brand-pale px-3 py-2 text-left text-[13px] font-medium text-brand">
-            <span>{plan.status === "past_due" ? "Payment failed" : plan.trialLeft ? `${plan.trialLeft} days of trial left` : plan.plan === "trial" || plan.status !== "active" ? "Pick a plan" : plan.name}</span>
+          <button type="button" onClick={() => onPage("billing")} className="aw-nav-link text-brand!">
+            <span className="flex-1">{plan.status === "past_due" ? "Payment failed" : plan.trialLeft ? `${plan.trialLeft} days of trial left` : plan.plan === "trial" || plan.status !== "active" ? "Pick a plan" : plan.name}</span>
             <span aria-hidden="true">→</span>
           </button>
         ) : null}
-        <span className="truncate text-[12px] text-muted" title={email}>
-          {email}
-        </span>
-        <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm self-start" onClick={() => {
-            clearStash();
-            sb.auth.signOut();
-          }}>
-          Sign out
+        <button
+          type="button"
+          onClick={() => {
+            setMenu(false);
+            onPage("settings");
+          }}
+          aria-current={isSettings(page) ? "page" : undefined}
+          className={`aw-nav-link ${isSettings(page) ? "is-on" : ""}`}
+        >
+          <NavIcon name="gear" />
+          Settings
         </button>
       </div>
     </aside>
@@ -1248,8 +1247,35 @@ function Sidebar({
 
 const TIMEFRAMES = [7, 30, 60, 90];
 
-/** Brand, period, topic and model pickers, and the Run button. */
+/** Where a page sits in the sidebar, for the page header: "AI Visibility / Prompts". */
+function pageTitle(page: Page): { group: string; label: string } {
+  if (isSettings(page)) return { group: "Settings", label: page === "settings" ? "Workspace" : page === "billing" ? "Plans & billing" : page[0].toUpperCase() + page.slice(1) };
+  for (const g of NAV) {
+    const item = g.items.find((i) => i.id === page || i.also?.includes(page));
+    if (item) return { group: g.group, label: item.label };
+  }
+  return { group: "", label: "" };
+}
+
+function PageTitle({ group, label }: { group: string; label: string }) {
+  return (
+    <h1 className="aw-page-title">
+      {group && group !== label ? (
+        <>
+          <span className="aw-page-title__group">{group}</span>
+          <span className="aw-page-title__sep" aria-hidden="true">
+            /
+          </span>
+        </>
+      ) : null}
+      <span className="truncate">{label}</span>
+    </h1>
+  );
+}
+
+/** The page header: where you are, then the brand, period, topic and model pickers. */
 function TopBar(p: {
+  title: { group: string; label: string };
   visibility: boolean;
   brands: Brand[];
   active: Brand | undefined;
@@ -1270,28 +1296,30 @@ function TopBar(p: {
   hasRuns: boolean;
 }) {
   const { open, setOpen, ref } = useMenu();
-  const pill = "flex items-center gap-2 rounded-aw border border-rule bg-white px-3 py-1.5 text-[13px] font-medium text-ink shadow-aw-sm";
+  const pill = "aw-ctl";
   return (
-    <div className="sticky top-0 z-20 flex flex-wrap items-center gap-2 border-b border-rule bg-white/95 print:hidden px-4 py-2.5 backdrop-blur sm:px-6">
+    <div className="aw-page-head sticky top-0 z-20 bg-paper print:hidden">
+      <PageTitle {...p.title} />
+      <span className="mx-1 hidden h-4 w-px bg-rule sm:block" aria-hidden="true" />
       <div className="relative" ref={ref}>
         <button type="button" className={pill} onClick={() => setOpen(!open)} aria-expanded={open}>
-          {p.active ? <BrandLogo src={p.active.logo} name={p.active.name} size={18} /> : null}
+          {p.active ? <BrandLogo src={p.active.logo} name={p.active.name} size={16} /> : null}
           <span className="max-w-40 truncate">{p.active?.name ?? "Pick a brand"}</span>
-          <span aria-hidden="true" className="text-muted">
-            ▾
-          </span>
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true" className="text-faint">
+            <path d="m6 9 6 6 6-6" />
+          </svg>
         </button>
         {open ? (
-          <div className="absolute z-30 mt-2 w-64 overflow-hidden rounded-aw border border-rule bg-white shadow-aw-lg">
+          <div className="absolute z-30 mt-1 w-64 overflow-hidden rounded-aw-lg border border-rule bg-white p-1 shadow-aw-lg">
             {p.brands.map((b) => (
-              <div key={b.id} className="group flex items-center hover:bg-surface-2">
+              <div key={b.id} className="group flex items-center rounded-aw hover:bg-surface-2">
                 <button
                   type="button"
                   onClick={() => {
                     p.onSwitch(b.id);
                     setOpen(false);
                   }}
-                  className={`flex min-w-0 flex-1 items-center gap-2.5 rounded-none px-3 py-2 text-left text-[14px] ${b.id === p.active?.id ? "text-brand" : "text-ink"}`}
+                  className={`flex h-8 min-w-0 flex-1 items-center gap-2 rounded-aw px-2 text-left text-[13px] ${b.id === p.active?.id ? "font-medium text-ink" : "text-body"}`}
                 >
                   <BrandLogo src={b.logo} name={b.name} size={18} />
                   <span className="truncate">{b.name}</span>
@@ -1320,7 +1348,7 @@ function TopBar(p: {
                   setOpen(false);
                   p.onAdd();
                 }}
-                className="w-full rounded-none border-t border-rule-faint px-3 py-2 text-left text-[14px] font-medium text-brand hover:bg-surface-2"
+                className="mt-1 flex h-8 w-full items-center rounded-aw border-t border-rule-faint px-2 text-left text-[13px] text-body hover:bg-surface-2"
               >
                 + Add a brand
               </button>
@@ -1336,7 +1364,7 @@ function TopBar(p: {
         </>
       )}
       <div className="ml-auto flex items-center gap-3">
-        <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => window.print()} title="Download this page as a PDF">
+        <button type="button" className="aw-ctl" onClick={() => window.print()} title="Download this page as a PDF">
           Download PDF
         </button>
         {!p.visibility ? null : p.running ? (
