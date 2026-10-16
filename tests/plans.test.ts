@@ -20,8 +20,8 @@ test("Starter opens the toolset picked, every other plan opens both; more tasks 
   assert.deepEqual(access("foundation"), { visibility: true, seo: false });
   const vis = limitsFor("foundation", { track: "visibility" });
   const seo = limitsFor("foundation", { track: "seo" });
-  assert.deepEqual([vis.prompts, vis.tasksPerMonth, vis.listenBrands, vis.audiencePerMonth], [50, 300, 1, 0]);
-  assert.deepEqual([seo.prompts, seo.tasksPerMonth, seo.listenBrands, seo.audiencePerMonth], [0, 3000, 0, 1]);
+  assert.deepEqual([vis.prompts, vis.tasksPerMonth, vis.listenBrands], [50, 300, 1]);
+  assert.deepEqual([seo.prompts, seo.tasksPerMonth, seo.listenBrands], [0, 3000, 0]);
   assert.equal(dailyAnswers(seo), 0);
   for (let i = 1; i < LADDER.length; i++) assert.ok(PLANS[LADDER[i]].tasksPerMonth > PLANS[LADDER[i - 1]].tasksPerMonth, LADDER[i]);
   for (let i = 1; i < TASK_PACKS.length; i++) assert.ok(TASK_PACKS[i].price / TASK_PACKS[i].tasks < TASK_PACKS[i - 1].price / TASK_PACKS[i - 1].tasks);
@@ -31,7 +31,7 @@ test("Starter opens the toolset picked, every other plan opens both; more tasks 
   assert.deepEqual(effectivePlan("scale", "past_due", null), { plan: "scale", status: "past_due" });
 });
 
-test("Free forever: 10 weekly prompts on 2 AIs, 200 tasks, no Content Plan, listening or audience research", () => {
+test("Free forever: 10 weekly prompts on 2 AIs, 200 tasks, no Content Plan or listening", () => {
   const f = PLANS.free;
   assert.equal(f.price, 0);
   assert.equal(f.prompts, 10);
@@ -40,8 +40,7 @@ test("Free forever: 10 weekly prompts on 2 AIs, 200 tasks, no Content Plan, list
   assert.equal(f.tasksPerMonth, 200);
   assert.equal(f.brands, 1);
   assert.equal(f.plansPerMonth, 0);
-  assert.equal(f.listenBrands + f.listenNames + f.audiencePerMonth, 0);
-  assert.equal(f.outreachLists, 1);
+  assert.equal(f.listenBrands + f.listenNames, 0);
   assert.equal(dailyAnswers(f), 20);
   for (const id of LADDER.slice(1)) assert.equal(PLANS[id].engines, null, id);
 });
@@ -62,9 +61,8 @@ test("pricing v5 prices, and brands capped below Agency", () => {
   assert.equal(PLANS.foundation.writer, "none");
   assert.equal(PLANS.scale.writer, "full");
   const extra = limitsFor("foundation", { brands: 2 });
-  assert.deepEqual([extra.brands, extra.listenBrands, extra.audiencePerMonth], [5, 3, 0]);
-  assert.equal(limitsFor("foundation", { brands: 2, track: "seo" }).audiencePerMonth, 3);
-  assert.deepEqual([limitsFor("free", { brands: 1 }).listenBrands, limitsFor("free", { brands: 1 }).audiencePerMonth], [0, 0]);
+  assert.deepEqual([extra.brands, extra.listenBrands], [5, 3]);
+  assert.equal(limitsFor("free", { brands: 1 }).listenBrands, 0);
 });
 
 test("weekly plans check each brand once every 7 days", async () => {

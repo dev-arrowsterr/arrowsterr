@@ -29,8 +29,6 @@ import { BrandLogo } from "./BrandLogo";
 import { StopButton, stopped } from "./research/shared";
 import { ENGINE_LOGOS, EngineName } from "./Engines";
 import { Markdown } from "./Markdown";
-import type { NewTarget } from "@/lib/outreach";
-import { AddToList } from "./outreach/AddToList";
 import { Card, Empty, favicon, pct, Seg, SidePanel, sortRows, SortTh, Tip, TIPS, useSort } from "./ui";
 
 export const TYPE_COLORS: Record<SourceType, string> = {
@@ -96,8 +94,6 @@ const groupOf = (t: SourceType): Group => (t === "You" ? "owned" : t === "Review
 type AiPages = { pages: { path: string; visits: number; engines: Record<string, number> }[]; source?: string };
 
 const TOP = 20; // rows in the list before "Open all"
-/** A cited page as an outreach target: the page itself, so its author and site can be reached. */
-const linkTarget = (u: UrlRow): NewTarget => ({ kind: "website", name: pageTitle(u.title, u.url).slice(0, 200), url: u.url });
 
 export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseClient; view: View; auth: RunAuth | null; reader: RunAuth; onSeo: (target: string, scope: Scope) => void }) {
   const { brand, current, filter, days, topics, engines } = view;
@@ -109,8 +105,6 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [deep, setDeep] = useState<UrlRow | null>(null);
   const [full, setFull] = useState(false);
-  const [adding, setAdding] = useState<NewTarget | null>(null);
-  const [notice, setNotice] = useState("");
   // Visits from AI to each of your pages, from Google Analytics or the tracking script. Shared with the Traffic page.
   const [traffic, setTraffic] = useStash<Record<number, AiPages>>(`traffic:${brand.id}:data`, {});
   const aiPages = traffic[days] ?? null;
@@ -272,7 +266,7 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
                       {isOpen
                         ? [...g.pages]
                             .sort((x, y) => y.chats - x.chats)
-                            .map((u) => <LinkRow key={u.url} u={u} note={notes.get(pageKey(u.url))} indent onOpen={() => setDeep(u)} onAdd={auth ? () => setAdding(linkTarget(u)) : undefined} />)
+                            .map((u) => <LinkRow key={u.url} u={u} note={notes.get(pageKey(u.url))} indent onOpen={() => setDeep(u)} />)
                         : null}
                     </Fragment>
                   );
@@ -306,7 +300,7 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
                 {sortRows(links.slice(0, 300), linkSort, { title: (u) => pageTitle(u.title, u.url), used: (u) => u.used, chats: (u) => u.chats, prompts: (u) => u.prompts.length })
                   .slice(0, max)
                   .map((u, i) => (
-                  <LinkRow key={u.url} u={u} n={i + 1} note={notes.get(pageKey(u.url))} ai={aiPages && group === "owned" ? aiVisitsOf(u.url) : undefined} onOpen={() => setDeep(u)} onAdd={auth ? () => setAdding(linkTarget(u)) : undefined} />
+                  <LinkRow key={u.url} u={u} n={i + 1} note={notes.get(pageKey(u.url))} ai={aiPages && group === "owned" ? aiVisitsOf(u.url) : undefined} onOpen={() => setDeep(u)} />
                 ))}
               </tbody>
             </table>
@@ -441,21 +435,6 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
         </section>
       ) : null}
 
-      {notice ? <p className="aw-callout max-w-2xl">{notice}</p> : null}
-      {adding && auth ? (
-        <AddToList
-          sb={sb}
-          auth={auth}
-          brandId={brand.id}
-          items={[adding]}
-          from="sources"
-          onClose={() => setAdding(null)}
-          onDone={(message) => {
-            setAdding(null);
-            setNotice(message);
-          }}
-        />
-      ) : null}
 
       {full ? (
         <SidePanel title={focus ? `Links on ${focus}` : list === "sites" ? "Every site" : "Most cited links"} kicker={`${total} ${list === "sites" ? "sites" : "links"} · last ${days} days`} onClose={() => setFull(false)}>
@@ -463,7 +442,7 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
         </SidePanel>
       ) : null}
 
-      {deep ? <LinkPanel sb={sb} brandId={brand.id} aiVisits={deep.type === "You" ? aiVisitsOf(deep.url) : null} u={deep} runs={current} filter={filter} topics={topics} days={days} onSeo={onSeo} onAdd={auth ? () => setAdding(linkTarget(deep)) : undefined} onClose={() => setDeep(null)} /> : null}
+      {deep ? <LinkPanel sb={sb} brandId={brand.id} aiVisits={deep.type === "You" ? aiVisitsOf(deep.url) : null} u={deep} runs={current} filter={filter} topics={topics} days={days} onSeo={onSeo} onClose={() => setDeep(null)} /> : null}
 
       <Card
         title="Executive summary"
@@ -507,7 +486,7 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
 }
 
 /** One cited link: title, address, share of answers and prompts. */
-function LinkRow({ u, n, note, indent = false, ai, onOpen, onAdd }: { u: UrlRow; n?: number; note?: Insights["pages"][number]; indent?: boolean; ai?: number | null; onOpen: () => void; onAdd?: () => void }) {
+function LinkRow({ u, n, note, indent = false, ai, onOpen }: { u: UrlRow; n?: number; note?: Insights["pages"][number]; indent?: boolean; ai?: number | null; onOpen: () => void }) {
   return (
     <tr className={`cursor-pointer hover:bg-brand-pale ${indent ? "bg-paper" : ""}`} onClick={onOpen}>
       <td className="aw-num text-muted">{n ?? ""}</td>
@@ -535,18 +514,6 @@ function LinkRow({ u, n, note, indent = false, ai, onOpen, onAdd }: { u: UrlRow;
         {u.prompts.length}
       </td>
       <td className="text-right whitespace-nowrap text-muted">
-        {onAdd && u.type !== "You" ? (
-          <button
-            type="button"
-            className="aw-text-link mr-3 text-[13px]"
-            onClick={(e) => {
-              e.stopPropagation();
-              onAdd();
-            }}
-          >
-            Add to Outreach List
-          </button>
-        ) : null}
         <span aria-hidden="true">›</span>
       </td>
     </tr>
@@ -566,12 +533,10 @@ function LinkPanel({
   topics,
   days,
   onSeo,
-  onAdd,
   onClose,
 }: {
   sb: SupabaseClient;
   brandId: string;
-  onAdd?: () => void;
   aiVisits: number | null;
   u: UrlRow;
   runs: Run[];
@@ -633,11 +598,6 @@ function LinkPanel({
         </a>
         <TypeTag type={u.type} />
         <span className="ml-auto flex flex-wrap gap-2">
-          {onAdd && u.type !== "You" ? (
-            <button type="button" className="aw-btn aw-btn--accent aw-btn--sm" onClick={onAdd}>
-              Add to Outreach List
-            </button>
-          ) : null}
           <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => onSeo(u.url, "url")}>
             Analyze SEO performance
           </button>

@@ -1,6 +1,6 @@
 # Free tools
 
-Plan, not built yet. Twelve free tools on arrowsterr.com. Each one answers a real question in under a minute and ends with a button that starts the Free plan with the result already loaded. They all follow the AI Snapshot pattern that already works (`src/app/api/snapshot/route.ts`, `pages/snapshot` in the site repo).
+Plan, not built yet. Eleven free tools on arrowsterr.com. Each one answers a real question in under a minute and ends with a button that starts the Free plan with the result already loaded. They all follow the AI Snapshot pattern that already works (`src/app/api/snapshot/route.ts`, `pages/snapshot` in the site repo).
 
 ## Shared parts (build once)
 
@@ -22,7 +22,7 @@ Plan, not built yet. Twelve free tools on arrowsterr.com. Each one answers a rea
 **Site:**
 - One template, `inc/free-tool.php`: hero, form, result, how it works, FAQ, CTA.
 - One script, `assets/free-tools.js`, that draws each tool's result as text only, never HTML from the API.
-- A hub page at `/free-tools/` links all twelve. The header and footer get a "Free tools" link.
+- A hub page at `/free-tools/` links all of them. The header and footer get a "Free tools" link.
 - Each tool links to two related tools and to the matching blog posts.
 
 **Hand-off to the app:**
@@ -43,7 +43,6 @@ Plan, not built yet. Twelve free tools on arrowsterr.com. Each one answers a rea
 | 6 | AI Prompt Generator `/free-tools/ai-prompt-generator` | A website or a category | 20 questions buyers ask AI, in 4 groups: learning, comparing, choosing and asking about the brand. "Track these" leads to the app. | The snapshot's prompt step, made longer | ~$0.003 | 30 days |
 | 7 | AI Sources Finder `/free-tools/ai-sources-finder` | A topic or keyword | The sites ChatGPT, AI Overviews and AI Mode cite most for it, ranked, with the cited pages | Three answers through `answerChat()`, plus `cleanSources()` | ~$0.01 to $0.02 (check) | 7 days |
 | 8 | AI Share of Voice `/free-tools/ai-share-of-voice` | A domain and up to 3 competitors | Who AI names most across 5 buyer questions on ChatGPT and AI Mode, as a share bar | The snapshot pipeline with competitors added | ~$0.05 to $0.10 | 7 days |
-| 9 | Pitch Email Finder `/free-tools/pitch-email-finder` | A website or podcast name | The best pitch email found, where it was found, and whether its mail server works | The page reading in `contactFinder.ts`, split out of the job so it can run directly | $0 | 30 days |
 | 10 | AI Schema Generator `/free-tools/schema-generator` | Organization details and FAQs, or a domain to fill them in | Organization, FAQPage and Product JSON-LD to paste in, checked against schema.org types | Templates in the browser; Haiku only for "Fill from my site" | $0 to ~$0.003 | 30 days |
 | 11 | AI Readiness Audit `/free-tools/ai-readiness-audit` | A domain | A score from 0 to 100 and the top fixes: bots blocked, text only visible with JavaScript, missing headings and schema, no llms.txt, slow pages | `audit.ts` limited to 5 pages, plus Google PageSpeed Insights (free API key) | $0 | 1 day |
 | 12 | Domain Snapshot `/free-tools/domain-overview` | A domain and a country | Google traffic, keyword count, top 10 keywords and top 5 pages | `domainOverview()`, `rankedFor()` and `relevantPages()` | ~$0.03 (check) | 30 days |
@@ -55,13 +54,12 @@ The current AI Snapshot stays as it is. Tools 3, 7 and 8 link to it as "check yo
 - The first view shows the full answer. No email wall, so pages can rank and be shared.
 - Results are plain text. The site never inserts HTML that came from the API.
 - Each tool page targets one search ("ai crawler checker", "llms.txt generator", "chatgpt rank checker" and so on) with its own title, FAQ and schema.
-- **Pitch Email Finder** shows only public business addresses found on the site or in a podcast's feed. It never guesses, and it skips any address on our do-not-contact list.
 
 ## Build order
 
 | Phase | Tools | Why first |
 |---|---|---|
-| 1 | Shared parts, then 1, 4, 5, 9 | Cost almost nothing and reuse finished code. Each one leads to a paid toolset: AI Visibility (1, 4), Organic Research (5), Outreach (9). |
+| 1 | Shared parts, then 1, 4, 5 | Cost almost nothing and reuse finished code. Each one leads to a paid toolset: AI Visibility (1, 4), Organic Research (5). |
 | 2 | 3, 6, 2, 10 | Quick to build. Tools 3 and 6 hand prompts straight to the Free plan. |
 | 3 | 7, 8, 11, 12, the hub page and links from the blog | Use more paid calls, or need parts split out of the audit job. |
 
@@ -81,7 +79,7 @@ The caps per tool (`FREE_CAP_<TOOL>`) set the worst case. With the default caps 
 
 | Tool | Default cap a day | Most it can cost a day |
 |---|---|---|
-| 1 AI Crawler Checker, 9 Pitch Email Finder, 11 AI Readiness Audit | 1,000 each | $0 |
+| 1 AI Crawler Checker, 11 AI Readiness Audit | 1,000 each | $0 |
 | 2 llms.txt Generator | 300 | ~$3 |
 | 3 ChatGPT Rank Checker | 300 | ~$6 |
 | 4 AI Overview Checker | 1,000 | ~$4 |

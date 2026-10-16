@@ -28,8 +28,6 @@ export type Plan = {
   pageviewsPerMonth: number; // visits recorded by the tracking script, across all brands
   listenNames: number; // competitors each brand tracks in social listening, besides itself
   listenBrands: number; // brands with social listening, the first ones added
-  audiencePerMonth: number; // audience research reports (SparkToro) a month, one per brand
-  outreachLists: number;
   writer: "none" | "full";
   reports: Reports;
   alerts: boolean; // Slack, Zapier and the API
@@ -37,23 +35,23 @@ export type Plan = {
 };
 
 export const UNLIMITED = 1000;
-const base = { sso: false, engines: null, briefsPerMonth: 0, planMaxKeywords: 120, researchPerMonth: 0, aiPerMonth: 0, outreachLists: UNLIMITED } as const;
+const base = { sso: false, engines: null, briefsPerMonth: 0, planMaxKeywords: 120, researchPerMonth: 0, aiPerMonth: 0 } as const;
 
 // Pricing v5 (docs/pricing-v5.md). Prices are US dollars a month.
 export const PLANS: Record<PlanId, Plan> = {
   // Free forever: the 2 AIs buyers use most, checked weekly, plus a taste of Organic Research.
-  free: { ...base, id: "free", name: "Free", tagline: "Free forever. See where AI names you.", price: 0, annual: 0, prompts: 10, brands: 1, seats: 1, competitors: 3, historyDays: 30, checkEvery: 7, checkNowPerDay: 0, engines: ["ChatGPT", "AI Overview"], plansPerMonth: 0, planMaxKeywords: 30, tasksPerMonth: 200, pageviewsPerMonth: 10_000, listenNames: 0, listenBrands: 0, audiencePerMonth: 0, outreachLists: 1, writer: "none", reports: "basic", alerts: false },
+  free: { ...base, id: "free", name: "Free", tagline: "Free forever. See where AI names you.", price: 0, annual: 0, prompts: 10, brands: 1, seats: 1, competitors: 3, historyDays: 30, checkEvery: 7, checkNowPerDay: 0, engines: ["ChatGPT", "AI Overview"], plansPerMonth: 0, planMaxKeywords: 30, tasksPerMonth: 200, pageviewsPerMonth: 10_000, listenNames: 0, listenBrands: 0, writer: "none", reports: "basic", alerts: false },
   // Starter opens one toolset, picked by the customer: AI Visibility or Organic Research. See TRACKS and STARTER.
-  foundation: { ...base, id: "foundation", name: "Starter", tagline: "One toolset: AI Visibility or Organic Research", price: 39, annual: 33, prompts: 50, brands: 3, seats: 2, competitors: 10, historyDays: 180, checkEvery: 1, checkNowPerDay: 3, plansPerMonth: 1, tasksPerMonth: 3_000, pageviewsPerMonth: 25_000, listenNames: 3, listenBrands: 1, audiencePerMonth: 1, writer: "none", reports: "templates", alerts: false },
-  scale: { ...base, id: "scale", name: "Pro", tagline: "Both toolsets, with the Agentic Writer", price: 179, annual: 152, prompts: 150, brands: 10, seats: 5, competitors: 15, historyDays: 365, checkEvery: 1, checkNowPerDay: 10, plansPerMonth: 1, tasksPerMonth: 8_000, pageviewsPerMonth: 250_000, listenNames: 5, listenBrands: 3, audiencePerMonth: 3, writer: "full", reports: "templates", alerts: true },
-  agency: { ...base, id: "agency", name: "Agency", tagline: "Every client, your brand on the report", price: 499, annual: 424, prompts: 400, brands: UNLIMITED, seats: 15, competitors: 25, historyDays: 730, checkEvery: 1, checkNowPerDay: 30, plansPerMonth: 1, tasksPerMonth: 20_000, pageviewsPerMonth: 2_000_000, listenNames: 10, listenBrands: 10, audiencePerMonth: 10, writer: "full", reports: "whitelabel", alerts: true },
-  enterprise: { ...base, id: "enterprise", name: "Enterprise", tagline: "Custom volume, security and support", price: 1500, annual: 1500, prompts: 1000, brands: UNLIMITED, seats: UNLIMITED, competitors: 50, historyDays: 1095, checkEvery: 1, checkNowPerDay: 500, plansPerMonth: 1, tasksPerMonth: 150_000, pageviewsPerMonth: 10_000_000, listenNames: 25, listenBrands: UNLIMITED, audiencePerMonth: 25, writer: "full", reports: "whitelabel", alerts: true, sso: true },
+  foundation: { ...base, id: "foundation", name: "Starter", tagline: "One toolset: AI Visibility or Organic Research", price: 39, annual: 33, prompts: 50, brands: 3, seats: 2, competitors: 10, historyDays: 180, checkEvery: 1, checkNowPerDay: 3, plansPerMonth: 1, tasksPerMonth: 3_000, pageviewsPerMonth: 25_000, listenNames: 3, listenBrands: 1, writer: "none", reports: "templates", alerts: false },
+  scale: { ...base, id: "scale", name: "Pro", tagline: "Both toolsets, with the Agentic Writer", price: 179, annual: 152, prompts: 150, brands: 10, seats: 5, competitors: 15, historyDays: 365, checkEvery: 1, checkNowPerDay: 10, plansPerMonth: 1, tasksPerMonth: 8_000, pageviewsPerMonth: 250_000, listenNames: 5, listenBrands: 3, writer: "full", reports: "templates", alerts: true },
+  agency: { ...base, id: "agency", name: "Agency", tagline: "Every client, your brand on the report", price: 499, annual: 424, prompts: 400, brands: UNLIMITED, seats: 15, competitors: 25, historyDays: 730, checkEvery: 1, checkNowPerDay: 30, plansPerMonth: 1, tasksPerMonth: 20_000, pageviewsPerMonth: 2_000_000, listenNames: 10, listenBrands: 10, writer: "full", reports: "whitelabel", alerts: true },
+  enterprise: { ...base, id: "enterprise", name: "Enterprise", tagline: "Custom volume, security and support", price: 1500, annual: 1500, prompts: 1000, brands: UNLIMITED, seats: UNLIMITED, competitors: 50, historyDays: 1095, checkEvery: 1, checkNowPerDay: 500, plansPerMonth: 1, tasksPerMonth: 150_000, pageviewsPerMonth: 10_000_000, listenNames: 25, listenBrands: UNLIMITED, writer: "full", reports: "whitelabel", alerts: true, sso: true },
   // No longer sold. Workspaces that bought it keep it.
-  thrive: { ...base, id: "thrive", name: "Thrive", tagline: "", price: 149, annual: 127, prompts: 50, brands: UNLIMITED, seats: 5, competitors: 15, historyDays: 365, checkEvery: 1, checkNowPerDay: 10, plansPerMonth: 1, tasksPerMonth: 20_000, pageviewsPerMonth: 500_000, listenNames: 5, listenBrands: 3, audiencePerMonth: 3, writer: "full", reports: "templates", alerts: true },
+  thrive: { ...base, id: "thrive", name: "Thrive", tagline: "", price: 149, annual: 127, prompts: 50, brands: UNLIMITED, seats: 5, competitors: 15, historyDays: 365, checkEvery: 1, checkNowPerDay: 10, plansPerMonth: 1, tasksPerMonth: 20_000, pageviewsPerMonth: 500_000, listenNames: 5, listenBrands: 3, writer: "full", reports: "templates", alerts: true },
   // 7 days of Pro with fewer prompts. No card. Then the workspace moves to Free and keeps its data.
-  trial: { ...base, id: "trial", name: "Trial", tagline: "", price: 0, annual: 0, prompts: 25, brands: 3, seats: 3, competitors: 10, historyDays: 180, checkEvery: 1, checkNowPerDay: 5, plansPerMonth: 1, tasksPerMonth: 1_000, pageviewsPerMonth: 25_000, listenNames: 3, listenBrands: 1, audiencePerMonth: 1, writer: "full", reports: "templates", alerts: false },
+  trial: { ...base, id: "trial", name: "Trial", tagline: "", price: 0, annual: 0, prompts: 25, brands: 3, seats: 3, competitors: 10, historyDays: 180, checkEvery: 1, checkNowPerDay: 5, plansPerMonth: 1, tasksPerMonth: 1_000, pageviewsPerMonth: 25_000, listenNames: 3, listenBrands: 1, writer: "full", reports: "templates", alerts: false },
   // Workspaces made before billing existed keep what they had until they pick a plan.
-  legacy: { ...base, id: "legacy", name: "Early access", tagline: "", price: 0, annual: 0, prompts: 50, brands: UNLIMITED, seats: 15, competitors: 25, historyDays: 365, checkEvery: 1, checkNowPerDay: 50, plansPerMonth: 1, tasksPerMonth: 30_000, pageviewsPerMonth: 500_000, listenNames: 10, listenBrands: 10, audiencePerMonth: 3, writer: "full", reports: "whitelabel", alerts: true },
+  legacy: { ...base, id: "legacy", name: "Early access", tagline: "", price: 0, annual: 0, prompts: 50, brands: UNLIMITED, seats: 15, competitors: 25, historyDays: 365, checkEvery: 1, checkNowPerDay: 50, plansPerMonth: 1, tasksPerMonth: 30_000, pageviewsPerMonth: 500_000, listenNames: 10, listenBrands: 10, writer: "full", reports: "whitelabel", alerts: true },
 };
 
 /** What each action costs in tasks. About half a cent of our cost per task. Tracking prompts is never counted. */
@@ -70,18 +68,17 @@ export const TASK_COST = {
   widget: 25, // an interactive element
   ai: 3, // a small AI job: ideas, a summary, prompt suggestions
   guideline: 10, // reading a site for its brand guideline
-  draft: 3, // one outreach email written for a target (~$0.014 measured)
 } as const;
 
 /** The two toolsets. Starter opens one of them; Free, the trial and Pro and up open both. */
 export type Track = "visibility" | "seo";
 export const TRACKS: Record<Track, { label: string; short: string; text: string }> = {
   visibility: { label: "AI Visibility", short: "AI Visibility", text: "50 prompts checked daily across AI, competitors, sources, social listening and reports" },
-  seo: { label: "Organic Research", short: "Organic Research", text: "Keyword, domain and competitive research, audience research, Content Plan, briefs and the Editorial Calendar" },
+  seo: { label: "Organic Research", short: "Organic Research", text: "Keyword, domain and competitive research, Content Plan, briefs and the Editorial Calendar" },
 };
 /** Starter's limits for each toolset: the AI Visibility side tracks prompts, the Organic Research side gets the tasks. */
 const STARTER: Record<Track, Partial<Plan>> = {
-  visibility: { prompts: 50, tasksPerMonth: 300, audiencePerMonth: 0 },
+  visibility: { prompts: 50, tasksPerMonth: 300 },
   seo: { prompts: 0, checkNowPerDay: 0, tasksPerMonth: 3_000, listenNames: 0, listenBrands: 0 },
 };
 /** Which toolsets a plan opens. A Starter without a pick yet opens AI Visibility. */
@@ -119,9 +116,8 @@ export function limitsFor(plan: PlanId, extras: Extras = {}): Plan {
     ...p,
     prompts: p.prompts + (extras.prompts ?? 0),
     brands: p.brands + (extras.brands ?? 0),
-    // An extra brand comes with its social listening and audience research, on plans that have them.
+    // An extra brand comes with its social listening, on plans that have it.
     listenBrands: p.listenBrands > 0 ? p.listenBrands + (extras.brands ?? 0) : 0,
-    audiencePerMonth: p.audiencePerMonth > 0 ? p.audiencePerMonth + (extras.brands ?? 0) : 0,
     seats: p.seats + (extras.seats ?? 0),
     checkEvery: extras.daily ? 1 : p.checkEvery,
   };

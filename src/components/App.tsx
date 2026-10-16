@@ -39,7 +39,7 @@ import { splitPeriods, type Filter } from "@/lib/metrics";
 import type { View } from "@/lib/view";
 import { runAll, type RunAuth } from "@/lib/runner";
 import { getSupabase, type SupaConfig } from "@/lib/supa";
-import { clearStash, primeStash, putStash } from "@/lib/stash";
+import { clearStash, primeStash } from "@/lib/stash";
 import { AuthScreen, CodeCheck, NewPassword } from "./AuthScreen";
 import { WorkspaceAvatar } from "./WorkspaceAvatar";
 import { BrandLogo } from "./BrandLogo";
@@ -54,7 +54,6 @@ import { Onboarding, type Checking, type NewBrand, type Welcome } from "./Onboar
 import { PromptsPage } from "./PromptsPage";
 import { ResearchPage, type Tool } from "./research/ResearchPage";
 import type { SeoStart } from "./research/DomainResearch";
-import { ListsPage } from "./outreach/ListsPage";
 import { SourcesPage } from "./SourcesPage";
 import { TrafficPage } from "./TrafficPage";
 import { ReportsPage } from "./reports/ReportsPage";
@@ -62,7 +61,7 @@ import { VisitorsPage } from "./VisitorsPage";
 import { ZippiePage } from "./ZippiePage";
 
 export type { Brand } from "@/lib/db";
-type Page = "ask" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "gap" | "calendar" | "intel" | "lists" | "summary" | SettingsTab;
+type Page = "ask" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "gap" | "calendar" | "intel" | "summary" | SettingsTab;
 const RESEARCH: Page[] = ["keywords", "domain", "gap", "calendar", "intel"];
 /** Website analytics is still in testing: only this account sees it. */
 const WEBSITE_TESTER = "vincent@perceptric.com";
@@ -82,7 +81,6 @@ const SLUGS: Record<Page, string> = {
   gap: "/competitive-analysis",
   calendar: "/content-plan",
   intel: "/content-intelligence",
-  lists: "/outreach",
   summary: "/reports",
   profile: "/settings/profile",
   security: "/settings/security",
@@ -112,7 +110,6 @@ const ALIASES: Record<string, Page> = {
   "/calendar": "calendar",
   "/keyword-gap": "gap",
   "/industry-research": "gap",
-  "/outreach/lists": "lists",
   "/ai-gap": "gap",
   "/planner": "calendar",
   "/writer": "calendar",
@@ -834,17 +831,6 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
               }}
               onPlans={() => go("billing")}
             />
-          ) : page === "lists" ? (
-            <ListsPage
-              key={ws.id}
-              sb={sb}
-              auth={auth}
-              canEdit={canEdit}
-              onResearch={() => {
-                putStash("gap-tab", "audience");
-                go("gap");
-              }}
-            />
           ) : RESEARCH.includes(page) ? (
             <ResearchPage key={view.brand.id} sb={sb} auth={auth} view={view} canEdit={canEdit} tool={page as Tool} onTool={(t) => go(t)} seoStart={seoStart}
               refresh={{ paid: Boolean(plan && plan.plan !== "free" && plan.plan !== "trial"), onUpgrade: () => go("billing") }}
@@ -989,7 +975,6 @@ const NAV: { group: string; icon: string; tester?: boolean; items: { id: Page; l
       { id: "ask", label: "Zippie", icon: "spark" },
       { id: "calendar", label: "Content Plan", icon: "calendar" },
       { id: "intel", label: "Content Intelligence", icon: "trend" },
-      { id: "lists", label: "Outreach", icon: "send" },
     ],
   },
   {
