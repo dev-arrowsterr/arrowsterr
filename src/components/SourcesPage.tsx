@@ -29,6 +29,7 @@ import { BrandLogo } from "./BrandLogo";
 import { StopButton, stopped } from "./research/shared";
 import { ENGINE_LOGOS, EngineName } from "./Engines";
 import { Markdown } from "./Markdown";
+import { IndustryResearch } from "./IndustryResearch";
 import { Card, Empty, favicon, pct, Seg, SidePanel, sortRows, SortTh, Tip, TIPS, useSort } from "./ui";
 
 export const TYPE_COLORS: Record<SourceType, string> = {
@@ -93,6 +94,8 @@ const groupOf = (t: SourceType): Group => (t === "You" ? "owned" : t === "Review
 /** Owned, third-party and review sites the AI answers cite: the share of each, a map of the biggest, and every site and link. */
 type AiPages = { pages: { path: string; visits: number; engines: Record<string, number> }[]; source?: string };
 
+const TOP = 20; // rows in the list before "Open all"
+
 export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseClient; view: View; auth: RunAuth | null; reader: RunAuth; onSeo: (target: string, scope: Scope) => void }) {
   const { brand, current, filter, days, topics, engines } = view;
   const [group, setGroup] = useState<Group>("third");
@@ -102,6 +105,7 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
   const [linkSort, setLinkSort] = useSort("used");
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [deep, setDeep] = useState<UrlRow | null>(null);
+  const [full, setFull] = useState(false);
   // Visits from AI to each of your pages, from Google Analytics or the tracking script. Shared with the Traffic page.
   const [traffic, setTraffic] = useStash<Record<number, AiPages>>(`traffic:${brand.id}:data`, {});
   const aiPages = traffic[days] ?? null;
@@ -199,6 +203,109 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
   }
 
   const toggle = (set: Set<string>, key: string) => (set.has(key) ? new Set([...set].filter((x) => x !== key)) : new Set([...set, key]));
+  const total = list === "sites" ? sites.length : Math.min(links.length, 300);
+  /** The site or link table, with its first `max` rows. */
+  const table = (max: number) =>
+    list === "sites" ? (
+            <table className="aw-table">
+              <thead>
+                <tr>
+                  <th className="w-10">#</th>
+                  <SortTh id="domain" sort={sort} onSort={setSort} text>
+                    Site
+                  </SortTh>
+                  <SortTh id="used" sort={sort} onSort={setSort} className="w-32">
+                    Used
+                    <Tip text={TIPS.used} />
+                  </SortTh>
+                  <SortTh id="chats" sort={sort} onSort={setSort} className="w-32">
+                    Answers
+                    <Tip text={TIPS.answers} />
+                  </SortTh>
+                  <SortTh id="pages" sort={sort} onSort={setSort} className="w-28">
+                    Pages
+                    <Tip text={TIPS.pages} />
+                  </SortTh>
+                  <th className="w-40" aria-label="Actions" />
+                </tr>
+              </thead>
+              <tbody>
+                {sortRows(sites, sort, { domain: (g) => g.domain, used: (g) => g.used, chats: (g) => g.chats, pages: (g) => g.pages.length })
+                  .slice(0, max)
+                  .map((g, i) => {
+                  const isOpen = open.has(g.domain);
+                  return (
+                    <Fragment key={g.domain}>
+                      <tr className={`cursor-pointer ${g.type === "You" ? "is-you" : ""}`} onClick={() => setOpen(toggle(open, g.domain))} aria-expanded={isOpen}>
+                        <td className="aw-num text-muted">{i + 1}</td>
+                        <td>
+                          <span className="flex items-center gap-2.5">
+                            <BrandLogo src={favicon(g.domain)} name={g.domain} size={20} />
+                            <span className="font-medium text-ink">{g.domain}</span>
+                            {g.type === "Competitor" ? <TypeTag type="Competitor" /> : null}
+                          </span>
+                        </td>
+                        <td className="aw-num">{pct(g.used)}</td>
+                        <td className="aw-num">{g.chats}</td>
+                        <td className="aw-num">{g.pages.length}</td>
+                        <td className="text-right whitespace-nowrap">
+                          <button
+                            type="button"
+                            className="aw-text-link mr-3 text-[13px]"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onSeo(g.domain, "domain");
+                            }}
+                          >
+                            Analyze SEO
+                          </button>
+                          <span className="text-muted" aria-hidden="true">
+                            {isOpen ? "▴" : "▾"}
+                          </span>
+                        </td>
+                      </tr>
+                      {isOpen
+                        ? [...g.pages]
+                            .sort((x, y) => y.chats - x.chats)
+                            .map((u) => <LinkRow key={u.url} u={u} note={notes.get(pageKey(u.url))} indent onOpen={() => setDeep(u)} />)
+                        : null}
+                    </Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          ) : (
+            <table className="aw-table">
+              <thead>
+                <tr>
+                  <th className="w-10">#</th>
+                  <SortTh id="title" sort={linkSort} onSort={setLinkSort} text>
+                    Link
+                  </SortTh>
+                  <SortTh id="used" sort={linkSort} onSort={setLinkSort} className="w-32">
+                    Used
+                    <Tip text="Share of AI answers that cite this link." />
+                  </SortTh>
+                  <SortTh id="chats" sort={linkSort} onSort={setLinkSort} className="w-32">
+                    Answers
+                  </SortTh>
+                  {aiPages && group === "owned" ? <th className="w-28">AI visits</th> : null}
+                  <SortTh id="prompts" sort={linkSort} onSort={setLinkSort} className="w-28">
+                    Prompts
+                    <Tip text="How many of your prompts got an answer citing this link." />
+                  </SortTh>
+                  <th className="w-10" />
+                </tr>
+              </thead>
+              <tbody>
+                {sortRows(links.slice(0, 300), linkSort, { title: (u) => pageTitle(u.title, u.url), used: (u) => u.used, chats: (u) => u.chats, prompts: (u) => u.prompts.length })
+                  .slice(0, max)
+                  .map((u, i) => (
+                  <LinkRow key={u.url} u={u} n={i + 1} note={notes.get(pageKey(u.url))} ai={aiPages && group === "owned" ? aiVisitsOf(u.url) : undefined} onOpen={() => setDeep(u)} />
+                ))}
+              </tbody>
+            </table>
+          );
 
   return (
     <div className="flex flex-col gap-6">
@@ -307,7 +414,7 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
       {boxes.length ? (
         <section className="aw-frame">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-rule-faint px-5 py-3">
-            <span className="aw-label">{focus ? `Links on ${focus}` : list === "sites" ? "Every site" : "Most cited links"}</span>
+            <span className="aw-label">{focus ? `Links on ${focus}` : list === "sites" ? "Top sites" : "Most cited links"}</span>
             <Seg
               label="List"
               value={list}
@@ -318,103 +425,21 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
               ]}
             />
           </div>
-          {list === "sites" ? (
-            <table className="aw-table">
-              <thead>
-                <tr>
-                  <th className="w-10">#</th>
-                  <SortTh id="domain" sort={sort} onSort={setSort} text>
-                    Site
-                  </SortTh>
-                  <SortTh id="used" sort={sort} onSort={setSort} className="w-32">
-                    Used
-                    <Tip text={TIPS.used} />
-                  </SortTh>
-                  <SortTh id="chats" sort={sort} onSort={setSort} className="w-32">
-                    Answers
-                    <Tip text={TIPS.answers} />
-                  </SortTh>
-                  <SortTh id="pages" sort={sort} onSort={setSort} className="w-28">
-                    Pages
-                    <Tip text={TIPS.pages} />
-                  </SortTh>
-                  <th className="w-40" aria-label="Actions" />
-                </tr>
-              </thead>
-              <tbody>
-                {sortRows(sites, sort, { domain: (g) => g.domain, used: (g) => g.used, chats: (g) => g.chats, pages: (g) => g.pages.length }).map((g, i) => {
-                  const isOpen = open.has(g.domain);
-                  return (
-                    <Fragment key={g.domain}>
-                      <tr className={`cursor-pointer ${g.type === "You" ? "is-you" : ""}`} onClick={() => setOpen(toggle(open, g.domain))} aria-expanded={isOpen}>
-                        <td className="aw-num text-muted">{i + 1}</td>
-                        <td>
-                          <span className="flex items-center gap-2.5">
-                            <BrandLogo src={favicon(g.domain)} name={g.domain} size={20} />
-                            <span className="font-medium text-ink">{g.domain}</span>
-                            {g.type === "Competitor" ? <TypeTag type="Competitor" /> : null}
-                          </span>
-                        </td>
-                        <td className="aw-num">{pct(g.used)}</td>
-                        <td className="aw-num">{g.chats}</td>
-                        <td className="aw-num">{g.pages.length}</td>
-                        <td className="text-right whitespace-nowrap">
-                          <button
-                            type="button"
-                            className="aw-text-link mr-3 text-[13px]"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onSeo(g.domain, "domain");
-                            }}
-                          >
-                            Analyze SEO
-                          </button>
-                          <span className="text-muted" aria-hidden="true">
-                            {isOpen ? "▴" : "▾"}
-                          </span>
-                        </td>
-                      </tr>
-                      {isOpen
-                        ? [...g.pages]
-                            .sort((x, y) => y.chats - x.chats)
-                            .map((u) => <LinkRow key={u.url} u={u} note={notes.get(pageKey(u.url))} indent onOpen={() => setDeep(u)} />)
-                        : null}
-                    </Fragment>
-                  );
-                })}
-              </tbody>
-            </table>
-          ) : (
-            <table className="aw-table">
-              <thead>
-                <tr>
-                  <th className="w-10">#</th>
-                  <SortTh id="title" sort={linkSort} onSort={setLinkSort} text>
-                    Link
-                  </SortTh>
-                  <SortTh id="used" sort={linkSort} onSort={setLinkSort} className="w-32">
-                    Used
-                    <Tip text="Share of AI answers that cite this link." />
-                  </SortTh>
-                  <SortTh id="chats" sort={linkSort} onSort={setLinkSort} className="w-32">
-                    Answers
-                  </SortTh>
-                  {aiPages && group === "owned" ? <th className="w-28">AI visits</th> : null}
-                  <SortTh id="prompts" sort={linkSort} onSort={setLinkSort} className="w-28">
-                    Prompts
-                    <Tip text="How many of your prompts got an answer citing this link." />
-                  </SortTh>
-                  <th className="w-10" />
-                </tr>
-              </thead>
-              <tbody>
-                {sortRows(links.slice(0, 300), linkSort, { title: (u) => pageTitle(u.title, u.url), used: (u) => u.used, chats: (u) => u.chats, prompts: (u) => u.prompts.length }).map((u, i) => (
-                  <LinkRow key={u.url} u={u} n={i + 1} note={notes.get(pageKey(u.url))} ai={aiPages && group === "owned" ? aiVisitsOf(u.url) : undefined} onOpen={() => setDeep(u)} />
-                ))}
-              </tbody>
-            </table>
-          )}
+          {table(TOP)}
+          {total > TOP ? (
+            <div className="border-t border-rule-faint px-5 py-3">
+              <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => setFull(true)}>
+                Open all {total}
+              </button>
+            </div>
+          ) : null}
         </section>
+      ) : null}
+
+      {full ? (
+        <SidePanel title={focus ? `Links on ${focus}` : list === "sites" ? "Every site" : "Most cited links"} kicker={`${total} ${list === "sites" ? "sites" : "links"} · last ${days} days`} onClose={() => setFull(false)}>
+          <div className="border border-rule">{table(Infinity)}</div>
+        </SidePanel>
       ) : null}
 
       {deep ? <LinkPanel sb={sb} brandId={brand.id} aiVisits={deep.type === "You" ? aiVisitsOf(deep.url) : null} u={deep} runs={current} filter={filter} topics={topics} days={days} onSeo={onSeo} onClose={() => setDeep(null)} /> : null}
@@ -456,6 +481,8 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
           ) : null}
         </div>
       </Card>
+
+      <IndustryResearch sb={sb} brandId={brand.id} domain={brand.domain} chats={chats} auth={auth} />
     </div>
   );
 }
