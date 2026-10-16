@@ -2,7 +2,7 @@ import { answerChat } from "@/lib/answer";
 import { availableEngines, type Engine } from "@/lib/engines";
 import { requireRole, takeAnswer } from "@/lib/serverAuth";
 import { meteredRoute } from "@/lib/meter";
-import { requireActive } from "@/lib/entitlements";
+import { entitlement, requireActive } from "@/lib/entitlements";
 
 // One chat: ask one engine one prompt, then pull out the brands it named.
 async function handle(request: Request) {
@@ -19,6 +19,8 @@ async function handle(request: Request) {
   if ("denied" in auth) return auth.denied;
   const stopped = await requireActive(body.workspaceId);
   if (stopped) return stopped;
+  const allowed = (await entitlement(body.workspaceId)).limits.engines;
+  if (allowed && !allowed.includes(engine)) return Response.json({ error: `${engine} checks start on Starter.`, limit: true, boost: "foundation" }, { status: 429 });
   const limited = await takeAnswer(auth.sb, body.workspaceId);
   if (limited) return limited;
 

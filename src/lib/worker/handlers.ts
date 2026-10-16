@@ -62,7 +62,8 @@ export async function schedule(db: SupabaseClient, job: Job) {
     // Weekly plans check each brand on its own day of the week, so the load stays even.
     if (!checkDue(seed(b.id), e.limits.checkEvery)) continue;
     // Claude and Perplexity answer through their own paid APIs, so they are checked once a week, on the brand's own day.
-    const list = engines.filter((e) => !WEEKLY_ENGINES.includes(e) || checkDue(seed(b.id), 7));
+    const list = engines.filter((en) => (!WEEKLY_ENGINES.includes(en) || checkDue(seed(b.id), 7)) && (!e.limits.engines || e.limits.engines.includes(en)));
+    if (!list.length) continue;
     const { data: run, error: err } = await db
       .from("runs")
       .insert({ workspace_id: b.workspace_id, brand_id: b.id, source: "daily", status: "running", engines: list, prompts, chats: [], expected: list.length * prompts.length })

@@ -12,22 +12,52 @@ test("every sold plan costs more and gives more prompts, more often checks or mo
   }
 });
 
-test("Starter opens one toolset and Pro opens both; every plan has more tasks than the one before", async () => {
+test("every plan opens both toolsets; every plan has more tasks than the one before; trials and cancels drop to Free", async () => {
   const { TASK_PACKS, effectivePlan, access } = await import("../src/lib/plans.ts");
-  assert.ok(!LADDER.includes("free"));
-  assert.deepEqual(access("foundation", "seo"), { visibility: false, seo: true });
-  assert.deepEqual(access("foundation", "visibility"), { visibility: true, seo: false });
-  assert.deepEqual(access("foundation", null), { visibility: true, seo: false });
-  assert.deepEqual(access("scale", null), { visibility: true, seo: true });
-  assert.equal(limitsFor("foundation", { track: "seo" }).prompts, 0);
-  assert.equal(limitsFor("foundation", { track: "visibility" }).prompts, 50);
-  assert.equal(limitsFor("foundation", { track: "visibility" }).checkEvery, 1);
-  assert.ok(limitsFor("foundation", { track: "seo" }).tasksPerMonth > limitsFor("foundation", { track: "visibility" }).tasksPerMonth);
+  assert.equal(LADDER[0], "free");
+  for (const id of LADDER) assert.deepEqual(access(id, "seo"), { visibility: true, seo: true }, id);
+  assert.equal(limitsFor("foundation", { track: "seo" }).prompts, 50); // an old toolset pick no longer cuts anything
   for (let i = 1; i < LADDER.length; i++) assert.ok(PLANS[LADDER[i]].tasksPerMonth > PLANS[LADDER[i - 1]].tasksPerMonth, LADDER[i]);
   for (let i = 1; i < TASK_PACKS.length; i++) assert.ok(TASK_PACKS[i].price / TASK_PACKS[i].tasks < TASK_PACKS[i - 1].price / TASK_PACKS[i - 1].tasks);
-  assert.equal(effectivePlan("trial", "trialing", "2020-01-01T00:00:00Z").status, "read_only");
-  assert.equal(effectivePlan("scale", "canceled", null).status, "read_only");
-  assert.equal(effectivePlan("scale", "past_due", null).status, "past_due");
+  assert.deepEqual(effectivePlan("trial", "trialing", "2020-01-01T00:00:00Z"), { plan: "free", status: "active" });
+  assert.deepEqual(effectivePlan("trial", "trialing", "2999-01-01T00:00:00Z"), { plan: "trial", status: "trialing" });
+  assert.deepEqual(effectivePlan("scale", "canceled", null), { plan: "free", status: "active" });
+  assert.deepEqual(effectivePlan("scale", "past_due", null), { plan: "scale", status: "past_due" });
+});
+
+test("Free forever: 10 weekly prompts on 2 AIs, 200 tasks, no Content Plan, listening or audience research", () => {
+  const f = PLANS.free;
+  assert.equal(f.price, 0);
+  assert.equal(f.prompts, 10);
+  assert.equal(f.checkEvery, 7);
+  assert.deepEqual(f.engines, ["ChatGPT", "AI Overview"]);
+  assert.equal(f.tasksPerMonth, 200);
+  assert.equal(f.brands, 1);
+  assert.equal(f.plansPerMonth, 0);
+  assert.equal(f.listenBrands + f.listenNames + f.audiencePerMonth, 0);
+  assert.equal(f.outreachLists, 1);
+  assert.equal(dailyAnswers(f), 20);
+  for (const id of LADDER.slice(1)) assert.equal(PLANS[id].engines, null, id);
+});
+
+test("pricing v4 prices, and brands capped below Agency", () => {
+  assert.deepEqual(
+    LADDER.map((id) => [PLANS[id].price, PLANS[id].annual]),
+    [
+      [0, 0],
+      [49, 42],
+      [149, 127],
+      [399, 339],
+      [1500, 1500],
+    ],
+  );
+  assert.deepEqual([PLANS.foundation.brands, PLANS.scale.brands], [3, 10]);
+  assert.ok(PLANS.agency.brands >= 1000);
+  assert.equal(PLANS.foundation.writer, "none");
+  assert.equal(PLANS.scale.writer, "full");
+  const extra = limitsFor("foundation", { brands: 2 });
+  assert.deepEqual([extra.brands, extra.listenBrands, extra.audiencePerMonth], [5, 3, 3]);
+  assert.deepEqual([limitsFor("free", { brands: 1 }).listenBrands, limitsFor("free", { brands: 1 }).audiencePerMonth], [0, 0]);
 });
 
 test("weekly plans check each brand once every 7 days", async () => {
@@ -44,7 +74,7 @@ test("white label is only on Agency and Enterprise", () => {
 test("extras add to the plan, and the daily extra overrides the schedule", () => {
   const l = limitsFor("foundation", { prompts: 10, seats: 1, daily: true });
   assert.equal(l.prompts, 60);
-  assert.equal(l.seats, 3);
+  assert.equal(l.seats, 4);
   assert.equal(l.checkEvery, 1);
   assert.equal(limitsFor("trial").checkEvery, 1);
 });
@@ -59,6 +89,7 @@ test("boost goes one step up and never to Enterprise", () => {
   assert.equal(nextPlan("trial"), "scale");
   assert.equal(nextPlan("thrive"), "agency");
   assert.equal(nextPlan("agency"), null);
+  assert.equal(nextPlan("free"), "foundation");
 });
 
 test("monthly allowances count by month, daily ones by day", () => {
@@ -78,6 +109,8 @@ test("billing months start on the plan's day, and short months use their last da
   assert.equal(periodOf("tasks", new Date("2026-10-20T00:00:00Z")), "2026-10");
   assert.deepEqual(planOfLookup(lookupKey("scale", "year")), { plan: "scale", interval: "year" });
   assert.deepEqual(planOfLookup("arrowsterr_thrive_year"), { plan: "thrive", interval: "year" });
+  assert.deepEqual(planOfLookup("arrowsterr_v3_scale_month"), { plan: "scale", interval: "month" });
+  assert.equal(lookupKey("agency", "month"), "arrowsterr_v4_agency_month");
   assert.equal(planOfLookup("arrowsterr_enterprise_month"), null);
 });
 

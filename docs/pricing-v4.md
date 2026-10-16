@@ -1,6 +1,6 @@
 # Pricing v4
 
-Plan, not built yet. Costs come from `cost_ledger` (Oct 9 to 16, 2026) unless marked estimate. Competitor prices marked "check" come from third-party pages, not the vendor's own.
+Built in October 2026. Costs come from `cost_ledger` (Oct 9 to 16, 2026) unless marked estimate. Competitor prices marked "check" come from third-party pages, not the vendor's own.
 
 ## 1. What each unit costs us
 

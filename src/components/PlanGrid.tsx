@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { limitsFor, PLANS, SELF_SERVE, UNLIMITED, type Interval, type Plan, type PlanId, type Track } from "@/lib/plans";
+import { PLANS, SELF_SERVE, UNLIMITED, type Interval, type Plan, type PlanId } from "@/lib/plans";
 import { BrandLogo } from "./BrandLogo";
 import { ENGINE_LOGOS } from "./Engines";
 import { Seg } from "./ui";
@@ -23,57 +22,63 @@ export type Feature = { text: string; on: boolean; logos?: boolean; tag?: string
 export type Group = { title: string; items: Feature[] };
 
 const TIPS = {
-  tasks: "Tasks pay for Organic Research. A keyword lookup uses 10, a domain report 10 and a content brief 100. Run out? Top up with a task pack.",
+  tasks: "Tasks pay for Organic Research, briefs and email drafts. A keyword lookup uses 10, a domain report 10, a content brief 100 and an email draft 3. Run out? Top up with a task pack.",
   bank: "An AI agent studies your business and builds your list of keywords with the most revenue potential, once per brand.",
 };
 const history = (d: number) => (d >= 365 ? `${Math.round(d / 365)} ${d >= 730 ? "years" : "year"} of history` : `${d} days of history`);
+const on = (yes: boolean, tag: string) => ({ on: yes, tag: yes ? undefined : tag });
 
 function visibility(p: Plan): Group {
+  const weekly = p.checkEvery > 1;
   return {
     title: "AI Visibility",
     items: [
-      { text: `${n(p.prompts)} prompts checked daily`, on: true, logos: true, tip: "Daily on ChatGPT, Gemini, AI Overviews and AI Mode. Weekly on Claude and Perplexity." },
+      p.engines
+        ? { text: `${n(p.prompts)} prompts checked ${weekly ? "weekly" : "daily"} on ChatGPT and Google AI Overviews`, on: true }
+        : { text: `${n(p.prompts)} prompts checked ${weekly ? "weekly" : "daily"}`, on: true, logos: true, tip: "Daily on ChatGPT, Gemini, AI Overviews and AI Mode. Weekly on Claude and Perplexity." },
       { text: `${n(p.competitors)} competitors per brand`, on: true },
       { text: "Sources AI cites", on: true },
       { text: history(p.historyDays), on: true },
+      p.listenBrands > 0
+        ? { text: `Social listening: ${count(p.listenBrands, "brand")}, ${n(p.listenNames)} competitors each`, on: true }
+        : { text: "Social listening", ...on(false, "On Starter") },
     ],
   };
 }
 
 function organic(p: Plan): Group {
   const writer = p.writer === "full";
+  const plan = p.plansPerMonth > 0;
   return {
     title: "Organic Research",
     items: [
       { text: `${n(p.tasksPerMonth)} tasks a month`, on: true, tip: TIPS.tasks },
       { text: "Keyword & Domain Research", on: true },
       { text: "Competitive Analysis", on: true },
-      { text: "Revenue-driven Content Plan", on: true, tip: TIPS.bank },
-      { text: "Content Briefs", on: true },
-      { text: "Calendar and list views", on: true },
-      { text: "Agentic Writer", on: writer, tag: writer ? undefined : "On Pro" },
-      { text: "Content Performance Report", on: writer },
+      p.audiencePerMonth > 0
+        ? { text: `Audience research: ${count(p.audiencePerMonth, "brand")} a month`, on: true, tip: "The websites, YouTube channels and podcasts your audience uses, and which ones AI cites." }
+        : { text: "Audience research", ...on(false, "On Starter") },
+      { text: "Revenue-driven Content Plan", ...on(plan, "On Starter"), tip: plan ? TIPS.bank : undefined },
+      { text: "Content Briefs & calendar", ...on(plan, "On Starter") },
+      { text: "Agentic Writer & publishing", ...on(writer, "On Pro") },
     ],
   };
 }
 
-/** What a plan gives, grouped the way the cards and the table show it. Starter shows the toolset picked. */
-export function groups(p: Plan, track: Track = "visibility"): Group[] {
-  const reports: Group = {
-    title: "Workspace & reports",
+/** What a plan gives, grouped the way the cards and the table show it. */
+export function groups(p: Plan): Group[] {
+  const outreach: Group = {
+    title: "Outreach & reports",
     items: [
+      { text: p.outreachLists >= UNLIMITED ? "Outreach lists & email drafts" : `${count(p.outreachLists, "outreach list")} & email drafts`, on: true },
       { text: count(p.brands, "brand"), on: true },
       { text: count(p.seats, "seat"), on: true },
-      { text: "Live report links & 8 templates", on: true },
-      { text: "White-label reports", on: p.reports === "whitelabel" },
-      { text: "Slack, Zapier & API", on: p.alerts },
+      { text: p.reports === "basic" ? "Live report links" : "Live report links & 8 templates", on: true },
+      { text: "White-label reports", ...on(p.reports === "whitelabel", "On Agency") },
+      { text: "Slack, Zapier & API", ...on(p.alerts, "On Pro") },
     ],
   };
-  if (p.id === "foundation") {
-    const l = limitsFor("foundation", { track });
-    return [track === "visibility" ? visibility(l) : organic(l), reports];
-  }
-  return [visibility(p), organic(p), reports];
+  return [visibility(p), organic(p), outreach];
 }
 
 /** Overlapping AI logos. */
@@ -105,6 +110,16 @@ export function IntervalSwitch({ value, onChange }: { value: Interval; onChange:
 
 function Price({ p, interval }: { p: Plan; interval: Interval }) {
   const price = interval === "year" ? p.annual : p.price;
+  if (!p.price)
+    return (
+      <div>
+        <div className="flex items-end gap-1.5">
+          <span className="aw-num text-[44px] leading-none font-medium tracking-tight text-ink">$0</span>
+          <span className="mb-1 text-[14px] text-muted">/mo</span>
+        </div>
+        <p className="aw-small mt-2">Free forever. No card.</p>
+      </div>
+    );
   return (
     <div>
       <div className="flex items-end gap-1.5">
@@ -133,45 +148,33 @@ function Line({ f }: { f: Feature }) {
   );
 }
 
-/** The self-serve plans side by side, then Enterprise. `action` draws each plan's button. */
-export function PlanGrid({ interval, current, track: start, action }: { interval: Interval; current?: PlanId | null; track?: Track | null; action: (plan: PlanId, track?: Track) => React.ReactNode }) {
-  const [track, setTrack] = useState<Track>(start ?? "visibility");
+/** Free and the self-serve plans side by side, then Enterprise. `action` draws each plan's button. */
+export function PlanGrid({ interval, current, action }: { interval: Interval; current?: PlanId | null; action: (plan: PlanId) => React.ReactNode }) {
+  const ids: PlanId[] = ["free", ...SELF_SERVE];
   return (
     <div className="flex flex-col gap-5">
-      <div className="grid items-stretch gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {SELF_SERVE.map((id) => {
+      <div className="grid items-stretch gap-5 md:grid-cols-2 xl:grid-cols-4">
+        {ids.map((id) => {
           const p = PLANS[id];
           const hot = id === "scale";
-          const on = current === id;
+          const mine = current === id;
           return (
             <div
               key={id}
-              className={`relative flex flex-col rounded-[20px] border bg-white p-6 transition-shadow ${hot ? "border-brand shadow-[0_24px_60px_-24px_rgba(9,67,176,0.45)]" : on ? "border-brand" : "border-rule shadow-aw-sm hover:shadow-aw-md"}`}
+              className={`relative flex flex-col rounded-[20px] border bg-white p-6 transition-shadow ${hot ? "border-brand shadow-[0_24px_60px_-24px_rgba(9,67,176,0.45)]" : mine ? "border-brand" : "border-rule shadow-aw-sm hover:shadow-aw-md"}`}
             >
               {hot ? <span className="aw-badge absolute -top-3 left-6">Most popular</span> : null}
               <div className="flex items-center justify-between gap-2">
                 <h3 className="text-[20px] font-medium text-ink">{p.name}</h3>
-                {on ? <span className="aw-chip aw-chip--brand">Current</span> : null}
+                {mine ? <span className="aw-chip aw-chip--brand">Current</span> : null}
               </div>
               <p className="mt-1 min-h-10 text-[14px] text-muted">{p.tagline}</p>
               <div className="mt-4">
                 <Price p={p} interval={interval} />
               </div>
-              {id === "foundation" ? (
-                <div className="mt-4 flex flex-col gap-1.5">
-                  <span className="aw-label mb-0!">Pick one</span>
-                  <div className="aw-pick" role="radiogroup" aria-label="Starter toolset">
-                    {(["visibility", "seo"] as Track[]).map((t) => (
-                      <button key={t} type="button" role="radio" aria-checked={track === t} className={track === t ? "is-on" : ""} onClick={() => setTrack(t)}>
-                        {t === "visibility" ? "AI Visibility" : "Organic Research"}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-              <div className="mt-5">{id === "foundation" ? action(id, track) : action(id)}</div>
+              <div className="mt-5">{action(id)}</div>
               <div className="mt-6 flex flex-1 flex-col gap-5 border-t border-rule-faint pt-5">
-                {groups(p, track).map((g) => (
+                {groups(p).map((g) => (
                   <div key={g.title} className="flex flex-col gap-2.5">
                     <span className="aw-label mb-0!">{g.title}</span>
                     <ul className="flex flex-col gap-2.5">

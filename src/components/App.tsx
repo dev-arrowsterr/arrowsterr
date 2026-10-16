@@ -446,23 +446,26 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   }, [sb, active, runs, days, plan]);
 
+  // Free checks only the AIs its plan names (ChatGPT and AI Overviews).
+  const usable = engines && plan?.limits.engines ? engines.filter((e) => plan.limits.engines!.includes(e)) : engines;
+
   async function runBrand(brand: Brand) {
-    if (!engines?.length || running || !ws) return;
+    if (!usable?.length || running || !ws) return;
     // Prompts past the plan (after a downgrade, or on Free) are not checked.
     const room = plan ? (promptAllowance(brands?.some((b) => b.id === brand.id) ? brands : [...(brands ?? []), brand], plan.limits).get(brand.id) ?? brand.prompts.length) : brand.prompts.length;
     if (room <= 0) return;
     setRunning(brand.id);
     setError("");
-    setProgress({ done: 0, total: engines.length * brand.prompts.length });
+    setProgress({ done: 0, total: usable.length * brand.prompts.length });
     const past = runs[brand.id] ?? [];
     let runId: string | null = null;
     let saving = Promise.resolve();
     try {
-      runId = await startSavedRun(sb, ws.id, brand.id, userId, { at: new Date().toISOString(), engines, chats: [] });
+      runId = await startSavedRun(sb, ws.id, brand.id, userId, { at: new Date().toISOString(), engines: usable, chats: [] });
     } catch (e) {
       setError(`Could not save this run: ${e instanceof Error ? e.message : String(e)}`);
     }
-    const finished = await runAll({ ...brand, prompts: brand.prompts.slice(0, room) }, engines, { workspaceId: ws.id, token }, (run, done, total) => {
+    const finished = await runAll({ ...brand, prompts: brand.prompts.slice(0, room) }, usable, { workspaceId: ws.id, token }, (run, done, total) => {
       setRuns((r) => ({ ...r, [brand.id]: [...past, { ...run, id: runId ?? "live" }] }));
       setProgress({ done, total });
       // Save every 5 chats so a closed tab keeps most of the run.
@@ -569,8 +572,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   // The first check, model by model: answers in so far out of the prompts each one gets.
   const liveRun = running ? (runs[running] ?? []).at(-1) : undefined;
   const checking: Checking | null =
-    running && engines?.length
-      ? engines.map((e) => ({ engine: e, done: liveRun?.chats.filter((c) => c.engine === e).length ?? 0, total: Math.round(progress.total / engines.length) }))
+    running && usable?.length
+      ? usable.map((e) => ({ engine: e, done: liveRun?.chats.filter((c) => c.engine === e).length ?? 0, total: Math.round(progress.total / usable.length) }))
       : null;
 
   const auth: RunAuth = { workspaceId: ws.id, token };

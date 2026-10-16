@@ -322,7 +322,7 @@ export async function getPlanUsage(sb: SupabaseClient, workspaceId: string) {
     credits: Number(w.task_credits ?? 0),
     track: (w.extras?.track ?? null) as Track | null,
     trackAt: (w.extras?.trackAt ?? null) as string | null,
-    open: access(now.plan, w.extras?.track),
+    open: access(),
     name: limits.name,
     status: now.status,
     trialLeft,
