@@ -1,6 +1,7 @@
 "use client";
 
-import { PLANS, SELF_SERVE, UNLIMITED, type Interval, type Plan, type PlanId } from "@/lib/plans";
+import { useState } from "react";
+import { limitsFor, PLANS, SELF_SERVE, UNLIMITED, type Interval, type Plan, type PlanId, type Track } from "@/lib/plans";
 import { BrandLogo } from "./BrandLogo";
 import { ENGINE_LOGOS } from "./Engines";
 import { Seg } from "./ui";
@@ -65,8 +66,8 @@ function organic(p: Plan): Group {
   };
 }
 
-/** What a plan gives, grouped the way the cards and the table show it. */
-export function groups(p: Plan): Group[] {
+/** What a plan gives, grouped the way the cards and the table show it. Starter shows the toolset picked. */
+export function groups(p: Plan, track: Track = "visibility"): Group[] {
   const outreach: Group = {
     title: "Outreach & reports",
     items: [
@@ -78,6 +79,10 @@ export function groups(p: Plan): Group[] {
       { text: "Slack, Zapier & API", ...on(p.alerts, "On Pro") },
     ],
   };
+  if (p.id === "foundation") {
+    const l = limitsFor("foundation", { track });
+    return [track === "visibility" ? visibility(l) : organic(l), outreach];
+  }
   return [visibility(p), organic(p), outreach];
 }
 
@@ -149,7 +154,8 @@ function Line({ f }: { f: Feature }) {
 }
 
 /** Free and the self-serve plans side by side, then Enterprise. `action` draws each plan's button. */
-export function PlanGrid({ interval, current, action }: { interval: Interval; current?: PlanId | null; action: (plan: PlanId) => React.ReactNode }) {
+export function PlanGrid({ interval, current, track: start, action }: { interval: Interval; current?: PlanId | null; track?: Track | null; action: (plan: PlanId, track?: Track) => React.ReactNode }) {
+  const [track, setTrack] = useState<Track>(start ?? "visibility");
   const ids: PlanId[] = ["free", ...SELF_SERVE];
   return (
     <div className="flex flex-col gap-5">
@@ -172,9 +178,21 @@ export function PlanGrid({ interval, current, action }: { interval: Interval; cu
               <div className="mt-4">
                 <Price p={p} interval={interval} />
               </div>
-              <div className="mt-5">{action(id)}</div>
+              {id === "foundation" ? (
+                <div className="mt-4 flex flex-col gap-1.5">
+                  <span className="aw-label mb-0!">Pick one</span>
+                  <div className="aw-pick" role="radiogroup" aria-label="Starter toolset">
+                    {(["visibility", "seo"] as Track[]).map((t) => (
+                      <button key={t} type="button" role="radio" aria-checked={track === t} className={track === t ? "is-on" : ""} onClick={() => setTrack(t)}>
+                        {t === "visibility" ? "AI Visibility" : "Organic Research"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              <div className="mt-5">{id === "foundation" ? action(id, track) : action(id)}</div>
               <div className="mt-6 flex flex-1 flex-col gap-5 border-t border-rule-faint pt-5">
-                {groups(p).map((g) => (
+                {groups(p, track).map((g) => (
                   <div key={g.title} className="flex flex-col gap-2.5">
                     <span className="aw-label mb-0!">{g.title}</span>
                     <ul className="flex flex-col gap-2.5">

@@ -39,13 +39,14 @@ export type Plan = {
 export const UNLIMITED = 1000;
 const base = { sso: false, engines: null, briefsPerMonth: 0, planMaxKeywords: 120, researchPerMonth: 0, aiPerMonth: 0, outreachLists: UNLIMITED } as const;
 
-// Pricing v4 (docs/pricing-v4.md). Prices are US dollars a month.
+// Pricing v5 (docs/pricing-v5.md). Prices are US dollars a month.
 export const PLANS: Record<PlanId, Plan> = {
   // Free forever: the 2 AIs buyers use most, checked weekly, plus a taste of Organic Research.
   free: { ...base, id: "free", name: "Free", tagline: "Free forever. See where AI names you.", price: 0, annual: 0, prompts: 10, brands: 1, seats: 1, competitors: 3, historyDays: 30, checkEvery: 7, checkNowPerDay: 0, engines: ["ChatGPT", "AI Overview"], plansPerMonth: 0, planMaxKeywords: 30, tasksPerMonth: 200, pageviewsPerMonth: 10_000, listenNames: 0, listenBrands: 0, audiencePerMonth: 0, outreachLists: 1, writer: "none", reports: "basic", alerts: false },
-  foundation: { ...base, id: "foundation", name: "Starter", tagline: "AI Visibility and Organic Research for one marketer", price: 49, annual: 42, prompts: 50, brands: 3, seats: 3, competitors: 10, historyDays: 180, checkEvery: 1, checkNowPerDay: 3, plansPerMonth: 1, tasksPerMonth: 2_000, pageviewsPerMonth: 25_000, listenNames: 3, listenBrands: 1, audiencePerMonth: 1, writer: "none", reports: "templates", alerts: false },
-  scale: { ...base, id: "scale", name: "Pro", tagline: "The whole platform, with the Agentic Writer", price: 149, annual: 127, prompts: 150, brands: 10, seats: 5, competitors: 15, historyDays: 365, checkEvery: 1, checkNowPerDay: 10, plansPerMonth: 1, tasksPerMonth: 8_000, pageviewsPerMonth: 250_000, listenNames: 5, listenBrands: 3, audiencePerMonth: 3, writer: "full", reports: "templates", alerts: true },
-  agency: { ...base, id: "agency", name: "Agency", tagline: "Every client, your brand on the report", price: 399, annual: 339, prompts: 400, brands: UNLIMITED, seats: 15, competitors: 25, historyDays: 730, checkEvery: 1, checkNowPerDay: 30, plansPerMonth: 1, tasksPerMonth: 20_000, pageviewsPerMonth: 2_000_000, listenNames: 10, listenBrands: 10, audiencePerMonth: 10, writer: "full", reports: "whitelabel", alerts: true },
+  // Starter opens one toolset, picked by the customer: AI Visibility or Organic Research. See TRACKS and STARTER.
+  foundation: { ...base, id: "foundation", name: "Starter", tagline: "One toolset: AI Visibility or Organic Research", price: 39, annual: 33, prompts: 50, brands: 3, seats: 2, competitors: 10, historyDays: 180, checkEvery: 1, checkNowPerDay: 3, plansPerMonth: 1, tasksPerMonth: 3_000, pageviewsPerMonth: 25_000, listenNames: 3, listenBrands: 1, audiencePerMonth: 1, writer: "none", reports: "templates", alerts: false },
+  scale: { ...base, id: "scale", name: "Pro", tagline: "Both toolsets, with the Agentic Writer", price: 179, annual: 152, prompts: 150, brands: 10, seats: 5, competitors: 15, historyDays: 365, checkEvery: 1, checkNowPerDay: 10, plansPerMonth: 1, tasksPerMonth: 8_000, pageviewsPerMonth: 250_000, listenNames: 5, listenBrands: 3, audiencePerMonth: 3, writer: "full", reports: "templates", alerts: true },
+  agency: { ...base, id: "agency", name: "Agency", tagline: "Every client, your brand on the report", price: 499, annual: 424, prompts: 400, brands: UNLIMITED, seats: 15, competitors: 25, historyDays: 730, checkEvery: 1, checkNowPerDay: 30, plansPerMonth: 1, tasksPerMonth: 20_000, pageviewsPerMonth: 2_000_000, listenNames: 10, listenBrands: 10, audiencePerMonth: 10, writer: "full", reports: "whitelabel", alerts: true },
   enterprise: { ...base, id: "enterprise", name: "Enterprise", tagline: "Custom volume, security and support", price: 1500, annual: 1500, prompts: 1000, brands: UNLIMITED, seats: UNLIMITED, competitors: 50, historyDays: 1095, checkEvery: 1, checkNowPerDay: 500, plansPerMonth: 1, tasksPerMonth: 150_000, pageviewsPerMonth: 10_000_000, listenNames: 25, listenBrands: UNLIMITED, audiencePerMonth: 25, writer: "full", reports: "whitelabel", alerts: true, sso: true },
   // No longer sold. Workspaces that bought it keep it.
   thrive: { ...base, id: "thrive", name: "Thrive", tagline: "", price: 149, annual: 127, prompts: 50, brands: UNLIMITED, seats: 5, competitors: 15, historyDays: 365, checkEvery: 1, checkNowPerDay: 10, plansPerMonth: 1, tasksPerMonth: 20_000, pageviewsPerMonth: 500_000, listenNames: 5, listenBrands: 3, audiencePerMonth: 3, writer: "full", reports: "templates", alerts: true },
@@ -72,14 +73,20 @@ export const TASK_COST = {
   draft: 3, // one outreach email written for a target (~$0.014 measured)
 } as const;
 
-/** The two toolsets. Since pricing v4 every plan opens both; the names stay for older saved choices. */
+/** The two toolsets. Starter opens one of them; Free, the trial and Pro and up open both. */
 export type Track = "visibility" | "seo";
 export const TRACKS: Record<Track, { label: string; short: string; text: string }> = {
-  visibility: { label: "AI Visibility", short: "AI Visibility", text: "Prompts checked across AI, competitors, sources and reports" },
-  seo: { label: "Organic Research", short: "Organic Research", text: "Keyword, domain and competitive research, Content Plan, briefs and the Editorial Calendar" },
+  visibility: { label: "AI Visibility", short: "AI Visibility", text: "50 prompts checked daily across AI, competitors, sources, social listening and reports" },
+  seo: { label: "Organic Research", short: "Organic Research", text: "Keyword, domain and competitive research, audience research, Content Plan, briefs and the Editorial Calendar" },
 };
-/** Which toolsets a plan opens: both, on every plan. */
-export function access(): Record<Track, boolean> {
+/** Starter's limits for each toolset: the AI Visibility side tracks prompts, the Organic Research side gets the tasks. */
+const STARTER: Record<Track, Partial<Plan>> = {
+  visibility: { prompts: 50, tasksPerMonth: 300, audiencePerMonth: 0 },
+  seo: { prompts: 0, checkNowPerDay: 0, tasksPerMonth: 3_000, listenNames: 0, listenBrands: 0 },
+};
+/** Which toolsets a plan opens. A Starter without a pick yet opens AI Visibility. */
+export function access(plan: PlanId, track?: Track | null): Record<Track, boolean> {
+  if (plan === "foundation") return { visibility: track !== "seo", seo: track === "seo" };
   return { visibility: true, seo: true };
 }
 
@@ -106,7 +113,8 @@ export type Extras = { prompts?: number; brands?: number; seats?: number; daily?
 
 /** What a workspace can use: its plan plus any extras. */
 export function limitsFor(plan: PlanId, extras: Extras = {}): Plan {
-  const p = PLANS[plan] ?? PLANS.trial;
+  const sold = PLANS[plan] ?? PLANS.trial;
+  const p: Plan = plan === "foundation" ? { ...sold, ...STARTER[extras.track ?? "visibility"] } : sold;
   return {
     ...p,
     prompts: p.prompts + (extras.prompts ?? 0),
@@ -192,8 +200,8 @@ export function periodOf(m: Metric, at = new Date(), anchor?: string | null) {
 /** Plans sold by card, and the Stripe price lookup key for each. */
 export const SELF_SERVE: PlanId[] = ["foundation", "scale", "agency"];
 export type Interval = "month" | "year";
-// v4 prices follow pricing v4. Older keys (v3 and unversioned) still map, so earlier subscribers keep their plan.
-export const lookupKey = (plan: PlanId, interval: Interval) => `arrowsterr_v4_${plan}_${interval}`;
+// v5 prices follow pricing v5. Older keys (v3, v4 and unversioned) still map, so earlier subscribers keep their plan.
+export const lookupKey = (plan: PlanId, interval: Interval) => `arrowsterr_v5_${plan}_${interval}`;
 export function planOfLookup(key: string | null | undefined): { plan: PlanId; interval: Interval } | null {
   const m = /^arrowsterr_(?:v\d+_)?([a-z]+)_(month|year)$/.exec(key ?? "");
   return m && [...SELF_SERVE, "thrive"].includes(m[1] as PlanId) ? { plan: m[1] as PlanId, interval: m[2] as Interval } : null;
