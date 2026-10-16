@@ -416,6 +416,7 @@ export function DomainResearch({ sb, auth, site, canEdit, start, onStarted }: { 
 
       {!busy && !report ? (
         <ToolIntro
+          eyebrow="Start here"
           title="See how any website wins on Google"
           lead="Every site that gets traffic from Google has a footprint: the topics it owns and the pages that pull its visits. Read your own site to see where your growth comes from today. Read a competitor's to see the market they built, and the gaps they left open for you."
           examples={[site.domain, "hubspot.com", "notion.so"]}

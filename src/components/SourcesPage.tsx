@@ -35,7 +35,7 @@ export const TYPE_COLORS: Record<SourceType, string> = {
   You: "#0943B0",
   Competitor: "#111111",
   UGC: "#2E6BE0",
-  Reviews: "#F5B70A",
+  Reviews: "#8FB0FF",
   Editorial: "#D08A4E",
   Reference: "#28A745",
   Corporate: "#A6AEBB",
@@ -85,8 +85,8 @@ const VERDICT: Record<string, string> = { strong: "aw-status--ranked", okay: "aw
 type Group = "owned" | "third" | "reviews";
 const GROUPS: { id: Group; label: string; color: string; help: string }[] = [
   { id: "owned", label: "Owned", color: "#0943B0", help: "Your own site." },
-  { id: "third", label: "Third-party", color: "#2B3242", help: "News, blogs, forums, reference sites and competitor sites." },
-  { id: "reviews", label: "Review sites", color: "#F5B70A", help: "Review and rating sites like G2, Capterra and Trustpilot." },
+  { id: "third", label: "Third-party", color: "#0B1B3F", help: "News, blogs, forums, reference sites and competitor sites." },
+  { id: "reviews", label: "Review sites", color: "#8FB0FF", help: "Review and rating sites like G2, Capterra and Trustpilot." },
 ];
 const groupOf = (t: SourceType): Group => (t === "You" ? "owned" : t === "Reviews" ? "reviews" : "third");
 
@@ -329,7 +329,7 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
               onClick={() => pickGroup(g.id)}
               title={`${g.label}: ${pct(groupShare(g.id))}`}
               className={`flex h-full min-w-10 items-center justify-center px-2 text-[13px] font-medium text-white ${group === g.id ? "" : "opacity-80 hover:opacity-100"}`}
-              style={{ width: `${groupShare(g.id)}%`, background: g.color, color: g.id === "reviews" ? "#1a1f2b" : "#fff" }}
+              style={{ width: `${groupShare(g.id)}%`, background: g.color, color: g.id === "reviews" ? "#0B1B3F" : "#fff" }}
             >
               {groupShare(g.id) >= 6 ? pct(groupShare(g.id)) : ""}
             </button>
@@ -348,7 +348,7 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
       </section>
 
       {/* 2. Tabs */}
-      <div className="flex flex-wrap border-b border-rule" role="tablist" aria-label="Kind of site">
+      <div className="aw-tabs aw-tabs--lg flex" role="tablist" aria-label="Kind of site">
         {GROUPS.map((g) => (
           <button
             key={g.id}
@@ -356,7 +356,6 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
             role="tab"
             aria-selected={group === g.id}
             onClick={() => pickGroup(g.id)}
-            className={`-mb-px flex items-center gap-2 border-b-2 px-5 py-3 text-[15px] ${group === g.id ? "border-ink font-medium text-ink" : "border-transparent text-body hover:text-ink"}`}
           >
             <i className="inline-block h-2.5 w-2.5" style={{ background: g.color }} />
             {g.label}

@@ -86,7 +86,6 @@ export function AuthScreen({ sb, invited, googleClientId = null }: { sb: Supabas
       role="tab"
       aria-selected={selected(m)}
       onClick={() => switchTo(m)}
-      className={`flex-1 px-3 py-2 text-[15px] font-medium ${selected(m) ? "bg-white text-ink shadow-aw-sm" : "text-muted hover:text-ink"}`}
     >
       {label}
     </button>
@@ -97,7 +96,7 @@ export function AuthScreen({ sb, invited, googleClientId = null }: { sb: Supabas
       {mode === "forgot" ? (
         <h1 className="aw-h3 mb-0!">Reset your password</h1>
       ) : (
-        <div role="tablist" className="flex gap-2 rounded-aw border border-rule bg-surface-2 p-1">
+        <div role="tablist" aria-label="Account" className="aw-tabs aw-tabs--lg">
           {tab("signin", "Sign in")}
           {tab("signup", "Create account")}
         </div>

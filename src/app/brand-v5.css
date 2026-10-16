@@ -1,0 +1,117 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   ARROWSTERR · BRAND V5 IN THE APP ("the Navigator")
+   Loaded last. Replaces the leftover Stripe patterns (pill tab tracks,
+   tinted tiles with a bottom bar, the long intro page) with the brand's
+   own: underline tabs in Signal Blue, Target ticks on the picked tile,
+   and a tool intro built from eyebrow, display title and frames on the
+   flight grid. See docs/brand.md.
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.aw {
+  --aw-brand-bg: #EEF3FF;
+  --aw-brand-pale: #EEF3FF;
+  --aw-muted: #707070;
+  --aw-pos: #0B7A54;
+  --aw-pos-bg: #E6F4EE;
+  --aw-neg: #C02A35;
+  --aw-neg-bg: #FBEBEC;
+  --aw-warn: #8A4B00;
+  --aw-warn-bg: #FFF4DC;
+
+  --aw-sky: #4F7FE0;
+  --aw-night: #0B1B3F;
+  --aw-spark: #F5A70A;
+  --aw-spark-tint: #FFF4DC;
+  --aw-rule-strong: #D6D6D6;
+
+  --aw-climb: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='4 24 56 39'%3E%3Cpath d='M5.244 61.182 L29.322 26.159 A3.25 3.25 0 0 1 34.678 26.159 L58.756 61.182 Q59.663 62.5 58.063 62.5 L53.375 62.5 Q51.775 62.5 50.868 61.182 L32 33.737 L13.132 61.182 Q12.225 62.5 10.625 62.5 L5.937 62.5 Q4.337 62.5 5.244 61.182 Z M18.593 61.182 L29.322 45.575 A3.25 3.25 0 0 1 34.678 45.575 L45.407 61.182 Q46.314 62.5 44.714 62.5 L40.026 62.5 Q38.426 62.5 37.519 61.182 L32 53.153 L26.481 61.182 Q25.574 62.5 23.974 62.5 L19.286 62.5 Q17.686 62.5 18.593 61.182 Z'/%3E%3C/svg%3E");
+  --aw-tick: var(--aw-brand);
+}
+
+/* ─────────────── Tabs ───────────────
+   Text tabs on a hairline. The picked one is ink with a 2px Signal Blue
+   line under it. No grey track, no raised white pill. */
+.aw .aw-tabs, .aw .aw-seg {
+  display: inline-flex !important; align-items: stretch; gap: 20px !important; flex-wrap: wrap;
+  padding: 0 !important; border: 0 !important; border-radius: 0 !important; background: none !important;
+  box-shadow: inset 0 -1px 0 var(--aw-rule) !important;
+}
+.aw .aw-tabs > button, .aw .aw-seg > button {
+  position: relative; display: inline-flex; align-items: center; gap: 6px;
+  min-height: 32px !important; padding: 0 1px !important; margin: 0;
+  border: 0 !important; border-radius: 0 !important; background: none !important; box-shadow: none !important;
+  font-size: 13px !important; font-weight: 500 !important; line-height: 1; white-space: nowrap;
+  color: var(--aw-muted) !important; cursor: pointer; transition: color .12s ease;
+}
+.aw .aw-tabs > button:hover, .aw .aw-seg > button:hover { color: var(--aw-ink) !important; }
+.aw .aw-tabs > button[aria-selected="true"], .aw .aw-seg > button.is-on, .aw .aw-seg > button[aria-selected="true"] { color: var(--aw-ink) !important; }
+.aw .aw-tabs > button[aria-selected="true"]::after, .aw .aw-seg > button.is-on::after, .aw .aw-seg > button[aria-selected="true"]::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: var(--aw-brand);
+}
+.aw .aw-tabs > button:focus-visible, .aw .aw-seg > button:focus-visible { outline: 2px solid var(--aw-brand); outline-offset: 2px; }
+.aw .aw-tabs > button svg, .aw .aw-seg > button svg { width: 15px; height: 15px; }
+.aw .aw-tabs--lg > button { min-height: 40px !important; font-size: 14px !important; }
+
+/* ─────────────── Picked tiles ───────────────
+   A grid of metric or model tiles where one is picked. The picked tile
+   keeps its white ground and gets Target ticks in its corners. */
+.aw .aw-tile-pick { position: relative; background: var(--aw-surface); text-align: left; cursor: pointer; transition: background-color .12s ease; }
+.aw .aw-tile-pick:hover { background: var(--aw-paper); }
+.aw .aw-tile-pick:focus-visible { outline: 2px solid var(--aw-brand); outline-offset: -2px; }
+.aw .aw-tile-pick[aria-selected="true"] {
+  background:
+    linear-gradient(var(--aw-tick), var(--aw-tick)) left 8px top 8px / 12px 2px no-repeat,
+    linear-gradient(var(--aw-tick), var(--aw-tick)) left 8px top 8px / 2px 12px no-repeat,
+    linear-gradient(var(--aw-tick), var(--aw-tick)) right 8px top 8px / 12px 2px no-repeat,
+    linear-gradient(var(--aw-tick), var(--aw-tick)) right 8px top 8px / 2px 12px no-repeat,
+    linear-gradient(var(--aw-tick), var(--aw-tick)) left 8px bottom 8px / 12px 2px no-repeat,
+    linear-gradient(var(--aw-tick), var(--aw-tick)) left 8px bottom 8px / 2px 12px no-repeat,
+    linear-gradient(var(--aw-tick), var(--aw-tick)) right 8px bottom 8px / 12px 2px no-repeat,
+    linear-gradient(var(--aw-tick), var(--aw-tick)) right 8px bottom 8px / 2px 12px no-repeat,
+    var(--aw-surface);
+}
+.aw .aw-tile-pick[aria-selected="true"] .aw-label { color: var(--aw-brand) !important; }
+
+/* ─────────────── Tool intro ───────────────
+   The one screen that explains a tool, before there's data: the Climb
+   eyebrow, a display title, one lead, example searches, then what the
+   tool shows as frames with a product view on the flight grid. */
+.aw .aw-intro { display: flex; flex-direction: column; gap: 28px; }
+.aw .aw-intro__head { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; max-width: 760px; }
+.aw .aw-eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; line-height: 16px; font-weight: 600; color: var(--aw-brand); }
+.aw .aw-eyebrow::before {
+  content: ""; width: 14px; height: 10px; flex: none; background: currentColor;
+  -webkit-mask: var(--aw-climb) center / contain no-repeat; mask: var(--aw-climb) center / contain no-repeat;
+}
+.aw .aw-intro__title {
+  margin: 0 !important; font-family: var(--aw-display) !important; font-size: 30px !important; line-height: 1.12 !important;
+  font-weight: 600 !important; letter-spacing: -0.02em !important; color: var(--aw-night) !important; text-wrap: balance;
+}
+.aw .aw-intro__lead { margin: 0; max-width: 64ch; font-size: 15px; line-height: 24px; color: var(--aw-body); text-wrap: pretty; }
+.aw .aw-intro__try { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.aw .aw-intro__try > span { font-size: 12px; font-weight: 500; color: var(--aw-muted); margin-right: 4px; }
+.aw .aw-try {
+  display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px;
+  border-radius: var(--aw-r-sm); background: var(--aw-surface); box-shadow: inset 0 0 0 1px var(--aw-rule-strong);
+  font-size: 13px; font-weight: 500; color: var(--aw-ink); cursor: pointer; transition: color .12s ease, box-shadow .12s ease;
+}
+.aw .aw-try::after { content: "→"; color: var(--aw-muted); transition: transform .12s ease, color .12s ease; }
+.aw .aw-try:hover:not(:disabled) { color: var(--aw-brand); box-shadow: inset 0 0 0 1px var(--aw-brand); }
+.aw .aw-try:hover:not(:disabled)::after { color: var(--aw-brand); transform: translateX(2px); }
+.aw .aw-try:disabled { cursor: default; }
+.aw .aw-intro__grid { display: grid; gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.aw .aw-intro__card { display: flex; flex-direction: column; min-width: 0; overflow: hidden; border: 1px solid var(--aw-rule); border-radius: var(--aw-r-md); background: var(--aw-surface); }
+.aw .aw-intro__vis {
+  display: flex; align-items: center; justify-content: center; height: 124px; padding: 18px 20px;
+  background-color: var(--aw-paper); background-image: radial-gradient(var(--aw-rule-strong) 1px, transparent 1.4px); background-size: 16px 16px; background-position: 8px 8px;
+  border-bottom: 1px solid var(--aw-rule);
+}
+.aw .aw-intro__copy { display: flex; flex-direction: column; gap: 6px; padding: 16px 18px 18px; }
+.aw .aw-intro__n { font-family: var(--font-geist-mono), "Geist Mono", ui-monospace, monospace; font-size: 11px; font-weight: 500; color: var(--aw-brand); }
+.aw .aw-intro__t { margin: 0 !important; font-size: 15px; line-height: 22px; font-weight: 600; color: var(--aw-night); }
+.aw .aw-intro__x { margin: 0; font-size: 13px; line-height: 20px; color: var(--aw-body); }
+@media (max-width: 1024px) { .aw .aw-intro__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) {
+  .aw .aw-intro__grid { grid-template-columns: minmax(0, 1fr); }
+  .aw .aw-intro__title { font-size: 24px !important; }
+}

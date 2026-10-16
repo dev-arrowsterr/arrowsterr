@@ -2,6 +2,7 @@
 @import "./brand.css";
 @import "./brand-v2.css";
 @import "./twenty.css";
+@import "./brand-v5.css";
 
 /* Point the brand font tokens at the fonts loaded by next/font in layout.tsx. */
 .aw {

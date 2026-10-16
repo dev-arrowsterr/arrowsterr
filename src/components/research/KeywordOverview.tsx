@@ -689,6 +689,7 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
 
       {!busy && !report ? (
         <ToolIntro
+          eyebrow="Start here"
           title="Know what your market wants before you write a word"
           lead="Every search is a person telling Google what they need. Keyword Research shows how many people ask, how hard it is to win the top spots, what the searcher is ready to do and what advertisers pay to reach them. Use it to place your content bets on the topics that bring buyers, and skip the ones that only bring clicks."
           examples={["crm software", "best seo agencies", "how to start a podcast"]}

@@ -93,6 +93,7 @@ export function VisitorsPage({ view, auth }: { view: View; auth: RunAuth }) {
       <div className="flex flex-col gap-5">
         <h1 className="aw-h2">Visitors</h1>
         <ToolIntro
+          eyebrow="Start here"
           title="Meet every visitor and follow their path to buying"
           lead={`Each visitor to ${brand.domain} gets a fun name and a full journey: where they came from, every page they read, and the moment they booked a call or filled a form. A buyer score puts your hottest leads on top.`}
           action={<p className="aw-small">First connect {brand.domain} in Website → Traffic. Visitors show up here once the code is live.</p>}
