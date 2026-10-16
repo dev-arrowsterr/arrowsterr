@@ -11,7 +11,7 @@
   --aw-font: var(--font-inter), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --aw-mono: var(--aw-font);
   --aw-read: var(--aw-font);
-  --aw-display: var(--aw-font);
+  --aw-display: var(--font-funnel), "Funnel Display", var(--aw-font);
 
   --aw-brand: #0943B0;
   --aw-brand-deep: #06308A;
@@ -68,7 +68,10 @@
 html, body { background: #FCFCFC; }
 
 /* ─────────────── Type ─────────────── */
-.aw .aw-hero, .aw .aw-display, .aw .aw-h2, .aw .aw-h3, .aw .aw-h4, .aw .aw-onb__title { font-family: var(--aw-font) !important; letter-spacing: 0 !important; color: var(--aw-ink); }
+.aw .aw-h3, .aw .aw-h4 { font-family: var(--aw-font) !important; letter-spacing: 0 !important; color: var(--aw-ink); }
+/* Headings 18px and up: Funnel Display (brand v5). */
+.aw .aw-hero, .aw .aw-display, .aw .aw-h2, .aw .aw-onb__title { font-family: var(--aw-display) !important; letter-spacing: -0.015em !important; color: var(--aw-ink); }
+.aw .aw-hero, .aw .aw-display { letter-spacing: -0.03em !important; }
 .aw .aw-h2 { font-size: 20px !important; line-height: 28px !important; font-weight: 600 !important; }
 .aw .aw-h3 { font-size: 16px !important; line-height: 24px !important; font-weight: 600 !important; }
 .aw .aw-h4 { font-size: 14px !important; line-height: 20px !important; font-weight: 600 !important; }
