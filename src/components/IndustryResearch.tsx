@@ -8,7 +8,7 @@ import type { RunAuth } from "@/lib/runner";
 import { BrandLogo } from "./BrandLogo";
 import { post } from "./research/shared";
 import { SampleRows, ToolIntro } from "./ToolIntro";
-import { favicon, Thinking, Tip } from "./ui";
+import { favicon, sortRows, SortTh, Thinking, Tip, useSort } from "./ui";
 
 const COLUMN: Record<SectionId, string> = { websites: "Website", press: "Publication", reddit: "Subreddit", social: "Account", youtube: "Channel", podcasts: "Podcast" };
 const date = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
@@ -31,6 +31,9 @@ export function IndustryResearch({ sb, brandId, domain, chats, auth }: { sb: Sup
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [loadedAt, setLoadedAt] = useState(0);
+  const [sort, setSort] = useSort("score");
+  const [query, setQuery] = useState("");
+  const [citedOnly, setCitedOnly] = useState(false);
 
   const load = useCallback(async () => {
     const { data: row, error: err } = await sb.from("industry_research").select("*").eq("brand_id", brandId).maybeSingle();
@@ -75,6 +78,12 @@ export function IndustryResearch({ sb, brandId, domain, chats, auth }: { sb: Sup
   const rows = data?.sections?.[tab] ?? [];
   const cites = rows.map((r) => aiCites(tab, r, chats));
   const showCites = cites.some((c) => c !== null);
+  const q = query.trim().toLowerCase();
+  const listed = sortRows(
+    rows.map((r, i) => ({ ...r, cites: cites[i] })).filter((r) => (!q || `${r.name} ${r.url ?? ""}`.toLowerCase().includes(q)) && (!citedOnly || !showCites || (r.cites ?? 0) > 0)),
+    sort,
+    { name: (r) => r.name, score: (r) => r.score, reach: (r) => r.reach, cites: (r) => r.cites },
+  );
   const showScore = rows.some((r) => r.score !== null);
   const showReach = rows.some((r) => r.reach !== null);
 
@@ -180,31 +189,51 @@ export function IndustryResearch({ sb, brandId, domain, chats, auth }: { sb: Sup
               ))}
             </div>
             {rows.length ? (
+              <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint px-5 py-3">
+                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Search ${SECTIONS.find((s) => s.id === tab)!.label.toLowerCase()}`} aria-label="Search this section" className="aw-input max-w-sm min-w-40 flex-1 py-1.5! text-[14px]!" />
+                {showCites ? (
+                  <label className="flex items-center gap-2 text-[14px] text-ink">
+                    <input type="checkbox" checked={citedOnly} onChange={(e) => setCitedOnly(e.target.checked)} className="h-4 w-4 accent-[var(--aw-brand)]" />
+                    AI cites only
+                  </label>
+                ) : null}
+                <span className="aw-small ml-auto">
+                  {listed.length} of {rows.length}
+                </span>
+              </div>
+            ) : null}
+            {listed.length ? (
               <div className="overflow-x-auto">
                 <table className="aw-table">
                   <thead>
                     <tr>
                       <th className="w-10">#</th>
-                      <th>{COLUMN[tab]}</th>
+                      <SortTh id="name" sort={sort} onSort={setSort} text>
+                        {COLUMN[tab]}
+                      </SortTh>
                       {showScore ? (
-                        <th className="w-36">
+                        <SortTh id="score" sort={sort} onSort={setSort} className="w-36">
                           Audience
                           <Tip text="How strongly this audience uses it, from SparkToro." />
-                        </th>
+                        </SortTh>
                       ) : null}
-                      {showReach ? <th className="w-32">Reach</th> : null}
+                      {showReach ? (
+                        <SortTh id="reach" sort={sort} onSort={setSort} className="w-32">
+                          Reach
+                        </SortTh>
+                      ) : null}
                       {showCites ? (
-                        <th className="w-32">
+                        <SortTh id="cites" sort={sort} onSort={setSort} className="w-36">
                           AI cites
                           <Tip text="AI answers in this period that cite it." />
-                        </th>
+                        </SortTh>
                       ) : null}
                     </tr>
                   </thead>
                   <tbody>
-                    {rows.map((r, i) => {
+                    {listed.map((r, i) => {
                       const host = hostOf(r.url);
-                      const c = cites[i];
+                      const c = r.cites;
                       return (
                         <tr key={r.name}>
                           <td className="aw-num text-muted">{i + 1}</td>
@@ -241,7 +270,7 @@ export function IndustryResearch({ sb, brandId, domain, chats, auth }: { sb: Sup
                 </table>
               </div>
             ) : (
-              <p className="aw-small px-5 py-4">{data.status === "running" ? "Still loading this section." : "SparkToro found nothing for this section."}</p>
+              <p className="aw-small px-5 py-4">{rows.length ? "Nothing matches these filters." : data.status === "running" ? "Still loading this section." : "SparkToro found nothing for this section."}</p>
             )}
           </>
         )}
