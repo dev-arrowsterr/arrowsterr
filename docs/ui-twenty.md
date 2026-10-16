@@ -25,7 +25,6 @@ The app follows Twenty's light theme (packages/twenty-ui/src/theme in twentyhq/t
   - Prompts use it now.
 - **Views:**
   - `.aw-viewbar` and `.aw-viewbtn` switch a list between views.
-  - Outreach lists have Emails, Targets and Board (`.aw-board`).
 
 ## Running cost
 None. This is styling only: no new servers or paid services, so the Beta (50 teams) and Growth (500 teams) totals stay $0.

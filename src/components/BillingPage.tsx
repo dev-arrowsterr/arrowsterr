@@ -254,7 +254,6 @@ export function BillingPage({ sb, ws, auth, onPlan }: { sb: SupabaseClient; ws: 
               ["Writer agent job", TASK_COST.agent],
               ["Stats with sources", TASK_COST.stats],
               ["Interactive element", TASK_COST.widget],
-              ["Outreach email draft", TASK_COST.draft],
               ["Small AI job", TASK_COST.ai],
             ].map(([k, v]) => (
               <li key={k as string} className="flex justify-between gap-3 border-b border-rule-faint py-1">

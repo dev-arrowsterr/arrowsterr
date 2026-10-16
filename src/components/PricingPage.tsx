@@ -52,16 +52,8 @@ const ROWS: { group: string; rows: { label: React.ReactNode; value: (p: Plan) =>
       { label: "Tasks a month", value: (p) => (starter(p) ? "3,000 on Organic Research" : n(p.tasksPerMonth)) },
       { label: "Task packs to top up", value: () => "✓" },
       { label: "Keyword, Domain & Competitive Analysis", value: () => "✓" },
-      { label: "Audience research", value: (p) => (p.audiencePerMonth <= 0 ? "–" : `${per(p.audiencePerMonth, "brand")} a month${starter(p) ? " on Organic Research" : ""}`) },
       { label: "Revenue-driven Content Plan & briefs", value: (p) => yes(p.plansPerMonth > 0) },
       { label: "Agentic Writer & publishing", value: (p) => yes(p.writer === "full") },
-    ],
-  },
-  {
-    group: "Outreach",
-    rows: [
-      { label: "Outreach lists", value: (p) => n(p.outreachLists) },
-      { label: "Contact finding & email drafts", value: () => "✓" },
     ],
   },
   {
@@ -84,9 +76,9 @@ const FAQ: { q: string; a: string }[] = [
   { q: "Which AIs do you track?", a: "ChatGPT, Claude, Gemini, Perplexity, Google AI Overviews and Google AI Mode. Free tracks ChatGPT and AI Overviews. Paid plans track all six." },
   { q: "Do my brands share prompts?", a: "Yes. Your prompts are one pool for the whole workspace. Split them between your brands any way you like." },
   { q: "Weekly or daily checks?", a: "AI answers change all the time. Weekly checks show the trend. Daily checks catch a drop the day it happens, which matters when you are shipping content to win a prompt." },
-  { q: "What is a task?", a: "Every action you run costs a few tasks: a keyword lookup is 10, a domain report is 10, an outreach email draft is 3, a content brief is 100 and a writer agent job is 15. Tracking your prompts never uses tasks." },
+  { q: "What is a task?", a: "Every action you run costs a few tasks: a keyword lookup is 10, a domain report is 10, a content brief is 100 and a writer agent job is 15. Tracking your prompts never uses tasks." },
   { q: "What if I run out of tasks?", a: "Buy a task pack from 1,000 tasks for $15. Pack tasks never expire and are used after your monthly tasks." },
-  { q: "What does Starter include?", a: "One toolset of your choice. AI Visibility: 50 prompts checked daily on all six AIs, plus social listening. Organic Research: 3,000 tasks a month, audience research and the Content Plan. You can switch once a month. Pro and up include both, plus the Agentic Writer." },
+  { q: "What does Starter include?", a: "One toolset of your choice. AI Visibility: 50 prompts checked daily on all six AIs, plus social listening. Organic Research: 3,000 tasks a month and the Content Plan. You can switch once a month. Pro and up include both, plus the Agentic Writer." },
   { q: "What happens after the free trial?", a: "The 7-day trial includes the Agentic Writer. When it ends, your workspace moves to Free. Nothing is deleted. No card is needed to start." },
   { q: "Can I change plans later?", a: "Any time. Upgrades start right away and you only pay the difference. Downgrades credit what is left of your month." },
 ];

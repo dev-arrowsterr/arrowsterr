@@ -3,7 +3,7 @@ import { adminClient } from "./serverAuth";
 
 // The job queue (supabase/016_queue.sql). Routes add jobs; workers claim and run them.
 
-export type JobKind = "schedule" | "check" | "brief" | "plan" | "rollup" | "audit" | "play" | "apply" | "listen" | "industry" | "contact" | "draft";
+export type JobKind = "schedule" | "check" | "brief" | "plan" | "rollup" | "audit" | "play" | "apply" | "listen";
 export type Job = { id: number; kind: JobKind; key: string | null; workspace_id: string | null; payload: Record<string, unknown>; attempts: number; max_attempts: number };
 
 const db = () => {

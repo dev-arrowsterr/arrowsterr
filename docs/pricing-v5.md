@@ -10,7 +10,7 @@ Built October 2026. Replaces the prices in `docs/pricing-v4.md`; its unit costs,
 | Billed yearly (15% off) | $0 | $33 | $152 | $424 | custom |
 | Toolsets | Both, light | **Pick one**, switch once a month | Both | Both | Both |
 | AI Visibility | 10 prompts weekly, ChatGPT + AI Overviews | 50 prompts daily, 6 AIs, social listening (1 brand) | 150 daily | 400 daily | 1,000+ |
-| Organic Research | 200 tasks | 3,000 tasks, audience research (1 brand), Content Plan | 8,000 tasks | 20,000 tasks | 150,000 |
+| Organic Research | 200 tasks | 3,000 tasks, Content Plan | 8,000 tasks | 20,000 tasks | 150,000 |
 | Brands | 1 | 3 | 10 | Unlimited | Unlimited |
 | Seats | 1 | 2 | 5 | 15 | Unlimited |
 | Agentic Writer | – | – | Yes | Yes | Yes |

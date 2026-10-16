@@ -23,7 +23,7 @@ export type Feature = { text: string; on: boolean; logos?: boolean; tag?: string
 export type Group = { title: string; items: Feature[] };
 
 const TIPS = {
-  tasks: "Tasks pay for Organic Research, briefs and email drafts. A keyword lookup uses 10, a domain report 10, a content brief 100 and an email draft 3. Run out? Top up with a task pack.",
+  tasks: "Tasks pay for Organic Research and briefs. A keyword lookup uses 10, a domain report 10 and a content brief 100. Run out? Top up with a task pack.",
   bank: "An AI agent studies your business and builds your list of keywords with the most revenue potential, once per brand.",
 };
 const history = (d: number) => (d >= 365 ? `${Math.round(d / 365)} ${d >= 730 ? "years" : "year"} of history` : `${d} days of history`);
@@ -56,9 +56,6 @@ function organic(p: Plan): Group {
       { text: `${n(p.tasksPerMonth)} tasks a month`, on: true, tip: TIPS.tasks },
       { text: "Keyword & Domain Research", on: true },
       { text: "Competitive Analysis", on: true },
-      p.audiencePerMonth > 0
-        ? { text: `Audience research: ${count(p.audiencePerMonth, "brand")} a month`, on: true, tip: "The websites, YouTube channels and podcasts your audience uses, and which ones AI cites." }
-        : { text: "Audience research", ...on(false, "On Starter") },
       { text: "Revenue-driven Content Plan", ...on(plan, "On Starter"), tip: plan ? TIPS.bank : undefined },
       { text: "Content Briefs & calendar", ...on(plan, "On Starter") },
       { text: "Agentic Writer & publishing", ...on(writer, "On Pro") },
@@ -68,10 +65,9 @@ function organic(p: Plan): Group {
 
 /** What a plan gives, grouped the way the cards and the table show it. Starter shows the toolset picked. */
 export function groups(p: Plan, track: Track = "visibility"): Group[] {
-  const outreach: Group = {
-    title: "Outreach & reports",
+  const workspace: Group = {
+    title: "Workspace & reports",
     items: [
-      { text: p.outreachLists >= UNLIMITED ? "Outreach lists & email drafts" : `${count(p.outreachLists, "outreach list")} & email drafts`, on: true },
       { text: count(p.brands, "brand"), on: true },
       { text: count(p.seats, "seat"), on: true },
       { text: p.reports === "basic" ? "Live report links" : "Live report links & 8 templates", on: true },
@@ -81,9 +77,9 @@ export function groups(p: Plan, track: Track = "visibility"): Group[] {
   };
   if (p.id === "foundation") {
     const l = limitsFor("foundation", { track });
-    return [track === "visibility" ? visibility(l) : organic(l), outreach];
+    return [track === "visibility" ? visibility(l) : organic(l), workspace];
   }
-  return [visibility(p), organic(p), outreach];
+  return [visibility(p), organic(p), workspace];
 }
 
 /** Overlapping AI logos. */
