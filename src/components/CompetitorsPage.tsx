@@ -1,5 +1,6 @@
 "use client";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { Dropdown } from "./Pickers";
 import { useState } from "react";
 import { answered, battle, brandStats, rankOf, rankTrend, topicGrid, trend, type BattleRow, type BrandStat } from "@/lib/metrics";
@@ -11,6 +12,7 @@ import { BrandLogo } from "./BrandLogo";
 import { B_COLOR, Bar, CompetitorPanel } from "./CompetitorPanel";
 import { EngineName } from "./Engines";
 import { ShareIcon, useShare } from "./ShareDialog";
+import { SocialPage } from "./SocialPage";
 import { TrendChart } from "./TrendChart";
 import { BrandName, Card, Delta, Empty, favicon, guessDomain, pct, pos, score, Seg, sortRows, SidePanel, SortTh, Tip, TIPS, useSort, YOU_COLOR } from "./ui";
 
@@ -159,20 +161,38 @@ export function Quadrant({
   );
 }
 
-/** Every brand AI names next to yours on a quadrant, who wins each topic, and a battle card for any two brands. */
-export function CompetitorsPage({
-  view,
-  auth = null,
-  initial,
-  limit,
-  onTopic,
-}: {
+type Props = {
   view: View;
   auth?: RunAuth | null; // set when the user can edit, for the SEO stats in the deep dive
   initial?: string | null;
   limit?: number;
   onTopic: (topic: string) => void;
-}) {
+};
+
+/** Competitors in AI answers, and on social sites. */
+export function CompetitorsPage({ sb, reader = null, ...props }: Props & { sb: SupabaseClient; reader?: RunAuth | null }) {
+  const [tab, setTab] = useState<"ai" | "social">("ai");
+  return (
+    <div className="flex flex-col gap-8">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <h1 className="aw-h2 mb-0!">Competitors</h1>
+        <Seg
+          label="Competitors view"
+          value={tab}
+          onChange={setTab}
+          options={[
+            { id: "ai", label: "AI answers" },
+            { id: "social", label: "Social" },
+          ]}
+        />
+      </div>
+      {tab === "social" ? <SocialPage view={props.view} sb={sb} reader={reader} auth={props.auth ?? null} /> : <AiCompetitors {...props} />}
+    </div>
+  );
+}
+
+/** Every brand AI names next to yours on a quadrant, who wins each topic, and a battle card for any two brands. */
+function AiCompetitors({ view, auth = null, initial, limit, onTopic }: Props) {
   const { brand, current, previous, filter, topics, engines, days } = view;
   const you = { name: brand.name, domain: brand.domain };
   const chats = answered(current, filter);
@@ -345,8 +365,6 @@ export function CompetitorsPage({
 
   return (
     <div className="flex flex-col gap-8">
-      <h1 className="aw-h2">Competitors</h1>
-
       <section className="aw-frame">
         <div className="aw-frame__head justify-between">
           <h2 className="aw-h4">Competitive analysis</h2>

@@ -12,6 +12,7 @@ import { enqueue, enqueueMany, finish, rateOk, retry, type Job } from "../jobs";
 import { afterDaily, dispatch } from "../integrations";
 import { emailJob } from "../notify";
 import { runAudit } from "../audit";
+import { listenDaily } from "../listen";
 import { applySet, preparePlay, undoSet } from "../plays";
 import { checkDue, promptAllowance } from "../plans";
 import type { PlanBrief } from "../research";
@@ -79,6 +80,8 @@ export async function schedule(db: SupabaseClient, job: Job) {
       ),
     );
   }
+  // Social listening starts in the same time slot. It never throws, so it can't hold up the checks above.
+  await listenDaily(db, (id) => slotOf(id) <= minute);
   await finish(job.id);
 }
 
