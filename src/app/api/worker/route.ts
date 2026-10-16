@@ -8,6 +8,7 @@ import { sendWeekly } from "@/lib/notify";
 import { adminClient } from "@/lib/serverAuth";
 import { listen } from "@/lib/listen";
 import { industry } from "@/lib/sparktoro";
+import { contact } from "@/lib/contactFinder";
 import { apply, audit, brief, check, plan, play, rollup, schedule } from "@/lib/worker/handlers";
 
 // One worker tick. scripts/worker.mjs calls this over and over.
@@ -15,8 +16,8 @@ import { apply, audit, brief, check, plan, play, rollup, schedule } from "@/lib/
 
 export const maxDuration = 300;
 
-const HANDLERS: Record<JobKind, (db: SupabaseClient, job: Job) => Promise<void>> = { schedule, check, brief, plan, rollup, audit, play, apply, listen, industry };
-const ACTION: Record<JobKind, string> = { schedule: "daily check", check: "daily check", brief: "content brief", plan: "content plan", rollup: "daily numbers", audit: "site audit", play: "ask arrowsterr", apply: "ask arrowsterr apply", listen: "social listening", industry: "industry research" };
+const HANDLERS: Record<JobKind, (db: SupabaseClient, job: Job) => Promise<void>> = { schedule, check, brief, plan, rollup, audit, play, apply, listen, industry, contact };
+const ACTION: Record<JobKind, string> = { schedule: "daily check", check: "daily check", brief: "content brief", plan: "content plan", rollup: "daily numbers", audit: "site audit", play: "ask arrowsterr", apply: "ask arrowsterr apply", listen: "social listening", industry: "industry research", contact: "outreach contacts" };
 const WORKER = `web-${randomUUID().slice(0, 8)}`;
 const CONCURRENCY = Math.max(1, Number(process.env.WORKER_CONCURRENCY) || 8);
 

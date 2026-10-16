@@ -29,6 +29,8 @@ import { BrandLogo } from "./BrandLogo";
 import { StopButton, stopped } from "./research/shared";
 import { ENGINE_LOGOS, EngineName } from "./Engines";
 import { Markdown } from "./Markdown";
+import type { NewTarget } from "@/lib/outreach";
+import { AddToList } from "./outreach/AddToList";
 import { Card, Empty, favicon, pct, Seg, SidePanel, sortRows, SortTh, Tip, TIPS, useSort } from "./ui";
 
 export const TYPE_COLORS: Record<SourceType, string> = {
@@ -105,6 +107,8 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [deep, setDeep] = useState<UrlRow | null>(null);
   const [full, setFull] = useState(false);
+  const [adding, setAdding] = useState<NewTarget | null>(null);
+  const [notice, setNotice] = useState("");
   // Visits from AI to each of your pages, from Google Analytics or the tracking script. Shared with the Traffic page.
   const [traffic, setTraffic] = useStash<Record<number, AiPages>>(`traffic:${brand.id}:data`, {});
   const aiPages = traffic[days] ?? null;
@@ -225,7 +229,7 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
                     Pages
                     <Tip text={TIPS.pages} />
                   </SortTh>
-                  <th className="w-40" aria-label="Actions" />
+                  <th className="w-60" aria-label="Actions" />
                 </tr>
               </thead>
               <tbody>
@@ -248,6 +252,18 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
                         <td className="aw-num">{g.chats}</td>
                         <td className="aw-num">{g.pages.length}</td>
                         <td className="text-right whitespace-nowrap">
+                          {auth && g.type !== "You" ? (
+                            <button
+                              type="button"
+                              className="aw-text-link mr-3 text-[13px]"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setAdding({ kind: "website", name: g.domain, url: `https://${g.domain}` });
+                              }}
+                            >
+                              Add to list
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             className="aw-text-link mr-3 text-[13px]"
@@ -433,6 +449,22 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
             </div>
           ) : null}
         </section>
+      ) : null}
+
+      {notice ? <p className="aw-callout max-w-2xl">{notice}</p> : null}
+      {adding && auth ? (
+        <AddToList
+          sb={sb}
+          auth={auth}
+          brandId={brand.id}
+          items={[adding]}
+          from="sources"
+          onClose={() => setAdding(null)}
+          onDone={(message) => {
+            setAdding(null);
+            setNotice(message);
+          }}
+        />
       ) : null}
 
       {full ? (
