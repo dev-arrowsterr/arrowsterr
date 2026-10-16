@@ -1,6 +1,6 @@
 # Industry Research
 
-A section at the bottom of the Sources page. It shows the websites, press, subreddits, social accounts, YouTube channels and podcasts that people who visit the brand's site use, from SparkToro. Websites, press and subreddits also show how many AI answers in the period cite them. Those are the places to get mentioned first.
+A page under Organic Research. It shows the websites, press, subreddits, social accounts, YouTube channels and podcasts that people who visit the brand's site use, from SparkToro. Websites, press and subreddits also show how many AI answers in the period cite them. Those are the places to get mentioned first.
 
 ## How it works
 - An editor clicks Run Industry Research. `/api/industry` saves a `running` row in `industry_research` and queues an `industry` job.

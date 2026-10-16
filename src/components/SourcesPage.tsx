@@ -29,7 +29,6 @@ import { BrandLogo } from "./BrandLogo";
 import { StopButton, stopped } from "./research/shared";
 import { ENGINE_LOGOS, EngineName } from "./Engines";
 import { Markdown } from "./Markdown";
-import { IndustryResearch } from "./IndustryResearch";
 import { Card, Empty, favicon, pct, Seg, SidePanel, sortRows, SortTh, Tip, TIPS, useSort } from "./ui";
 
 export const TYPE_COLORS: Record<SourceType, string> = {
@@ -481,8 +480,6 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
           ) : null}
         </div>
       </Card>
-
-      <IndustryResearch sb={sb} brandId={brand.id} domain={brand.domain} chats={chats} auth={auth} />
     </div>
   );
 }
