@@ -56,6 +56,7 @@ import { PromptsPage } from "./PromptsPage";
 import { ResearchPage, type Tool } from "./research/ResearchPage";
 import type { SeoStart } from "./research/DomainResearch";
 import { IndustryResearch } from "./IndustryResearch";
+import { ListsPage } from "./outreach/ListsPage";
 import { SourcesPage } from "./SourcesPage";
 import { TrafficPage } from "./TrafficPage";
 import { ReportsPage } from "./reports/ReportsPage";
@@ -63,7 +64,7 @@ import { VisitorsPage } from "./VisitorsPage";
 import { ZippiePage } from "./ZippiePage";
 
 export type { Brand } from "@/lib/db";
-type Page = "ask" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "gap" | "calendar" | "intel" | "industry" | "summary" | SettingsTab;
+type Page = "ask" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "gap" | "calendar" | "intel" | "industry" | "lists" | "summary" | SettingsTab;
 const RESEARCH: Page[] = ["keywords", "domain", "gap", "calendar", "intel"];
 /** Website analytics is still in testing: only this account sees it. */
 const WEBSITE_TESTER = "vincent@perceptric.com";
@@ -84,6 +85,7 @@ const SLUGS: Record<Page, string> = {
   calendar: "/content-plan",
   intel: "/content-intelligence",
   industry: "/industry-research",
+  lists: "/outreach/lists",
   summary: "/reports",
   profile: "/settings/profile",
   security: "/settings/security",
@@ -825,6 +827,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
               }}
               onPlans={() => go("billing")}
             />
+          ) : page === "lists" ? (
+            <ListsPage key={ws.id} sb={sb} auth={auth} canEdit={canEdit} onResearch={() => go("industry")} />
           ) : page === "industry" ? (
             <IndustryResearch key={view.brand.id} sb={sb} brandId={view.brand.id} domain={view.brand.domain} chats={answered(view.current, view.filter)} auth={canEdit ? auth : null} />
           ) : RESEARCH.includes(page) ? (
@@ -932,6 +936,8 @@ const ICONS: Record<string, string> = {
   eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   report: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M4.2 6.2l2.1 2.1M17.7 15.7l2.1 2.1M2.5 12h3M18.5 12h3M4.2 17.8l2.1-2.1M17.7 8.3l2.1-2.1"/>',
+  send: '<path d="M21 3L3 10.5l7 3 3 7L21 3z"/><path d="M10 13.5L21 3"/>',
+  list: '<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6h1M4 12h1M4 18h1"/>',
   audience: '<circle cx="12" cy="7.5" r="3"/><path d="M6.5 19c.6-3 2.8-5 5.5-5s4.9 2 5.5 5"/><circle cx="4.5" cy="10" r="2"/><circle cx="19.5" cy="10" r="2"/><path d="M1.5 18c.3-1.8 1.4-3 3-3.3M22.5 18c-.3-1.8-1.4-3-3-3.3"/>',
   radar: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><path d="M12 12l6-6"/><circle cx="12" cy="12" r="1"/>',
   card: '<rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6.5 15h4"/>',
@@ -964,6 +970,11 @@ const NAV: { group: string; icon: string; tester?: boolean; items: { id: Page; l
       { id: "gap", label: "Competitive Analysis", icon: "gap" },
       { id: "industry", label: "Industry Research", icon: "audience" },
     ],
+  },
+  {
+    group: "Outreach",
+    icon: "send",
+    items: [{ id: "lists", label: "Lists", icon: "list" }],
   },
   {
     group: "Agentic Content",

@@ -3,13 +3,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useState } from "react";
 import type { Chat } from "@/lib/chats";
-import { aiCites, REFRESH_DAYS, SECTIONS, type Research, type SectionId } from "@/lib/industry";
+import { aiCites, REFRESH_DAYS, SECTIONS, type Research, type ResearchRow, type SectionId } from "@/lib/industry";
+import type { NewTarget, TargetKind } from "@/lib/outreach";
 import type { RunAuth } from "@/lib/runner";
 import { BrandLogo } from "./BrandLogo";
+import { AddToList } from "./outreach/AddToList";
 import { post } from "./research/shared";
 import { SampleRows, ToolIntro } from "./ToolIntro";
 import { favicon, sortRows, SortTh, Thinking, Tip, useSort } from "./ui";
 
+/** The outreach target each section adds. Subreddits are joined in the threads, not emailed. */
+const KIND_OF: Record<SectionId, TargetKind | null> = { websites: "website", press: "press", reddit: null, social: "social", youtube: "youtube", podcasts: "podcast" };
 const COLUMN: Record<SectionId, string> = { websites: "Website", press: "Publication", reddit: "Subreddit", social: "Account", youtube: "Channel", podcasts: "Podcast" };
 const date = (iso: string) => new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 const compact = (n: number) => new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(n);
@@ -34,6 +38,9 @@ export function IndustryResearch({ sb, brandId, domain, chats, auth }: { sb: Sup
   const [sort, setSort] = useSort("score");
   const [query, setQuery] = useState("");
   const [citedOnly, setCitedOnly] = useState(false);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [adding, setAdding] = useState<NewTarget[] | null>(null);
+  const [notice, setNotice] = useState("");
 
   const load = useCallback(async () => {
     const { data: row, error: err } = await sb.from("industry_research").select("*").eq("brand_id", brandId).maybeSingle();
@@ -78,6 +85,9 @@ export function IndustryResearch({ sb, brandId, domain, chats, auth }: { sb: Sup
   const rows = data?.sections?.[tab] ?? [];
   const cites = rows.map((r) => aiCites(tab, r, chats));
   const showCites = cites.some((c) => c !== null);
+  const kind = KIND_OF[tab];
+  const canAdd = Boolean(auth && kind);
+  const toTarget = (r: ResearchRow): NewTarget => ({ kind: kind!, name: r.name, url: r.url });
   const q = query.trim().toLowerCase();
   const listed = sortRows(
     rows.map((r, i) => ({ ...r, cites: cites[i] })).filter((r) => (!q || `${r.name} ${r.url ?? ""}`.toLowerCase().includes(q)) && (!citedOnly || !showCites || (r.cites ?? 0) > 0)),
@@ -180,7 +190,10 @@ export function IndustryResearch({ sb, brandId, domain, chats, auth }: { sb: Sup
                   type="button"
                   role="tab"
                   aria-selected={tab === s.id}
-                  onClick={() => setTab(s.id)}
+                  onClick={() => {
+                    setTab(s.id);
+                    setPicked(new Set());
+                  }}
                   className={`-mb-px flex items-center gap-2 border-b-2 px-4 py-3 text-[14px] ${tab === s.id ? "border-ink font-medium text-ink" : "border-transparent text-body hover:text-ink"}`}
                 >
                   {s.label}
@@ -202,11 +215,34 @@ export function IndustryResearch({ sb, brandId, domain, chats, auth }: { sb: Sup
                 </span>
               </div>
             ) : null}
+            {notice ? <p className="aw-small border-b border-rule-faint bg-brand-pale px-5 py-2.5 text-ink!">{notice}</p> : null}
+            {canAdd && picked.size ? (
+              <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint bg-brand-pale px-5 py-2.5">
+                <span className="text-[14px] font-medium text-ink">{picked.size} selected</span>
+                <button type="button" className="aw-btn aw-btn--accent aw-btn--sm" onClick={() => setAdding(rows.filter((r) => picked.has(r.name)).map(toTarget))}>
+                  Add to list
+                </button>
+                <button type="button" className="aw-text-link text-[14px]" onClick={() => setPicked(new Set())}>
+                  Clear
+                </button>
+              </div>
+            ) : null}
             {listed.length ? (
               <div className="overflow-x-auto">
                 <table className="aw-table">
                   <thead>
                     <tr>
+                      {canAdd ? (
+                        <th className="w-10">
+                          <input
+                            type="checkbox"
+                            aria-label="Select every row shown"
+                            checked={listed.length > 0 && listed.every((r) => picked.has(r.name))}
+                            onChange={(e) => setPicked(e.target.checked ? new Set([...picked, ...listed.map((r) => r.name)]) : new Set([...picked].filter((n) => !listed.some((r) => r.name === n))))}
+                            className="h-4 w-4 accent-[var(--aw-brand)]"
+                          />
+                        </th>
+                      ) : null}
                       <th className="w-10">#</th>
                       <SortTh id="name" sort={sort} onSort={setSort} text>
                         {COLUMN[tab]}
@@ -235,7 +271,18 @@ export function IndustryResearch({ sb, brandId, domain, chats, auth }: { sb: Sup
                       const host = hostOf(r.url);
                       const c = r.cites;
                       return (
-                        <tr key={r.name}>
+                        <tr key={r.name} className={picked.has(r.name) ? "bg-brand-pale" : ""}>
+                          {canAdd ? (
+                            <td>
+                              <input
+                                type="checkbox"
+                                aria-label={`Select ${r.name}`}
+                                checked={picked.has(r.name)}
+                                onChange={() => setPicked(picked.has(r.name) ? new Set([...picked].filter((n) => n !== r.name)) : new Set([...picked, r.name]))}
+                                className="h-4 w-4 accent-[var(--aw-brand)]"
+                              />
+                            </td>
+                          ) : null}
                           <td className="aw-num text-muted">{i + 1}</td>
                           <td>
                             <span className="flex min-w-0 items-center gap-2.5">
@@ -275,6 +322,21 @@ export function IndustryResearch({ sb, brandId, domain, chats, auth }: { sb: Sup
           </>
         )}
       </section>
+      {adding && auth ? (
+        <AddToList
+          sb={sb}
+          auth={auth}
+          brandId={brandId}
+          items={adding}
+          from="industry"
+          onClose={() => setAdding(null)}
+          onDone={(message) => {
+            setAdding(null);
+            setPicked(new Set());
+            setNotice(message);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
