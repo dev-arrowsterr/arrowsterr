@@ -4,7 +4,8 @@ Get mentioned on the websites, press, podcasts and channels your audience uses a
 
 ## Build order
 1. **Sort and filter on Industry Research.** Done.
-2. **Lists, Add to list and contact finding.** Done (this step).
+2. **Lists, Add to list and contact finding.** Done.
+2b. **Craft emails** with Open in Gmail. Done.
 3. Connect Gmail (`gmail.send`), drafting by purpose with review.
 4. The random sender: 18 to 30 emails a day per account, 4 to 25 minutes apart inside work hours, warm-up for new accounts, one email per domain per day, follow-ups that stop on reply.
 5. Inbox for outreach threads only (`gmail.readonly`, needs Google's CASA review), reply tags by Haiku.
@@ -20,15 +21,23 @@ Get mentioned on the websites, press, podcasts and channels your audience uses a
   - Every address must have a working mail server (MX record). Nothing is guessed. An email someone typed is never overwritten.
 - **Do not contact:** targets on a blocked domain or address are marked Do not contact when added.
 
-## Database
-`supabase/040_outreach.sql`: `outreach_lists`, `outreach_targets`, `outreach_suppression`. Members read; the server writes through `/api/outreach` after checking the editor role.
+## Step 2b: Craft emails
+- **Add to list from Sources by link:** each cited page (not your own) has Add to list. The page itself becomes the target, so the writer can quote it and the email search starts from it.
+- **Write emails** (Lists, on the selected targets or every target without a draft): pick what the email is for, add an optional note, and Zippie writes one draft per target (`draft` job, `src/lib/drafts.ts`). Purposes by type: website (listicle, link, guest post, review), press (story, expert quote, link), podcast (guest, sponsorship), YouTube (guest, review, sponsorship), social (review, sponsorship, collaboration), or your own ask.
+- Before writing, it reads the target: the page for websites and press, the latest 3 episodes from the RSS feed for podcasts. The email opens with one true detail from that reading and uses only facts from it and the brand profile. "Why it's written this way" says which detail it used.
+- **Emails tab:** drafts on the left, the editor on the right. Save changes, Rewrite, Copy, Open in Gmail (a prefilled compose window), and Mark as sent. Real sending from Arrowsterr comes with step 3.
+- Each draft costs 2 tasks, taken when it's written and handed back if it fails.
 
-## Running cost a month (step 2)
+## Database
+`supabase/040_outreach.sql`: `outreach_lists`, `outreach_targets`, `outreach_suppression`. `supabase/041_outreach_drafts.sql`: the draft columns on `outreach_targets`. Members read; the server writes through `/api/outreach` after checking the editor role.
+
+## Running cost a month (steps 2 and 2b)
 
 | | Beta (50 teams) | Growth (500 teams) |
 |---|---|---|
 | Email lookups (page reads and Apple search, no paid API) | $0 | $0 |
 | Server time (current worker) | $0 | $0 |
-| **Total** | **$0** | **$0** |
+| Drafts (Sonnet, ~$0.01 each; 300 / 3,000 a team a month) | ~$150 | ~$1,500 |
+| **Total** | **~$150** | **~$1,500** |
 
 The full outreach plan (drafting, sending, inbox) adds about $200 to $300 a month at Beta and $1,570 to $1,670 at Growth, mostly Claude drafts and Google's yearly CASA review (check).

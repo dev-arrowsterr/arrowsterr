@@ -96,6 +96,8 @@ const groupOf = (t: SourceType): Group => (t === "You" ? "owned" : t === "Review
 type AiPages = { pages: { path: string; visits: number; engines: Record<string, number> }[]; source?: string };
 
 const TOP = 20; // rows in the list before "Open all"
+/** A cited page as an outreach target: the page itself, so its author and site can be reached. */
+const linkTarget = (u: UrlRow): NewTarget => ({ kind: "website", name: pageTitle(u.title, u.url).slice(0, 200), url: u.url });
 
 export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseClient; view: View; auth: RunAuth | null; reader: RunAuth; onSeo: (target: string, scope: Scope) => void }) {
   const { brand, current, filter, days, topics, engines } = view;
@@ -282,7 +284,7 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
                       {isOpen
                         ? [...g.pages]
                             .sort((x, y) => y.chats - x.chats)
-                            .map((u) => <LinkRow key={u.url} u={u} note={notes.get(pageKey(u.url))} indent onOpen={() => setDeep(u)} />)
+                            .map((u) => <LinkRow key={u.url} u={u} note={notes.get(pageKey(u.url))} indent onOpen={() => setDeep(u)} onAdd={auth ? () => setAdding(linkTarget(u)) : undefined} />)
                         : null}
                     </Fragment>
                   );
@@ -309,14 +311,14 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
                     Prompts
                     <Tip text="How many of your prompts got an answer citing this link." />
                   </SortTh>
-                  <th className="w-10" />
+                  <th className={auth ? "w-36" : "w-10"} aria-label="Actions" />
                 </tr>
               </thead>
               <tbody>
                 {sortRows(links.slice(0, 300), linkSort, { title: (u) => pageTitle(u.title, u.url), used: (u) => u.used, chats: (u) => u.chats, prompts: (u) => u.prompts.length })
                   .slice(0, max)
                   .map((u, i) => (
-                  <LinkRow key={u.url} u={u} n={i + 1} note={notes.get(pageKey(u.url))} ai={aiPages && group === "owned" ? aiVisitsOf(u.url) : undefined} onOpen={() => setDeep(u)} />
+                  <LinkRow key={u.url} u={u} n={i + 1} note={notes.get(pageKey(u.url))} ai={aiPages && group === "owned" ? aiVisitsOf(u.url) : undefined} onOpen={() => setDeep(u)} onAdd={auth ? () => setAdding(linkTarget(u)) : undefined} />
                 ))}
               </tbody>
             </table>
@@ -517,7 +519,7 @@ export function SourcesPage({ sb, view, auth, reader, onSeo }: { sb: SupabaseCli
 }
 
 /** One cited link: title, address, share of answers and prompts. */
-function LinkRow({ u, n, note, indent = false, ai, onOpen }: { u: UrlRow; n?: number; note?: Insights["pages"][number]; indent?: boolean; ai?: number | null; onOpen: () => void }) {
+function LinkRow({ u, n, note, indent = false, ai, onOpen, onAdd }: { u: UrlRow; n?: number; note?: Insights["pages"][number]; indent?: boolean; ai?: number | null; onOpen: () => void; onAdd?: () => void }) {
   return (
     <tr className={`cursor-pointer hover:bg-brand-pale ${indent ? "bg-paper" : ""}`} onClick={onOpen}>
       <td className="aw-num text-muted">{n ?? ""}</td>
@@ -544,8 +546,20 @@ function LinkRow({ u, n, note, indent = false, ai, onOpen }: { u: UrlRow; n?: nu
       <td className="aw-num" title={u.prompts.join("\n")}>
         {u.prompts.length}
       </td>
-      <td className="text-muted" aria-hidden="true">
-        ›
+      <td className="text-right whitespace-nowrap text-muted">
+        {onAdd && u.type !== "You" ? (
+          <button
+            type="button"
+            className="aw-text-link mr-3 text-[13px]"
+            onClick={(e) => {
+              e.stopPropagation();
+              onAdd();
+            }}
+          >
+            Add to list
+          </button>
+        ) : null}
+        <span aria-hidden="true">›</span>
       </td>
     </tr>
   );

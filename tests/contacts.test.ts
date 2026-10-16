@@ -54,3 +54,17 @@ test("sameShow: loose but not sloppy podcast name match", () => {
   assert.ok(!sameShow("Growth", "The Growth Hacking Podcast for Founders"));
   assert.ok(!sameShow("SaaS Talk", "Sales Talk"));
 });
+
+test("rssEpisodes: newest episodes with clean titles and short summaries", async () => {
+  const { rssEpisodes } = await import("../src/lib/contacts.ts");
+  const xml = `<channel><title>Show</title>
+    <item><title><![CDATA[Ep 142: Zero-click search & you]]></title><itunes:summary><p>Where buyers go when Google stops sending clicks.</p></itunes:summary></item>
+    <item><title>Ep 141: Notion's growth lead</title><description>How they grew &amp; hired.</description></item>
+    <item><title></title></item>
+    <item><title>Ep 140</title></item></channel>`;
+  assert.deepEqual(rssEpisodes(xml), [
+    { title: "Ep 142: Zero-click search & you", summary: "Where buyers go when Google stops sending clicks." },
+    { title: "Ep 141: Notion's growth lead", summary: "How they grew & hired." },
+  ]);
+  assert.deepEqual(rssEpisodes(""), []);
+});

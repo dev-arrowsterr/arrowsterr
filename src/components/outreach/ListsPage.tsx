@@ -7,6 +7,7 @@ import type { RunAuth } from "@/lib/runner";
 import { BrandLogo } from "../BrandLogo";
 import { post } from "../research/shared";
 import { ToolIntro } from "../ToolIntro";
+import { CraftDialog, EmailsView } from "./Emails";
 import { favicon, Thinking } from "../ui";
 
 type List = OutreachList & { count: number };
@@ -31,6 +32,8 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
   const [renaming, setRenaming] = useState<string | null>(null);
   const [editing, setEditing] = useState<{ id: string; email: string } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [view, setView] = useState<"targets" | "emails">("targets");
+  const [crafting, setCrafting] = useState<OutreachTarget[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -64,7 +67,7 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
   }, [loadTargets]);
 
   // While emails are being looked up, check back every 8 seconds.
-  const looking = (targets ?? []).some((t) => t.email_status === "pending");
+  const looking = (targets ?? []).some((t) => t.email_status === "pending" || t.draft_status === "pending");
   useEffect(() => {
     if (!looking) return;
     const t = setInterval(() => void loadTargets(), 8000);
@@ -131,6 +134,16 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
   const kinds = [...new Set((targets ?? []).map((t) => t.kind))];
   const withEmail = (targets ?? []).filter((t) => t.email).length;
   const missing = (targets ?? []).filter((t) => t.email_status === "not_found" && (t.kind === "website" || t.kind === "press" || t.kind === "podcast"));
+  const drafts = (targets ?? []).filter((t) => t.draft_status !== "none");
+  const writable = (targets ?? []).filter((t) => t.status !== "do_not_contact");
+  const startDrafts = async (purpose: string, note: string) => {
+    const ids = (crafting ?? []).map((t) => t.id);
+    await act({ action: "draft", targetIds: ids, purpose, note }, () => {
+      setCrafting(null);
+      setPicked(new Set());
+      setView("emails");
+    });
+  };
   const flip = (id: string) => setPicked(picked.has(id) ? new Set([...picked].filter((x) => x !== id)) : new Set([...picked, id]));
 
   return (
@@ -208,6 +221,14 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
                     Look again ({missing.length})
                   </button>
                 ) : null}
+                <button
+                  type="button"
+                  className="aw-btn aw-btn--accent aw-btn--sm"
+                  disabled={!writable.length}
+                  onClick={() => setCrafting(picked.size ? writable.filter((t) => picked.has(t.id)) : writable.filter((t) => t.draft_status === "none"))}
+                >
+                  Write emails
+                </button>
                 <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={() => setRenaming(list.name)}>
                   Rename
                 </button>
@@ -230,7 +251,43 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
             ) : null}
           </div>
 
-          {kinds.length > 1 ? (
+          <div role="tablist" aria-label="List view" className="flex border-b border-rule px-3">
+            {(
+              [
+                ["targets", `Targets ${targets?.length ?? 0}`],
+                ["emails", `Emails ${drafts.length}`],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={view === id}
+                onClick={() => setView(id)}
+                className={`-mb-px border-b-2 px-3 py-2.5 text-[14px] ${view === id ? "border-ink font-medium text-ink" : "border-transparent text-body hover:text-ink"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
+          {view === "emails" ? (
+            <EmailsView
+              key={list.id}
+              targets={drafts}
+              canEdit={canEdit}
+              busy={busy}
+              onSave={(t, subject, body) => act({ action: "saveDraft", targetId: t.id, subject, body })}
+              onRewrite={(t) => void act({ action: "draft", targetIds: [t.id], purpose: t.draft_purpose, note: t.draft_note ?? "" })}
+              onSent={(t, undo) => void act({ action: "markSent", targetIds: [t.id], undo })}
+              onAddEmail={(t) => {
+                setView("targets");
+                setEditing({ id: t.id, email: "" });
+              }}
+            />
+          ) : null}
+
+          {view === "targets" && kinds.length > 1 ? (
             <div role="group" aria-label="Filter by type" className="flex flex-wrap gap-2 border-b border-rule-faint px-5 py-3">
               {(["", ...kinds] as (TargetKind | "")[]).map((k) => (
                 <button key={k || "all"} type="button" aria-pressed={kind === k} onClick={() => setKind(k)} className={`aw-chip aw-chip--btn ${kind === k ? "is-on" : ""}`}>
@@ -240,9 +297,12 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
             </div>
           ) : null}
 
-          {canEdit && picked.size ? (
+          {view === "targets" && canEdit && picked.size ? (
             <div className="flex flex-wrap items-center gap-3 border-b border-rule-faint bg-brand-pale px-5 py-2.5">
               <span className="text-[14px] font-medium text-ink">{picked.size} selected</span>
+              <button type="button" className="aw-btn aw-btn--accent aw-btn--sm" disabled={busy} onClick={() => setCrafting(writable.filter((t) => picked.has(t.id)))}>
+                Write emails
+              </button>
               <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" disabled={busy} onClick={() => act({ action: "findEmails", targetIds: [...picked] }, () => setPicked(new Set()))}>
                 Find emails
               </button>
@@ -255,7 +315,7 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
             </div>
           ) : null}
 
-          {targets === null ? (
+          {view === "emails" ? null : targets === null ? (
             <p className="aw-small px-5 py-4">Loading…</p>
           ) : !shown.length ? (
             <p className="aw-small px-5 py-5">
@@ -366,6 +426,7 @@ export function ListsPage({ sb, auth, canEdit, onResearch }: { sb: SupabaseClien
           )}
         </section>
       </div>
+      {crafting ? <CraftDialog targets={crafting} busy={busy} onStart={(p, n) => void startDrafts(p, n)} onClose={() => setCrafting(null)} /> : null}
     </div>
   );
 }
