@@ -26,7 +26,7 @@ Get mentioned on the websites, press, podcasts and channels your audience uses a
 - **Write emails** (Lists, on the selected targets or every target without a draft): pick what the email is for, add an optional note, and Zippie writes one draft per target (`draft` job, `src/lib/drafts.ts`). Purposes by type: website (listicle, link, guest post, review), press (story, expert quote, link), podcast (guest, sponsorship), YouTube (guest, review, sponsorship), social (review, sponsorship, collaboration), or your own ask.
 - Before writing, it reads the target: the page for websites and press, the latest 3 episodes from the RSS feed for podcasts. The email opens with one true detail from that reading and uses only facts from it and the brand profile. "Why it's written this way" says which detail it used.
 - **Emails tab:** drafts on the left, the editor on the right. Save changes, Rewrite, Copy, Open in Gmail (a prefilled compose window), and Mark as sent. Real sending from Arrowsterr comes with step 3.
-- Each draft costs 2 tasks, taken when it's written and handed back if it fails.
+- Each draft costs 3 tasks, taken when it's written and handed back if it fails.
 
 ## Database
 `supabase/040_outreach.sql`: `outreach_lists`, `outreach_targets`, `outreach_suppression`. `supabase/041_outreach_drafts.sql`: the draft columns on `outreach_targets`. Members read; the server writes through `/api/outreach` after checking the editor role.

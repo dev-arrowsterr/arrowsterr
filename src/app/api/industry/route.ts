@@ -1,4 +1,4 @@
-import { requireActive, requireTrack } from "@/lib/entitlements";
+import { entitlement, requireActive, requireTrack } from "@/lib/entitlements";
 import { REFRESH_DAYS } from "@/lib/industry";
 import { enqueue } from "@/lib/jobs";
 import { adminClient, requireRole } from "@/lib/serverAuth";
@@ -14,6 +14,8 @@ export async function POST(request: Request) {
   if ("denied" in auth) return auth.denied;
   const locked = (await requireTrack(body.workspaceId, "seo")) ?? (await requireActive(body.workspaceId));
   if (locked) return locked;
+  const perMonth = (await entitlement(body.workspaceId)).limits.audiencePerMonth;
+  if (perMonth <= 0) return Response.json({ error: "Audience research starts on Starter.", limit: true, boost: "foundation" }, { status: 429 });
   if (!sparktoroReady()) return Response.json({ error: NO_KEY }, { status: 500 });
   const db = adminClient();
   if (!db) return Response.json({ error: "Add SUPABASE_SECRET_KEY to the server's settings." }, { status: 500 });
@@ -31,6 +33,16 @@ export async function POST(request: Request) {
       return Response.json({ error: `Industry Research refreshes once every ${REFRESH_DAYS} days. You can refresh it on ${on}.`, limit: true }, { status: 429 });
     }
   }
+
+  // Each plan includes a number of audience reports a month: one per brand, refreshes of the same brand included.
+  const { count: others } = await db
+    .from("industry_research")
+    .select("brand_id", { count: "exact", head: true })
+    .eq("workspace_id", body.workspaceId)
+    .neq("brand_id", brand.id)
+    .gte("started_at", new Date(Date.now() - REFRESH_DAYS * 864e5).toISOString());
+  if ((others ?? 0) >= perMonth)
+    return Response.json({ error: `Your plan includes ${perMonth} audience ${perMonth === 1 ? "report" : "reports"} a month, and ${perMonth === 1 ? "it's" : "they're"} used. Move up a plan for more.`, limit: true }, { status: 429 });
 
   const now = new Date().toISOString();
   const { error: err } = await db

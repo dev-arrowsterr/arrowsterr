@@ -3,7 +3,7 @@ import { runBrief } from "@/lib/brief";
 import { dfsReady } from "@/lib/dataforseo";
 import { adminClient, requireRole, takeAnswer } from "@/lib/serverAuth";
 import { metered, meteredRoute } from "@/lib/meter";
-import { requireTrack, take } from "@/lib/entitlements";
+import { requireContentPlan, requireTrack, take } from "@/lib/entitlements";
 import { TASK_COST } from "@/lib/plans";
 import { enqueue, queueReady } from "@/lib/jobs";
 
@@ -19,6 +19,8 @@ async function handle(request: Request) {
   if (body.action === "stop") return stop(auth.sb, body.workspaceId, String(body.itemId ?? ""));
   const paid = await requireTrack(body.workspaceId, "seo");
   if (paid) return paid;
+  const noPlan = await requireContentPlan(body.workspaceId);
+  if (noPlan) return noPlan;
   const took = await take(body.workspaceId, "tasks", TASK_COST.brief, { refundIfFree: false });
   if (!took.ok) return took.response;
   if (!dfsReady()) return Response.json({ error: "DataForSEO is not set up. Add DFS_LOGIN and DFS_PASSWORD to the server's settings." }, { status: 500 });

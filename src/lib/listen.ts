@@ -83,10 +83,14 @@ export async function listenDaily(db: SupabaseClient, due: (brandId: string) => 
     const day = today();
     const { data, error } = await db.from("brands").select("id, workspace_id, name, domain, category, listen, listened_on").order("created_at");
     if (error) return; // before 038_social.sql
+    // Each plan listens for its first N brands, in the order they were added.
+    const order = new Map<string, string[]>();
+    for (const b of data ?? []) order.set(b.workspace_id, [...(order.get(b.workspace_id) ?? []), b.id]);
     for (const b of data ?? []) {
       if ((b.listen as ListenSettings | null)?.off || b.listened_on === day || !due(b.id)) continue;
       const e = await entitlement(b.workspace_id);
       if (e.readOnly || !e.open.visibility || e.limits.listenNames <= 0) continue;
+      if ((order.get(b.workspace_id) ?? []).indexOf(b.id) >= e.limits.listenBrands) continue;
       // Claim today first, so a crash halfway never queues the brand twice.
       const { data: claimed } = await db.from("brands").update({ listened_on: day }).eq("id", b.id).or(`listened_on.is.null,listened_on.neq.${day}`).select("id");
       if (!claimed?.length) continue;

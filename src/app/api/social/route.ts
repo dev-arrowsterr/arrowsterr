@@ -42,7 +42,10 @@ export async function POST(request: Request) {
     }
 
     // start
-    if (limit <= 0) return Response.json({ error: "Your plan doesn't include social listening.", limit: true }, { status: 429 });
+    if (limit <= 0) return Response.json({ error: "Social listening starts on Starter.", limit: true, boost: "foundation" }, { status: 429 });
+    const { data: all } = await auth.sb.from("brands").select("id").eq("workspace_id", body.workspaceId).order("created_at");
+    if ((all ?? []).findIndex((x) => x.id === brand.id) >= e.limits.listenBrands)
+      return Response.json({ error: `Your plan listens for your first ${e.limits.listenBrands} ${e.limits.listenBrands === 1 ? "brand" : "brands"}. Add a brand to your plan, or move up a plan.`, limit: true }, { status: 429 });
     const db = adminClient();
     if (!db) return Response.json({ error: "Add SUPABASE_SECRET_KEY to the server's settings." }, { status: 500 });
     const listen: ListenSettings = { ...(brand.listen ?? {}), off: false };

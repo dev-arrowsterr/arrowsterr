@@ -1,96 +1,113 @@
-# Pricing v4, free tools and social listening
+# Pricing v4
 
-Plan, not built yet. Costs come from `cost_ledger` (Oct 9 to 15, 2026) unless marked estimate. Prices marked "check" weren't confirmed on the vendor's own page.
+Built in October 2026. Costs come from `cost_ledger` (Oct 9 to 16, 2026) unless marked estimate. Competitor prices marked "check" come from third-party pages, not the vendor's own.
 
-## What things cost us
+## 1. What each unit costs us
 
-| Unit | Cost | Source |
+| Unit | Our cost | Source |
 |---|---|---|
-| One AI answer (ChatGPT, Gemini, AI Overviews, AI Mode via DataForSEO, plus Haiku parsing) | $0.0017 | measured, 1,267 checks |
-| One Claude answer with web search | ~$0.025 | estimate, `meter.ts` prices |
-| One Perplexity answer | ~$0.006 | estimate, `engines.ts` prices |
-| One tracked prompt for a month (4 AIs daily, 2 weekly) | ~$0.35 | from the rows above |
-| One task | ~$0.005 | `plans.ts` |
-| Keyword report / keyword gap / AI Snapshot | $0.054 / $0.065 / $0.10 | measured / measured / `snapshot/route.ts` |
+| One AI answer, daily engines (ChatGPT, Gemini, AI Overviews, AI Mode) | $0.0016 | measured, 1,267 checks |
+| One Claude answer (Haiku with 1 web search) | ~$0.011 | estimate from `meter.ts` prices |
+| One Perplexity answer | ~$0.006 | estimate from `engines.ts` prices |
+| **One prompt tracked for a month** (4 AIs daily, Claude and Perplexity weekly) | **~$0.27** | from the rows above |
+| One prompt, all 6 AIs weekly only | ~$0.06 | from the rows above |
+| One task | ~$0.005 | keyword report: 10 tasks, $0.054 measured |
+| New brand setup (onboarding) | $0.14 | measured, 43 runs |
+| Audience research report (SparkToro, 20 credits) | $2.00 | measured |
+| Outreach email draft | $0.014 | measured |
+| Social listening, one tracked name for a month | ~$0.20 | estimate: 3 searches a day + Haiku |
+| Stripe | 2.9% + $0.30 a charge | Stripe |
 
-## Plans
+Two prices to fix whatever plan we pick:
+- **Email drafts are charged 2 tasks (~$0.010) and cost $0.014.** Make it 3 tasks.
+- **Daily prompts are the cost that never shrinks.** Every paying customer fills their prompts, so prompt counts drive margin more than anything else.
 
-| Plan | Monthly (yearly) | Prompts | Tasks/mo | Seats | Social keywords | Adds | Our cost: full use / typical |
-|---|---|---|---|---|---|---|---|
-| Free | $0 | 10, weekly, ChatGPT + AI Overviews | 200 | 1 | 0 | Traffic with AI visits (10k), Zippie audit only | $1.15 / $0.40 |
-| Starter | $49 ($42) | 50 daily | 3,000 | 3 | 3 | Both toolsets, briefs, Zippie fixes | $36 / $24 |
-| Pro | $149 ($127) | 150 daily | 8,000 | 5 | 10 | Agentic Writer, Slack, API, MCP | $107 / $76 |
-| Agency | $399 ($339) | 400 daily | 25,000 | 15 | 30 | White-label, client reports | $306 / $220 |
-| Enterprise | from $1,500 | 1,000+ | 150,000 | Unlimited | Custom | SSO, custom limits | $1,100+ / $700+ |
+## 2. What the market charges (October 2026)
 
-- Trial: 7 days of Pro, no card. When it ends the workspace drops to Free, not read-only.
-- Starter opens both toolsets. The one-toolset pick (`TRACKS`, `STARTER` in `plans.ts`) goes away.
-- Add-ons: +50 prompts $29/mo. Daily Claude and Perplexity +$1 per prompt a month (costs ~$0.80). X for social listening +$19 per keyword a month (cap 1,500 posts). Task packs stay.
-- Current subscribers keep their price through the `arrowsterr_v3_*` Stripe keys. New prices use `arrowsterr_v4_*`.
-- To change: `src/lib/plans.ts`, `scripts/stripe-setup.mjs`, the pricing page, and the Arrowsterr prices in the 4 blog posts on arrowsterr.com.
-
-## Free tools (arrowsterr.com, no signup, full result by email)
-
-| Tool | Reuses | Cost per run |
+| Tool | Price a month | What you get |
 |---|---|---|
-| AI Visibility Snapshot | live now | $0.10 |
-| AI Crawler Checker (GPTBot, ClaudeBot, PerplexityBot, Google-Extended) | Zippie audit | $0 |
-| llms.txt Generator | `sitemap.ts` + Haiku | ~$0.01 |
-| AI Traffic Checker (Google sign-in, visits from ChatGPT, Perplexity, Gemini) | `ga4.ts` | $0 |
-| Free Keyword Research (5 a day) | keyword report | $0.054 |
-| Competitor Keyword Gap (1 a day) | keyword gap | $0.065 |
-| Meta Title and Description Generator | Zippie skill | ~$0.002 |
-| FAQ Schema Generator | Zippie skill | ~$0.005 |
-| Reddit Mention Finder (last 30 days for a brand) | social listening | ~$0.01 |
+| Peec AI | $95 / $245 / $495 | 50 / 150 / 350 prompts, 3 AIs you pick, daily |
+| Otterly | $29 / $189 / $489 | AI tracking; Gemini, AI Mode and Claude cost extra |
+| Semrush AI Visibility Toolkit | $99 a domain (check) | 25 prompts, 4 AIs; SEO plans are another $139.95 to $499.95 |
+| Semrush One (SEO + AI) | $199 / $299 / $549 (check) | |
+| Ahrefs | $129 / $249 / $449 + Brand Radar from $199 (check) | |
+| Pitchbox (outreach) | $165 / $420 / $675 (check) | |
+| BuzzStream (outreach) | from $24 to $49 (check) | |
 
-Limits: Cloudflare Turnstile, 3 runs a day per IP without an email, results cached per domain for 7 days, a $20 daily spend cap read from `cost_ledger` that turns the paid tools off.
+A buyer who wants AI tracking, SEO research and outreach today pays about $300 to $500 a month across 2 or 3 tools. Arrowsterr does all of it in one.
 
-## Social listening
+## 3. The plans
 
-Mentions of your brand, competitors and keywords across social sites and the web, with sentiment, alerts and replies drafted by Zippie.
+| | **Free forever** | **Starter** | **Pro** | **Agency** | **Enterprise** |
+|---|---|---|---|---|---|
+| Monthly | $0 | **$49** | **$149** | **$399** | from $1,500 |
+| Billed yearly (15% off) | $0 | $42 | $127 | $339 | custom |
+| For | Trying it, forever | One brand, one marketer | A growing team | Agencies with clients | Large teams |
+| Prompts | 10, weekly | 50, daily | 150, daily | 400, daily | 1,000+ |
+| AIs | ChatGPT, AI Overviews | All 6 | All 6 | All 6 | All 6 |
+| Brands | 1 | 3 | 10 | Unlimited | Unlimited |
+| Seats | 1 | 3 | 5 | 15 | Unlimited |
+| Tasks a month | 200 | 2,000 | 8,000 | 20,000 | 150,000 |
+| Competitors per brand | 3 | 10 | 15 | 25 | 50 |
+| History | 30 days | 6 months | 1 year | 2 years | 3 years |
+| Sources, Competitors, Prompts | Yes | Yes | Yes | Yes | Yes |
+| Keyword, Domain and Competitive Analysis | 200 tasks (about 20 keyword lookups, or 8 keyword gaps) | Yes | Yes | Yes | Yes |
+| Content Plan and briefs | — | Yes | Yes | Yes | Yes |
+| Agentic Writer and publishing | — | — | Yes | Yes | Yes |
+| Zippie | Site audit | Audits and fixes | Everything | Everything | Everything |
+| Social listening | — | 1 brand, 3 competitors | 3 brands, 5 each | 10 brands, 10 each | Custom |
+| Audience research (SparkToro) | — | 1 brand a month | 3 brands a month | 10 brands a month | Custom |
+| Outreach lists and email drafts | 1 list | Yes (drafts use tasks) | Yes | Yes | Yes |
+| Outreach sending (when built) | — | — | 1 mailbox, 500 a month | 5 mailboxes, 3,000 a month | Custom |
+| Traffic and AI visits | 10k visits | 25k | 250k | 2M | 10M |
+| Slack, API, MCP | — | MCP | Yes | Yes | Yes + SSO |
+| Reports | Basic | Templates | Templates | White-label | White-label |
 
-### Parts
-- **Mentions feed:** every post or comment that names a tracked keyword, newest first, with source, author, link, sentiment and topic. Filter by source, brand or competitor.
-- **Share of voice:** your mentions against each competitor's, by week and by source.
-- **Threads AI cites:** mentions that ChatGPT, Perplexity or Google AI also cite in answers (joined with `aiSources.ts`). These are the threads worth answering first.
-- **Reply drafts:** Zippie's existing "community replies" skill drafts a reply in the brand voice. A person posts it. Nothing is posted for them.
-- **Alerts:** Slack and email for new mentions, a spike in negative sentiment, or a mention in a thread AI cites. Weekly digest by email.
+### Why this shape
+- **Free is a real product, not a teaser.** 10 prompts on the 2 AIs buyers use most, weekly, plus Sources and Competitors. People see their own AI visibility for free and come back each week. It stays free forever. 200 tasks a month cover about 20 keyword lookups or 8 keyword gaps. It costs us about $0.45 a month per free user, $1.14 at most.
+- **The trial drops to Free, not read-only.** Today a trial that ends locks the workspace, and those people leave. On Free they keep their data and a weekly reason to come back.
+- **Starter opens both toolsets.** The "pick one toolset" rule confused buyers. At $49 it's still half of Peec's entry plan, with twice the AIs and SEO research included.
+- **Brands are capped now.** Social listening and audience research cost money per brand, so "unlimited brands" can't hold below Agency.
+- **Pro is the plan we want most teams on.** It's where the Writer, publishing, outreach sending and integrations start.
+- **Agency keeps white-label** and gets the room for many clients.
 
-### Sources
+## 4. Add-ons and packages
 
-| Source | How | Cost | Notes |
-|---|---|---|---|
-| Reddit | Data API, search every hour | $0.24 per 1,000 calls (check) | Commercial use needs Reddit's approval, 2 to 4 weeks (check). Apply first. |
-| Hacker News | Algolia HN Search API | $0 | |
-| YouTube | Data API v3 (titles, descriptions, comments) | $0 within the daily quota | |
-| Bluesky | Public search API | $0 | |
-| Web, news, blogs, forums | DataForSEO Content Analysis, daily | ~$0.02 a task + $0.00003 a row (check) | |
-| X | Pay-per-use API | $0.005 per post read (check) | Add-on only. Cost grows with volume. |
-| LinkedIn | none | | No public search API. Left out. |
-
-Every new mention is tagged by Haiku for sentiment and topic, about $0.0002 each. Tagging goes through the step cache, so a mention is tagged once.
-
-### Cost per tracked keyword a month (without X)
-- Reddit hourly: 720 calls, ~$0.17
-- Web and news daily: 30 tasks, ~$0.75
-- Tagging 300 mentions: ~$0.06
-- **Total: ~$1** (X adds up to $7.50 at the 1,500-post cap)
-
-### Build
-- Tables: `listen_keywords` (workspace, brand, keyword, sources), `mentions` (source, url unique, author, text, at, sentiment, topic, cited_by_ai).
-- Jobs: a `listen` job kind in the queue, one per keyword per source, on the schedule above. Dedupe by url.
-- Screens: Mentions, Share of voice, Settings (keywords and sources). Alerts reuse `notify.ts`.
-- MCP: `get_mentions` tool.
-
-## Running cost of the new parts a month
-
-| | Beta (50 teams) | Growth (500 teams) |
+| Add-on | Price | Our cost |
 |---|---|---|
-| Free tool runs (3,000 / 30,000) | ~$120 | ~$1,200 |
-| Free plan workspaces (500 / 5,000) | ~$200 | ~$2,000 |
-| Social listening (8 keywords per team avg) | ~$400 | ~$4,000 |
-| Reddit commercial access | ~$0 to $1,000 (check) | ~$1,000 (check) |
-| Turnstile | $0 | $0 (check) |
-| **Total** | **~$720 to $1,720** | **~$8,200** |
+| +50 daily prompts | $29 a month | ~$13.50 |
+| Claude and Perplexity daily (instead of weekly), per 50 prompts | $39 a month | ~$22.50 |
+| +1 brand (social listening and audience research included) | $15 a month | ~$3.20 |
+| Task packs (never expire) | $15 for 1,000 · $59 for 5,000 · $199 for 20,000 | ~$5 / $25 / $100 |
+| Extra seat | $10 a month | ~$0 |
+| **Done for you by Perceptric** | from $1,500 a month (custom) | Perceptric team time |
 
-Revenue at a $149 average: about $7,450 a month at Beta and $74,500 at Growth.
+The last row is the upsell no AI visibility tool has: the same platform, run by the Perceptric team.
+
+## 5. Margins
+
+Our cost per customer a month, including Stripe and a share of servers. "Full" means every limit used up; "typical" means prompts full and 30% of tasks used.
+
+| Plan | Price | Full use cost | Margin | Typical cost | Margin |
+|---|---|---|---|---|---|
+| Free forever | $0 | $1.14 | — | $0.45 | — |
+| Starter | $49 | $29 | 40% | $22 | 54% |
+| Pro | $149 | $98 | 34% | $70 | 53% |
+| Agency | $399 | $271 | 32% | $201 | 50% |
+
+Yearly billing takes about 15 points off each margin. These are lower than a usual SaaS (70%+) because every prompt is paid AI work every day. The levers if margins need to rise: fewer daily prompts per plan, or Gemini and AI Mode weekly on Starter.
+
+## 6. Running cost a month
+
+| | Beta (50 paying teams, 500 free) | Growth (500 paying, 5,000 free) |
+|---|---|---|
+| Paying teams, typical use (mix: 50% Starter, 40% Pro, 10% Agency) | ~$2,970 | ~$29,700 |
+| Free users | ~$225 | ~$2,250 |
+| Servers: Render web, Fly worker, Supabase Pro (check) | ~$45 | ~$150 |
+| **Total cost** | **~$3,240** | **~$32,100** |
+| Revenue at that mix (monthly billing) | ~$6,200 | ~$62,000 |
+| **Gross margin** | **~48%** | **~48%** |
+
+## 7. Moving to it
+- Current customers keep their price through the `arrowsterr_v3_*` Stripe keys. New prices use `arrowsterr_v4_*`.
+- Code to change: `src/lib/plans.ts` (new limits, `free` becomes sold, brand caps, audience research and listening per plan), `effectivePlan` (an ended trial becomes Free), the engine and weekly rules for Free in the daily schedule, `TASK_COST.draft` to 3, `scripts/stripe-setup.mjs`, the pricing page, and the prices in the 4 blog posts on arrowsterr.com.

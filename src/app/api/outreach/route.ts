@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { TargetKind } from "@/lib/contacts";
 import { getProfile } from "@/lib/db";
 import { purposeOf } from "@/lib/outreach";
-import { requireActive } from "@/lib/entitlements";
+import { entitlement, requireActive } from "@/lib/entitlements";
 import { enqueueMany } from "@/lib/jobs";
 import { adminClient, requireRole } from "@/lib/serverAuth";
 
@@ -53,6 +53,9 @@ export async function POST(request: Request) {
       case "createList": {
         const name = str(body.name, 80);
         if (!name) return fail("Give the list a name.");
+        const cap = (await entitlement(ws)).limits.outreachLists;
+        const { count } = await db.from("outreach_lists").select("id", { count: "exact", head: true }).eq("workspace_id", ws);
+        if ((count ?? 0) >= cap) return Response.json({ error: `Your plan includes ${cap} outreach ${cap === 1 ? "list" : "lists"}. More start on Starter.`, limit: true, boost: "foundation" }, { status: 429 });
         const brandId = typeof body.brandId === "string" ? body.brandId : null;
         const { data, error } = await db.from("outreach_lists").insert({ workspace_id: ws, brand_id: brandId, name }).select("id, name, brand_id, created_at").single();
         if (error) throw new Error(error.message);

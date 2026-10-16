@@ -1,5 +1,5 @@
 import "server-only";
-import { access, cycleEnd, effectivePlan, firstWith, limitsFor, TRACKS, METRICS, nextPlan, PLANS, periodOf, type Extras, type Metric, type Plan, type PlanId, type Track } from "./plans";
+import { access, cycleEnd, dailyAnswers, effectivePlan, firstWith, limitsFor, TRACKS, METRICS, nextPlan, PLANS, periodOf, type Extras, type Metric, type Plan, type PlanId, type Track } from "./plans";
 import { onRefund } from "./meter";
 import { adminClient } from "./serverAuth";
 
@@ -21,13 +21,23 @@ export async function entitlement(workspaceId: string): Promise<Entitlement> {
   const w = data as { plan: PlanId; plan_status: string; trial_ends_at: string | null; period_end: string | null; extras: Extras; billing_anchor?: string | null; task_credits?: number };
   // A trial that ended, or a canceled plan, drops to Free. Nothing goes read-only for that.
   const now = effectivePlan(w.plan, w.plan_status, w.trial_ends_at);
+  if (now.plan !== w.plan) {
+    // Save the move once, so the database limits (brands, prompts, seats, answers a day) follow Free too.
+    const free = limitsFor("free");
+    const { error: moved } = await db
+      .from("workspaces")
+      .update({ plan: "free", plan_status: "active", brand_limit: free.brands, prompt_limit: free.prompts, daily_answer_limit: dailyAnswers(free), seat_limit: free.seats })
+      .eq("id", workspaceId)
+      .eq("plan", w.plan);
+    if (moved) console.error("Moving to Free failed:", moved.message);
+  }
   const e: Entitlement = {
     plan: now.plan,
     status: now.status,
     limits: limitsFor(now.plan, now.plan === w.plan ? (w.extras ?? {}) : {}),
     readOnly: now.status === "read_only",
     credits: Number(w.task_credits ?? 0),
-    open: access(now.plan, w.extras?.track),
+    open: access(),
     trialEndsAt: w.trial_ends_at,
     periodEnd: w.period_end,
     anchor: w.billing_anchor ?? null, // before 017_stripe.sql, months follow the calendar
@@ -69,6 +79,13 @@ export async function requireTrack(workspaceId: string, track: Track): Promise<R
   const e = await entitlement(workspaceId);
   if (e.open[track]) return null;
   return Response.json({ error: `Your Starter plan has ${TRACKS[e.open.seo ? "seo" : "visibility"].label}. Get ${TRACKS[track].label} too on Pro.`, limit: true, boost: "scale" }, { status: 429 });
+}
+
+/** The Content Plan and content briefs start on Starter. Free gets the research tools only. */
+export async function requireContentPlan(workspaceId: string): Promise<Response | null> {
+  const e = await entitlement(workspaceId);
+  if (e.limits.plansPerMonth > 0) return null;
+  return Response.json({ error: "The Content Plan and content briefs start on Starter.", limit: true, boost: "foundation" }, { status: 429 });
 }
 
 /** The Agentic Writer and publishing start on Pro. Starter's Organic Research goes up to content briefs. */

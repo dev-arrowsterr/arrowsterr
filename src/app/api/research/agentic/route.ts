@@ -5,7 +5,7 @@ import type { Profile } from "@/lib/db";
 import type { PlanBrief } from "@/lib/research";
 import { adminClient, requireRole, takeAnswer } from "@/lib/serverAuth";
 import { metered, meteredRoute } from "@/lib/meter";
-import { entitlement, requireTrack } from "@/lib/entitlements";
+import { entitlement, requireContentPlan, requireTrack } from "@/lib/entitlements";
 import { enqueue, queueReady } from "@/lib/jobs";
 
 const REFRESH_DAYS = 30; // paid plans can refresh the Content Plan once a month
@@ -28,6 +28,8 @@ async function handle(request: Request) {
   }
   const paid = await requireTrack(body.workspaceId, "seo");
   if (paid) return paid;
+  const noPlan = await requireContentPlan(body.workspaceId);
+  if (noPlan) return noPlan;
   // The first Content Plan is free on every plan. Paid plans can refresh it once a month.
   const e = await entitlement(body.workspaceId);
   if (e.readOnly) return Response.json({ error: "This workspace is read-only." }, { status: 402 });

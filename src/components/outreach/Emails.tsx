@@ -33,7 +33,7 @@ export function CraftDialog({ targets, busy, onStart, onClose }: { targets: Outr
         <textarea value={note} onChange={(e) => setNote(e.target.value)} maxLength={600} rows={3} placeholder="Like: offer a free Pro account, or mention our new study on AI search" className="aw-input" />
       </label>
       <p className="aw-small">
-        {fits} of {targets.length} fit this purpose{noEmail ? `. ${noEmail} have no email yet, so you'll need to add one before sending` : ""}. Each draft uses 2 tasks.
+        {fits} of {targets.length} fit this purpose{noEmail ? `. ${noEmail} have no email yet, so you'll need to add one before sending` : ""}. Each draft uses 3 tasks.
       </p>
       <div className="flex gap-2">
         <button type="button" className="aw-btn aw-btn--accent" disabled={busy || !fits || (purpose === "custom" && !note.trim())} onClick={() => onStart(purpose, note.trim())}>
