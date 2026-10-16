@@ -20,7 +20,7 @@ const CODES: Record<string, string> = {
   Mexico: "mx",
   Global: "global",
 };
-const OURS = ["q", "db", "scope", "view", "mode", "bulk"];
+const OURS = ["q", "db", "scope", "view", "match", "mode", "bulk"];
 
 /** The short country code in a link, like us or uk. */
 export const dbOf = (country: string) => CODES[country] ?? "us";

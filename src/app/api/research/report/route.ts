@@ -1,6 +1,6 @@
 import { dfsReady, NOT_SAVED, savedOnly } from "@/lib/dataforseo";
 import { allSuggestions, bulkReport, keywordReport } from "@/lib/kwReport";
-import { BULK_LIMIT, bulkList, MARKETS } from "@/lib/research";
+import { BULK_LIMIT, bulkList, isMatchType, MARKETS } from "@/lib/research";
 import { isEditor, requireRole } from "@/lib/serverAuth";
 import { meteredRoute, streamed } from "@/lib/meter";
 import { requireTrack, take } from "@/lib/entitlements";
@@ -11,7 +11,7 @@ import { saveBulkRun } from "@/lib/bulkRuns";
 // Editors run searches, which can cost money. Viewers opening a shared link see saved results only.
 //   report: { keyword, country, device, stream? } (stream: one JSON line per piece as it lands)
 //   bulk: { keywords: string[], country, siteId } (editors only; saved with its own link)
-//   all: { keyword, country, questions: boolean }
+//   all: { keyword, country, questions: boolean, match?: "broad" | "phrase" | "exact" | "related" }
 async function handle(request: Request) {
   const body = await request.json().catch(() => ({}));
   const auth = await requireRole(request, body.workspaceId, "viewer");
@@ -47,7 +47,8 @@ async function handle(request: Request) {
     if (!keyword) return Response.json({ error: "Enter a keyword." }, { status: 400 });
     if (body.action === "all") {
       const cost = { total: 0 };
-      const list = await run(() => allSuggestions(keyword, country, Boolean(body.questions), cost));
+      const match = isMatchType(body.match) ? body.match : "phrase";
+      const list = await run(() => allSuggestions(keyword, country, Boolean(body.questions), cost, match));
       return Response.json({ ...list, cost: cost.total });
     }
     const device = body.device === "mobile" ? "mobile" : "desktop";

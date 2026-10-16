@@ -231,6 +231,75 @@ export type KeywordReport = {
   cached: boolean;
 };
 
+/**
+ * How the full keyword list matches the seed, the way Semrush's Keyword Magic Tool does it.
+ *   broad: every word of the seed, in any order and any form, with other words around them.
+ *   phrase: the seed's words in the same order, with other words before or after.
+ *   exact: the seed as whole words, in the same order and form, with other words before or after.
+ *   related: searches with the same meaning that use other words.
+ */
+export type MatchType = "broad" | "phrase" | "exact" | "related";
+export const MATCH_TYPES: { id: MatchType; label: string }[] = [
+  { id: "broad", label: "Broad match" },
+  { id: "phrase", label: "Phrase match" },
+  { id: "exact", label: "Exact match" },
+  { id: "related", label: "Related" },
+];
+export const isMatchType = (v: unknown): v is MatchType => MATCH_TYPES.some((m) => m.id === v);
+
+/** Short words that match almost anything, so they never count as a word to match or a group. */
+export const STOPWORDS = new Set(["a", "an", "the", "for", "to", "in", "of", "and", "or", "with", "on", "at", "by", "from", "is", "are", "my", "your", "vs", "do", "does", "it", "this", "that", "i"]);
+
+/** A word cut to the part every form shares: "companies" → "compan", "tools" → "tool". */
+export function stem(word: string) {
+  if (word.length > 4 && word.endsWith("ies")) return word.slice(0, -3);
+  if (word.length > 4 && /(ss|x|z|ch|sh)es$/.test(word)) return word.slice(0, -2);
+  if (word.length > 3 && word.endsWith("s") && !/(ss|us|is)$/.test(word)) return word.slice(0, -1);
+  return word;
+}
+
+/** The words a broad match needs, up to 4, as stems. Short and filler words are skipped unless they are all there is. */
+export function broadWords(seed: string): string[] {
+  const words = [...new Set(seed.toLowerCase().split(/\s+/).filter(Boolean))];
+  const kept = words.filter((w) => w.length > 1 && !STOPWORDS.has(w));
+  return (kept.length ? kept : words).slice(0, 4).map(stem);
+}
+
+/** A regex that finds the seed as whole words, for exact match. */
+export const exactRegex = (seed: string) => `(^|\\s)${seed.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(\\s|$)`;
+
+/** Split "a, b c" into the words or phrases someone typed to include or exclude. */
+export const wordList = (text: string) => text.toLowerCase().split(/[,\n]/).map((w) => w.trim().replace(/\s+/g, " ")).filter(Boolean);
+const hasWord = (keyword: string, w: string) => ` ${keyword.toLowerCase()} `.includes(` ${w} `) || (!w.includes(" ") && keyword.toLowerCase().split(/\s+/).some((x) => stem(x) === stem(w)));
+
+/** Keep rows that have every include word and none of the exclude words. */
+export function filterWords<T extends { keyword: string }>(rows: T[], include: string[], exclude: string[]): T[] {
+  if (!include.length && !exclude.length) return rows;
+  return rows.filter((r) => include.every((w) => hasWord(r.keyword, w)) && !exclude.some((w) => hasWord(r.keyword, w)));
+}
+
+export type WordGroup = { word: string; count: number; volume: number };
+
+/** The words that show up most besides the seed's own, with how many keywords and searches each covers. */
+export function wordGroups(rows: { keyword: string; volume: number | null }[], seed: string, max = 40): WordGroup[] {
+  const own = new Set(seed.toLowerCase().split(/\s+/).map(stem));
+  const groups = new Map<string, WordGroup>();
+  for (const r of rows) {
+    const seen = new Set<string>();
+    for (const w of r.keyword.toLowerCase().split(/\s+/)) {
+      const st = stem(w);
+      if (w.length < 2 || STOPWORDS.has(w) || own.has(st) || seen.has(st) || /^\d+$/.test(w)) continue;
+      seen.add(st);
+      const g = groups.get(st) ?? { word: w, count: 0, volume: 0 };
+      g.count += 1;
+      g.volume += r.volume ?? 0;
+      if (w.length < g.word.length) g.word = w; // show the shortest form, like "tool" over "tools"
+      groups.set(st, g);
+    }
+  }
+  return [...groups.values()].filter((g) => g.count > 1).sort((a, b) => b.count - a.count || b.volume - a.volume).slice(0, max);
+}
+
 /** Group keywords into topics by their core keyword, biggest first. Keywords without one stand alone. */
 export function clustersOf(rows: KwSummary[], seed: string, max = 6): KwCluster[] {
   const groups = new Map<string, KwSummary[]>();

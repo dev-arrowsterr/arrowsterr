@@ -4,7 +4,7 @@ import { Dropdown } from "../Pickers";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useContext, useEffect, useRef, useState } from "react";
 import { addCalendarItems, type Site } from "@/lib/db";
-import { MARKETS, stageFromIntent, type KeywordReport, type KwList, type KwSummary } from "@/lib/research";
+import { filterWords, isMatchType, MARKETS, MATCH_TYPES, stageFromIntent, wordGroups, wordList, type KeywordReport, type KwList, type KwSummary, type MatchType } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
 import { countryOf, dbOf, domainHref, keywordHref, plainClick, setUrl, urlParams } from "@/lib/researchUrl";
 import { peek, putStash, useStash } from "@/lib/stash";
@@ -51,7 +51,11 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
   const [waiting, setWaiting] = useState<string[]>([]);
   const report = live ?? saved;
   const [mode, setMode] = useStash<"single" | "bulk">(k("mode"), "single");
-  const [all, setAll] = useStash<{ questions: boolean; list: KwList } | null>(k("all"), null);
+  const [all, setAll] = useStash<{ questions: boolean; match?: MatchType; list: KwList } | null>(k("all"), null);
+  // Narrowing the full list: words it must have, words it must not have, and one word group.
+  const [include, setInclude] = useState("");
+  const [exclude, setExclude] = useState("");
+  const [group, setGroup] = useState<string | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -74,11 +78,12 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
     setMode("single");
     const c = countryOf(p.get("db")) ?? country;
     const view = p.get("view");
+    const match = isMatchType(p.get("match")) ? (p.get("match") as MatchType) : "phrase";
     const same = saved && saved.keyword === q.trim().toLowerCase().replace(/\s+/g, " ") && saved.country === c;
     if (same) setQuery(q);
     const r = same ? saved : await analyze(q, { country: c, history: "none" });
     if (r && view) {
-      if (!all || all.questions !== (view === "questions")) viewAll(view === "questions", r, "none");
+      if (!all || all.questions !== (view === "questions") || (all.match ?? "phrase") !== match) viewAll(view === "questions", r, "none", match);
     } else setAll(null);
   }
   const syncRef = useRef(sync);
@@ -178,6 +183,8 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
     setError("");
     setNotice("");
     setPicked(new Set());
+    setInclude("");
+    setExclude("");
     try {
       setBusy(`Analyzing "${list[0]}"...`);
       setAll(null);
@@ -223,14 +230,19 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
     return done;
   }
 
-  /** Open the full list of variations or questions. It gets its own address, so Back closes it. */
-  async function viewAll(questions: boolean, r: KeywordReport | null = report, history: "push" | "none" = "push") {
+  /**
+   * Open the full list of keywords for one match type, all or questions only. It gets its own address,
+   * so Back closes it. "replace" switches the match type or questions without adding a Back step.
+   */
+  async function viewAll(questions: boolean, r: KeywordReport | null = report, history: "push" | "replace" | "none" = "push", match: MatchType = "phrase") {
     if (!r) return;
-    if (history === "push") setUrl({ q: r.keyword, db: dbOf(r.country), view: questions ? "questions" : "variations" }, true, "view");
+    const at = { q: r.keyword, db: dbOf(r.country), view: questions ? "questions" : "variations", match: match === "phrase" ? null : match };
+    if (history !== "none") setUrl(at, history === "push", "view");
     setBusy("Loading the full list...");
     try {
-      setAll({ questions, list: await post<KwList>(auth, "/api/research/report", { action: "all", keyword: r.keyword, country: r.country, questions }) });
+      setAll({ questions, match, list: await post<KwList>(auth, "/api/research/report", { action: "all", keyword: r.keyword, country: r.country, questions, match }) });
       setPicked(new Set());
+      setGroup(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -325,9 +337,9 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
           ) : null}
         </tbody>
       </table>
-      {l.total > 5 && canEdit ? (
+      {canEdit && (l.total > 5 || !questions) ? (
         <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm self-start" onClick={() => viewAll(questions)}>
-          {l.total > 1000 ? "View top 1,000 keywords" : `View all ${l.total.toLocaleString("en-US")} keywords`}
+          {l.total > 1000 ? "View top 1,000 keywords" : l.total > 5 ? `View all ${l.total.toLocaleString("en-US")} keywords` : "Broad, exact and related"}
         </button>
       ) : null}
     </div>
@@ -350,6 +362,92 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
       />
     </div>
   );
+  /** The full list, like Semrush's Keyword Magic Tool: match types, questions, word filters and word groups. */
+  const magic = (r: KeywordReport, a: { questions: boolean; match?: MatchType; list: KwList }) => {
+    const match = a.match ?? "phrase";
+    const words = filterWords(a.list.rows, wordList(include), wordList(exclude));
+    const groups = wordGroups(words, r.keyword);
+    const rows = group ? filterWords(words, [group], []) : words;
+    const volume = rows.reduce((n, x) => n + (x.volume ?? 0), 0);
+    const kds = rows.filter((x) => x.kd !== null);
+    const avgKd = kds.length ? Math.round(kds.reduce((n, x) => n + (x.kd ?? 0), 0) / kds.length) : null;
+    const switchTo = (m: MatchType, questions: boolean) => canEdit && viewAll(questions, r, "replace", m);
+    return (
+      <div role="region" aria-label="All keywords" className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-white">
+        <div className="sticky top-0 z-10 flex flex-col gap-3 border-b border-rule bg-white px-6 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex flex-col gap-0.5">
+              <h2 className="aw-h3">Keywords for &ldquo;{r.keyword}&rdquo;</h2>
+              <span className="text-[13px] text-muted">
+                {flag(r.country)} {r.country} · {rows.length.toLocaleString("en-US")} keywords · {short(volume)} searches a month{avgKd !== null ? ` · average KD ${avgKd}` : ""}
+                {a.list.total > a.list.rows.length ? ` · top ${a.list.rows.length.toLocaleString("en-US")} of ${a.list.total.toLocaleString("en-US")}` : ""}
+              </span>
+            </div>
+            <span className="flex items-center gap-2">
+              <button
+                type="button"
+                className="aw-btn aw-btn--secondary aw-btn--sm"
+                onClick={() => downloadCsv(`${r.keyword.replace(/\W+/g, "-")}-${match}.csv`, ["keyword", "volume", "kd", "intent", "cpc"], rows.map((x) => [x.keyword, x.volume, x.kd, x.intent, x.cpc]))}
+              >
+                Export CSV
+              </button>
+              <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={closeAll} title="Close (Esc)">
+                Close
+              </button>
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <Seg label="Match type" value={match} onChange={(m) => switchTo(m, a.questions)} options={MATCH_TYPES.map((m) => ({ id: m.id, label: m.label }))} />
+            <Seg
+              label="Questions"
+              value={a.questions ? "questions" : "all"}
+              onChange={(v) => switchTo(match, v === "questions")}
+              options={[
+                { id: "all", label: "All keywords" },
+                { id: "questions", label: "Questions" },
+              ]}
+            />
+            <input value={include} onChange={(e) => setInclude(e.target.value)} placeholder="Include words" aria-label="Include words, separated by commas" className="aw-input w-44" />
+            <input value={exclude} onChange={(e) => setExclude(e.target.value)} placeholder="Exclude words" aria-label="Exclude words, separated by commas" className="aw-input w-44" />
+            {include || exclude || group ? (
+              <button
+                type="button"
+                className="aw-text-link text-[13px]"
+                onClick={() => {
+                  setInclude("");
+                  setExclude("");
+                  setGroup(null);
+                }}
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
+        </div>
+        <div className="flex flex-col gap-4 px-6 py-4 lg:flex-row lg:items-start">
+          <nav aria-label="Word groups" className="aw-frame flex shrink-0 flex-col lg:sticky lg:top-40 lg:max-h-[calc(100vh-11rem)] lg:w-60 lg:overflow-y-auto">
+            {[{ word: "", count: words.length, volume: 0 }, ...groups].map((g) => {
+              const on = (group ?? "") === g.word;
+              return (
+                <button
+                  key={g.word || "all"}
+                  type="button"
+                  aria-pressed={on}
+                  onClick={() => setGroup(g.word || null)}
+                  className={`flex items-baseline justify-between gap-3 border-b border-rule-faint px-4 py-2 text-left text-[13px] last:border-b-0 ${on ? "bg-brand-pale font-medium text-ink" : "text-body hover:bg-surface-2"}`}
+                >
+                  <span className="min-w-0 truncate">{g.word || "All keywords"}</span>
+                  <span className="aw-num shrink-0 text-muted">{g.count.toLocaleString("en-US")}</span>
+                </button>
+              );
+            })}
+          </nav>
+          <div className="aw-frame min-w-0 flex-1">{sheet(rows, "All keywords")}</div>
+        </div>
+      </div>
+    );
+  };
+
   if (mode === "bulk")
     return (
       <div className="flex flex-col gap-5">
@@ -585,35 +683,7 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
             )}
           </Card>
 
-          {all ? (
-            <div role="region" aria-label="All keywords" className="fixed inset-0 z-50 flex flex-col overflow-y-auto bg-white">
-              <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b border-rule bg-white px-6 py-4">
-                <div className="flex flex-col gap-0.5">
-                  <h2 className="aw-h3">
-                    {all.questions ? "Questions" : "Variations"} for &ldquo;{report.keyword}&rdquo;
-                  </h2>
-                  <span className="text-[13px] text-muted">
-                    {flag(report.country)} {report.country} · {all.list.rows.length.toLocaleString("en-US")} keywords{canEdit ? " · click one to research it" : ""}
-                  </span>
-                </div>
-                <span className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="aw-btn aw-btn--secondary aw-btn--sm"
-                    onClick={() => downloadCsv(`${report.keyword.replace(/\W+/g, "-")}.csv`, ["keyword", "volume", "kd", "intent", "cpc"], all.list.rows.map((r) => [r.keyword, r.volume, r.kd, r.intent, r.cpc]))}
-                  >
-                    Export CSV
-                  </button>
-                  <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={closeAll} title="Close (Esc)">
-                    Close
-                  </button>
-                </span>
-              </div>
-              <div className="px-6 py-4">
-                <div className="aw-frame">{sheet(all.list.rows, "All keywords")}</div>
-              </div>
-            </div>
-          ) : null}
+          {all ? magic(report, all) : null}
         </>
       ) : null}
 
@@ -634,7 +704,7 @@ export function KeywordOverview({ sb, auth, site, canEdit }: { sb: SupabaseClien
             { title: "CPC", text: "What advertisers pay per click in Google Ads. A high CPC usually means buyers are close to buying.", visual: <SampleStats items={[["CPC", "$30.75"], ["Volume", "3.6K"], ["KD", "43"]]} /> },
             {
               title: "Keyword ideas",
-              text: "The wider market around one idea: every variation and question people ask, so one keyword grows into a full topic you can own.",
+              text: "The wider market around one idea: broad, phrase, exact and related matches, and every question people ask, grouped by word so one keyword grows into a full topic you can own.",
               visual: <SampleRows rows={[["best seo agency", 9900, "9.9K"], ["best local seo agency", 1600, "1.6K"], ["how to choose an seo agency", 70]]} />,
             },
             {
