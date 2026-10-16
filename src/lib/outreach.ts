@@ -48,3 +48,22 @@ export const PURPOSES: Purpose[] = [
   { id: "custom", label: "My own ask", kinds: ["website", "press", "podcast", "youtube", "social"], brief: "Do exactly what the person's note below asks for." },
 ];
 export const purposeOf = (id: string | null | undefined) => PURPOSES.find((p) => p.id === id);
+
+/** Where a target is in the outreach, for the board's columns. */
+export const STAGES = [
+  { id: "finding", label: "Finding email", cls: "aw-status--pending" },
+  { id: "ready", label: "Ready", cls: "aw-chip--brand" },
+  { id: "drafted", label: "Drafted", cls: "aw-status--warn" },
+  { id: "sent", label: "Sent", cls: "aw-status--pending" },
+  { id: "replied", label: "Replied", cls: "aw-status--ranked" },
+  { id: "stopped", label: "Do not contact", cls: "aw-status--missed" },
+] as const;
+export type Stage = (typeof STAGES)[number]["id"];
+
+export function stageOf(t: Pick<OutreachTarget, "status" | "email" | "draft_status">): Stage {
+  if (t.status === "do_not_contact") return "stopped";
+  if (t.status === "replied") return "replied";
+  if (t.status === "sent" || t.status === "scheduled") return "sent";
+  if (t.status === "drafted" || t.draft_status === "ready" || t.draft_status === "pending") return "drafted";
+  return t.email ? "ready" : "finding";
+}

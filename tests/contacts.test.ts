@@ -68,3 +68,14 @@ test("rssEpisodes: newest episodes with clean titles and short summaries", async
   ]);
   assert.deepEqual(rssEpisodes(""), []);
 });
+
+test("outreach board stages follow status, drafts and emails", async () => {
+  const { stageOf } = await import("../src/lib/outreach.ts");
+  const t = (status: string, email: string | null, draft_status: string) => ({ status, email, draft_status }) as Parameters<typeof stageOf>[0];
+  assert.equal(stageOf(t("new", null, "none")), "finding");
+  assert.equal(stageOf(t("new", "a@b.co", "none")), "ready");
+  assert.equal(stageOf(t("new", "a@b.co", "ready")), "drafted");
+  assert.equal(stageOf(t("sent", "a@b.co", "ready")), "sent");
+  assert.equal(stageOf(t("replied", "a@b.co", "ready")), "replied");
+  assert.equal(stageOf(t("do_not_contact", "a@b.co", "none")), "stopped");
+});

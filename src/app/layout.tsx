@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Geist, Geist_Mono, IBM_Plex_Mono } from "next/font/google";
+import { Bricolage_Grotesque, Geist, Geist_Mono, IBM_Plex_Mono, Inter } from "next/font/google";
 import "./globals.css";
 
 // The Arro game's pixel-style text.
@@ -9,7 +9,14 @@ const plex = IBM_Plex_Mono({
   weight: ["400", "500", "600", "700"],
 });
 
-// The product UI and long reading, the same type as the landing pages and Claritia.
+// The product UI, in the style of Twenty: Inter at 13px.
+const inter = Inter({
+  variable: "--font-inter",
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+});
+
+// Long-form pages that still use Geist.
 const geist = Geist({
   variable: "--font-geist",
   subsets: ["latin"],
@@ -40,7 +47,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
-      className={`${plex.variable} ${geist.variable} ${display.variable} ${mono.variable} h-full`}
+      className={`${plex.variable} ${inter.variable} ${geist.variable} ${display.variable} ${mono.variable} h-full`}
     >
       <body className="min-h-full">
         <div className="aw flex min-h-screen flex-col">{children}</div>
