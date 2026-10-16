@@ -54,6 +54,26 @@ export const PLANS: Record<PlanId, Plan> = {
   legacy: { ...base, id: "legacy", name: "Early access", tagline: "", price: 0, annual: 0, prompts: 50, brands: UNLIMITED, seats: 15, competitors: 25, historyDays: 365, checkEvery: 1, checkNowPerDay: 50, plansPerMonth: 1, tasksPerMonth: 30_000, pageviewsPerMonth: 500_000, listenNames: 10, listenBrands: 10, writer: "full", reports: "whitelabel", alerts: true },
 };
 
+/**
+ * What each plan may do with reports (docs/reports.md, section 19). Limits stop new reports and links only;
+ * reports and links made before a downgrade keep working.
+ */
+export type ReportLimits = { saved: number; live: boolean; secure: boolean; whiteLabel: boolean };
+export function reportLimits(plan: PlanId): ReportLimits {
+  switch (plan) {
+    case "free":
+      return { saved: 1, live: false, secure: false, whiteLabel: false };
+    case "foundation":
+    case "trial":
+      return { saved: 10, live: true, secure: false, whiteLabel: false };
+    case "scale":
+    case "thrive":
+      return { saved: 50, live: true, secure: true, whiteLabel: false };
+    default:
+      return { saved: UNLIMITED, live: true, secure: true, whiteLabel: PLANS[plan]?.reports === "whitelabel" };
+  }
+}
+
 /** What each action costs in tasks. About half a cent of our cost per task. Tracking prompts is never counted. */
 export const TASK_COST = {
   keyword: 10, // one keyword overview, or one list of ideas

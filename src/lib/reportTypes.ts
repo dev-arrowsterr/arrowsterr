@@ -1,4 +1,5 @@
 // A client report, frozen at the moment it was made. Used for the preview, the PDF and the share link.
+import type { DocBlock } from "./reportDoc.ts";
 import type { ContentRow } from "./reports.ts";
 import type { ReportTheme } from "./reportTheme.ts";
 
@@ -29,6 +30,12 @@ export type ReportSnapshot = {
   days: number;
   at: string;
   sections: ReportSection[];
+  /** Saved reports: the blocks in order, each on or off. Older links have only sections. */
+  blocks?: DocBlock[];
+  /** Saved reports: the exact dates. Older links show "Last N days". */
+  period?: { label: string; start: string; end: string; compareLabel: string | null };
+  /** Saved reports: what the brand has connected, so the editor can say why a block is empty. */
+  connected?: { website: boolean; content: boolean };
   summary: { headline: string; points: string[]; next: string[] } | null;
   ai: {
     visibility: number;
@@ -41,7 +48,7 @@ export type ReportSnapshot = {
     byModel: { engine: string; now: number | null; before: number | null }[];
   } | null;
   competitors: { name: string; domain: string | null; visibility: number; sentiment: number | null; position: number | null; isYou: boolean }[] | null;
-  traffic: { visits: number; visitsBefore: number; ai: number; aiBefore: number; byEngine: { engine: string; visits: number; prev: number }[] } | null;
+  traffic: { visits: number; visitsBefore: number | null; ai: number; aiBefore: number | null; byEngine: { engine: string; visits: number; prev: number | null }[] } | null; // before: null with no comparison
   visitors: { total: number; hot: number; actions: number; top: { name: string; emoji: string; score: number; label: string; source: string }[] } | null;
   content: { published: number; writing: number; briefs: number; planned: number; pages: ContentRow[] } | null;
   wins: { text: string; change: number; unit: string; area: string }[];

@@ -1111,6 +1111,22 @@ Every phase ships with tests in `tests/` (Node test runner, as today):
   - A live link shows new data the next day.
   - The PDF matches the preview.
   - White label is refused below Agency.
+- **Built (October 2026):**
+  - Tables: `supabase/043_reports.sql` (`reports`, `report_versions`, `report_links`, the `report-pdfs` bucket). Old `shared_reports` tokens are copied into `report_links` as frozen links.
+  - Routes: `/api/reports/list`, `create`, `data`, `links`, `pdf`, `summary` (saved reports), `/api/pdf/next`, `done`, `fail` (the worker), `/api/r/view`, `/api/r/unlock` (public links).
+  - Pages: the library and editor at `/reports` and `/reports?report=<id>`, public links at `/r/<token>`, the worker's print page at `/r/print/<id>`.
+  - PDFs: the Fly worker (`scripts/worker.mjs`) runs Chromium from the Playwright image and prints `/r/print/<id>` to A4. If no worker takes the job in 90 seconds, the editor offers browser print.
+  - Prompts, Competitors and Content Intelligence reports are still built in the browser from the app's dates, so they share as frozen links only.
+  - Setup: run `043_reports.sql` in Supabase. Optional: set `REPORT_LINK_SECRET` on the app (otherwise it signs with `SUPABASE_SECRET_KEY`).
+- **Running cost of phase 1:**
+
+  | Item | Beta (50 teams) | Growth (500 teams) |
+  |---|---|---|
+  | Fly worker from 256 MB to 1 GB for Chromium (shared-cpu-1x) | +$3.70 (check) | +$9.40, two 1 GB machines (check) |
+  | Claude tokens: AI summaries on Sonnet 5.5 (≈250 / 2,500 a month at ≈$0.04, paid for by tasks) | $10 | $100 |
+  | Supabase Storage for PDFs (last 5 per report) | $0, inside the current plan (check) | $0 (check) |
+  | Live link builds: cached an hour, run on the app server | $0 | $0 |
+  | **Monthly total** | **≈ $14** | **≈ $110** |
 
 ### Phase 2: Builder (3–4 weeks)
 - **Scope:**

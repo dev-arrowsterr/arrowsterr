@@ -1,18 +1,13 @@
-import { summarize, type Step, type Visitor } from "@/lib/journey";
+import type { Step } from "@/lib/journey";
 import { requireRole } from "@/lib/serverAuth";
-import { activity, events, sessions, umamiReady, type Activity } from "@/lib/umami";
+import { umamiVisitors } from "@/lib/traffic";
+import { activity, umamiReady, type Activity } from "@/lib/umami";
 
 // Visitors and buyer journeys for one brand's website, from Umami.
 //   list: every visitor in the period, with a fun name, source, actions and buyer score. Cached 5 minutes.
 //   journey: one visitor's full path, every visit and step.
 const cache = new Map<string, { at: number; data: unknown }>();
 
-async function pool<T>(items: T[], size: number, fn: (x: T) => Promise<void>) {
-  let next = 0;
-  await Promise.all(Array.from({ length: Math.min(size, items.length) }, async () => {
-    while (next < items.length) await fn(items[next++]);
-  }));
-}
 const toStep = (a: Activity): Step => ({ at: a.at, visitId: a.visitId, path: a.path, query: a.query, referrer: a.referrer, title: a.title, event: a.event });
 
 export async function POST(request: Request) {
@@ -43,19 +38,7 @@ export async function POST(request: Request) {
     if (hit && now - hit.at < 5 * 60_000) return Response.json(hit.data);
 
     const range = { startAt: now - days * 864e5, endAt: now };
-    const list = await sessions(id, range, 500);
-    const bySession = new Map<string, Step[]>();
-    let detail = "all";
-    try {
-      for (const a of await events(id, range)) if (a.sessionId) bySession.set(a.sessionId, [...(bySession.get(a.sessionId) ?? []), toStep(a)]);
-    } catch {
-      // This Umami has no event list. Read the 150 most recent visitors one by one.
-      detail = "recent";
-      await pool(list.slice(0, 150), 6, async (s) => {
-        bySession.set(s.id, (await activity(id, s.id, range).catch(() => [])).map(toStep));
-      });
-    }
-    const visitors: Visitor[] = list.map((s) => summarize(s, bySession.get(s.id) ?? [], b.domain));
+    const { visitors, detail } = await umamiVisitors(id, b.domain, range);
     const data = { days, detail, visitors };
     cache.set(key, { at: now, data });
     return Response.json(data);

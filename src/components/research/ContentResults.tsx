@@ -4,8 +4,7 @@ import { useEffect } from "react";
 import type { Chat } from "@/lib/chats";
 import type { CalendarItem } from "@/lib/db";
 import type { Visitor } from "@/lib/journey";
-import { pageKey } from "@/lib/metrics";
-import { contentRows, pathOf, type ContentRow, type TrafficData } from "@/lib/reports";
+import { citedPathsOf, contentRows, type ContentRow, type TrafficData } from "@/lib/reports";
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
 import { Sheet } from "../Sheet";
@@ -13,17 +12,7 @@ import { Card, pct } from "../ui";
 
 const num = (n: number | null | undefined) => (n === null || n === undefined ? "–" : n.toLocaleString("en-US"));
 
-/** Paths on the brand's site and the share of AI answers that cite each one. */
-export function citedPathsOf(chats: Chat[], domain: string) {
-  const own = domain.replace(/^www\./, "");
-  const counts = new Map<string, number>();
-  for (const c of chats)
-    for (const k of new Set(c.sources.map((s) => pageKey(s.url)))) {
-      const host = k.split("/")[0];
-      if (host === own || host.endsWith(`.${own}`)) counts.set(pathOf(`https://${k}`), (counts.get(pathOf(`https://${k}`)) ?? 0) + 1);
-    }
-  return new Map([...counts].map(([p, n]) => [p, chats.length ? (n / chats.length) * 100 : 0]));
-}
+export { citedPathsOf };
 
 /** Results for every published page: AI citations, visits, visits from AI and visitors who landed there. */
 export function ContentResults({ auth, brandId, domain, days, chats, items }: { auth: RunAuth; brandId: string; domain: string; days: number; chats: Chat[]; items: CalendarItem[] }) {

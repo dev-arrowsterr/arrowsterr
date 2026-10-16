@@ -1,4 +1,6 @@
 // Reports: one place that pulls every section together. Pure functions, shared by the browser and tests.
+import type { Chat } from "./chats.ts";
+import { pageKey } from "./metrics.ts";
 
 /** The parts of the Traffic data reports use. */
 export type TrafficData = {
@@ -86,4 +88,16 @@ export function contentRows(input: {
         hot: landed ? landed.filter((v) => v.label === "Hot").length : null,
       };
     });
+}
+
+/** Paths on the brand's site and the share of AI answers that cite each one. */
+export function citedPathsOf(chats: Chat[], domain: string) {
+  const own = domain.replace(/^www\./, "");
+  const counts = new Map<string, number>();
+  for (const c of chats)
+    for (const k of new Set(c.sources.map((s) => pageKey(s.url)))) {
+      const host = k.split("/")[0];
+      if (host === own || host.endsWith(`.${own}`)) counts.set(pathOf(`https://${k}`), (counts.get(pathOf(`https://${k}`)) ?? 0) + 1);
+    }
+  return new Map([...counts].map(([p, n]) => [p, chats.length ? (n / chats.length) * 100 : 0]));
 }

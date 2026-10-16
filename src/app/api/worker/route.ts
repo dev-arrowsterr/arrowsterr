@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { allowed } from "@/lib/cronAuth";
-import { claim, enqueue, prune, queueReady, retry, type Job, type JobKind } from "@/lib/jobs";
+import { claim, enqueue, prune, queueReady, retry, type Job, type WebJobKind } from "@/lib/jobs";
 import { metered } from "@/lib/meter";
 import { sendNudges } from "@/lib/nudges";
 import { sendWeekly } from "@/lib/notify";
@@ -14,9 +14,10 @@ import { apply, audit, brief, check, plan, play, rollup, schedule } from "@/lib/
 
 export const maxDuration = 300;
 
-const HANDLERS: Record<JobKind, (db: SupabaseClient, job: Job) => Promise<void>> = { schedule, check, brief, plan, rollup, audit, play, apply, listen };
-const ACTION: Record<JobKind, string> = { schedule: "daily check", check: "daily check", brief: "content brief", plan: "content plan", rollup: "daily numbers", audit: "site audit", play: "ask arrowsterr", apply: "ask arrowsterr apply", listen: "social listening" };
+const HANDLERS: Record<WebJobKind, (db: SupabaseClient, job: Job) => Promise<void>> = { schedule, check, brief, plan, rollup, audit, play, apply, listen };
+const ACTION: Record<WebJobKind, string> = { schedule: "daily check", check: "daily check", brief: "content brief", plan: "content plan", rollup: "daily numbers", audit: "site audit", play: "ask arrowsterr", apply: "ask arrowsterr apply", listen: "social listening" };
 const WORKER = `web-${randomUUID().slice(0, 8)}`;
+const KINDS = Object.keys(HANDLERS) as WebJobKind[];
 const CONCURRENCY = Math.max(1, Number(process.env.WORKER_CONCURRENCY) || 8);
 
 async function pool<T>(items: T[], n: number, fn: (item: T) => Promise<void>) {
@@ -45,12 +46,13 @@ export async function POST(request: Request) {
     }
 
     // A 15-minute lease: a brief or a plan can take several minutes, and must not be picked up twice.
-    const jobs = await claim(WORKER, limit, undefined, 900);
+    // Only the kinds this worker can run: PDFs wait for the PDF worker.
+    const jobs = await claim(WORKER, limit, KINDS, 900);
     const done: Record<string, number> = {};
     let failed = 0;
     await pool(jobs, CONCURRENCY, async (job) => {
       try {
-        await metered(job.workspace_id, ACTION[job.kind] ?? job.kind, () => HANDLERS[job.kind](db, job));
+        await metered(job.workspace_id, ACTION[job.kind as WebJobKind] ?? job.kind, () => HANDLERS[job.kind as WebJobKind](db, job));
         done[job.kind] = (done[job.kind] ?? 0) + 1;
       } catch (e) {
         failed++;
