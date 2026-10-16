@@ -37,7 +37,7 @@ Get mentioned on the websites, press, podcasts and channels your audience uses a
 |---|---|---|
 | Email lookups (page reads and Apple search, no paid API) | $0 | $0 |
 | Server time (current worker) | $0 | $0 |
-| Drafts (Sonnet, ~$0.01 each; 300 / 3,000 a team a month) | ~$150 | ~$1,500 |
+| Drafts (Sonnet, ~$0.01 each, 300 a team a month) | ~$150 | ~$1,500 |
 | **Total** | **~$150** | **~$1,500** |
 
 The full outreach plan (drafting, sending, inbox) adds about $200 to $300 a month at Beta and $1,570 to $1,670 at Growth, mostly Claude drafts and Google's yearly CASA review (check).
