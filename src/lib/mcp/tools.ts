@@ -281,7 +281,7 @@ export const TOOLS: Tool[] = [
     async run(ctx, args) {
       const brand = await pickBrand(ctx, args.brand);
       const site = await siteOf(ctx, brand);
-      let q = ctx.db.from("calendar_items").select("keyword, stage, theme, volume, difficulty, intent, status, due_date, url, action, current_url, notes").eq("site_id", site.id);
+      let q = ctx.db.from("calendar_items").select("id, keyword, stage, theme, volume, difficulty, intent, status, due_date, url, action, current_url, notes").eq("site_id", site.id);
       const status = str(args.status, 20);
       if (status) q = q.eq("status", status);
       const { data, error } = await q.order("due_date", { nullsFirst: false }).limit(500);
@@ -415,6 +415,114 @@ export const TOOLS: Tool[] = [
       if (!items.length) throw new ToolError("Send at least one item with a keyword.");
       const added = await addCalendarItems(ctx.db, ctx.ws, items);
       return textResult({ brand: { name: brand.name, domain: brand.domain }, added, skipped: items.length - added }, `Added ${added} of ${items.length} to the Content Plan.`);
+    },
+  },
+  {
+    name: "update_content_plan",
+    title: "Update Content Plan",
+    description: "Change pieces already on the brand's Content Plan: status, due date, funnel stage, notes for the writer, the keyword, or the live URL. Find each piece by its id or keyword from get_content_plan. Only the fields you send change.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        brand: brandArg,
+        items: {
+          type: "array",
+          description: "Up to 50 changes.",
+          items: {
+            type: "object",
+            properties: {
+              id: { type: "string", description: "The piece's id from get_content_plan." },
+              keyword: { type: "string", description: "The piece's keyword, when there is no id." },
+              new_keyword: { type: "string" },
+              status: { type: "string", enum: ["planned", "brief", "writing", "published"] },
+              stage: { type: "string", enum: ["bofu", "mofu", "tofu"], description: "Funnel stage: bofu ready to buy, mofu comparing, tofu learning." },
+              due_date: { type: "string", description: "YYYY-MM-DD, or an empty string to clear it." },
+              notes: { type: "string", description: "Angle or instructions for the writer. Replaces the old notes." },
+              url: { type: "string", description: "The live URL once it's published." },
+            },
+          },
+        },
+      },
+      required: ["items"],
+    },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    async run(ctx, args) {
+      const brand = await pickBrand(ctx, args.brand);
+      const site = await siteOf(ctx, brand);
+      const { data: rows, error } = await ctx.db.from("calendar_items").select("id, keyword").eq("site_id", site.id);
+      if (error) throw new Error(error.message);
+      const plan = (rows ?? []) as { id: string; keyword: string }[];
+      const raw = Array.isArray(args.items) ? args.items.slice(0, 50) : [];
+      const done: string[] = [];
+      const missed: string[] = [];
+      for (const x of raw.map((v) => (v && typeof v === "object" ? (v as Record<string, unknown>) : {}))) {
+        const id = str(x.id, 60);
+        const kw = str(x.keyword, 200).toLowerCase();
+        const row = plan.find((r) => r.id === id) ?? (kw ? plan.find((r) => r.keyword.toLowerCase() === kw) : undefined);
+        if (!row) {
+          missed.push(id || kw || "(no id or keyword)");
+          continue;
+        }
+        const patch: Record<string, unknown> = {};
+        const status = (["planned", "brief", "writing", "published"] as const).find((v) => v === x.status);
+        if (status) patch.status = status;
+        const stage = (["bofu", "mofu", "tofu"] as const).find((v) => v === x.stage);
+        if (stage) patch.stage = stage;
+        if (typeof x.due_date === "string") {
+          const due = str(x.due_date, 10);
+          if (due && !/^\d{4}-\d{2}-\d{2}$/.test(due)) throw new ToolError(`Use YYYY-MM-DD for the due date of "${row.keyword}".`);
+          patch.due_date = due || null;
+        }
+        if (typeof x.notes === "string") patch.notes = str(x.notes, 2000) || null;
+        if (typeof x.url === "string") {
+          const url = str(x.url, 500);
+          if (url && !/^https?:\/\//.test(url)) throw new ToolError(`The URL for "${row.keyword}" must start with http:// or https://.`);
+          patch.url = url || null;
+        }
+        const nk = str(x.new_keyword, 200).toLowerCase();
+        if (nk && nk !== row.keyword.toLowerCase()) {
+          if (plan.some((r) => r.keyword.toLowerCase() === nk)) throw new ToolError(`"${nk}" is already on the plan.`);
+          patch.keyword = nk;
+        }
+        if (!Object.keys(patch).length) {
+          missed.push(`${row.keyword} (nothing to change)`);
+          continue;
+        }
+        const { error: upError } = await ctx.db.from("calendar_items").update(patch).eq("id", row.id).eq("site_id", site.id);
+        if (upError) throw new Error(upError.message);
+        if (typeof patch.keyword === "string") row.keyword = patch.keyword;
+        done.push(row.keyword);
+      }
+      if (!done.length && !missed.length) throw new ToolError("Send at least one change.");
+      return textResult({ brand: { name: brand.name, domain: brand.domain }, updated: done, not_found: missed }, `Updated ${done.length} piece${done.length === 1 ? "" : "s"} on the Content Plan.`);
+    },
+  },
+  {
+    name: "remove_from_content_plan",
+    title: "Remove from Content Plan",
+    description: "Delete pieces from the brand's Content Plan, by id or keyword from get_content_plan. Their briefs go with them; drafts in the writer stay. Confirm with the person first.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        brand: brandArg,
+        ids: { type: "array", items: { type: "string" }, description: "Piece ids from get_content_plan." },
+        keywords: { type: "array", items: { type: "string" }, description: "Keywords of pieces to delete, when there are no ids." },
+      },
+    },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    async run(ctx, args) {
+      const brand = await pickBrand(ctx, args.brand);
+      const site = await siteOf(ctx, brand);
+      const ids = new Set((Array.isArray(args.ids) ? args.ids : []).slice(0, 100).map((v) => str(v, 60)).filter(Boolean));
+      const kws = new Set((Array.isArray(args.keywords) ? args.keywords : []).slice(0, 100).map((v) => str(v, 200).toLowerCase()).filter(Boolean));
+      if (!ids.size && !kws.size) throw new ToolError("Say which pieces to delete, by id or keyword.");
+      const { data: rows, error } = await ctx.db.from("calendar_items").select("id, keyword").eq("site_id", site.id);
+      if (error) throw new Error(error.message);
+      const hit = ((rows ?? []) as { id: string; keyword: string }[]).filter((r) => ids.has(r.id) || kws.has(r.keyword.toLowerCase()));
+      if (!hit.length) throw new ToolError("None of those are on the plan. Call get_content_plan to see the ids and keywords.");
+      const { error: delError } = await ctx.db.from("calendar_items").delete().in("id", hit.map((r) => r.id)).eq("site_id", site.id);
+      if (delError) throw new Error(delError.message);
+      return textResult({ brand: { name: brand.name, domain: brand.domain }, removed: hit.map((r) => r.keyword) }, `Removed ${hit.length} piece${hit.length === 1 ? "" : "s"} from the Content Plan.`);
     },
   },
   {
