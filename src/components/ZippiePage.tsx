@@ -116,7 +116,14 @@ const I = {
 
 // ─────────────── Page ───────────────
 
-export function ZippiePage({ auth, canEdit }: { auth: RunAuth; canEdit: boolean }) {
+/** Where the person is when they ask: the brand and page picked in the app, so Zippie can start from there. */
+export type ZippieWhere = { brand: string | null; page: string };
+
+/**
+ * Zippie's chat. As a page it shows the chats on the right. compact fits it in the floating panel: the chats
+ * list takes the panel's place when opened, and onClose closes the panel.
+ */
+export function ZippiePage({ auth, canEdit, compact = false, where = null, onClose }: { auth: RunAuth; canEdit: boolean; compact?: boolean; where?: ZippieWhere | null; onClose?: () => void }) {
   const api = useApi(auth);
   const [view, setView] = useState<View>("chat");
   const [threads, setThreads] = useState<Thread[]>([]);
@@ -127,7 +134,11 @@ export function ZippiePage({ auth, canEdit }: { auth: RunAuth; canEdit: boolean 
   const [messages, setMessages] = useState<Msg[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [panel, setPanel] = useState(true);
+  const [panel, setPanel] = useState(!compact);
+  // In the floating panel, picking anything from the chats list goes back to the chat.
+  const leave = () => {
+    if (compact) setPanel(false);
+  };
   const stopRef = useRef<AbortController | null>(null);
 
   const loadThreads = useCallback(() => {
@@ -192,7 +203,7 @@ export function ZippiePage({ auth, canEdit }: { auth: RunAuth; canEdit: boolean 
         method: "POST",
         signal: ctrl.signal,
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${await auth.token()}` },
-        body: JSON.stringify({ action: "send", workspaceId: auth.workspaceId, threadId: fresh ? null : threadId, projectId, message, skill: skill?.key }),
+        body: JSON.stringify({ action: "send", workspaceId: auth.workspaceId, threadId: fresh ? null : threadId, projectId, message, skill: skill?.key, where }),
       });
       if (!res.ok || !res.body) {
         const out = await res.json().catch(() => ({}));
@@ -261,10 +272,25 @@ export function ZippiePage({ auth, canEdit }: { auth: RunAuth; canEdit: boolean 
     loadLib();
   };
 
-  if (setup) return <div className="aw-callout m-6 max-w-xl">{setup}</div>;
+  if (setup) return <div className={`aw-callout max-w-xl ${compact ? "m-4" : "m-6"}`}>{setup}</div>;
 
   return (
-    <div className="zp">
+    <div className={`zp ${compact ? "zp--panel" : ""}`}>
+      {compact && panel ? (
+        <header className="zp-head">
+          <span className="truncate text-[15px] font-medium text-ink">Chats</span>
+          <div className="flex items-center gap-1">
+            <button type="button" className="zp-icon-btn" onClick={() => setPanel(false)} title="Back to chat" aria-label="Back to chat">
+              <Icon d={I.chat} />
+            </button>
+            {onClose ? (
+              <button type="button" className="zp-icon-btn" onClick={onClose} title="Close (Esc)" aria-label="Close Zippie">
+                <Icon d={I.x} />
+              </button>
+            ) : null}
+          </div>
+        </header>
+      ) : (
       <section className="zp-main">
         <header className="zp-head">
           <div className="flex min-w-0 items-center gap-2">
@@ -287,6 +313,11 @@ export function ZippiePage({ auth, canEdit }: { auth: RunAuth; canEdit: boolean 
             <button type="button" className="zp-icon-btn" onClick={() => setPanel(!panel)} title={panel ? "Hide chats" : "Show chats"} aria-label={panel ? "Hide chats" : "Show chats"}>
               <Icon d={I.panel} />
             </button>
+            {onClose ? (
+              <button type="button" className="zp-icon-btn" onClick={onClose} title="Close (Esc)" aria-label="Close Zippie">
+                <Icon d={I.x} />
+              </button>
+            ) : null}
           </div>
         </header>
 
@@ -335,6 +366,7 @@ export function ZippiePage({ auth, canEdit }: { auth: RunAuth; canEdit: boolean 
           />
         )}
       </section>
+      )}
 
       {panel ? (
         <ChatsPanel
@@ -344,11 +376,18 @@ export function ZippiePage({ auth, canEdit }: { auth: RunAuth; canEdit: boolean 
           projectId={projectId}
           view={view}
           canEdit={canEdit}
-          onNew={() => newChat()}
-          onOpen={openThread}
+          onNew={() => {
+            newChat();
+            leave();
+          }}
+          onOpen={(t) => {
+            openThread(t);
+            leave();
+          }}
           onProject={(id) => {
             setProjectId(id);
             setView("project");
+            leave();
           }}
           onNewProject={async () => {
             const name = prompt("Name your project");
@@ -358,6 +397,7 @@ export function ZippiePage({ auth, canEdit }: { auth: RunAuth; canEdit: boolean 
               setLib((l) => ({ ...l, projects: [r.project, ...l.projects] }));
               setProjectId(r.project.id);
               setView("project");
+              leave();
             } catch (e) {
               setError(msgOf(e));
             }
@@ -365,6 +405,7 @@ export function ZippiePage({ auth, canEdit }: { auth: RunAuth; canEdit: boolean 
           onView={(v) => {
             setView(v);
             if (v === "knowledge") setProjectId(null);
+            leave();
           }}
           onThread={threadAction}
           counts={{ knowledge: lib.knowledge.length, skills: lib.skills.filter((s) => s.enabled).length }}

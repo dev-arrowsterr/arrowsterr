@@ -17,7 +17,8 @@ type Card = { kind: "changeset" | "audit" | "setup"; id: string };
 // Zippie. Everyone in the workspace can chat and read; only editors start audits or prepare changes.
 //   threads: {}                       the workspace's chats, newest first
 //   thread: { threadId }              one chat's messages
-//   send: { threadId?, message }      answer one message, streamed as one JSON event per line
+//   send: { threadId?, message, where? }  answer one message, streamed as one JSON event per line.
+//                                     where is the brand and page the person asks from
 //   rename: { threadId, title }       delete: { threadId }
 //   audits: {}                        audit: { auditId }        audit_start: { domain }
 async function handle(request: Request) {
@@ -158,7 +159,8 @@ async function handle(request: Request) {
     const line = (x: AskEvent | { type: "thread"; id: string; title: string; projectId: string | null }) => void writer.write(JSON.stringify(x) + "\n").catch(() => {});
     line({ type: "thread", id: thread.id, title: thread.title, projectId: thread.project_id });
     if (thread.project_id) void db.from("ask_projects").update({ updated_at: new Date().toISOString() }).eq("id", thread.project_id);
-    const work = answer({ db, ws, userId, canEdit, threadId: thread.id, projectId: thread.project_id }, message, line, str(body.skill, 80) || null)
+    const where = body.where && typeof body.where === "object" ? { brand: str(body.where.brand, 120) || null, page: str(body.where.page, 80) } : null;
+    const work = answer({ db, ws, userId, canEdit, threadId: thread.id, projectId: thread.project_id, where }, message, line, str(body.skill, 80) || null)
       .then(() => true)
       .catch((e) => {
         const error = e instanceof Error ? e.message : String(e);

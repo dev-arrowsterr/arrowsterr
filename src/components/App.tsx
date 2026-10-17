@@ -61,18 +61,18 @@ import { SourcesPage } from "./SourcesPage";
 import { TrafficPage } from "./TrafficPage";
 import { ReportsPage } from "./reports/ReportsPage";
 import { VisitorsPage } from "./VisitorsPage";
-import { ZippiePage } from "./ZippiePage";
+import { ZippieWidget } from "./ZippieWidget";
+import { ContentPage } from "./content/ContentPage";
 
 export type { Brand } from "@/lib/db";
-type Page = "ask" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "gap" | "calendar" | "intel" | "summary" | SettingsTab;
-const RESEARCH: Page[] = ["keywords", "domain", "gap", "calendar", "intel"];
+type Page = "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "gap" | "opportunities" | "calendar" | "content" | "summary" | SettingsTab;
+const RESEARCH: Page[] = ["keywords", "domain", "gap", "opportunities", "calendar"];
 const VISIBILITY: Page[] = ["prompts", "competitors", "domains", "urls"];
 /** Pages with their own PDF (docs/reports.md, section 32.3). */
 const PDF_OF: Partial<Record<Page, PdfPage>> = { prompts: "prompts", competitors: "competitors", domains: "sources", urls: "sources" }; // the only pages with period, topic and model filters
 
 /** Each page's address. "/" opens Prompts. */
 const SLUGS: Record<Page, string> = {
-  ask: "/zippie",
   prompts: "/prompts",
   competitors: "/competitors",
   domains: "/sources",
@@ -82,8 +82,9 @@ const SLUGS: Record<Page, string> = {
   keywords: "/keywords",
   domain: "/domain-research",
   gap: "/competitive-analysis",
-  calendar: "/content-plan",
-  intel: "/content-intelligence",
+  opportunities: "/opportunities",
+  calendar: "/calendar",
+  content: "/content",
   summary: "/reports",
   profile: "/settings/profile",
   security: "/settings/security",
@@ -102,30 +103,35 @@ const SLUGS: Record<Page, string> = {
 };
 /** Older addresses still open the right page. */
 const ALIASES: Record<string, Page> = {
-  "/ask": "ask",
-  "/agent": "ask",
+  "/zippie": "prompts",
+  "/ask": "prompts",
+  "/agent": "prompts",
   "/overview": "prompts",
   "/domains": "domains",
   "/urls": "urls",
   "/analytics": "traffic",
   "/keyword-research": "keywords",
-  "/agentic-research": "calendar",
-  "/topic-bank": "calendar",
-  "/calendar": "calendar",
+  "/agentic-research": "opportunities",
+  "/topic-bank": "opportunities",
+  "/content-plan": "opportunities",
   "/keyword-gap": "gap",
   "/industry-research": "gap",
   "/ai-gap": "gap",
-  "/planner": "calendar",
-  "/writer": "calendar",
-  "/inkwell": "calendar",
-  "/agentic-writer": "calendar",
-  "/performance": "intel",
+  "/planner": "opportunities",
+  "/writer": "opportunities",
+  "/inkwell": "opportunities",
+  "/agentic-writer": "opportunities",
+  "/content-intelligence": "opportunities",
+  "/performance": "opportunities",
   "/content-calendar": "calendar",
-  "/reports/content": "calendar",
+  "/reports/content": "opportunities",
   "/plan": "billing",
   "/billing": "billing",
 };
 const isSettings = (p: Page): p is SettingsTab => SETTINGS_TABS.some((t) => t.id === p);
+/** Zippie's old addresses open the Ask Zippie panel, over Prompts. */
+const ZIPPIE_PATHS = ["/zippie", "/ask", "/agent"];
+const onZippiePath = () => ZIPPIE_PATHS.includes(window.location.pathname.replace(/\/+$/, ""));
 const pageFromPath = (path: string): Page => {
   const p = path.replace(/\/+$/, "") || "/";
   return (Object.entries(SLUGS).find(([, slug]) => slug === p)?.[0] as Page | undefined) ?? ALIASES[p] ?? "prompts";
@@ -137,6 +143,7 @@ const onOnboarding = () => window.location.pathname.replace(/\/+$/, "") === ONBO
 
 const INVITE_KEY = "arrowsterr.invite";
 const NAV_HIDDEN = "arrowsterr.navHidden";
+const ZIPPIE_OPEN = "arrowsterr.zippieOpen";
 const NAV_KEY = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘B" : "Ctrl+B";
 const LEGACY_BRANDS = "arrowsterr.brands";
 
@@ -241,6 +248,12 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   const [page, setPage] = useState<Page>(() => allowed(pageFromPath(window.location.pathname)));
   // Hide the sidebar for more room. Remembered on this device. ⌘B / Ctrl+B toggles it outside text fields.
   const [navHidden, setNavHidden] = useState(() => readLocal(NAV_HIDDEN) === "1");
+  // Ask Zippie's panel, open or closed, is remembered on this device.
+  const [zippie, setZippie] = useState(() => onZippiePath() || readLocal(ZIPPIE_OPEN) === "1");
+  const openZippie = useCallback((open: boolean) => {
+    setZippie(open);
+    writeLocal(ZIPPIE_OPEN, open ? "1" : null);
+  }, []);
   const toggleNav = useCallback(() => {
     setNavHidden((h) => {
       writeLocal(NAV_HIDDEN, h ? null : "1");
@@ -267,6 +280,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   useEffect(() => {
     if (window.location.pathname !== SLUGS[page] && !onOnboarding()) window.history.replaceState(null, "", SLUGS[page] + window.location.search);
     const back = () => {
+      if (onZippiePath()) openZippie(true);
       setPage(allowed(pageFromPath(window.location.pathname)));
       setAdding(onOnboarding());
     };
@@ -608,8 +622,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
         onDone={onboard}
         onExit={() => {
           setAdding(false);
-          // Starter on Organic Research lands on the Content Plan; everyone else on their prompts.
-          go(plan && !plan.open.visibility ? "calendar" : "prompts");
+          // Starter on Organic Research lands on Opportunities; everyone else on their prompts.
+          go(plan && !plan.open.visibility ? "opportunities" : "prompts");
         }}
         engines={engines ?? []}
         checkEvery={plan?.limits.checkEvery ?? 1}
@@ -673,7 +687,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
         }}
       />
       <div className="flex min-w-0 flex-1 flex-col md:pr-3 md:pb-3">
-        {!isSettings(page) && page !== "ask" ? (
+        {!isSettings(page) ? (
           <TopBar
             title={pageTitle(page)}
             visibility={VISIBILITY.includes(page)}
@@ -718,7 +732,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             <PageTitle {...pageTitle(page)} />
           </div>
         )}
-        <main className={`aw-page-body min-w-0 flex-1 ${page === "ask" ? "overflow-hidden" : "px-4 py-5 sm:px-6"}`}>
+        <main className="aw-page-body min-w-0 flex-1 px-4 py-5 sm:px-6">
           {limitHit || (plan && plan.status === "read_only" && page !== "billing") ? (
             <div className="aw-callout aw-callout--warn mb-5 flex flex-wrap items-center justify-between gap-3">
               <span>{limitHit?.error || (plan?.plan === "trial" ? "Your free trial has ended. Your data is safe." : "This workspace is read-only. Your data is safe.")}</span>
@@ -840,8 +854,6 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             </SettingsPage>
           ) : !view ? (
             <div className="aw-callout max-w-xl">This workspace has no brands yet. Ask an editor or admin to add one.</div>
-          ) : page === "ask" ? (
-            <ZippiePage key={ws.id} auth={auth} canEdit={canEdit} />
           ) : plan && trackOf(page) && !plan.open[trackOf(page)!] ? (
             <Glimpse
               track={trackOf(page)!}
@@ -863,6 +875,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
               }}
               onPlans={() => go("billing")}
             />
+          ) : page === "content" ? (
+            <ContentPage key={view.brand.id} view={view} auth={auth} canEdit={canEdit} />
           ) : RESEARCH.includes(page) ? (
             <ResearchPage key={view.brand.id} sb={sb} auth={auth} view={view} canEdit={canEdit} tool={page as Tool} onTool={(t) => go(t)} seoStart={seoStart}
               refresh={{ paid: Boolean(plan && plan.plan !== "free" && plan.plan !== "trial"), onUpgrade: () => go("billing") }}
@@ -924,6 +938,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
           )}
         </main>
       </div>
+      <ZippieWidget key={ws.id} auth={auth} canEdit={canEdit} where={{ brand: active?.name ?? null, page: pageTitle(page).label }} open={zippie} onOpen={openZippie} />
     </div>
   );
 }
@@ -978,7 +993,7 @@ function NavIcon({ name }: { name: string }) {
 
 /** The toolset a page belongs to. Starter opens one of them. */
 const trackOf = (page: Page): Track | null =>
-  ["prompts", "competitors", "domains", "urls"].includes(page) ? "visibility" : ["keywords", "domain", "gap", "calendar", "intel"].includes(page) ? "seo" : null;
+  ["prompts", "competitors", "domains", "urls"].includes(page) ? "visibility" : ["keywords", "domain", "gap", "opportunities", "calendar", "content"].includes(page) ? "seo" : null;
 
 /** The big modules of the app. Each opens to its own pages. */
 const NAV: { group: string; icon: string; items: { id: Page; label: string; icon: string; also?: Page[] }[] }[] = [
@@ -1001,12 +1016,12 @@ const NAV: { group: string; icon: string; items: { id: Page; label: string; icon
     ],
   },
   {
-    group: "Agentic Content",
+    group: "Content",
     icon: "pen",
     items: [
-      { id: "ask", label: "Zippie", icon: "spark" },
-      { id: "calendar", label: "Content Plan", icon: "calendar" },
-      { id: "intel", label: "Content Intelligence", icon: "trend" },
+      { id: "opportunities", label: "Opportunities", icon: "bank" },
+      { id: "calendar", label: "Calendar", icon: "calendar" },
+      { id: "content", label: "Content", icon: "pen" },
     ],
   },
   {

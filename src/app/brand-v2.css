@@ -507,3 +507,16 @@ html, body { background: #F8F8FF; }
 .aw .aw-rail__btn .aw-nav__icon { width: 19px; height: 19px; margin: 0; }
 .aw .aw-rail [data-tip]::after { content: attr(data-tip); position: absolute; left: calc(100% + 10px); top: 50%; z-index: 60; transform: translateY(-50%) translateX(-4px); white-space: nowrap; border-radius: 7px; background: #0B1B3F; padding: 5px 9px; font-size: 12.5px; font-weight: 500; color: #fff; opacity: 0; pointer-events: none; transition: opacity 0.12s, transform 0.12s; }
 .aw .aw-rail [data-tip]:hover::after, .aw .aw-rail [data-tip]:focus-visible::after { opacity: 1; transform: translateY(-50%) translateX(0); }
+
+/* Ask Zippie: the round button in the bottom-right corner of every page, and the chat panel it opens. */
+.aw .aw-zippie-fab { position: fixed; right: 20px; bottom: 20px; z-index: 55; display: inline-flex; width: 56px; height: 56px; align-items: center; justify-content: center; border: 1px solid var(--aw-rule); border-radius: 999px; background: #fff; transition: border-color 0.15s; }
+.aw .aw-zippie-fab:hover, .aw .aw-zippie-fab:focus-visible { border-color: var(--aw-brand); }
+.aw .aw-zippie-panel { position: fixed; top: 12px; right: 12px; bottom: 12px; z-index: 56; display: flex; width: 420px; max-width: calc(100vw - 24px); flex-direction: column; overflow: hidden; border: 1px solid var(--aw-rule); background: #fff; }
+@media (max-width: 640px) { .aw .aw-zippie-panel { inset: 0; width: auto; max-width: none; border: 0; } }
+.aw .zp--panel { height: 100%; flex-direction: column; }
+.aw .zp--panel .zp-side { display: flex; width: auto; min-height: 0; flex: 1; overflow-y: auto; border-left: 0; }
+.aw .zp--panel .zp-hello { font-size: 22px; }
+.aw .zp--panel .zp-actions { grid-template-columns: 1fr; }
+.aw .zp--panel .zp-thread { padding: 12px 16px 24px; }
+.aw .zp--panel .zp-dock { padding: 0 12px 12px; }
+.aw .zp--panel .zp-empty { padding: 16px 16px 32px; }

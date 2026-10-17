@@ -18,7 +18,7 @@ import { BUILTIN_SKILLS, type Skill } from "./zippieSkills";
 // and propose fixes to its CMS. It never changes a site on its own: every edit waits in a change set
 // until someone approves it in the app.
 
-export type AskCtx = { db: SupabaseClient; ws: string; userId: string; canEdit: boolean; threadId: string; projectId?: string | null };
+export type AskCtx = { db: SupabaseClient; ws: string; userId: string; canEdit: boolean; threadId: string; projectId?: string | null; where?: { brand: string | null; page: string } | null };
 export type AskEvent =
   | { type: "text"; text: string }
   | { type: "tool"; name: string; label: string }
@@ -396,6 +396,8 @@ export async function answer(ctx: AskCtx, message: string, emit: (e: AskEvent) =
   const systemBlocks: Anthropic.TextBlockParam[] = [{ type: "text", text: system }];
   if (extra) systemBlocks.push({ type: "text", text: extra });
   systemBlocks[systemBlocks.length - 1].cache_control = { type: "ephemeral" };
+  // The brand and page the person asks from change often, so they go after the cached part.
+  if (ctx.where?.page) systemBlocks.push({ type: "text", text: `The person is on the ${ctx.where.page} page${ctx.where.brand ? ` with the brand ${ctx.where.brand} picked` : ""}. Start from that brand and page unless they say otherwise.` });
   const tools = toolDefs(ctx.canEdit);
   const messages = await history(ctx.db, ctx.threadId);
   messages.push({ role: "user", content: message });
