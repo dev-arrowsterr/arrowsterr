@@ -132,15 +132,15 @@ type Result = { task: AgentTask; html?: string; note?: string; done?: string; pr
 type CardState = "idle" | "busy" | Result | { error: string };
 
 /** The slash menu reads keys before the editor does, while it is open. */
-const slashKeysExtension = (box: { current: ((e: KeyboardEvent) => boolean) | null }) =>
+export const slashKeysExtension = (box: { current: ((e: KeyboardEvent) => boolean) | null }) =>
   Extension.create({
     name: "awSlashKeys",
     addProseMirrorPlugins: () => [new Plugin({ props: { handleKeyDown: (_v, e) => box.current?.(e) ?? false } })],
   });
 
 /** One choice in the slash menu. */
-type Slash = { id: string; label: string; hint: string; keys: string; icon: string };
-const SLASH: Slash[] = [
+export type Slash = { id: string; label: string; hint: string; keys: string; icon: string; ai?: boolean };
+export const SLASH: Slash[] = [
   { id: "h1", label: "Heading 1", hint: "The page title", keys: "h1 heading title", icon: "H1" },
   { id: "h2", label: "Heading 2", hint: "A main section", keys: "h2 heading section", icon: "H2" },
   { id: "h3", label: "Heading 3", hint: "A sub-section", keys: "h3 heading sub", icon: "H3" },
@@ -151,8 +151,8 @@ const SLASH: Slash[] = [
   { id: "table", label: "Table", hint: "3 by 3, with a header row", keys: "table grid", icon: "⊞" },
   { id: "divider", label: "Divider", hint: "A line across the page", keys: "divider hr line", icon: "—" },
   { id: "image", label: "Image", hint: "Upload a picture", keys: "image picture photo upload img", icon: "▣" },
-  { id: "write", label: "Write this line", hint: "The agent writes what belongs here", keys: "write agent ai line paragraph", icon: "✦" },
-  { id: "section", label: "Write this section", hint: "The agent writes the section under the heading above", keys: "section agent ai write", icon: "✦" },
+  { id: "write", label: "Write this line", hint: "The agent writes what belongs here", keys: "write agent ai line paragraph", icon: "✦", ai: true },
+  { id: "section", label: "Write this section", hint: "The agent writes the section under the heading above", keys: "section agent ai write", icon: "✦", ai: true },
 ];
 
 const countWords = (ed: Editor) => draftText(ed).split(/\s+/).filter(Boolean).length;
@@ -947,14 +947,26 @@ function Bubble({ editor, canvas, hidden, onAsk }: { editor: Editor; canvas: Rea
   );
 }
 
-/** Type / at the start of a line for headings, lists, images and the agent. */
-function SlashMenu({ editor, canvas, keysRef, onPick }: { editor: Editor; canvas: React.RefObject<HTMLDivElement | null>; keysRef: React.RefObject<((e: KeyboardEvent) => boolean) | null>; onPick: (id: string, range: { from: number; to: number }) => void }) {
+/** Type / at the start of a line for headings, lists, images and the agent. items leaves out choices, like the agent's in the plain editor. */
+export function SlashMenu({
+  editor,
+  canvas,
+  keysRef,
+  onPick,
+  items = SLASH,
+}: {
+  editor: Editor;
+  canvas: React.RefObject<HTMLDivElement | null>;
+  keysRef: React.RefObject<((e: KeyboardEvent) => boolean) | null>;
+  onPick: (id: string, range: { from: number; to: number }) => void;
+  items?: Slash[];
+}) {
   const [menu, setMenu] = useState<{ q: string; from: number; to: number; x: number; y: number } | null>(null);
   const [i, setI] = useState(0);
   const [closedAt, setClosedAt] = useState<number | null>(null);
   // Each word of a choice can start the match, so /h finds headings and /im finds Image.
   const q = menu?.q.trim().toLowerCase() ?? "";
-  const list = menu ? SLASH.filter((s) => !q || `${s.keys} ${s.label.toLowerCase()}`.split(/\s+/).some((w) => w.startsWith(q))) : [];
+  const list = menu ? items.filter((s) => !q || `${s.keys} ${s.label.toLowerCase()}`.split(/\s+/).some((w) => w.startsWith(q))) : [];
 
   useEffect(() => {
     const check = () => {

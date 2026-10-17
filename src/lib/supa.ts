@@ -11,3 +11,9 @@ export function getSupabase({ url, key }: SupaConfig): SupabaseClient {
   });
   return client;
 }
+
+/** The browser's client, once the app has made it. Pages that aren't handed one use this. */
+export function currentSupabase(): SupabaseClient {
+  if (!client) throw new Error("Supabase is not set up yet.");
+  return client;
+}
