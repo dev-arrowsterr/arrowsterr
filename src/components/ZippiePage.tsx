@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AuditIssue, AuditResult } from "@/lib/audit";
 import type { RunAuth } from "@/lib/runner";
+import { CMS, type CmsKind } from "@/lib/cmsTypes";
+import { ConnectWizard } from "./ConnectWizard";
 import { Markdown } from "./Markdown";
 import { Zippie } from "./Zippie";
 
@@ -11,7 +13,7 @@ import { Zippie } from "./Zippie";
 
 type View = "chat" | "knowledge" | "skills" | "project";
 type Thread = { id: string; title: string; updated_at: string; project_id: string | null; created_by?: string | null };
-type Card = { kind: "changeset" | "audit"; id: string };
+type Card = { kind: "changeset" | "audit" | "setup"; id: string };
 type Msg = { id: number | string; role: "user" | "assistant"; text: string; tools: string[]; cards: Card[]; working?: string; skill?: string };
 type Project = { id: string; name: string; instructions: string; updated_at: string };
 type Knowledge = { id: string; kind: "file" | "url" | "note"; name: string; source: string; chars: number; project_id: string | null; created_at: string };
@@ -42,6 +44,10 @@ const TOOL_LABEL: Record<string, string> = {
   get_cited_sources: "Read cited sources",
   get_content_plan: "Read the Content Plan",
   get_topic_bank: "Read the topic bank",
+  show_setup: "Opened a setup guide",
+  add_to_content_plan: "Added to the Content Plan",
+  update_content_plan: "Updated the Content Plan",
+  remove_from_content_plan: "Removed from the Content Plan",
 };
 const toolLabel = (n: string) => TOOL_LABEL[n] ?? n.replace(/_/g, " ");
 const FILE_TYPES = ".txt,.md,.markdown,.csv,.json,.html,.htm,.xml,.pdf";
@@ -211,6 +217,7 @@ export function ZippiePage({ auth, canEdit }: { auth: RunAuth; canEdit: boolean 
           else if (e.type === "tool_done") patch((m) => ({ ...m, tools: [...m.tools, e.name], working: "Thinking" }));
           else if (e.type === "changeset") patch((m) => ({ ...m, cards: [...m.cards, { kind: "changeset", id: e.id }] }));
           else if (e.type === "audit") patch((m) => ({ ...m, cards: [...m.cards, { kind: "audit", id: e.id }] }));
+          else if (e.type === "setup") patch((m) => ({ ...m, cards: [...m.cards, { kind: "setup", id: e.id }] }));
           else if (e.type === "error") setError(e.error);
         }
       }
@@ -314,6 +321,7 @@ export function ZippiePage({ auth, canEdit }: { auth: RunAuth; canEdit: boolean 
         ) : (
           <ChatView
             api={api}
+            auth={auth}
             messages={messages}
             busy={busy}
             error={error}
@@ -388,6 +396,7 @@ function usePendingSkill(): [Skill | null, (s: Skill | null) => void] {
 
 function ChatView(p: {
   api: ReturnType<typeof useApi>;
+  auth: RunAuth;
   messages: Msg[];
   busy: boolean;
   error: string;
@@ -447,7 +456,7 @@ function ChatView(p: {
                 <div className="zp-user">{m.text}</div>
               </div>
             ) : (
-              <Reply key={m.id} m={m} api={p.api} canEdit={p.canEdit} />
+              <Reply key={m.id} m={m} api={p.api} auth={p.auth} canEdit={p.canEdit} onSend={p.onSend} />
             ),
           )}
           {p.error ? <div className="aw-error">{p.error}</div> : null}
@@ -461,7 +470,7 @@ function ChatView(p: {
   );
 }
 
-function Reply({ m, api, canEdit }: { m: Msg; api: ReturnType<typeof useApi>; canEdit: boolean }) {
+function Reply({ m, api, auth, canEdit, onSend }: { m: Msg; api: ReturnType<typeof useApi>; auth: RunAuth; canEdit: boolean; onSend: (text: string, skill: Skill | null) => void }) {
   const [copied, setCopied] = useState(false);
   const [open, setOpen] = useState(false);
   return (
@@ -488,7 +497,15 @@ function Reply({ m, api, canEdit }: { m: Msg; api: ReturnType<typeof useApi>; ca
           </div>
         ) : null}
         {m.text ? <Markdown text={m.text} /> : null}
-        {m.cards.map((c) => (c.kind === "changeset" ? <ChangeSetCard key={c.id} id={c.id} api={api} canEdit={canEdit} /> : <AuditCard key={c.id} id={c.id} api={api} />))}
+        {m.cards.map((c) =>
+          c.kind === "changeset" ? (
+            <ChangeSetCard key={c.id} id={c.id} api={api} canEdit={canEdit} />
+          ) : c.kind === "setup" ? (
+            <SetupCard key={c.id} id={c.id} auth={auth} canEdit={canEdit} onSend={onSend} />
+          ) : (
+            <AuditCard key={c.id} id={c.id} api={api} />
+          ),
+        )}
         {m.working ? (
           <span className="aw-agent-working text-[13px]" role="status" aria-live="polite">
             {m.working}...
@@ -651,6 +668,62 @@ const STATUS: Record<string, string> = {
 };
 
 /** A change set Zippie prepared: review each change, approve, apply to the site, or undo. */
+/** A card Zippie puts in the chat when something needs connecting. One click opens the guide. */
+function SetupCard({ id, auth, canEdit, onSend }: { id: string; auth: RunAuth; canEdit: boolean; onSend: (text: string, skill: Skill | null) => void }) {
+  const [kind, platform] = id.split(":") as ["cms" | "traffic", CmsKind | undefined];
+  const [open, setOpen] = useState(false);
+  const [connected, setConnected] = useState("");
+  const label = CMS.find((c) => c.id === platform)?.label;
+  if (kind === "traffic") {
+    return (
+      <div className="zp-setup-card">
+        <Zippie size={34} mood="happy" />
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="text-[14px] font-medium text-ink">Set up website tracking</span>
+          <span className="text-[13px] text-muted">Add the tracking script or connect Google Analytics.</span>
+        </span>
+        <button
+          type="button"
+          className="aw-btn aw-btn--primary aw-btn--sm"
+          onClick={() => {
+            window.history.pushState(null, "", "/traffic");
+            window.dispatchEvent(new PopStateEvent("popstate"));
+          }}
+        >
+          Open Traffic
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="zp-setup-card">
+      <Zippie size={34} mood="happy" />
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="text-[14px] font-medium text-ink">{connected ? `${connected} is connected` : `Connect ${label ?? "your CMS"}`}</span>
+        <span className="text-[13px] text-muted">{connected ? "Zippie can read and fix your pages now." : "Zippie walks you through it, one click at a time."}</span>
+      </span>
+      {connected ? (
+        <span className="aw-status aw-status--ranked">Connected</span>
+      ) : (
+        <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={() => setOpen(true)} disabled={!canEdit} title={canEdit ? undefined : "Ask an admin to connect it"}>
+          Connect
+        </button>
+      )}
+      {open ? (
+        <ConnectWizard
+          auth={auth}
+          platform={platform ?? null}
+          onConnected={(c) => setConnected(c.name)}
+          onClose={() => {
+            setOpen(false);
+            if (connected) onSend(`I connected ${connected}. Pick up where we left off.`, null);
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
 function ChangeSetCard({ id, api, canEdit }: { id: string; api: ReturnType<typeof useApi>; canEdit: boolean }) {
   const [set, setSet] = useState<SetRow | null>(null);
   const [changes, setChanges] = useState<Change[]>([]);

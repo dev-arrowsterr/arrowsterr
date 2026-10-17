@@ -12,7 +12,7 @@ const missing = (e: { message: string } | null) => e && /ask_threads|ask_message
 const SETUP = "Run supabase/036_ask.sql in Supabase to turn on Zippie.";
 
 type Block = { type: string; text?: string; name?: string; content?: unknown };
-type Card = { kind: "changeset" | "audit"; id: string };
+type Card = { kind: "changeset" | "audit" | "setup"; id: string };
 
 // Zippie. Everyone in the workspace can chat and read; only editors start audits or prepare changes.
 //   threads: {}                       the workspace's chats, newest first
@@ -62,6 +62,8 @@ async function handle(request: Request) {
           const audit = raw.match(/"audit_id":"([0-9a-f-]{36})"/)?.[1];
           if (owner && set) owner.cards.push({ kind: "changeset", id: set });
           if (owner && audit) owner.cards.push({ kind: "audit", id: audit });
+          const setup = raw.match(/"setup":"((?:cms|traffic)(?::[a-z]+)?)"/)?.[1];
+          if (owner && setup) owner.cards.push({ kind: "setup", id: setup });
         }
         continue;
       }
