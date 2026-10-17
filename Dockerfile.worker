@@ -1,4 +1,4 @@
-# The Arrowsterr job worker. It calls the app's /api/worker, and prints report PDFs with Chromium.
+# The Arrowsterr job worker. It calls the app's /api/worker, prints report PDFs and reads pages for article research with Chromium.
 # The Playwright image brings Chromium and its fonts; playwright-core must match its version.
 FROM mcr.microsoft.com/playwright:v1.56.1-noble
 ENV NODE_ENV=production
