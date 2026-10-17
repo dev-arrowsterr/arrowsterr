@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export type SettingsTab = "profile" | "security" | "notifications" | "settings" | "members" | "access" | "ai" | "retention" | "integrations" | "publishing" | "billing" | "exports" | "jobs";
+export type SettingsTab = "profile" | "security" | "notifications" | "settings" | "members" | "access" | "ai" | "brandkit" | "retention" | "integrations" | "publishing" | "billing" | "exports" | "jobs";
 
 /** Settings pages, grouped the way the sidebar shows them. */
 export const SETTINGS_GROUPS: {
@@ -22,6 +22,7 @@ export const SETTINGS_GROUPS: {
       { id: "members", label: "Members" },
       { id: "access", label: "Identity and access" },
       { id: "ai", label: "AI" },
+      { id: "brandkit", label: "Brand Kit" },
       { id: "retention", label: "Data retention" },
     ],
   },

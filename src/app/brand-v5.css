@@ -127,3 +127,58 @@
 .aw .zp-wiz-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 14px; border: 1px solid var(--aw-rule); background: #fff; text-align: left; transition: border-color .15s; }
 .aw .zp-wiz-tile:hover { border-color: var(--aw-brand); }
 .aw .zp-setup-card { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border: 1px solid var(--aw-rule); background: #fff; }
+
+/* ─────────────── Brand Kit (docs/reports.md, section 31) ───────────────
+   The learning show: each part rises 8px and fades in as the agent finds it,
+   then the report cover changes from Arrowsterr's colors into the brand's. */
+.aw .aw-kit { display: flex; flex-direction: column; align-items: center; gap: 20px; width: 100%; max-width: 520px; margin: 0 auto; padding-top: 6vh; }
+.aw .aw-kit__say { min-height: 24px; font-size: 17px; font-weight: 500; color: var(--aw-ink); text-align: center; animation: aw-kit-in .15s cubic-bezier(.22, 1, .36, 1); }
+.aw .aw-kit__card { display: flex; flex-direction: column; align-items: center; gap: 20px; width: 100%; padding: 32px 28px 0; overflow: hidden; border-radius: var(--aw-r-md); background: #fff; box-shadow: 0 0 0 1px var(--aw-rule); }
+.aw .aw-kit__card.is-failed { opacity: .6; }
+.aw .aw-kit__mark { display: flex; align-items: center; justify-content: center; width: 100%; height: 64px; }
+.aw .aw-kit__mark > * { animation: aw-kit-in .15s cubic-bezier(.22, 1, .36, 1) both; }
+.aw .aw-kit__logo { max-width: 220px; max-height: 56px; object-fit: contain; }
+.aw .aw-kit__logo.is-on-dark { padding: 8px 12px; border-radius: 6px; background: var(--aw-night); }
+.aw .aw-kit__name { font-size: 26px; font-weight: 600; color: var(--aw-ink); letter-spacing: -0.01em; }
+.aw .aw-kit__swatches { display: flex; gap: 10px; min-height: 52px; }
+.aw .aw-kit__swatches li { position: relative; width: 36px; height: 36px; border-radius: 6px; box-shadow: inset 0 0 0 1px rgba(6, 27, 68, .12); animation: aw-kit-in .15s cubic-bezier(.22, 1, .36, 1) both; }
+.aw .aw-kit__swatches li span { position: absolute; top: 40px; left: 50%; transform: translateX(-50%); font-size: 10px; color: var(--aw-muted); white-space: nowrap; }
+.aw .aw-kit__fonts { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 20px; min-height: 40px; }
+.aw .aw-kit__font { padding: 4px 10px; border-radius: 4px; background: var(--aw-surface-2); font-size: 13px; color: var(--aw-ink); animation: aw-kit-in .15s cubic-bezier(.22, 1, .36, 1) both; }
+.aw .aw-kit__sample { display: flex; align-items: center; gap: 10px; animation: aw-kit-in .15s cubic-bezier(.22, 1, .36, 1) both; }
+.aw .aw-kit__sample b { font-size: 30px; font-weight: 600; line-height: 1; color: var(--aw-ink); }
+.aw .aw-kit__sample span { display: flex; flex-direction: column; font-size: 13px; font-weight: 500; color: var(--aw-ink); line-height: 1.3; }
+.aw .aw-kit__sample small { font-size: 12px; font-weight: 400; color: var(--aw-muted); }
+.aw .aw-kit__actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 12px 20px; animation: aw-kit-in .15s cubic-bezier(.22, 1, .36, 1) both; }
+.aw .aw-kit__actions .aw-error { width: 100%; text-align: center; }
+
+/* The cover: a small report page drawn from CSS variables, so a new kit is a color change. */
+.aw .aw-kit__cover { width: 100%; max-width: 340px; margin-top: 4px; overflow: hidden; border-radius: var(--k-radius) var(--k-radius) 0 0; background: var(--k-paper); box-shadow: 0 0 0 1px var(--k-line); font-family: var(--k-body); transition: background-color .4s ease, box-shadow .4s ease; }
+.aw .aw-kit__card .aw-kit__cover { margin-bottom: -1px; }
+.aw .aw-kit__cover * { transition: background-color .4s ease, color .4s ease, border-color .4s ease; }
+.aw .aw-kit__hero { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; background: var(--k-hero); color: var(--k-hero-text); }
+.aw .aw-kit__hero img { max-width: 110px; max-height: 26px; object-fit: contain; }
+.aw .aw-kit__hero b { font-family: var(--k-heading); font-size: 16px; font-weight: 600; }
+.aw .aw-kit__hero span { font-size: 11px; opacity: .8; }
+.aw .aw-kit__body { display: flex; flex-direction: column; gap: 12px; padding: 14px 18px 18px; }
+.aw .aw-kit__kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.aw .aw-kit__kpis span { display: flex; flex-direction: column; gap: 2px; padding: 10px; border-radius: calc(var(--k-radius) * .6); background: var(--k-surface); box-shadow: 0 0 0 1px var(--k-line); }
+.aw .aw-kit__kpis small { font-size: 10px; color: var(--k-muted); }
+.aw .aw-kit__kpis b { font-family: var(--k-heading); font-size: 20px; font-weight: 600; color: var(--k-accent); }
+.aw .aw-kit__bars { display: flex; flex-direction: column; gap: 6px; }
+.aw .aw-kit__bars i { display: block; height: 6px; border-radius: 3px; transition: background-color .4s ease, width .4s ease; }
+.aw .aw-kit__cover:not(.is-theirs) .aw-kit__body { opacity: .55; }
+
+/* Settings: color fields and the client list. */
+.aw .aw-kit__color { display: flex; align-items: center; gap: 8px; padding: 6px; border-radius: 6px; box-shadow: 0 0 0 1px var(--aw-rule); }
+.aw .aw-kit__color input[type="color"] { width: 32px; height: 32px; flex: none; padding: 0; border: 0; border-radius: 4px; background: none; cursor: pointer; }
+.aw .aw-kit__color span { display: flex; min-width: 0; flex-direction: column; }
+.aw .aw-kit__color small { font-size: 12px; color: var(--aw-muted); }
+.aw .aw-kit__color span input { width: 100%; min-width: 0; border: 0; padding: 0; background: none; font-size: 13px; color: var(--aw-ink); outline: 0; }
+.aw .aw-kit__mini { display: inline-flex; gap: 4px; }
+.aw .aw-kit__mini i { width: 16px; height: 16px; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(6, 27, 68, .12); }
+
+@keyframes aw-kit-in { from { opacity: 0; transform: translateY(8px); } }
+@media (prefers-reduced-motion: reduce) {
+  .aw .aw-kit *, .aw .aw-kit__say { animation: none !important; transition: none !important; }
+}

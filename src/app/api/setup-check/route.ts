@@ -38,6 +38,7 @@ export async function GET() {
       ["035_notifications.sql", "/rest/v1/notification_prefs?select=weekly&limit=1"],
       ["036_ask.sql", "/rest/v1/change_sets?select=id&limit=1"],
       ["037_zippie.sql", "/rest/v1/ask_projects?select=id&limit=1"],
+      ["045_brand_kits.sql", "/rest/v1/brand_kits?select=key&limit=1"],
     ];
     report.migrations = Object.fromEntries(
       await Promise.all(

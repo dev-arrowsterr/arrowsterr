@@ -7,6 +7,7 @@ import { flatPrompts, type Brand, type Profile, type Topic } from "@/lib/db";
 import { ANGLES, BUSINESS_TYPES, MAX_PROMPTS, TOPIC_KINDS, type Angle, type PickedTopic } from "@/lib/onboarding";
 import type { RunAuth } from "@/lib/runner";
 import { BrandLogo } from "./BrandLogo";
+import { KitLearn } from "./BrandKit";
 import { ENGINE_LOGOS } from "./Engines";
 import { Dropdown } from "./Pickers";
 import { Logo } from "./Logo";
@@ -76,7 +77,10 @@ export function Onboarding({
   welcome,
   onWelcome,
   checking,
+  kit,
 }: {
+  /** First onboarding: learn the workspace's Brand Kit while the brand is researched. agencySite is a guess from the work email. */
+  kit?: { role: string; agencySite: string };
   /** The first check while it runs; null once it is done. */
   checking?: Checking | null;
   /** First onboarding of a new account: ask for a profile and a workspace name first. */
@@ -119,6 +123,9 @@ export function Onboarding({
   const [profile, setProfile] = useState<Profile>(saved?.profile ?? { country: "United States" });
   const [topics, setTopics] = useState<TopicPick[]>(saved?.topics ?? []);
   const [plan, setPlan] = useState<PlanTopic[]>(saved?.plan ?? []);
+  // The Brand Kit step shows while the research runs. role can change on the first step.
+  const [kitOpen, setKitOpen] = useState(false);
+  const [role, setRole] = useState(kit?.role ?? "");
   const cap = Math.max(1, promptRoom);
 
   useEffect(() => {
@@ -191,6 +198,7 @@ export function Onboarding({
   const readSite = (e: React.FormEvent) => {
     e.preventDefault();
     setPlaying(true);
+    if (kit) setKitOpen(true);
     run("Researching your brand and finding its best topics...", async () => {
       const d = await call("/api/onboard", auth, { website }).catch((err) => {
         setPlaying(false); // research failed: no game left behind with nothing to wait for
@@ -286,7 +294,8 @@ export function Onboarding({
 
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 px-4 py-6 sm:px-6">
         {error ? <p className="aw-error">{error}</p> : null}
-        {busy || ready ? (
+        {kitOpen && kit ? <KitStep auth={auth} website={website} agency={role === "Agency"} agencySite={kit.agencySite} onClose={() => setKitOpen(false)} /> : null}
+        {(busy || ready) && !kitOpen ? (
           <div className="mx-auto w-full max-w-4xl">
             <Thinking text={leaving ? (ready === "done" ? "Opening your brand..." : "Loading your topics...") : ready ? (ready === "done" ? "Setup done" : "Research done") : busy} done={Boolean(ready) && !leaving}>
               {ready && !leaving ? (
@@ -308,6 +317,7 @@ export function Onboarding({
             init={welcome.you}
             onNext={(you) => run("Saving your profile...", async () => {
               await onWelcome?.({ you });
+              setRole(you.role);
               go(welcome.workspace != null ? "workspace" : (saved?.step ?? "site"));
             })}
           />
@@ -324,7 +334,7 @@ export function Onboarding({
           />
         ) : null}
 
-        {step === "site" && !busy && !ready ? <SiteStep seo={seo} website={website} setWebsite={setWebsite} onSubmit={readSite} importCount={importCount} onImport={onImport} /> : null}
+        {step === "site" && !busy && !ready && !kitOpen ? <SiteStep seo={seo} website={website} setWebsite={setWebsite} onSubmit={readSite} importCount={importCount} onImport={onImport} /> : null}
 
         {step === "topics" && !busy && !ready ? (
           <TopicsStep
@@ -364,6 +374,38 @@ function Musing() {
 }
 
 // ─────────────────────────────── steps ───────────────────────────────
+
+/**
+ * Your brand: Zippie learns the Brand Kit on screen while the research runs. Agencies give their own website,
+ * since the kit brands the reports they send. Everyone else uses the site they just entered.
+ */
+function KitStep({ auth, website, agency, agencySite, onClose }: { auth: RunAuth; website: string; agency: boolean; agencySite: string; onClose: () => void }) {
+  const [site, setSite] = useState<string | null>(agency ? null : website);
+  const [draft, setDraft] = useState(agency ? agencySite : website);
+  const confirm = async () => {
+    // Saying it looks right is worth keeping, but never worth blocking the next step.
+    await call("/api/brand-kit", auth, { action: "confirm" }).catch(() => {});
+    onClose();
+  };
+  if (!site)
+    return (
+      <WelcomeCard step="Your brand" title={agency ? "Your agency's website" : "Your brand's website"} onSubmit={() => draft.trim() && setSite(draft.trim())}>
+        <input value={draft} onChange={(e) => setDraft(e.target.value)} placeholder={agency ? "agency.com" : "acme.com"} aria-label="Website" required autoFocus className="aw-input" />
+        <button type="submit" className="aw-btn aw-btn--accent aw-btn--lg w-full" disabled={!draft.trim()}>
+          Learn my brand
+        </button>
+        <button type="button" className="aw-text-link self-start text-muted!" onClick={onClose}>
+          Skip for now
+        </button>
+      </WelcomeCard>
+    );
+  return (
+    <div className="flex flex-col items-center gap-2">
+      <span className="aw-onb__kicker">Your brand</span>
+      <KitLearn key={site} auth={auth} website={site} onDone={confirm} onAnother={() => setSite(null)} onSkip={onClose} />
+    </div>
+  );
+}
 
 function StepHead({ n, kicker, title, children }: { n?: number; kicker: string; title: string; children?: React.ReactNode }) {
   return (
