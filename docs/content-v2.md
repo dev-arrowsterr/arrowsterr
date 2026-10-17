@@ -85,7 +85,7 @@ Today Search Console (`gsc_connections`, by site) and Google Analytics (`ga4_con
 | Slack channel for this brand's alerts | Slack connection (the workspace's Slack) |
 | Alert thresholds | Default alert thresholds |
 
-**Change (migration `047_brand_integrations.sql`):**
+**Change (migration `048_brand_integrations.sql`):**
 - `cms_connections` gets `brand_id`. Existing rows go to the workspace's first brand, and a workspace with several brands gets a one-time notice to move them.
 - `integrations` keeps the Slack connection. A new `brand_settings` table holds each brand's Slack channel and alert thresholds, falling back to the workspace's.
 - Settings splits into **Brand** (the left column above) and **Workspace** (the right).

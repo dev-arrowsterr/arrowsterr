@@ -2,7 +2,7 @@ import "server-only";
 import { createHash, randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { entitlement } from "./entitlements";
-import type { EventName } from "./integrationTypes";
+import { alertTarget, type EventName } from "./integrationTypes";
 import { shares, type Metric } from "./visibility";
 import { adminClient } from "./serverAuth";
 
@@ -70,7 +70,7 @@ export async function dispatch(db: SupabaseClient, ws: string, event: EventName,
 
 /**
  * After a brand's daily numbers are saved: send the day's result to webhooks, and a Slack alert when
- * visibility moved by the workspace's alert size or a competitor overtook the brand.
+ * visibility moved by the brand's alert size (or the workspace's) or a competitor overtook the brand.
  * Only AIs checked on both days are compared, since Claude and Perplexity run weekly.
  */
 export async function afterDaily(db: SupabaseClient, ws: string, brandId: string, day: string) {
@@ -104,8 +104,12 @@ export async function afterDaily(db: SupabaseClient, ws: string, brandId: string
   await dispatch(db, ws, "daily.result", result);
   if (youBefore === null) return;
 
-  const { data: cfg } = await db.from("integrations").select("slack_webhook, alert_points").eq("workspace_id", ws).maybeSingle();
-  const points = cfg?.alert_points ?? 5;
+  // The brand's own channel and alert size, falling back to the workspace's. Before 048_brand_integrations.sql there is no brand row.
+  const [{ data: cfg }, { data: own }] = await Promise.all([
+    db.from("integrations").select("slack_webhook, alert_points").eq("workspace_id", ws).maybeSingle(),
+    db.from("brand_settings").select("slack_channel, alert_points").eq("brand_id", brandId).maybeSingle(),
+  ]);
+  const { slack, points } = alertTarget(own, cfg);
   const reasons: string[] = [];
   if (change !== null && Math.abs(change) >= points) reasons.push(`AI visibility ${change < 0 ? "fell" : "rose"} ${Math.abs(change)} points, to ${you}%`);
   for (const r of rivals) {
@@ -116,8 +120,8 @@ export async function afterDaily(db: SupabaseClient, ws: string, brandId: string
   await dispatch(db, ws, "visibility.alert", { ...result, reasons });
   const { emailAlert } = await import("./notify");
   await emailAlert(db, ws, brand, day, reasons).catch((err) => console.error("Alert email failed:", err instanceof Error ? err.message : err));
-  if (cfg?.slack_webhook) {
-    await slackSend(cfg.slack_webhook, `${brand.name}: AI visibility ${change! < 0 ? "dropped" : change! > 0 ? "changed" : "alert"}`, reasons).catch((err) =>
+  if (slack) {
+    await slackSend(slack,`${brand.name}: AI visibility ${change! < 0 ? "dropped" : change! > 0 ? "changed" : "alert"}`, reasons).catch((err) =>
       console.error("Slack alert failed:", err instanceof Error ? err.message : err),
     );
   }

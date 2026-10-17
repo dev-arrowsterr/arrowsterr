@@ -1,5 +1,6 @@
 import { entitlement } from "@/lib/entitlements";
 import { newKey, slackSend } from "@/lib/integrations";
+import { DEFAULT_ALERT_POINTS, SLACK_HOOK } from "@/lib/integrationTypes";
 import { adminClient, requireRole } from "@/lib/serverAuth";
 
 const err = (error: string, status = 400) => Response.json({ error }, { status });
@@ -13,14 +14,58 @@ const SETUP = "Run supabase/024_integrations.sql in Supabase first.";
 //   key: { name }                            admins: returns the key once
 //   revoke: { id }                           admins
 //   unhook: { id }                           admins
+// One brand's Slack channel and alert size, each falling back to the workspace's:
+//   brandGet: { brandId }                    viewers
+//   brandSlack: { brandId, url }             admins: save and send a test message
+//   brandSlackOff: { brandId }               admins: back to the workspace's channel
+//   brandPoints: { brandId, points | null }  admins: null goes back to the workspace's alert size
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
-  const auth = await requireRole(request, body.workspaceId, body.action === "get" ? "viewer" : "admin");
+  const auth = await requireRole(request, body.workspaceId, body.action === "get" || body.action === "brandGet" ? "viewer" : "admin");
   if ("denied" in auth) return auth.denied;
   const db = adminClient();
   if (!db) return err("Add SUPABASE_SECRET_KEY to the server's settings.", 500);
   const ws = String(body.workspaceId);
   const e = await entitlement(ws);
+
+  if (typeof body.action === "string" && body.action.startsWith("brand")) {
+    const { data: brand } = await auth.sb.from("brands").select("id, name").eq("id", String(body.brandId ?? "")).eq("workspace_id", ws).maybeSingle();
+    if (!brand) return err("That brand is not in this workspace.", 404);
+    const BRAND_SETUP = "Run supabase/048_brand_integrations.sql in Supabase first.";
+    const save = async (patch: { slack_channel?: string | null; alert_points?: number | null }) => {
+      const { error } = await db.from("brand_settings").upsert({ brand_id: brand.id, workspace_id: ws, ...patch, updated_at: new Date().toISOString() }, { onConflict: "brand_id" });
+      if (error) return err(/brand_settings/.test(error.message) ? BRAND_SETUP : error.message, 500);
+      return Response.json({ ok: true });
+    };
+    if (body.action === "brandGet") {
+      const [cfg, own] = await Promise.all([
+        db.from("integrations").select("slack_webhook, alert_points").eq("workspace_id", ws).maybeSingle(),
+        db.from("brand_settings").select("slack_channel, alert_points").eq("brand_id", brand.id).maybeSingle(),
+      ]);
+      if (own.error && /brand_settings/.test(own.error.message)) return Response.json({ allowed: e.limits.alerts, setup: BRAND_SETUP });
+      return Response.json({
+        allowed: e.limits.alerts,
+        slack: Boolean(own.data?.slack_channel),
+        workspaceSlack: Boolean(cfg.data?.slack_webhook),
+        points: own.data?.alert_points ?? null,
+        defaultPoints: cfg.data?.alert_points ?? DEFAULT_ALERT_POINTS,
+      });
+    }
+    if (!e.limits.alerts) return Response.json({ error: "Slack, Zapier and the API are on Pro and up.", limit: true, boost: "scale" }, { status: 429 });
+    if (body.action === "brandSlack") {
+      const url = String(body.url ?? "").trim();
+      if (!SLACK_HOOK.test(url)) return err("Paste a Slack webhook URL. It starts with https://hooks.slack.com/services/.");
+      try {
+        await slackSend(url, `Arrowsterr alerts for ${brand.name}`, [`You'll get a message here when ${brand.name}'s AI visibility moves or a competitor overtakes it.`]);
+      } catch (x) {
+        return err(`Slack said no: ${x instanceof Error ? x.message : String(x)}`);
+      }
+      return save({ slack_channel: url });
+    }
+    if (body.action === "brandSlackOff") return save({ slack_channel: null });
+    if (body.action === "brandPoints") return save({ alert_points: body.points === null ? null : Math.min(50, Math.max(1, Number(body.points) || DEFAULT_ALERT_POINTS)) });
+    return err("Unknown action.");
+  }
 
   if (body.action === "get") {
     const [cfg, keys, hooks] = await Promise.all([

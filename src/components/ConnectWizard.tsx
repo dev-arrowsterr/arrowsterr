@@ -21,7 +21,20 @@ async function call<T>(auth: RunAuth, body: Record<string, unknown>): Promise<T>
  * Connect a CMS step by step, opened from a card in Zippie's chat: pick the platform, follow the
  * numbered steps with a button that opens the right admin screen, paste the keys, and test.
  */
-export function ConnectWizard({ auth, platform, onClose, onConnected }: { auth: RunAuth; platform?: CmsKind | null; onClose: () => void; onConnected: (c: CmsConnection) => void }) {
+export function ConnectWizard({
+  auth,
+  platform,
+  brandId,
+  onClose,
+  onConnected,
+}: {
+  auth: RunAuth;
+  platform?: CmsKind | null;
+  /** The brand the site publishes for. Without it, the server picks the workspace's first brand. */
+  brandId?: string;
+  onClose: () => void;
+  onConnected: (c: CmsConnection) => void;
+}) {
   const [kind, setKind] = useState<CmsKind | null>(platform ?? null);
   const [list, setList] = useState<CmsConnection[] | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
@@ -31,13 +44,13 @@ export function ConnectWizard({ auth, platform, onClose, onConnected }: { auth: 
 
   useEffect(() => {
     let live = true;
-    call<{ connections: CmsConnection[] }>(auth, { action: "list" })
+    call<{ connections: CmsConnection[] }>(auth, { action: "list", brandId })
       .then((r) => live && setList(r.connections))
       .catch(() => live && setList([]));
     return () => {
       live = false;
     };
-  }, [auth]);
+  }, [auth, brandId]);
 
   const spec = CMS.find((c) => c.id === kind);
   const guide = kind ? CMS_GUIDE[kind] : null;
@@ -51,7 +64,7 @@ export function ConnectWizard({ auth, platform, onClose, onConnected }: { auth: 
     setError("");
     try {
       const { name, ...config } = form;
-      const r = await call<{ connection: CmsConnection; check: string }>(auth, { action: "connect", kind: spec.id, name: name?.trim() || spec.label, config });
+      const r = await call<{ connection: CmsConnection; check: string }>(auth, { action: "connect", kind: spec.id, name: name?.trim() || spec.label, config, brandId });
       setDone({ c: r.connection, check: r.check });
       onConnected(r.connection);
     } catch (err) {
