@@ -34,7 +34,7 @@ type Row = {
 
 /** Published when it went live on a site (or the plan says so), CMS draft when it was only sent as a draft. Ready once the writing job finishes. */
 export function articleStatus(meta: Row["meta"], plan: Pick<Plan, "status"> | null): ArticleStatus {
-  const sent = meta?.published ?? [];
+  const sent = (meta?.published ?? []).filter((p) => !p.deleted); // a post deleted on the site no longer counts
   if (sent.some((p) => p.live) || plan?.status === "published") return "Published";
   if (sent.length) return "CMS draft";
   if (meta?.status === "ready") return "Ready";
@@ -44,7 +44,7 @@ export function articleStatus(meta: Row["meta"], plan: Pick<Plan, "status"> | nu
 /** One library row from a draft and its plan piece. */
 export function toArticle(r: Row): Article {
   const plan = (Array.isArray(r.calendar_items) ? r.calendar_items[0] : r.calendar_items) ?? null;
-  const live = (r.meta?.published ?? []).filter((p) => p.live).sort((a, b) => b.at.localeCompare(a.at))[0];
+  const live = (r.meta?.published ?? []).filter((p) => p.live && !p.deleted).sort((a, b) => b.at.localeCompare(a.at))[0];
   return {
     id: r.id,
     site_id: r.site_id,

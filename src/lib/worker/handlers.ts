@@ -12,6 +12,7 @@ import { enqueue, enqueueMany, finish, rateOk, retry, type Job } from "../jobs";
 import { afterDaily, dispatch } from "../integrations";
 import { emailJob } from "../notify";
 import { articleResearchJob } from "../articleResearchServer";
+import { wpPublishJob } from "../wpSyncServer";
 import { runAudit } from "../audit";
 import { listenDaily } from "../listen";
 import { applySet, preparePlay, undoSet } from "../plays";
@@ -266,3 +267,7 @@ export async function apply(db: SupabaseClient, job: Job) {
 // ─────────────── article research: steps 1 to 3 of an article (docs/content-v2.md) ───────────────
 // Search results and AI answers here; the Fly worker reads the pages. The job waits until 5 or more are read.
 export const article_research = articleResearchJob;
+
+// ─────────────── wp_publish: publish a scheduled article on its date (wpSync.ts) ───────────────
+// Idempotent: it updates the article's one post, never makes a second.
+export const wp_publish = wpPublishJob;
