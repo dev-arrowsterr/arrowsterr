@@ -25,7 +25,8 @@ export function PublishPanel({ sb, auth, docId, title, html, onClose }: { sb: Su
 
   useEffect(() => {
     let on = true;
-    Promise.all([post<{ connections: CmsConnection[] }>(auth, "/api/cms", { action: "list" }).catch(() => ({ connections: [] })), getDocMeta(sb, docId)]).then(([c, m]) => {
+    // Only the sites of the draft's own brand.
+    Promise.all([post<{ connections: CmsConnection[] }>(auth, "/api/cms", { action: "list", docId }).catch(() => ({ connections: [] })), getDocMeta(sb, docId)]).then(([c, m]) => {
       if (!on) return;
       setConns(c.connections);
       setTo(c.connections[0]?.id ?? "");
@@ -81,7 +82,7 @@ export function PublishPanel({ sb, auth, docId, title, html, onClose }: { sb: Su
               <Dropdown label="Publish to" value={to} onChange={setTo} className="aw-dropdown--field w-full" options={conns.map((c) => ({ id: c.id, label: `${c.name} · ${CMS.find((x) => x.id === c.kind)?.label ?? ""}` }))} />
             </label>
           ) : (
-            <div className="aw-callout">No CMS connected yet. An admin can connect WordPress, Webflow, Shopify, HubSpot or Ghost in Settings → Workspace & members.</div>
+            <div className="aw-callout">No publishing site for this brand. An admin can connect one in Settings → Brand → Publishing sites.</div>
           )}
           {field("title", "Title", `${f.title.length} characters`)}
           {field("slug", "Slug", "")}

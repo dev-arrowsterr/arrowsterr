@@ -45,7 +45,8 @@ import { WorkspaceAvatar } from "./WorkspaceAvatar";
 import { BrandLogo } from "./BrandLogo";
 import { CompetitorsPage } from "./CompetitorsPage";
 import { MembersPage } from "./MembersPage";
-import { SettingsPage, SETTINGS_TABS, type SettingsTab } from "./SettingsPage";
+import { isBrandTab, SettingsPage, SETTINGS_TABS, type SettingsTab } from "./SettingsPage";
+import { BrandSettings } from "./BrandSettings";
 import { NotificationSettings, ProfileSettings, SecuritySettings } from "./AccountSettings";
 import { AccessSettings, AiSettingsPage, RetentionSettings, TimezoneSetting } from "./WorkspaceSettings";
 import { BrandKitSettings } from "./BrandKit";
@@ -96,6 +97,9 @@ const SLUGS: Record<Page, string> = {
   retention: "/settings/data-retention",
   integrations: "/settings/integrations",
   publishing: "/settings/publishing",
+  google: "/settings/google-analytics",
+  voice: "/settings/brand-voice",
+  alerts: "/settings/alerts",
   billing: "/settings/billing",
   exports: "/settings/imports-exports",
   jobs: "/settings/background-actions",
@@ -824,6 +828,17 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
                 <ExportsSettings key={ws.id} sb={sb} ws={ws} brands={brands ?? []} onBrand={update} />
               ) : page === "jobs" ? (
                 <JobsSettings key={ws.id} sb={sb} ws={ws} brands={brands ?? []} />
+              ) : isBrandTab(page) ? (
+                <BrandSettings
+                  key={ws.id}
+                  tab={page}
+                  auth={auth}
+                  brand={active ? { id: active.id, name: active.name, domain: active.domain } : null}
+                  brands={(brands ?? []).map((b) => ({ id: b.id, name: b.name, domain: b.domain }))}
+                  canEdit={canEdit}
+                  isAdmin={atLeast(ws.role, "admin")}
+                  onBrand={setActiveId}
+                />
               ) : (
                 <MembersPage
                   key={`${ws.id}-${page}`}

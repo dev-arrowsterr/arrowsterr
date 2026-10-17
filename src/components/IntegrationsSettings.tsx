@@ -2,8 +2,9 @@
 
 import { Dropdown } from "./Pickers";
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { EVENTS } from "@/lib/integrationTypes";
+import { ALERT_POINTS, EVENTS } from "@/lib/integrationTypes";
 import type { RunAuth } from "@/lib/runner";
+import { Confirm } from "./reports/Dialog";
 import { post } from "./research/shared";
 
 type Key = { id: string; name: string; prefix: string; created_at: string; last_used_at: string | null };
@@ -125,6 +126,7 @@ export function IntegrationsSettings({ auth, isAdmin }: { auth: RunAuth; isAdmin
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [asking, setAsking] = useState<{ title: string; text: string; action: string; run: () => void } | null>(null);
 
   const load = () =>
     post<State>(auth, "/api/integrations", { action: "get" })
@@ -175,11 +177,11 @@ export function IntegrationsSettings({ auth, isAdmin }: { auth: RunAuth; isAdmin
         <div className="flex items-center justify-between gap-3">
           <span className="flex items-center gap-2 text-[15px] font-medium text-ink">
             <img src="https://www.google.com/s2/favicons?domain=slack.com&sz=64" alt="" width={18} height={18} />
-            Slack alerts
+            Slack
           </span>
           {s.slack ? <span className="aw-status aw-status--ranked">Connected</span> : null}
         </div>
-        <p className="text-[13px] text-muted">A message when a brand&apos;s AI visibility moves by your alert size, or a competitor overtakes it. Checked after every daily run.</p>
+        <p className="text-[13px] text-muted">The workspace&apos;s channel and default alert size. A brand can have its own in Settings → Brand → Slack and alerts.</p>
         {isAdmin && !off ? (
           <>
             {!s.slack ? (
@@ -190,15 +192,15 @@ export function IntegrationsSettings({ auth, isAdmin }: { auth: RunAuth; isAdmin
             ) : null}
             <div className="flex flex-wrap items-center gap-2">
               <label className="flex items-center gap-2 text-[13px] text-body">
-                Alert when visibility moves
-                <Dropdown label="Points" value={points} onChange={setPoints} className="aw-dropdown--sm" options={[3, 5, 10, 15].map((p) => ({ id: p, label: `${p} points` }))} />
+                Default alert size
+                <Dropdown label="Points" value={points} onChange={setPoints} className="aw-dropdown--sm" options={ALERT_POINTS.map((p) => ({ id: p, label: `${p} points` }))} />
               </label>
               {s.slack ? (
                 <>
                   <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" disabled={Boolean(busy)} onClick={() => act("points", { action: "points", points }, "Saved.")}>
                     Save
                   </button>
-                  <button type="button" className="aw-text-link text-[13px] text-neg!" onClick={() => confirm("Stop Slack alerts?") && act("off", { action: "slackOff" })}>
+                  <button type="button" className="aw-text-link text-[13px] text-neg!" onClick={() => setAsking({ title: "Disconnect Slack", text: "Stop Slack alerts for brands without their own channel?", action: "Disconnect", run: () => act("off", { action: "slackOff" }) })}>
                     Disconnect
                   </button>
                 </>
@@ -243,7 +245,7 @@ export function IntegrationsSettings({ auth, isAdmin }: { auth: RunAuth; isAdmin
                   </span>
                 </span>
                 {isAdmin ? (
-                  <button type="button" className="aw-text-link text-[13px] text-neg!" onClick={() => confirm(`Revoke "${k.name}"? Anything using it stops working.`) && act("revoke", { action: "revoke", id: k.id })}>
+                  <button type="button" className="aw-text-link text-[13px] text-neg!" onClick={() => setAsking({ title: "Revoke key", text: `Revoke "${k.name}"? Anything using it stops working.`, action: "Revoke", run: () => act("revoke", { action: "revoke", id: k.id }) })}>
                     Revoke
                   </button>
                 ) : null}
@@ -309,6 +311,18 @@ export function IntegrationsSettings({ auth, isAdmin }: { auth: RunAuth; isAdmin
             ))}
           </ul>
         </div>
+      ) : null}
+      {asking ? (
+        <Confirm
+          title={asking.title}
+          text={asking.text}
+          action={asking.action}
+          onConfirm={() => {
+            asking.run();
+            setAsking(null);
+          }}
+          onClose={() => setAsking(null)}
+        />
       ) : null}
     </section>
   );

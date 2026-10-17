@@ -14,3 +14,18 @@ export const SAMPLES: Record<EventName, Record<string, unknown>> = {
   "brief.ready": { event: "brief.ready", brand: { id: "b_123", name: "Acme", domain: "acme.com" }, keyword: "best crm for startups", item_id: "c_123", url: "https://app.arrowsterr.com/editorial-calendar" },
   "post.published": { event: "post.published", title: "Best CRM for startups", url: "https://acme.com/blog/best-crm-for-startups", cms: "wordpress" },
 };
+
+export const DEFAULT_ALERT_POINTS = 5;
+export const ALERT_POINTS = [3, 5, 10, 15];
+export const SLACK_HOOK = /^https:\/\/hooks\.slack\.com\/services\/\S+$/;
+
+/**
+ * Where a brand's alert goes and how big a move sends it: the brand's own Slack channel and alert size,
+ * each falling back to the workspace's (brand_settings, then integrations).
+ */
+export function alertTarget(brand: { slack_channel?: string | null; alert_points?: number | null } | null, ws: { slack_webhook?: string | null; alert_points?: number | null } | null) {
+  return {
+    slack: brand?.slack_channel || ws?.slack_webhook || null,
+    points: brand?.alert_points ?? ws?.alert_points ?? DEFAULT_ALERT_POINTS,
+  };
+}

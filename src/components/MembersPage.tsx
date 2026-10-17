@@ -2,7 +2,6 @@
 
 import { Dropdown } from "./Pickers";
 import { recordUndo } from "@/lib/undo";
-import { CmsSettings } from "./CmsSettings";
 import { IntegrationsSettings } from "./IntegrationsSettings";
 import type { RunAuth } from "@/lib/runner";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -58,7 +57,7 @@ function CopyButton({ text }: { text: string }) {
 }
 
 /** Workspace name, members and their roles, and invites. */
-/** One Settings tab: the workspace itself, its members, or its integrations. Plans & billing lives in BillingPage. */
+/** One Settings tab: the workspace itself, its members, or its integrations. Plans & billing lives in BillingPage; publishing sites in BrandSettings. */
 export function MembersPage({
   sb,
   ws,
@@ -74,7 +73,7 @@ export function MembersPage({
   userId: string;
   onChanged: () => Promise<void>;
   auth: RunAuth;
-  section: "workspace" | "members" | "integrations" | "publishing";
+  section: "workspace" | "members" | "integrations";
 }) {
   const isAdmin = atLeast(ws.role, "admin");
   const [members, setMembers] = useState<Member[] | null>(null);
@@ -395,7 +394,6 @@ export function MembersPage({
       ) : null}
 
       {section === "integrations" ? <IntegrationsSettings auth={auth} isAdmin={isAdmin} /> : null}
-      {section === "publishing" ? <CmsSettings auth={auth} isAdmin={isAdmin} /> : null}
     </div>
   );
 }

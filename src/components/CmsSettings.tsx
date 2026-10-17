@@ -3,31 +3,38 @@
 import { useEffect, useState } from "react";
 import { CMS, type CmsConnection, type CmsKind } from "@/lib/cmsTypes";
 import type { RunAuth } from "@/lib/runner";
+import { Dropdown } from "./Pickers";
+import { Confirm } from "./reports/Dialog";
 import { post } from "./research/shared";
 
-/** Connect the CMSs this workspace publishes to. Admins only; keys are tested, then kept on the server. */
-export function CmsSettings({ auth, isAdmin }: { auth: RunAuth; isAdmin: boolean }) {
+type BrandRef = { id: string; name: string };
+
+/** Connect the sites this brand publishes to. Admins only; keys are tested, then kept on the server. */
+export function CmsSettings({ auth, isAdmin, brand, brands }: { auth: RunAuth; isAdmin: boolean; brand: BrandRef; brands: BrandRef[] }) {
   const [list, setList] = useState<CmsConnection[] | null>(null);
   const [setup, setSetup] = useState("");
+  const [notice, setNotice] = useState(false);
   const [kind, setKind] = useState<CmsKind | null>(null);
   const [form, setForm] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const [done, setDone] = useState("");
+  const [removing, setRemoving] = useState<CmsConnection | null>(null);
 
   useEffect(() => {
     let live = true;
-    post<{ connections: CmsConnection[]; setup?: string }>(auth, "/api/cms", { action: "list" })
+    post<{ connections: CmsConnection[]; setup?: string; notice?: boolean }>(auth, "/api/cms", { action: "list", brandId: brand.id })
       .then((r) => {
         if (!live) return;
         setList(r.connections);
         setSetup(r.setup ?? "");
+        setNotice(Boolean(r.notice));
       })
       .catch((e) => live && setError(e instanceof Error ? e.message : String(e)));
     return () => {
       live = false;
     };
-  }, [auth]);
+  }, [auth, brand.id]);
 
   const spec = CMS.find((c) => c.id === kind);
   async function connect(e: React.FormEvent) {
@@ -37,9 +44,9 @@ export function CmsSettings({ auth, isAdmin }: { auth: RunAuth; isAdmin: boolean
     setError("");
     try {
       const { name, ...config } = form;
-      const r = await post<{ connection: CmsConnection; check: string }>(auth, "/api/cms", { action: "connect", kind: spec.id, name, config });
+      const r = await post<{ connection: CmsConnection; check: string }>(auth, "/api/cms", { action: "connect", kind: spec.id, name, config, brandId: brand.id });
       setList([...(list ?? []), r.connection]);
-      setNotice(`${spec.label} connected. ${r.check}.`);
+      setDone(`${spec.label} connected. ${r.check}.`);
       setKind(null);
       setForm({});
     } catch (e) {
@@ -49,22 +56,47 @@ export function CmsSettings({ auth, isAdmin }: { auth: RunAuth; isAdmin: boolean
     }
   }
   async function remove(c: CmsConnection) {
-    if (!confirm(`Disconnect ${c.name}?`)) return;
+    setBusy(true);
     try {
       await post(auth, "/api/cms", { action: "remove", id: c.id });
       setList((l) => (l ?? []).filter((x) => x.id !== c.id));
+      setRemoving(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  /** Give a site to another brand. It leaves this brand's list. */
+  async function move(c: CmsConnection, to: string) {
+    if (to === brand.id) return;
+    setError("");
+    try {
+      await post(auth, "/api/cms", { action: "move", id: c.id, brandId: to });
+      setList((l) => (l ?? []).filter((x) => x.id !== c.id));
+      setDone(`${c.name} moved to ${brands.find((b) => b.id === to)?.name ?? "the other brand"}.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
   }
+  async function dismiss() {
+    setNotice(false);
+    await post(auth, "/api/cms", { action: "dismiss" }).catch(() => {});
+  }
 
   return (
     <section className="flex flex-col gap-3">
-      <h2 className="aw-h4">Publishing</h2>
-      <p className="max-w-2xl text-[14px] text-body">Connect your CMS once. Then the Agentic Writer sends any draft straight to it, as a draft or live, with its title, slug, meta description, featured image and schema.</p>
       {setup ? <div className="aw-callout max-w-2xl">{setup}</div> : null}
+      {notice && isAdmin ? (
+        <div className="aw-callout flex max-w-2xl items-start justify-between gap-3">
+          <span>Each brand now has its own publishing sites. Your sites were added to {brands[0]?.name ?? "your first brand"}. Move any that belong to another brand.</span>
+          <button type="button" className="aw-text-link shrink-0 text-[13px]" onClick={dismiss}>
+            Dismiss
+          </button>
+        </div>
+      ) : null}
       {error ? <p className="aw-error max-w-2xl">{error}</p> : null}
-      {notice ? <div className="aw-callout max-w-2xl">{notice}</div> : null}
+      {done ? <div className="aw-callout max-w-2xl">{done}</div> : null}
 
       {list?.length ? (
         <ul className="aw-frame flex max-w-2xl flex-col divide-y divide-rule-faint">
@@ -75,13 +107,20 @@ export function CmsSettings({ auth, isAdmin }: { auth: RunAuth; isAdmin: boolean
                 <span className="text-[12px] text-muted">{CMS.find((x) => x.id === c.kind)?.label}</span>
               </span>
               {isAdmin ? (
-                <button type="button" className="aw-text-link text-[13px] text-neg!" onClick={() => remove(c)}>
-                  Disconnect
-                </button>
+                <span className="flex items-center gap-3">
+                  {brands.length > 1 ? (
+                    <Dropdown label="Brand" value={brand.id} onChange={(to) => move(c, to)} className="aw-dropdown--sm" options={brands.map((b) => ({ id: b.id, label: b.name }))} />
+                  ) : null}
+                  <button type="button" className="aw-text-link text-[13px] text-neg!" onClick={() => setRemoving(c)}>
+                    Disconnect
+                  </button>
+                </span>
               ) : null}
             </li>
           ))}
         </ul>
+      ) : list && !setup ? (
+        <p className="text-[14px] text-muted">No publishing sites for {brand.name}.</p>
       ) : null}
       {list?.some((c) => c.kind === "wordpress") || kind === "wordpress" ? (
         <div className="aw-callout flex max-w-2xl flex-col gap-2 text-[14px]">
@@ -142,6 +181,8 @@ export function CmsSettings({ auth, isAdmin }: { auth: RunAuth; isAdmin: boolean
           </span>
         </form>
       ) : null}
+
+      {removing ? <Confirm title="Disconnect site" text={`Disconnect ${removing.name}? Articles already published stay on the site.`} action="Disconnect" busy={busy} onConfirm={() => remove(removing)} onClose={() => setRemoving(null)} /> : null}
     </section>
   );
 }

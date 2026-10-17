@@ -1,7 +1,19 @@
 // CMS publishing, shared by the server and the browser. Secrets never come back to the browser.
 
 export type CmsKind = "wordpress" | "webflow" | "shopify" | "hubspot" | "ghost";
-export type CmsConnection = { id: string; kind: CmsKind; name: string; created_at: string };
+/** brand_id is the brand that publishes to it. backfilled: given to the first brand by 048_brand_integrations.sql, not moved yet. */
+export type CmsConnection = { id: string; kind: CmsKind; name: string; created_at: string; brand_id?: string | null; backfilled?: boolean };
+
+/** A brand's own publishing sites, out of the workspace's. */
+export const sitesOf = <T extends { brand_id?: string | null }>(all: T[], brandId: string) => all.filter((c) => c.brand_id === brandId);
+
+/** A draft publishes only to a site of its own brand, in its own workspace. A site or draft without a brand publishes nowhere. */
+export function mayPublish(site: { workspace_id: string; brand_id: string | null }, draft: { workspace_id: string; brand_id: string | null }) {
+  return Boolean(site.brand_id) && site.workspace_id === draft.workspace_id && site.brand_id === draft.brand_id;
+}
+
+/** The one-time notice to move sites: only with several brands, while a site the migration assigned is still unmoved. */
+export const showMoveNotice = (brands: number, all: { backfilled?: boolean }[]) => brands > 1 && all.some((c) => c.backfilled);
 
 export type CmsField = { id: string; label: string; placeholder: string; secret?: boolean; optional?: boolean };
 export const CMS: { id: CmsKind; label: string; help: string; fields: CmsField[] }[] = [
