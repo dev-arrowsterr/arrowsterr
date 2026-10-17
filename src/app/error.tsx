@@ -2,12 +2,14 @@
 
 import * as Sentry from "@sentry/nextjs";
 import { useEffect } from "react";
+import { reloadOnce } from "@/lib/staleBuild";
 import Link from "next/link";
 import { ErrorScreen } from "@/components/ErrorScreen";
 
-export default function Error({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
+export default function Error({ error }: { error: Error & { digest?: string } }) {
   useEffect(() => {
     Sentry.captureException(error);
+    reloadOnce(error);
   }, [error]);
   return (
     <ErrorScreen
@@ -15,7 +17,7 @@ export default function Error({ error, retry }: { error: Error & { digest?: stri
       title="Something went wrong"
       actions={
         <>
-          <button type="button" className="aw-btn aw-btn--primary" onClick={() => retry()}>
+          <button type="button" className="aw-btn aw-btn--primary" onClick={() => window.location.reload()}>
             Try again
           </button>
           <Link className="aw-btn aw-btn--secondary" href="/">
