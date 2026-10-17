@@ -49,6 +49,8 @@ import { SettingsPage, SETTINGS_TABS, type SettingsTab } from "./SettingsPage";
 import { NotificationSettings, ProfileSettings, SecuritySettings } from "./AccountSettings";
 import { AccessSettings, AiSettingsPage, RetentionSettings, TimezoneSetting } from "./WorkspaceSettings";
 import { BrandKitSettings } from "./BrandKit";
+import { DownloadPdf } from "./pdf/DownloadPdf";
+import type { PdfPage } from "@/lib/pdf/pages";
 import { ExportsSettings, JobsSettings } from "./JobsSettings";
 import { BillingPage, choosePlan } from "./BillingPage";
 import { Onboarding, type Checking, type NewBrand, type Welcome } from "./Onboarding";
@@ -66,7 +68,9 @@ type Page = "ask" | "prompts" | "competitors" | "domains" | "urls" | "traffic" |
 const RESEARCH: Page[] = ["keywords", "domain", "gap", "calendar", "intel"];
 /** Website analytics is still in testing: only this account sees it. */
 const WEBSITE_TESTER = "vincent@perceptric.com";
-const VISIBILITY: Page[] = ["prompts", "competitors", "domains", "urls"]; // the only pages with period, topic and model filters
+const VISIBILITY: Page[] = ["prompts", "competitors", "domains", "urls"];
+/** Pages with their own PDF (docs/reports.md, section 32.3). */
+const PDF_OF: Partial<Record<Page, PdfPage>> = { prompts: "prompts", competitors: "competitors", domains: "sources", urls: "sources" }; // the only pages with period, topic and model filters
 
 /** Each page's address. "/" opens Prompts. */
 const SLUGS: Record<Page, string> = {
@@ -698,6 +702,19 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
             running={running === active?.id}
             progress={progress}
             hasRuns={brandRuns.length > 0}
+            download={
+              active && PDF_OF[page] ? (
+                <DownloadPdf
+                  sb={sb}
+                  auth={auth}
+                  page={PDF_OF[page]!}
+                  brand={{ id: active.id, name: active.name }}
+                  params={{ days, topic, model }}
+                  whiteLabel={plan?.limits.reports === "whitelabel"}
+                  onBrandKit={() => go("brandkit")}
+                />
+              ) : undefined
+            }
           />
         ) : (
           <div className="aw-page-head print:hidden">
@@ -874,7 +891,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
               }}
             />
           ) : page === "summary" ? (
-            <ReportsPage key={view.brand.id} sb={sb} auth={auth} view={view} canEdit={canEdit} onPlans={() => go("billing")} />
+            <ReportsPage key={ws.id} sb={sb} auth={auth} brands={(brands ?? []).map((b) => ({ id: b.id, name: b.name }))} canEdit={canEdit} />
           ) : page === "visitors" ? (
             <VisitorsPage key={view.brand.id} view={view} auth={auth} />
           ) : page === "traffic" ? (
@@ -1297,6 +1314,8 @@ function TopBar(p: {
   running: boolean;
   progress: { done: number; total: number };
   hasRuns: boolean;
+  /** The page's own Download PDF. Pages without one yet print the screen. */
+  download?: React.ReactNode;
 }) {
   const { open, setOpen, ref } = useMenu();
   const pill = "aw-ctl";
@@ -1367,9 +1386,11 @@ function TopBar(p: {
         </>
       )}
       <div className="ml-auto flex items-center gap-3">
-        <button type="button" className="aw-ctl" onClick={() => window.print()} title="Download this page as a PDF">
-          Download PDF
-        </button>
+        {p.download ?? (
+          <button type="button" className="aw-ctl" onClick={() => window.print()} title="Download this page as a PDF">
+            Download PDF
+          </button>
+        )}
         {!p.visibility ? null : p.running ? (
           <span className="flex items-center gap-3">
             <span className="aw-label aw-label--brand">First check running</span>

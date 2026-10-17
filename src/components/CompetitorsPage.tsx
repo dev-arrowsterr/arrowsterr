@@ -4,14 +4,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { Dropdown } from "./Pickers";
 import { useState } from "react";
 import { answered, battle, brandStats, rankOf, rankTrend, topicGrid, trend, type BattleRow, type BrandStat } from "@/lib/metrics";
-import type { CompetitorsSnapshot } from "@/lib/reportTypes";
 import type { DomainReport } from "@/lib/research";
 import type { RunAuth } from "@/lib/runner";
 import type { View } from "@/lib/view";
 import { BrandLogo } from "./BrandLogo";
 import { B_COLOR, Bar, CompetitorPanel } from "./CompetitorPanel";
 import { EngineName } from "./Engines";
-import { ShareIcon, useShare } from "./ShareDialog";
 import { SocialPage } from "./SocialPage";
 import { TrendChart } from "./TrendChart";
 import { BrandName, Card, Delta, Empty, favicon, guessDomain, pct, pos, score, Seg, sortRows, SidePanel, SortTh, Tip, TIPS, useSort, YOU_COLOR } from "./ui";
@@ -213,7 +211,6 @@ function AiCompetitors({ view, auth = null, initial, limit, onTopic }: Props) {
   const [metric, setMetric] = useState<"visibility" | "sentiment" | "position" | "rank">("visibility");
   const [deep, setDeep] = useState<string | null>(null);
   const [seoFirst, setSeoFirst] = useState(false);
-  const { share, dialog, busy: sharing } = useShare(auth, brand.id);
   const [seo, setSeo] = useState<Record<string, DomainReport>>({});
   const [quadTopic, setQuadTopic] = useState<string | null>(null);
 
@@ -247,13 +244,6 @@ function AiCompetitors({ view, auth = null, initial, limit, onTopic }: Props) {
     setSeoFirst(seo);
     setFull(false);
   };
-  const snapshot = (): CompetitorsSnapshot => ({
-    kind: "competitors",
-    brand: { name: brand.name, domain: brand.domain, logo: brand.logo },
-    days,
-    at: new Date().toISOString(),
-    rows: top.map((s) => ({ name: s.name, domain: s.domain, isYou: s.isYou, visibility: s.visibility, position: s.position, mentions: s.mentions })),
-  });
   const dive = find(deep);
   const logoOf = (s: BrandStat) => (s.isYou && brand.logo ? brand.logo : favicon(s.domain || guessDomain(s.name)));
   const rankFor = (name: string) => rankOf(stats.map((s) => ({ ...s, isYou: s.name === name })), "visibility");
@@ -368,12 +358,6 @@ function AiCompetitors({ view, auth = null, initial, limit, onTopic }: Props) {
       <section className="aw-frame">
         <div className="aw-frame__head justify-between">
           <h2 className="aw-h4">Competitive analysis</h2>
-          {auth ? (
-            <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm inline-flex items-center gap-1.5" onClick={() => share("Competitive analysis", snapshot())} disabled={sharing}>
-              <ShareIcon />
-              Share
-            </button>
-          ) : null}
         </div>
         <div className="grid xl:h-[600px] xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
           {/* Left: every brand, with search and a box to show it on the chart */}
@@ -424,8 +408,6 @@ function AiCompetitors({ view, auth = null, initial, limit, onTopic }: Props) {
           </div>
         </div>
       </section>
-
-      {dialog}
 
       {full ? (
         <SidePanel title="All competitors" kicker={`${listed.length} brands · last ${days} days`} onClose={() => setFull(false)}>

@@ -17,6 +17,13 @@ export const sign = (text: string) => createHmac("sha256", secret()).update(text
 const same = (a: string, b: string) => a.length === b.length && timingSafeEqual(Buffer.from(a), Buffer.from(b));
 export const checkSig = (text: string, sig: string) => /^[a-f0-9]{64}$/.test(sig) && same(sign(text), sig);
 
+/** A link for the PDF worker to open one saved file's print page (docs/reports.md, section 32). Good for 15 minutes. */
+export function filePath(fileId: string, ttlMs = 15 * 60_000, now = Date.now()) {
+  const exp = now + ttlMs;
+  return `/r/file/${fileId}?exp=${exp}&sig=${sign(`file:${fileId}:${exp}`)}`;
+}
+export const checkFile = (fileId: string, exp: string, sig: string, now = Date.now()) => Number(exp) > now && checkSig(`file:${fileId}:${exp}`, sig);
+
 /** A link for the PDF worker to open one report's print page. Good for 15 minutes. */
 export function printPath(reportId: string, range: ReportRange, ttlMs = 15 * 60_000, now = Date.now()) {
   const exp = now + ttlMs;

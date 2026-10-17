@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 export const KEEP = 5;
 export const MAX_PDF = 50 * 1024 * 1024;
 
-export type RunningPdf = { id: number; workspace_id: string | null; payload: { reportId?: string; workspaceId?: string; file?: string } & Record<string, unknown> };
+export type RunningPdf = { id: number; workspace_id: string | null; payload: { reportId?: string; fileId?: string; workspaceId?: string; file?: string } & Record<string, unknown> };
 
 /** The job, if it is a PDF job a worker holds right now. */
 export async function runningPdf(db: SupabaseClient, id: number): Promise<RunningPdf | null> {
