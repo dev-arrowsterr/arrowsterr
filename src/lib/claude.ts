@@ -11,13 +11,23 @@ export function claudeModel() {
 // The newer web search filters results before Claude reads them, so answers cost fewer input tokens.
 const SEARCH_TOOL = "web_search_20260209" as const;
 
-/** Ask Claude one question. With `searches` above 0, Claude can search the web that many times. */
+/**
+ * Ask Claude one question. With `searches` above 0, Claude can search the web that many times.
+ * `prefix` is a long, stable start (a brand and its research) sent before the prompt and cached, so calls that
+ * share it pay a tenth for those tokens after the first.
+ */
 export async function askClaude(
   prompt: string,
-  opts: { searches?: number; maxTokens?: number; model?: string; effort?: "low" | "medium" | "high"; schema?: Record<string, unknown> } = {},
+  opts: { searches?: number; maxTokens?: number; model?: string; effort?: "low" | "medium" | "high"; schema?: Record<string, unknown>; prefix?: string } = {},
 ): Promise<{ text: string; sources: Source[] }> {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  const messages: Anthropic.MessageParam[] = [{ role: "user", content: prompt }];
+  const content: Anthropic.MessageParam["content"] = opts.prefix
+    ? [
+        { type: "text", text: opts.prefix, cache_control: { type: "ephemeral" } },
+        { type: "text", text: prompt },
+      ]
+    : prompt;
+  const messages: Anthropic.MessageParam[] = [{ role: "user", content }];
   let text = "";
   const sources: Source[] = [];
   const model = opts.model ?? claudeModel();
@@ -49,7 +59,7 @@ export async function askClaude(
 }
 
 /** Ask Claude for JSON in a fixed shape. No web search: structured replies cannot carry search citations. */
-export async function askJson<T>(prompt: string, schema: Record<string, unknown>, opts: { maxTokens?: number; model?: string; effort?: "low" | "medium" | "high" } = {}): Promise<T> {
+export async function askJson<T>(prompt: string, schema: Record<string, unknown>, opts: { maxTokens?: number; model?: string; effort?: "low" | "medium" | "high"; prefix?: string } = {}): Promise<T> {
   const { text } = await askClaude(prompt, { ...opts, schema });
   return parseJson(text) as T;
 }
