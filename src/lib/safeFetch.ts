@@ -34,13 +34,13 @@ const agent = new Agent({
 
 export const UA = "Mozilla/5.0 (compatible; ArrowsterrBot/1.0; +https://arrowsterr.com/)";
 
-export type Fetched = { ok: boolean; status: number; url: string; chain: { url: string; status: number }[]; headers: Headers; body: string; ms: number; error?: string };
+export type Fetched = { ok: boolean; status: number; url: string; chain: { url: string; status: number }[]; headers: Headers; body: string; ms: number; error?: string; bytes?: Buffer };
 
 /**
  * GET (or HEAD) a public address. Redirects are followed by hand, up to `hops`, and each hop is recorded.
  * The body is read as text up to maxBytes. Never throws: failures come back with status 0 and an error.
  */
-export async function safeFetch(url: string, opts: { method?: "GET" | "HEAD"; ua?: string; hops?: number; timeout?: number; maxBytes?: number; accept?: string } = {}): Promise<Fetched> {
+export async function safeFetch(url: string, opts: { method?: "GET" | "HEAD"; ua?: string; hops?: number; timeout?: number; maxBytes?: number; accept?: string; raw?: boolean } = {}): Promise<Fetched> {
   const start = Date.now();
   const chain: { url: string; status: number }[] = [];
   let current = url;
@@ -83,9 +83,12 @@ export async function safeFetch(url: string, opts: { method?: "GET" | "HEAD"; ua
           size += value.byteLength;
           if (size >= max) {
             await reader.cancel().catch(() => {});
+            // raw: a file cut short is useless, so it fails instead.
+            if (opts.raw) return { ok: false, status: res.status, url: current, chain, headers: res.headers as unknown as Headers, body: "", ms: Date.now() - start, error: "It is too large." };
             break;
           }
         }
+        if (opts.raw) return { ok: res.ok, status: res.status, url: current, chain, headers: res.headers as unknown as Headers, body: "", bytes: Buffer.concat(chunks), ms: Date.now() - start };
         body = new TextDecoder().decode(Buffer.concat(chunks)).slice(0, max);
       } else await res.body?.cancel().catch(() => {});
       return { ok: res.ok, status: res.status, url: current, chain, headers: res.headers as unknown as Headers, body, ms: Date.now() - start };

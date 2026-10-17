@@ -124,9 +124,9 @@ export function CmsSettings({ auth, isAdmin, brand, brands }: { auth: RunAuth; i
       ) : null}
       {list?.some((c) => c.kind === "wordpress") || kind === "wordpress" ? (
         <div className="aw-callout flex max-w-2xl flex-col gap-2 text-[14px]">
-          <span className="font-medium text-ink">Let Zippie fix your WordPress pages</span>
+          <span className="font-medium text-ink">Arrowsterr Connector for WordPress (1.1)</span>
           <span>
-            Install the Arrowsterr Connector plugin so Zippie can set SEO titles, meta descriptions and structured data. It works with Yoast SEO and Rank Math. Alt text, FAQ sections and internal links work without it. In WordPress, open Plugins → Add New → Upload Plugin, pick the file, then Activate.
+            Install it so articles publish with their interactive modules and SEO titles, and Zippie can set meta descriptions and structured data. It works with Yoast SEO and Rank Math. In WordPress, open Plugins → Add New → Upload Plugin, pick the file, then Activate. To update, upload the new file and choose Replace current with uploaded.
           </span>
           <a href="/downloads/arrowsterr-connector.zip" download className="aw-btn aw-btn--secondary aw-btn--sm self-start">
             Download the plugin

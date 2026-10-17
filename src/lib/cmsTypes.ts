@@ -70,4 +70,8 @@ export const CMS: { id: CmsKind; label: string; help: string; fields: CmsField[]
 ];
 
 export type PublishInput = { title: string; html: string; slug: string; description: string; image: string; schema: string; live: boolean };
-export type Published = { connectionId: string; kind: CmsKind; id: string; url: string | null; live: boolean; at: string };
+/**
+ * Where a draft was sent. For WordPress, a mirror of doc_publications (051_wp_sync.sql) as last synced:
+ * status is the post's WordPress status, deleted is true when it was deleted or trashed there.
+ */
+export type Published = { connectionId: string; kind: CmsKind; id: string; url: string | null; live: boolean; at: string; status?: string; deleted?: boolean; scheduledFor?: string };

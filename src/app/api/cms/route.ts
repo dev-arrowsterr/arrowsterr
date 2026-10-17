@@ -5,6 +5,9 @@ import { requireWriter } from "@/lib/entitlements";
 import { dispatch } from "@/lib/integrations";
 import type { DocPublishMeta } from "@/lib/writerAgent";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { enqueue } from "@/lib/jobs";
+import { PublishError, publishToWp, scheduleKey, statusFor, syncPub, versionAtLeast, PLUGIN_MIN, type Mode, type Pub } from "@/lib/wpSync";
+import { mirrorMeta, PUB_COLS, pubStore, pubView, SYNC_SETUP, wpClient } from "@/lib/wpSyncServer";
 
 const str = (v: unknown, n: number) => String(v ?? "").trim().slice(0, n);
 const err = (error: string, status = 400) => Response.json({ error }, { status });
@@ -30,9 +33,14 @@ async function draftBrand(
 //   dismiss: {}                                admins: hide the one-time notice to move sites
 //   remove: { id }                             admins
 //   publish: { docId, connectionId, live, title, html, slug, description, image, schema }   editors, only to the draft's own brand's sites
+//            WordPress also takes { mode: draft|publish|schedule, scheduleAt, categoryId, tags, metaTitle, asNew }
+//   publish_info: { docId }                    the draft's brand's sites, where the draft went (WordPress), and defaults from its plan
+//   wp_site: { docId, connectionId }           a WordPress site's categories and whether the Arrowsterr plugin is on it
+//   sync: { docId }                            read each WordPress post back: status, address, last edit, or deleted
+const READS = new Set(["list", "publish_info", "wp_site", "sync"]);
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
-  const min = body.action === "list" ? "viewer" : body.action === "publish" ? "editor" : "admin";
+  const min = READS.has(body.action) ? "viewer" : body.action === "publish" ? "editor" : "admin";
   const auth = await requireRole(request, body.workspaceId, min);
   if ("denied" in auth) return auth.denied;
   const db = adminClient();
@@ -121,6 +129,100 @@ export async function POST(request: Request) {
     return Response.json({ ok: true });
   }
 
+  /** A site of the draft's own brand, with its keys. Null for anything else: another brand's site is never touched. */
+  const brandSite = async (docId: unknown, connectionId: unknown) => {
+    const d = await draftBrand(auth.sb, str(docId, 60));
+    if (!d || "failed" in d) return null;
+    const { data: conn } = await db.from("cms_connections").select("id, brand_id, kind, name, config").eq("id", str(connectionId, 60)).eq("workspace_id", ws).maybeSingle();
+    if (!conn || !mayPublish({ workspace_id: ws, brand_id: (conn.brand_id as string | null) ?? null }, d)) return null;
+    return { d, conn };
+  };
+  /** The draft's WordPress records, for its own brand's sites only. */
+  const docPubs = async (docId: string, brandId: string | null) => {
+    const none = { pubs: [] as Pub[], conns: new Map<string, Record<string, string>>() };
+    if (!brandId) return none;
+    const { data: conns } = await db.from("cms_connections").select("id, config").eq("workspace_id", ws).eq("brand_id", brandId).eq("kind", "wordpress");
+    const ids = (conns ?? []).map((c) => c.id as string);
+    if (!ids.length) return none;
+    const { data, error } = await db.from("doc_publications").select(PUB_COLS).eq("doc_id", docId).in("connection_id", ids);
+    if (error) throw new Error(/doc_publications/.test(error.message) ? SYNC_SETUP : error.message);
+    return { pubs: (data ?? []) as Pub[], conns: new Map((conns ?? []).map((c) => [c.id as string, c.config as Record<string, string>])) };
+  };
+
+  if (body.action === "publish_info") {
+    const d = await draftBrand(auth.sb, str(body.docId, 60));
+    if (!d || "failed" in d) return err("Draft not found.", 404);
+    const { data: all, error } = await db.from("cms_connections").select(COLS).eq("workspace_id", ws).order("created_at");
+    if (noBrandCol(error)) return Response.json({ connections: [], publications: [], defaults: {}, setup: SETUP });
+    const connections = d.brand_id ? (all ?? []).filter((c) => c.brand_id === d.brand_id) : [];
+    let publications: ReturnType<typeof pubView>[] = [];
+    let setup = "";
+    try {
+      publications = (await docPubs(d.doc.id, d.brand_id)).pubs.map(pubView);
+    } catch (e) {
+      setup = e instanceof Error ? e.message : String(e);
+    }
+    // Defaults from the plan piece the draft was written for: its date, and the brief's slug, title and description.
+    let plan: { due_date?: string | null; slug?: string | null; meta?: string | null; titles?: unknown } = {};
+    if (d.doc.calendar_item_id) {
+      const { data } = await auth.sb.from("calendar_items").select("due_date, slug:brief->brief->>slug, meta:brief->brief->>metaDescription, titles:brief->brief->titles").eq("id", d.doc.calendar_item_id).maybeSingle();
+      plan = (data ?? {}) as typeof plan;
+    }
+    const defaults = {
+      dueDate: plan.due_date ?? null,
+      slug: String(plan.slug ?? "").split("/").filter(Boolean).pop() ?? "",
+      metaTitle: Array.isArray(plan.titles) ? String(plan.titles[0] ?? "") : "",
+      metaDescription: String(plan.meta ?? ""),
+    };
+    return Response.json({ connections, publications, defaults, setup });
+  }
+
+  if (body.action === "wp_site") {
+    const s = await brandSite(body.docId, body.connectionId);
+    if (!s || s.conn.kind !== "wordpress") return err("Site not found.", 404);
+    const wp = wpClient(s.conn.config as Record<string, string>);
+    try {
+      const status = await wp.req("GET", "/arrowsterr/v1/status").catch(() => ({ status: 0, data: {} }));
+      const cats = await wp.req("GET", "/wp/v2/categories?per_page=100&orderby=name&_fields=id,name,parent");
+      if (cats.status === 401 || cats.status === 403) return err("WordPress refused the sign-in. Check the site's username and application password in Settings → Brand.", 502);
+      const version = status.status === 200 ? String((status.data as { version?: string }).version ?? "") : "";
+      const categories = Array.isArray(cats.data) ? (cats.data as { id: number; name: string }[]).map((c) => ({ id: c.id, name: c.name.replace(/&amp;/g, "&").replace(/&#0?39;/g, "'") })) : [];
+      return Response.json({ categories, plugin: version ? { version, current: versionAtLeast(version, PLUGIN_MIN) } : null });
+    } catch (e) {
+      return err(`Could not reach ${s.conn.name}: ${e instanceof Error ? e.message : String(e)}`, 502);
+    }
+  }
+
+  if (body.action === "sync") {
+    const d = await draftBrand(auth.sb, str(body.docId, 60));
+    if (!d || "failed" in d) return err("Draft not found.", 404);
+    let found: Awaited<ReturnType<typeof docPubs>>;
+    try {
+      found = await docPubs(d.doc.id, d.brand_id);
+    } catch (e) {
+      return Response.json({ publications: [], setup: e instanceof Error ? e.message : String(e) });
+    }
+    const store = pubStore(db);
+    const errors: Record<string, string> = {};
+    const out = await Promise.all(
+      found.pubs.map(async (p) => {
+        const config = found.conns.get(p.connection_id);
+        if (!config || !p.remote_id) return p;
+        try {
+          return await syncPub(wpClient(config), store, p);
+        } catch (e) {
+          errors[p.connection_id] = e instanceof Error ? e.message : String(e);
+          return p;
+        }
+      }),
+    );
+    await mirrorMeta(db, d.doc.id).catch(() => {});
+    // A post WordPress put live on its own (a schedule it ran) marks the plan piece published.
+    const live = out.find((p) => p.remote_status === "publish");
+    if (live && d.doc.calendar_item_id) await auth.sb.from("calendar_items").update({ status: "published", ...(live.url ? { url: live.url } : {}) }).eq("id", d.doc.calendar_item_id).neq("status", "published");
+    return Response.json({ publications: out.map((p) => ({ ...pubView(p), ...(errors[p.connection_id] ? { syncError: errors[p.connection_id] } : {}) })) });
+  }
+
   if (body.action === "publish") {
     const locked = await requireWriter(ws);
     if (locked) return locked;
@@ -135,15 +237,19 @@ export async function POST(request: Request) {
     if (!mayPublish({ workspace_id: ws, brand_id: (conn.brand_id as string | null) ?? null }, d)) return err("That site belongs to another brand. Pick one of this brand's sites.", 403);
     const doc = d.doc;
     const meta = (doc.meta ?? {}) as DocPublishMeta & { published?: Published[] };
+    // Never cut an article short: a cut can land inside a module or a tag.
+    const html = String(body.html ?? "");
+    if (html.length > 6_000_000) return err("This article is too large to publish.", 413);
     const input: PublishInput = {
       title: str(body.title, 300) || "Untitled",
-      html: String(body.html ?? "").slice(0, 2_000_000),
+      html,
       slug: str(body.slug, 120),
       description: str(body.description, 400),
       image: /^https?:\/\//.test(str(body.image, 1000)) ? str(body.image, 1000) : "",
       schema: str(body.schema, 50_000),
       live: Boolean(body.live),
     };
+    if (conn.kind === "wordpress") return publishWordPress(db, auth.sb, ws, doc, conn as { id: string; config: Record<string, string> }, input, body);
     const before = meta.published?.find((p) => p.connectionId === conn.id);
     try {
       const out = await CMS_API[conn.kind as CmsKind].publish(conn.config as Record<string, string>, input, before?.id);
@@ -161,4 +267,58 @@ export async function POST(request: Request) {
   }
 
   return err("Unknown action.");
+}
+
+const MODES: Mode[] = ["draft", "publish", "schedule"];
+
+/** WordPress: one post per article and site, kept in sync (wpSync.ts). */
+async function publishWordPress(
+  db: SupabaseClient,
+  sb: SupabaseClient,
+  ws: string,
+  doc: { id: string; calendar_item_id: string | null },
+  conn: { id: string; config: Record<string, string> },
+  input: PublishInput,
+  body: Record<string, unknown>,
+) {
+  const mode: Mode = MODES.includes(body.mode as Mode) ? (body.mode as Mode) : input.live ? "publish" : "draft";
+  let scheduleAt: string | null = null;
+  if (mode === "schedule") {
+    const t = Date.parse(str(body.scheduleAt, 40));
+    if (!Number.isFinite(t)) return err("Pick a date and time to publish.");
+    scheduleAt = new Date(t).toISOString();
+  }
+  const tags = (Array.isArray(body.tags) ? body.tags : String(body.tags ?? "").split(","))
+    .map((t) => str(t, 60))
+    .filter(Boolean)
+    .slice(0, 20);
+  const options = {
+    slug: input.slug.replace(/[^a-z0-9-]+/gi, "-").replace(/^-+|-+$/g, "").toLowerCase().slice(0, 120),
+    categoryId: Number(body.categoryId) > 0 ? Math.floor(Number(body.categoryId)) : null,
+    tags,
+    metaTitle: str(body.metaTitle, 300),
+    metaDescription: input.description,
+    image: input.image,
+    schema: input.schema,
+  };
+  try {
+    const { pub, warnings } = await publishToWp(wpClient(conn.config), pubStore(db), { workspaceId: ws, docId: doc.id, connectionId: conn.id, title: input.title, html: input.html, mode, scheduleAt, options, asNew: Boolean(body.asNew) });
+    await mirrorMeta(db, doc.id, { title: input.title, slug: options.slug, description: input.description, image: input.image, schema: input.schema }).catch((e) => console.error("Publish meta failed:", e instanceof Error ? e.message : e));
+    const live = pub.remote_status === "publish";
+    if (live && doc.calendar_item_id) await sb.from("calendar_items").update({ status: "published", ...(pub.url ? { url: pub.url } : {}) }).eq("id", doc.calendar_item_id);
+    if (live) await dispatch(db, ws, "post.published", { title: input.title, url: pub.url, cms: "wordpress" }).catch(() => {});
+    // On the date, make sure it went live with the article as it is then (WordPress's own schedule can miss).
+    if (mode === "schedule" && scheduleAt && statusFor(mode, scheduleAt, new Date()).status === "future") {
+      await enqueue("wp_publish", { pubId: pub.id, at: scheduleAt }, { workspaceId: ws, key: scheduleKey(pub.id, scheduleAt), runAt: new Date(Date.parse(scheduleAt) + 90_000), maxAttempts: 8 }).catch((e) =>
+        console.error("Scheduling the publish job failed:", e instanceof Error ? e.message : e),
+      );
+    }
+    const published: Published = { connectionId: conn.id, kind: "wordpress", id: pub.remote_id ?? "", url: pub.url, live, at: pub.pushed_at ?? new Date().toISOString(), status: pub.remote_status ?? undefined };
+    return Response.json({ published, publication: pubView(pub), warnings });
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    if (e instanceof PublishError && (e.code === "busy" || e.code === "deleted")) return Response.json({ error: message, code: e.code }, { status: 409 });
+    console.error("Publish failed:", message);
+    return err(message.startsWith("WordPress") || message === SYNC_SETUP ? message : `Could not publish: ${message}`, 502);
+  }
 }

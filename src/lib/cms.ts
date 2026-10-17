@@ -1,6 +1,7 @@
 import "server-only";
 import { createHmac } from "node:crypto";
 import type { CmsKind, PublishInput } from "./cmsTypes";
+import { wpClient } from "./wpSyncServer";
 
 type Config = Record<string, string>;
 type Result = { id: string; url: string | null };
@@ -34,32 +35,18 @@ const withSchema = (p: PublishInput) => (p.schema ? `${p.html}\n<script type="ap
 
 // ─────────────── WordPress ───────────────
 
-const wpAuth = (c: Config) => ({ Authorization: `Basic ${Buffer.from(`${c.username}:${c.appPassword.replace(/\s+/g, "")}`).toString("base64")}` });
-
-async function wpImage(c: Config, src: string): Promise<number | null> {
-  if (!src) return null;
-  const img = await fetch(src, { signal: AbortSignal.timeout(20_000) });
-  if (!img.ok) return null;
-  const type = img.headers.get("content-type") ?? "image/jpeg";
-  const name = (new URL(src).pathname.split("/").pop() || "featured").replace(/[^\w.-]/g, "") || "featured.jpg";
-  const media = await call(`${base(c.siteUrl)}/wp-json/wp/v2/media`, {
-    method: "POST",
-    headers: { ...wpAuth(c), "Content-Type": type, "Content-Disposition": `attachment; filename="${name}"` },
-    body: Buffer.from(await img.arrayBuffer()),
-  });
-  return Number(media.id) || null;
-}
-
 const wordpress = {
   test: async (c: Config) => {
-    const me = await call(`${base(c.siteUrl)}/wp-json/wp/v2/users/me?context=edit`, { headers: wpAuth(c) });
+    // The same client publishing uses, so a site without pretty links (?rest_route=) connects too.
+    const r = await wpClient(c).req("GET", "/wp/v2/users/me?context=edit&_fields=name,capabilities");
+    const me = r.data as { name?: string; message?: string; capabilities?: Record<string, boolean> };
+    if (r.status >= 300) throw new Error(`${r.status}: ${String(me.message ?? "").replace(/<[^>]+>/g, "").slice(0, 300)}`);
+    if (me.capabilities && !me.capabilities.publish_posts) throw new Error("This user can't publish posts. Use an Author, Editor or Administrator.");
     return `Signed in as ${me.name ?? c.username}`;
   },
-  publish: async (c: Config, p: PublishInput, id?: string): Promise<Result> => {
-    const featured = await wpImage(c, p.image).catch(() => null);
-    const body = { title: p.title, content: withSchema(p), slug: p.slug || undefined, excerpt: p.description, status: p.live ? "publish" : "draft", ...(featured ? { featured_media: featured } : {}) };
-    const post = await call(`${base(c.siteUrl)}/wp-json/wp/v2/posts${id ? `/${id}` : ""}`, { method: "POST", headers: wpAuth(c), json: body });
-    return { id: String(post.id), url: (post.link as string) ?? null };
+  // WordPress publishes through wpSync.ts (one post per article, kept in sync), never through here.
+  publish: async (): Promise<Result> => {
+    throw new Error("WordPress publishes through wpSync.");
   },
 };
 
