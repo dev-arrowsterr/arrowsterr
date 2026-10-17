@@ -414,3 +414,29 @@ async function matchList(keyword: string, m: Market, match: MatchType, questions
 /** The full lists behind "View all", by match type. Cached 30 days. */
 export const allSuggestions = (keyword: string, country: string, questions: boolean, cost: { total: number }, match: MatchType = "phrase") =>
   matchList(keyword.trim().toLowerCase().replace(/\s+/g, " "), MARKETS[country] ?? MARKETS["United States"], match, questions, cost);
+
+/**
+ * The free Keyword Tool on arrowsterr.com: the numbers, 10 variations and 5 questions. It uses the same saved
+ * pieces as the app, so a keyword anyone looked up in the last 30 days costs nothing.
+ */
+export async function freeKeyword(keyword: string, country: string) {
+  const m = MARKETS[country] ?? MARKETS["United States"];
+  const cost = { total: 0 };
+  const empty = (): KwList => ({ total: 0, volume: 0, rows: [] });
+  const [overview, variations, questions] = await Promise.all([
+    overviewMany([keyword], m, cost).then(async (main) => (await fillVolume(new Map([[keyword, main.get(keyword) ?? null]]), m, cost)).get(keyword) ?? null),
+    suggestions(keyword, m, false, cost).catch(empty).then((v) => widen(keyword, v, m, false, cost)),
+    suggestions(keyword, m, true, cost).catch(empty).then((q) => widen(keyword, q, m, true, cost)),
+  ]);
+  const pick = (l: KwList, n: number) => l.rows.filter((r) => r.keyword !== keyword).slice(0, n).map((r) => ({ keyword: r.keyword, volume: r.volume, kd: r.kd, cpc: r.cpc, intent: r.intent }));
+  return {
+    result: {
+      keyword,
+      country,
+      overview: overview ? { volume: overview.volume, kd: overview.kd, cpc: overview.cpc, competition: overview.competition, intent: overview.intent, trend: overview.trend, serp: overview.serp } : null,
+      variations: { total: variations.total, rows: pick(variations, 10) },
+      questions: { total: questions.total, rows: pick(questions, 5) },
+    },
+    cost: cost.total,
+  };
+}
