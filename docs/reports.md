@@ -1277,8 +1277,8 @@ Chat can restyle with AI ("darker", "match their pitch deck"). It changes colors
 | Phase | Work | Time | State |
 |---|---|---|---|
 | A | Brand Kit table, the learning route, Settings → Brand Kit, the onboarding step and its animation | 1–1.5 weeks | Built (October 2026) |
-| B | Module registry, builder canvas, settings panel, chat edits, autosave on `reports` | 2–3 weeks | Next |
-| C | The template board and its 9 templates as stored docs | 1 week | |
+| B | Zippie chat in the editor (`/api/reports/chat`, `ReportChat.tsx`): it changes blocks, dates, name, cover title and the look, writes the checked AI summary and applies the Brand Kit. It reads only the report's own numbers (`summaryInput`), and code checks every change (`cleanChat`, `tests/reportChat.test.ts`). 3 tasks a message. The module registry with layouts per module comes next | 2–3 weeks | Chat built (October 2026) |
+| C | The template board: 11 templates in 4 purpose columns (`PURPOSES`, `TEMPLATES` in `reportDoc.ts`) | 1 week | Built (October 2026) |
 | D | Kit → report theme everywhere (report, live link, PDF, email, portal), the Style switch, client kits learned in the background when a brand is added, plan checks on the server | 1 week | |
 
 Setup for phase A: run `supabase/045_brand_kits.sql` in Supabase. Until phase D, reports still read `report_styles`.

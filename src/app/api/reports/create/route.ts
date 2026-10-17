@@ -44,7 +44,7 @@ export async function POST(request: Request) {
       kind: from?.kind ?? template!.kind,
       name,
       doc: from ? from.doc : (template!.doc ?? DEFAULT_DOC),
-      range: from ? parseRange(from.range) : DEFAULT_RANGE,
+      range: from ? parseRange(from.range) : template!.range ? parseRange(template!.range) : DEFAULT_RANGE,
       created_by: userId,
       updated_by: userId,
     })

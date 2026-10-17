@@ -3,7 +3,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useState } from "react";
 import { UNLIMITED } from "@/lib/plans";
-import { KIND_LABEL, TEMPLATES, type Template } from "@/lib/reportDoc";
+import { KIND_LABEL, PURPOSES, TEMPLATES, type Purpose, type Template } from "@/lib/reportDoc";
 import type { RunAuth } from "@/lib/runner";
 import { Dropdown, Pop } from "../Pickers";
 import { SampleRows, SampleStats, ToolIntro } from "../ToolIntro";
@@ -12,7 +12,19 @@ import { Confirm, Modal } from "./Dialog";
 import { ago, errText, post } from "./reportApi";
 import { REPORT_COLS, type Library, type SavedReport } from "./types";
 
-type Tab = "all" | "ai" | "content";
+
+// One color and mark per purpose, for the board's column heads and card tiles.
+const PURPOSE_LOOK: Record<Purpose, { tone: string; icon: string }> = {
+  win: { tone: "aw-board--win", icon: "M12 3l2.6 5.6 6.1.7-4.5 4.2 1.2 6L12 16.6 6.6 19.5l1.2-6L3.3 9.3l6.1-.7z" },
+  monthly: { tone: "aw-board--monthly", icon: "M4 19V9M10 19V5M16 19v-7M22 19H2" },
+  rivals: { tone: "aw-board--rivals", icon: "M4 19l6-6 4 4 7-8M15 9h6v6" },
+  content: { tone: "aw-board--content", icon: "M7 3h7l4 4v14H7zM14 3v4h4M10 12h5M10 16h5" },
+};
+const Mark = ({ d }: { d: string }) => (
+  <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d={d} />
+  </svg>
+);
 type Own = "all" | "mine" | "archived";
 type Filters = { own: Own; brand: string; q: string };
 const FILTER_KEY = "arrowsterr.reports.filters";
@@ -47,7 +59,6 @@ export function ReportLibrary({
   reload: () => Promise<void>;
   onPlans: () => void;
 }) {
-  const [tab, setTab] = useState<Tab>("all");
   const [filters, setFiltersState] = useState<Filters>(readFilters);
   const [making, setMaking] = useState<Template | null>(null);
   const [renaming, setRenaming] = useState<SavedReport | null>(null);
@@ -76,7 +87,6 @@ export function ReportLibrary({
     .filter((r) => filters.own !== "mine" || r.created_by === lib.me)
     .filter((r) => !filters.brand || r.brand_id === filters.brand)
     .filter((r) => !q || r.name.toLowerCase().includes(q) || brandName(r.brand_id).toLowerCase().includes(q));
-  const templates = TEMPLATES.filter((t) => tab === "all" || t.tab === tab);
 
   const start = (t: Template) => (atLimit ? setLimitHit(true) : setMaking(t));
   const replace = (r: SavedReport) => onChange({ ...lib, reports: lib.reports.map((x) => (x.id === r.id ? r : x)) });
@@ -118,30 +128,35 @@ export function ReportLibrary({
       { label: "Delete", run: () => setDeleting(r), show: canEdit, danger: true },
     ].filter((x) => x.show);
 
+  // The template board: one column per purpose, like a page builder's gallery.
   const gallery = (
     <section className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="aw-h4">Templates</h2>
-        <Seg
-          label="Template type"
-          value={tab}
-          onChange={setTab}
-          options={[
-            { id: "all", label: `All ${TEMPLATES.length}` },
-            { id: "ai", label: `AI Visibility ${TEMPLATES.filter((t) => t.tab === "ai").length}` },
-            { id: "content", label: `Content ${TEMPLATES.filter((t) => t.tab === "content").length}` },
-          ]}
-        />
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {templates.map((t) => (
-          <button key={t.id} type="button" disabled={!canEdit} onClick={() => start(t)} className="aw-frame flex min-h-36 flex-col items-start gap-2 p-4 text-left transition-colors hover:border-brand disabled:cursor-default">
-            <span className="aw-tag">{KIND_LABEL[t.kind]}</span>
-            <span className="text-[15px] font-medium text-ink">{t.name}</span>
-            <span className="text-[13px] text-body">{t.text}</span>
-            {canEdit ? <span className="mt-auto text-[13px] font-medium text-brand">Use template</span> : null}
-          </button>
-        ))}
+      <h2 className="aw-h4">Templates</h2>
+      <div className="aw-board">
+        {PURPOSES.map((p) => {
+          const list = TEMPLATES.filter((t) => t.purpose === p.id);
+          const look = PURPOSE_LOOK[p.id];
+          return (
+            <div key={p.id} className={`aw-board__col ${look.tone}`}>
+              <div className="aw-board__head">
+                <Mark d={look.icon} />
+                <b>{p.label}</b>
+                <span className="aw-num">{list.length}</span>
+              </div>
+              {list.map((t) => (
+                <button key={t.id} type="button" disabled={!canEdit} onClick={() => start(t)} className="aw-board__card">
+                  <span className="aw-board__tile">
+                    <Mark d={look.icon} />
+                  </span>
+                  <span className="flex min-w-0 flex-col gap-1">
+                    <b>{t.name}</b>
+                    <span>{t.text}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          );
+        })}
       </div>
     </section>
   );
@@ -157,13 +172,15 @@ export function ReportLibrary({
             </span>
           ) : null}
           {canEdit ? (
-            <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={() => start(TEMPLATES[0])}>
+            <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={() => start(TEMPLATES.find((t) => t.id === "monthly")!)}>
               New report
             </button>
           ) : null}
         </span>
       </div>
       {error ? <p className="aw-error">{error}</p> : null}
+
+      {gallery}
 
       {!lib.reports.length ? (
         <ToolIntro
@@ -173,10 +190,10 @@ export function ReportLibrary({
           action={
             canEdit ? (
               <>
-                <button type="button" className="aw-btn aw-btn--accent" onClick={() => start(TEMPLATES[0])}>
+                <button type="button" className="aw-btn aw-btn--accent" onClick={() => start(TEMPLATES.find((t) => t.id === "monthly")!)}>
                   Use the monthly template
                 </button>
-                <button type="button" className="aw-btn aw-btn--secondary" onClick={() => start(TEMPLATES[1])}>
+                <button type="button" className="aw-btn aw-btn--secondary" onClick={() => start(TEMPLATES.find((t) => t.id === "onepager")!)}>
                   Start with a one-pager
                 </button>
               </>
@@ -190,7 +207,6 @@ export function ReportLibrary({
         />
       ) : null}
 
-      {gallery}
 
       {lib.reports.length ? (
         <section className="flex flex-col gap-3">

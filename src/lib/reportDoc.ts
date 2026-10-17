@@ -65,12 +65,32 @@ export function blocksFromSections(sections: ReportSection[] | undefined): DocBl
   }));
 }
 
-/** Templates in the library (docs/reports.md, section 3.2). */
-export type Template = { id: string; kind: Kind; name: string; text: string; tab: "ai" | "content"; doc?: ReportDocument };
+/** What a template is for. The library shows one column each (docs/reports.md, section 31.3). */
+export type Purpose = "win" | "monthly" | "rivals" | "content";
+export const PURPOSES: { id: Purpose; label: string }[] = [
+  { id: "win", label: "Win the client" },
+  { id: "monthly", label: "Monthly reporting" },
+  { id: "rivals", label: "Beat competitors" },
+  { id: "content", label: "Content and traffic" },
+];
+
+/** A doc with only these blocks on, in this order. The rest follow, switched off. */
+export function docOf(ids: BlockId[]): ReportDocument {
+  return { v: 1, blocks: [...ids.map((id) => ({ id, on: true })), ...BLOCKS.filter((b) => !ids.includes(b.id)).map((b) => ({ id: b.id, on: false }))], summary: null };
+}
+
+/** Templates in the library (docs/reports.md, sections 3.2 and 31.3). The ids are saved nowhere, so new ones are safe to add. */
+export type Template = { id: string; kind: Kind; purpose: Purpose; name: string; text: string; tab: "ai" | "content"; doc?: ReportDocument; range?: { preset: "last30" | "lastMonth" | "lastQuarter"; compare: "previous" | "lastYear" } };
 export const TEMPLATES: Template[] = [
-  { id: "monthly", kind: "client", name: "Monthly client report", text: "Every section in one branded report.", tab: "ai", doc: DEFAULT_DOC },
-  { id: "onepager", kind: "client", name: "Executive one-pager", text: "Scorecard, summary, wins and watch list.", tab: "ai", doc: { v: 1, blocks: BLOCKS.map((b) => ({ id: b.id, on: ["kpis", "summary", "wins"].includes(b.id) })), summary: null } },
-  { id: "prompts", kind: "prompts", name: "AI Visibility report", text: "Every prompt, every AI and each full answer.", tab: "ai" },
-  { id: "competitors", kind: "competitors", name: "Competitor report", text: "Who AI names most, and where each brand sits.", tab: "ai" },
-  { id: "intel", kind: "intel", name: "Content performance", text: "How every page performs and which to update next.", tab: "content" },
+  { id: "audit", kind: "client", purpose: "win", name: "New client audit", text: "Where AI names a prospect, who it names instead, and what to fix first.", tab: "ai", doc: docOf(["kpis", "summary", "competitors", "models", "wins"]) },
+  { id: "snapshot", kind: "client", purpose: "win", name: "AI visibility snapshot", text: "One page on how often each AI names the brand.", tab: "ai", doc: docOf(["kpis", "models", "competitors"]) },
+  { id: "monthly", kind: "client", purpose: "monthly", name: "Monthly client report", text: "Every number from the month in one branded report.", tab: "ai", doc: DEFAULT_DOC, range: { preset: "lastMonth", compare: "previous" } },
+  { id: "onepager", kind: "client", purpose: "monthly", name: "Executive one-pager", text: "Scorecard, summary, wins and watch list.", tab: "ai", doc: docOf(["kpis", "summary", "wins"]) },
+  { id: "qbr", kind: "client", purpose: "monthly", name: "Quarterly business review", text: "The quarter against the one before, with what comes next.", tab: "ai", doc: docOf(["summary", "kpis", "models", "competitors", "traffic", "visitors", "content", "wins"]), range: { preset: "lastQuarter", compare: "previous" } },
+  { id: "battle", kind: "client", purpose: "rivals", name: "Competitor battle report", text: "Who AI recommends, on which AI, and where rivals pulled ahead.", tab: "ai", doc: docOf(["competitors", "models", "kpis", "wins"]) },
+  { id: "competitors", kind: "competitors", purpose: "rivals", name: "Competitor report", text: "Who AI names most, and where each brand sits.", tab: "ai" },
+  { id: "prompts", kind: "prompts", purpose: "rivals", name: "AI Visibility report", text: "Every prompt, every AI and each full answer.", tab: "ai" },
+  { id: "traffic", kind: "client", purpose: "content", name: "Website and AI traffic", text: "Visits from AI assistants, the pages they land on, and the leads.", tab: "content", doc: docOf(["traffic", "visitors", "kpis"]) },
+  { id: "contentreport", kind: "client", purpose: "content", name: "Content report", text: "What was published and how it shows up in AI.", tab: "content", doc: docOf(["content", "kpis", "wins"]) },
+  { id: "intel", kind: "intel", purpose: "content", name: "Content performance", text: "How every page performs and which to update next.", tab: "content" },
 ];

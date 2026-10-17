@@ -182,3 +182,41 @@
 @media (prefers-reduced-motion: reduce) {
   .aw .aw-kit *, .aw .aw-kit__say { animation: none !important; transition: none !important; }
 }
+/* In the report editor's side panel the show fits a narrow column. */
+.aw .aw-kit--panel .aw-kit { padding-top: 0; }
+.aw .aw-kit--panel .aw-kit__card { padding: 20px 16px 0; }
+
+/* ─────────────── Reports: the template board (docs/reports.md, section 31.3) ─────────────── */
+.aw .aw-board { display: grid; grid-template-columns: repeat(4, minmax(220px, 1fr)); gap: 12px; overflow-x: auto; padding-bottom: 4px; }
+.aw .aw-board__col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.aw .aw-board__head { display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 12px; border-radius: var(--aw-r-md); background: var(--b-tint); color: var(--b-ink); font-size: 14px; }
+.aw .aw-board__head b { font-weight: 600; }
+.aw .aw-board__head .aw-num { margin-left: auto; font-size: 13px; opacity: .8; }
+.aw .aw-board__card { display: flex; align-items: flex-start; gap: 12px; padding: 12px; border-radius: var(--aw-r-md); background: #fff; box-shadow: 0 0 0 1px var(--aw-rule); text-align: left; transition: box-shadow .15s cubic-bezier(.22, 1, .36, 1); }
+.aw .aw-board__card:hover:not(:disabled) { box-shadow: 0 0 0 1px var(--b-ink); }
+.aw .aw-board__card:disabled { cursor: default; }
+.aw .aw-board__card b { font-size: 14px; font-weight: 600; color: var(--aw-ink); }
+.aw .aw-board__card span span { font-size: 13px; line-height: 1.45; color: var(--aw-body); }
+.aw .aw-board__tile { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 6px; background: var(--b-tint); color: var(--b-ink); }
+.aw .aw-board--win { --b-tint: #FFF4DC; --b-ink: #8A4B00; }
+.aw .aw-board--monthly { --b-tint: #EEF3FF; --b-ink: #0943B0; }
+.aw .aw-board--rivals { --b-tint: #E6F4EE; --b-ink: #0B7A54; }
+.aw .aw-board--content { --b-tint: #F1F1F1; --b-ink: #0B1B3F; }
+
+/* ─────────────── Reports: chat with Zippie (docs/reports.md, section 31.4) ─────────────── */
+.aw .aw-chat { display: flex; flex-direction: column; height: calc(100vh - 230px); min-height: 460px; border-radius: var(--aw-r-md); background: #fff; box-shadow: 0 0 0 1px var(--aw-rule); }
+.aw .aw-chat__list { display: flex; flex: 1; flex-direction: column; gap: 14px; overflow-y: auto; padding: 16px; }
+.aw .aw-chat__msg { font-size: 14px; line-height: 1.55; color: var(--aw-ink); animation: aw-kit-in .15s cubic-bezier(.22, 1, .36, 1); }
+.aw .aw-chat__msg--you { align-self: flex-end; max-width: 85%; padding: 10px 14px; border-radius: 8px; background: var(--aw-surface-2); white-space: pre-wrap; }
+.aw .aw-chat__msg--zippie { display: flex; align-items: flex-start; gap: 10px; }
+.aw .aw-chat__msg--zippie > svg { flex: none; }
+.aw .aw-chat__done { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 6px; box-shadow: 0 0 0 1px var(--aw-rule); font-size: 13px; color: var(--aw-ink); }
+.aw .aw-chat__done li::before { content: "✓"; margin-right: 8px; color: var(--aw-pos); font-weight: 600; }
+.aw .aw-chat__foot { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 12px; border-top: 1px solid var(--aw-rule); }
+.aw .aw-chat__chips { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+.aw .aw-chat__chip { flex: none; padding: 5px 10px; border-radius: 4px; box-shadow: 0 0 0 1px var(--aw-rule); background: #fff; font-size: 13px; color: var(--aw-ink); white-space: nowrap; transition: box-shadow .15s; }
+.aw .aw-chat__chip:hover:not(:disabled) { box-shadow: 0 0 0 1px var(--aw-brand); }
+.aw .aw-chat__box { display: flex; align-items: flex-end; gap: 8px; padding: 8px; border-radius: 6px; box-shadow: 0 0 0 1px var(--aw-rule-strong); }
+.aw .aw-chat__box:focus-within { box-shadow: 0 0 0 2px var(--aw-brand); }
+.aw .aw-chat__box textarea { flex: 1; min-width: 0; resize: none; border: 0; outline: 0; background: none; font: inherit; font-size: 14px; color: var(--aw-ink); }
+@media (prefers-reduced-motion: reduce) { .aw .aw-chat__msg { animation: none; } }
