@@ -48,6 +48,7 @@ import { MembersPage } from "./MembersPage";
 import { SettingsPage, SETTINGS_TABS, type SettingsTab } from "./SettingsPage";
 import { NotificationSettings, ProfileSettings, SecuritySettings } from "./AccountSettings";
 import { AccessSettings, AiSettingsPage, RetentionSettings, TimezoneSetting } from "./WorkspaceSettings";
+import { BrandKitSettings } from "./BrandKit";
 import { ExportsSettings, JobsSettings } from "./JobsSettings";
 import { BillingPage, choosePlan } from "./BillingPage";
 import { Onboarding, type Checking, type NewBrand, type Welcome } from "./Onboarding";
@@ -89,6 +90,7 @@ const SLUGS: Record<Page, string> = {
   members: "/settings/members",
   access: "/settings/access",
   ai: "/settings/ai",
+  brandkit: "/settings/brand-kit",
   retention: "/settings/data-retention",
   integrations: "/settings/integrations",
   publishing: "/settings/publishing",
@@ -155,6 +157,11 @@ function writeLocal(key: string, value: string | null) {
 /** The name a new account's first workspace gets before its owner names it. */
 const firstWorkspaceName = (email: string) => `${email.split("@")[0] || "My"}'s workspace`;
 const FREE_MAIL = /^(gmail|googlemail|yahoo|hotmail|outlook|live|icloud|me|aol|proton|protonmail|gmx|yandex|zoho)\./i;
+/** The company site behind a work email: vincent@perceptric.com → perceptric.com. Empty for personal email. */
+function workDomain(email: string) {
+  const d = (email.split("@")[1] ?? "").toLowerCase();
+  return d && !FREE_MAIL.test(d) ? d : "";
+}
 /** A workspace name guessed from a work email: vincent@perceptric.com → Perceptric. */
 function guessCompany(email: string) {
   const d = email.split("@")[1] ?? "";
@@ -611,6 +618,7 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
         promptRoom={promptRoom}
         checking={checking}
         seo={Boolean(plan && !plan.open.visibility)}
+        kit={!brands.length ? { role: meta.role ?? "", agencySite: workDomain(email) } : undefined}
       />
     );
   }
@@ -786,6 +794,16 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
                 <AccessSettings key={ws.id} sb={sb} ws={ws} email={email} />
               ) : page === "ai" ? (
                 <AiSettingsPage key={ws.id} sb={sb} ws={ws} />
+              ) : page === "brandkit" ? (
+                <BrandKitSettings
+                  key={ws.id}
+                  sb={sb}
+                  auth={auth}
+                  canEdit={canEdit}
+                  website={brands?.[0]?.domain ?? workDomain(email)}
+                  brands={(brands ?? []).map((b) => ({ id: b.id, name: b.name, domain: b.domain }))}
+                  clientKits={plan?.limits.reports === "whitelabel"}
+                />
               ) : page === "retention" ? (
                 <RetentionSettings plan={plan} />
               ) : page === "exports" ? (
@@ -1234,7 +1252,7 @@ const TIMEFRAMES = [7, 30, 60, 90];
 
 /** Where a page sits in the sidebar, for the page header: "AI Visibility / Prompts". */
 function pageTitle(page: Page): { group: string; label: string } {
-  if (isSettings(page)) return { group: "Settings", label: page === "settings" ? "Workspace" : page === "billing" ? "Plans & billing" : page[0].toUpperCase() + page.slice(1) };
+  if (isSettings(page)) return { group: "Settings", label: page === "settings" ? "Workspace" : (SETTINGS_TABS.find((t) => t.id === page)?.label ?? page) };
   for (const g of NAV) {
     const item = g.items.find((i) => i.id === page || i.also?.includes(page));
     if (item) return { group: g.group, label: item.label };

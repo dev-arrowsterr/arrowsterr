@@ -40,6 +40,7 @@ Contents
 28. Phases
 29. Running cost
 30. Open questions
+31. Brand Kits, templates by purpose and the module builder
 
 ---
 
@@ -1206,3 +1207,90 @@ If the app already pays for Resend Pro for the weekly emails, the email line is 
 2. Should Free get one scheduled monthly report as a hook to upgrade?
 3. Client portal: email-code sign-in only, or also Google sign-in?
 4. Should "Re-run research before send" be on by default for SEO templates, given it costs tasks?
+
+---
+
+## 31. Brand Kits, templates by purpose and the module builder
+
+October 2026 update. This replaces the free grid builder of phase 2 with a module builder, adds Brand Kits, and groups the templates in section 16 by what they are for. Phases A to D below run in place of phases 2 and 4. Phases 3 and 5 stay as they are.
+
+### 31.1 Brand Kit
+
+- **What it holds** (`BrandKit` in `src/lib/brandKit.ts`): name, logo, whether the logo needs a dark ground, eight colors (main, second, headings, text, small notes, page, cards, borders), heading and text fonts from the report font list, corner radius, a footer line, and a tone of voice (up to 3 words and a sample line).
+- **Where it lives:** `brand_kits` (`supabase/045_brand_kits.sql`). One kit for the workspace (key `workspace`) and one per client brand (key = brand id). A style saved in `report_styles` becomes the workspace kit when the file runs.
+- **How it is learned:** `POST /api/brand-kit` reads the homepage (`readBrand`), sends the measured colors and fonts at once, then asks Claude for the kit (`learnKit` in `src/lib/brandKitServer.ts`). The reply streams one JSON line per part. It costs 10 tasks, the same as a brand guideline.
+- **Checks** (`cleanKit`, tested in `tests/brandKit.test.ts`):
+  - Every text color must reach 4.5:1 on both cards and page. If one fails, a readable color takes its place.
+  - A logo must be an https address or an inline image. If the agent's pick doesn't match a real option, the kit has no logo, and the name is set in the heading font instead.
+  - Broken fields fall back to Arrowsterr's look.
+- **Every plan gets a Brand Kit.**
+  - Starter and Pro: reports use the team's own kit and keep "Made with Arrowsterr".
+  - Agency and Enterprise: the footer goes, and each client brand can have its own kit.
+
+### 31.2 Onboarding: Your brand
+
+- After the website step, Zippie learns the kit on screen while the research runs (`KitStep` in `Onboarding.tsx`, `KitLearn` in `BrandKit.tsx`). Only the first onboarding of a workspace shows it.
+- If the user picked "Agency" as their role, the step asks for the agency's own website first (guessed from a work email), because that kit brands the reports the agency sends. Everyone else learns from the site they just entered.
+- **The show, in order:**
+  1. Scanning the site
+  2. Its colors
+  3. Its fonts
+  4. Its logo
+  5. A report cover changing from Arrowsterr's colors into theirs
+  6. "Brand Kit saved"
+
+  Each stage waits for its real data and stays at least 0.85 seconds. With reduced motion, the finished kit shows at once.
+- "Looks right" marks the kit as confirmed. "Use another website" learns again. A failure offers Try again or Skip for now and never blocks onboarding.
+- **Settings → Brand Kit** edits every field with a live cover and offers "Learn again". On Agency it also lists client brands, each with Learn.
+
+### 31.3 Templates by purpose
+
+The library opens on a board with one column per purpose. The templates are the ones in section 16.
+
+| Purpose | Templates |
+|---|---|
+| Win the client | New client audit, AI visibility snapshot |
+| Monthly reporting | Monthly client report, Executive one-pager |
+| Beat competitors | Competitor battle report |
+| Content and SEO | Content performance, Keyword opportunity |
+| Quarterly review | Quarterly business review, Website and AI traffic |
+
+### 31.4 Module builder
+
+- A report is a stack of modules: cover, KPI scorecard, trend chart, by AI model, competitor table, cited sources, wins and drops, content published, AI summary, text, section header, contact card.
+- Each module has 2 to 3 layouts. Add a module between any two, drag to reorder, duplicate, or delete. Clicking a module opens its settings.
+- Chat on the left edits the selected module ("make this a table", "shorter summary"). Edits use tasks.
+- The same renderer draws the editor, live link, PDF and email (principle 2).
+
+### 31.5 Style switch
+
+Every report has a Style switch:
+- **Agency brand:** the default on Agency.
+- **Client brand:** the client's kit, for clients who want the report to look like their own.
+- **Arrowsterr.**
+- **Saved styles.**
+
+Chat can restyle with AI ("darker", "match their pitch deck"). It changes colors and fonts, never data. The result is saved as a style under that client, and that client's later and scheduled reports use it. On Starter and Pro the switch shows the team's own kit and Arrowsterr only. The server drops client kits and the footer setting below Agency.
+
+### 31.6 Phases
+
+| Phase | Work | Time | State |
+|---|---|---|---|
+| A | Brand Kit table, the learning route, Settings → Brand Kit, the onboarding step and its animation | 1–1.5 weeks | Built (October 2026) |
+| B | Module registry, builder canvas, settings panel, chat edits, autosave on `reports` | 2–3 weeks | Next |
+| C | The template board and its 9 templates as stored docs | 1 week | |
+| D | Kit → report theme everywhere (report, live link, PDF, email, portal), the Style switch, client kits learned in the background when a brand is added, plan checks on the server | 1 week | |
+
+Setup for phase A: run `supabase/045_brand_kits.sql` in Supabase. Until phase D, reports still read `report_styles`.
+
+### 31.7 Running cost
+
+Added on top of section 29.
+
+| Item | Beta (50 teams) | Growth (500 teams) |
+|---|---|---|
+| Claude tokens to learn kits: about 6K in and 1.5K out each on Sonnet 5.5 ($2 / $10 per million, check), ≈ $0.03. About 150 a month at Beta and 2,000 at Growth, with agency client kits and re-learns | $5 | $60 |
+| Chat edits to modules and restyles (paid for by tasks) | $5 | $50 |
+| Reading sites: one fetch of the homepage and up to 5 stylesheets on the app server | $0 | $0 |
+| Kit storage in Supabase (a few KB a kit; logos are links or small inline SVGs) | $0 (check) | $0 (check) |
+| **Monthly total added** | **≈ $10** | **≈ $110** |
