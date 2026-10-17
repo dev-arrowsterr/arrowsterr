@@ -2,7 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { DAY, readCache, writeCache } from "./cache";
 import { esc, sendEmail } from "./email";
-import { freeBlock, freeLimits, FREE_DEFAULTS, utcDayStart, type FreeTool } from "./freeLimits";
+import { freeBlock, freeLimits, FREE_TOOLS, utcDayStart, type FreeTool } from "./freeLimits";
 import { adminClient } from "./serverAuth";
 
 // The guard every free tool on arrowsterr.com goes through (docs/free-tools.md):
@@ -57,7 +57,7 @@ export async function freeRun<T>(request: Request, body: Record<string, unknown>
   const ip = ipOf(request);
   if (!(await human(body.token, ip))) return reply(request, { error: "Please confirm you're human, then try again.", human: true }, 403);
 
-  const saveFrom = new Date(Date.now() - FREE_DEFAULTS.saveDays[tool] * DAY).toISOString();
+  const saveFrom = new Date(Date.now() - FREE_TOOLS[tool].saveDays * DAY).toISOString();
   const { data: saved, error } = await db.from("free_runs").select("result, created_at").eq("tool", tool).eq("key", key).not("result", "is", null).gte("created_at", saveFrom).order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (error) return reply(request, { error: /free_runs/.test(error.message) ? "This tool is not set up yet." : "Something went wrong. Please try again." }, 503);
   if (saved?.result) return reply(request, { ...(saved.result as object), cached: true, at: saved.created_at });
@@ -75,7 +75,7 @@ export async function freeRun<T>(request: Request, body: Record<string, unknown>
   const limits = freeLimits(tool, process.env);
   const block = freeBlock({ mineTool: mineTool.count ?? 0, mineAll: mineAll.count ?? 0, toolToday: toolToday.count ?? 0, spentToday }, limits);
   if (block) {
-    if (spentToday >= limits.spendDay) void alarm(spentToday, limits.spendDay);
+    if (limits.paid && spentToday >= limits.spendDay) void alarm(spentToday, limits.spendDay);
     return reply(request, { error: block.error, limit: true, signup: block.kind === "visitor" }, 429);
   }
 
@@ -87,9 +87,11 @@ export async function freeRun<T>(request: Request, body: Record<string, unknown>
     return reply(request, { ...(result as object), cached: false, at: new Date().toISOString() });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
-    console.error(`Free tool ${tool} failed:`, message);
     // A failed run doesn't use up the visitor's runs.
     if (row) await db.from("free_runs").delete().eq("id", row.id);
+    // Errors about the visitor's own input (a site that didn't answer, a page that isn't HTML) are shown as they are.
+    if ((e as { visitor?: boolean }).visitor) return reply(request, { error: message }, 422);
+    console.error(`Free tool ${tool} failed:`, message);
     return reply(request, { error: "Something went wrong. Please try again in a minute." }, 500);
   }
 }

@@ -8,7 +8,27 @@ Eleven free tools on arrowsterr.com. Each one answers a real question in under a
 |---|---|
 | Yes | Shared parts: `src/lib/freeTools.ts` (guard), `src/lib/freeLimits.ts` (limit rules, tested), `/api/free/[tool]`, `supabase/044_free_tools.sql` |
 | Yes | 5 Free Keyword Tool, at arrowsterr.com/free-tools/keyword-tool/ and the hub at /free-tools/ |
-| No | The other ten tools |
+| Yes | Keyword Volume Checker and Keyword Difficulty Checker (same API as the keyword tool) |
+| Yes | AI Crawler Checker, llms.txt Generator, AI Answer-Ready Checker, Domain Authority Checker, Page Speed Checker, Broken Link and Redirect Checker (`src/lib/freeRunners.ts`), Keyword Clustering Tool (in the browser) |
+| No | ChatGPT Rank Checker, AI Overview Checker, AI Prompt Generator, AI Sources Finder, AI Share of Voice, AI Schema Generator, Domain Snapshot |
+
+**Second set, how each works:**
+
+| Tool | Built on | Cost a run | Limits (per visitor a day / all visitors a day / saved for) |
+|---|---|---|---|
+| AI Crawler Checker | robots.txt read the way Google reads it, plus the homepage asked for as GPTBot, ClaudeBot and PerplexityBot to spot firewall blocks | $0 | 20 / 3,000 / 1 day |
+| llms.txt Generator | The site's sitemap (or homepage links), the top 40 pages opened for titles | $0 | 10 / 1,000 / 7 days |
+| AI Answer-Ready Checker | Mozilla Readability (open source) for the main content, 13 weighted checks in `freeChecks.ts` | $0 | 20 / 3,000 / 1 day |
+| Domain Authority Checker | Open PageRank (free API, `OPR_API_KEY`) and the Tranco list (free) | $0 | 20 / 2,000 / 7 days |
+| Page Speed Checker | Google PageSpeed Insights (free API, `PAGESPEED_API_KEY`) | $0 | 10 / 1,500 / 1 day |
+| Broken Link and Redirect Checker | Its own crawler: 25 pages, 250 links, HEAD then GET | $0 | 5 / 300 / 1 day |
+| Keyword Clustering Tool | all-MiniLM-L6-v2 through transformers.js, in the visitor's browser. Falls back to shared words when the model can't load | $0, no server | none |
+
+**Safety:** every address a visitor types goes through `src/lib/safeFetch.ts`. It refuses private, local and cloud metadata addresses at connect time, for each redirect too, so DNS tricks can't reach the server's own network. Tools that cost nothing keep working when the paid tools hit the day's spend. A visitor gets 40 new runs a day across all tools.
+
+**More setup (optional):**
+- `OPR_API_KEY`: a free key from openpagerank.com. Without it, the authority tool shows only the Tranco rank.
+- `PAGESPEED_API_KEY`: a free Google Cloud key with the PageSpeed Insights API on. Without it, Google allows only a few tests a day.
 
 **Setup:**
 - Run `supabase/044_free_tools.sql` in Supabase.
