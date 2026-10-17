@@ -1,6 +1,26 @@
 # Free tools
 
-Plan, not built yet. Eleven free tools on arrowsterr.com. Each one answers a real question in under a minute and ends with a button that starts the Free plan with the result already loaded. They all follow the AI Snapshot pattern that already works (`src/app/api/snapshot/route.ts`, `pages/snapshot` in the site repo).
+Eleven free tools on arrowsterr.com. Each one answers a real question in under a minute and ends with a button that starts the Free plan with the result already loaded. They all follow the AI Snapshot pattern that already works (`src/app/api/snapshot/route.ts`, `pages/snapshot` in the site repo).
+
+## Status
+
+| Built | What |
+|---|---|
+| Yes | Shared parts: `src/lib/freeTools.ts` (guard), `src/lib/freeLimits.ts` (limit rules, tested), `/api/free/[tool]`, `supabase/044_free_tools.sql` |
+| Yes | 5 Free Keyword Tool, at arrowsterr.com/free-tools/keyword-tool/ and the hub at /free-tools/ |
+| No | The other ten tools |
+
+**Setup:**
+- Run `supabase/044_free_tools.sql` in Supabase.
+- Optional server settings: `FREE_CAP_KEYWORD` (default 500 runs a day), `FREE_PER_TOOL` (5), `FREE_PER_VISITOR` (15), `FREE_SPEND_DAY` (15 dollars), `FREE_ALERT_EMAIL` (who hears when the spend alarm trips).
+- Bot check: set `TURNSTILE_SECRET` on the app and `AW_TURNSTILE_SITEKEY` in the site's wp-config.php together, or neither.
+
+**How the limits work, in order:**
+1. A saved result for the same keyword and country (30 days) comes back free and counts toward no limit.
+2. A visitor gets 5 new runs a tool and 15 across tools in 24 hours, then is asked to sign up.
+3. The tool stops at its daily cap, and all paid runs stop when the day's spend passes `FREE_SPEND_DAY` (one email a day). Both reset at midnight UTC.
+4. A run counts from the moment it starts, so many at once can't slip past. A failed run gives the visitor's run back.
+5. Free tool spend is logged per run in `free_runs.cost`, since the cost ledger needs a workspace.
 
 ## Shared parts (build once)
 
@@ -14,7 +34,7 @@ Plan, not built yet. Eleven free tools on arrowsterr.com. Each one answers a rea
 - **Bot check:** Cloudflare Turnstile when `TURNSTILE_SECRET` is set. It's free.
 - **Cost tracking:** every paid call goes to `cost_ledger` as "free tool: {name}" through `charge()`.
 
-**Database:** `supabase/043_free_tools.sql` adds the `free_runs` table:
+**Database:** `supabase/044_free_tools.sql` adds the `free_runs` table:
 - Columns: `id`, `tool`, `key`, `ip_hash`, `result jsonb`, `cost`, `created_at`.
 - Indexes on (tool, key, created_at) and (ip_hash, created_at).
 - Row-level security is on with no policies, so only the server reads and writes it.
