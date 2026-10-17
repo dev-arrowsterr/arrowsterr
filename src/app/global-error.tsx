@@ -2,11 +2,13 @@
 
 import * as Sentry from "@sentry/nextjs";
 import { useEffect } from "react";
+import { reloadOnce } from "@/lib/staleBuild";
 
 // Shown when the root layout itself fails. It renders its own page, so the app's CSS is not here: styles are inline.
-export default function GlobalError({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
+export default function GlobalError({ error }: { error: Error & { digest?: string } }) {
   useEffect(() => {
     Sentry.captureException(error);
+    reloadOnce(error);
   }, [error]);
   return (
     <html lang="en">
@@ -19,7 +21,7 @@ export default function GlobalError({ error, retry }: { error: Error & { digest?
           </p>
           <button
             type="button"
-            onClick={() => retry()}
+            onClick={() => window.location.reload()}
             style={{ height: 36, padding: "0 16px", border: 0, borderRadius: 6, background: "#0943B0", color: "#fff", font: "inherit", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
           >
             Try again
