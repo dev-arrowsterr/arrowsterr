@@ -432,6 +432,7 @@ export function Sheet<T>({
   showFilters = true,
   label,
   toolbar,
+  tools = true,
 }: {
   /** Saves this sheet's column layout in the browser. */
   id?: string;
@@ -457,6 +458,8 @@ export function Sheet<T>({
   label: string;
   /** Extra controls at the start of the bar above the sheet, like a view switch. */
   toolbar?: React.ReactNode;
+  /** False hides the Shortcuts and Columns chips. */
+  tools?: boolean;
 }) {
   const [sort, setSort] = useSort(initial.key, initial.desc);
   const [per, setPer] = useState(pageSize ?? 0);
@@ -955,6 +958,7 @@ export function Sheet<T>({
             {flash}
           </span>
         ) : null}
+        {tools ? (
         <span className="ml-auto flex items-center gap-2">
           <div className="relative">
             <button type="button" className={`aw-chip aw-chip--btn ${keysOpen ? "is-on" : ""}`} onClick={() => setKeysOpen(!keysOpen)} aria-expanded={keysOpen} title="Keyboard shortcuts (Ctrl /)">
@@ -1036,6 +1040,7 @@ export function Sheet<T>({
             ) : null}
           </div>
         </span>
+        ) : null}
       </div>
       <div
         ref={wrapRef}

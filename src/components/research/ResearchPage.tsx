@@ -106,7 +106,7 @@ export function ResearchPage({
       ) : tool === "intel" ? (
         <ContentIntel sb={sb} auth={auth} site={site} canEdit={canEdit} brandId={brand.id} days={view.days} chats={answered(view.current, view.filter)} onPlan={() => onTool("calendar")} />
       ) : (
-        <ContentCalendar sb={sb} auth={auth} site={site} canEdit={canEdit} refresh={refresh} writer={writer} onImport={() => onTool("keywords")} results={{ brandId: brand.id, brandName: brand.name, days: view.days, chats: answered(view.current, view.filter) }} onSite={setSite} />
+        <ContentCalendar sb={sb} auth={auth} site={site} canEdit={canEdit} refresh={refresh} writer={writer} results={{ brandId: brand.id, brandName: brand.name, days: view.days, chats: answered(view.current, view.filter) }} onSite={setSite} />
       )}
     </div>
     </ResearchKeyword.Provider>

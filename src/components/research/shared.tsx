@@ -93,11 +93,8 @@ export function Difficulty({ kd }: { kd: number | null }) {
   const word = kd < 30 ? "Easy" : kd < 50 ? "Medium" : kd < 70 ? "Hard" : "Very hard";
   const color = kd < 30 ? "var(--aw-pos)" : kd < 50 ? "var(--aw-warn)" : "var(--aw-neg)";
   return (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
-      <span className="aw-num text-ink">{kd}</span>
-      <span className="text-[12px]" style={{ color }}>
-        {word}
-      </span>
+    <span className="aw-num whitespace-nowrap font-semibold" style={{ color }} title={word}>
+      {kd}
     </span>
   );
 }

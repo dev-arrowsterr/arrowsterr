@@ -75,14 +75,11 @@ export function ContentCalendar({
   site,
   canEdit,
   writer,
-  onImport,
   results,
   onSite,
   refresh,
 }: {
   refresh?: Refresh;
-  /** Open Keyword Research to add keywords from there. */
-  onImport?: () => void;
   onSite: (s: Site) => void;
   sb: SupabaseClient;
   auth: RunAuth;
@@ -108,7 +105,6 @@ export function ContentCalendar({
   const [planning, setPlanning] = useState(false);
   const [perWeek, setPerWeek] = useState(2);
   const [start, setStart] = useState(() => iso(new Date()));
-  const [newKw, setNewKw] = useState("");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [panel, setPanel] = useState<{ day: string | null; piece: string | null; tab?: "serp" | "draft"; run?: boolean } | null>(null);
   const [adding, setAdding] = useState(false);
@@ -209,14 +205,6 @@ export function ContentCalendar({
       redo: () => Promise.all(todo.map((i, n) => patch(i.id, { due_date: dates[n] }))),
     });
     await quietly(() => Promise.all(todo.map((i, n) => patch(i.id, { due_date: dates[n] }))));
-  }
-
-  async function add(e: React.FormEvent) {
-    e.preventDefault();
-    const keyword = newKw.trim().replace(/\s+/g, " ");
-    if (!keyword) return;
-    setNewKw("");
-    await addOn(keyword, null);
   }
 
   async function addOn(keyword: string, due_date: string | null, extra: Omit<NewPiece, "keyword"> = {}) {
@@ -550,7 +538,6 @@ export function ContentCalendar({
     <div className="flex flex-col gap-5">
       {error ? <p className="aw-error">{error}</p> : null}
       {head}
-      {intro}
       {progress}
       {!items.length && lastDone && !running ? (
         <section className="aw-frame flex flex-col items-center gap-3 px-6 py-12 text-center">
@@ -599,24 +586,6 @@ export function ContentCalendar({
         title={`${items.length} ${items.length === 1 ? "piece" : "pieces"}`}
         action={
           <span className="flex flex-wrap items-center gap-2">
-            {canEdit && onImport ? (
-              <button type="button" className="aw-btn aw-btn--secondary aw-btn--sm" onClick={onImport} title="Find keywords in Keyword Research, then click Add to Content Plan">
-                Import from Keyword Research
-              </button>
-            ) : null}
-            {canEdit ? (
-              <form onSubmit={add} className="flex gap-2">
-                <input value={newKw} onChange={(e) => setNewKw(e.target.value)} placeholder="Add a keyword" aria-label="Add a keyword" className={`${FIELD} w-40`} />
-                <button type="submit" className="aw-btn aw-btn--secondary aw-btn--sm" disabled={!newKw.trim()}>
-                  Add
-                </button>
-              </form>
-            ) : null}
-            {canEdit ? (
-              <button type="button" className="aw-btn aw-btn--primary aw-btn--sm" onClick={() => setPlanning(!planning)}>
-                Plan dates{undated ? ` (${undated})` : ""}
-              </button>
-            ) : null}
             <button
               type="button"
               className="aw-btn aw-btn--secondary aw-btn--sm"
@@ -666,8 +635,9 @@ export function ContentCalendar({
         ) : null}
         <Sheet
           id={`plan:${site.id}`}
-          onAddColumn={canEdit ? () => setAdding(true) : undefined}
           label="Content Plan"
+          height="calc(100vh - 210px)"
+          tools={false}
           toolbar={toggle}
           rows={ordered}
           cols={cols}

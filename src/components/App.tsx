@@ -66,8 +66,6 @@ import { ZippiePage } from "./ZippiePage";
 export type { Brand } from "@/lib/db";
 type Page = "ask" | "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "gap" | "calendar" | "intel" | "summary" | SettingsTab;
 const RESEARCH: Page[] = ["keywords", "domain", "gap", "calendar", "intel"];
-/** Website analytics is still in testing: only this account sees it. */
-const WEBSITE_TESTER = "vincent@perceptric.com";
 const VISIBILITY: Page[] = ["prompts", "competitors", "domains", "urls"];
 /** Pages with their own PDF (docs/reports.md, section 32.3). */
 const PDF_OF: Partial<Record<Page, PdfPage>> = { prompts: "prompts", competitors: "competitors", domains: "sources", urls: "sources" }; // the only pages with period, topic and model filters
@@ -238,9 +236,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [adding, setAdding] = useState(() => window.location.pathname.replace(/\/+$/, "") === ONBOARDING);
   const [promptRoom, setPromptRoom] = useState<number | undefined>(undefined); // prompts the plan still has room for, while adding a brand
-  const tester = email.toLowerCase() === WEBSITE_TESTER;
-  // Website pages are for the tester only: everyone else lands on Prompts.
-  const allowed = useCallback((p: Page): Page => (!tester && (p === "traffic" || p === "visitors") ? "prompts" : p), [tester]);
+  // The Website pages are gone: old links land on Prompts.
+  const allowed = useCallback((p: Page): Page => (p === "traffic" || p === "visitors" ? "prompts" : p), []);
   const [page, setPage] = useState<Page>(() => allowed(pageFromPath(window.location.pathname)));
   // Hide the sidebar for more room. Remembered on this device. ⌘B / Ctrl+B toggles it outside text fields.
   const [navHidden, setNavHidden] = useState(() => readLocal(NAV_HIDDEN) === "1");
@@ -984,7 +981,7 @@ const trackOf = (page: Page): Track | null =>
   ["prompts", "competitors", "domains", "urls"].includes(page) ? "visibility" : ["keywords", "domain", "gap", "calendar", "intel"].includes(page) ? "seo" : null;
 
 /** The big modules of the app. Each opens to its own pages. */
-const NAV: { group: string; icon: string; tester?: boolean; items: { id: Page; label: string; icon: string; also?: Page[] }[] }[] = [
+const NAV: { group: string; icon: string; items: { id: Page; label: string; icon: string; also?: Page[] }[] }[] = [
   {
     group: "AI Visibility",
     icon: "radar",
@@ -1010,15 +1007,6 @@ const NAV: { group: string; icon: string; tester?: boolean; items: { id: Page; l
       { id: "ask", label: "Zippie", icon: "spark" },
       { id: "calendar", label: "Content Plan", icon: "calendar" },
       { id: "intel", label: "Content Intelligence", icon: "trend" },
-    ],
-  },
-  {
-    group: "Website",
-    icon: "trend",
-    tester: true,
-    items: [
-      { id: "traffic", label: "Traffic", icon: "trend" },
-      { id: "visitors", label: "Visitors", icon: "eye" },
     ],
   },
   {
@@ -1096,7 +1084,7 @@ function Sidebar({
   const [closedGroups, setClosedGroups] = useState<Set<string>>(new Set());
   // On a phone the pages fold into a menu button, so the page comes first.
   const [menu, setMenu] = useState(false);
-  const groups = NAV.filter((g) => !g.tester || email.toLowerCase() === WEBSITE_TESTER);
+  const groups = NAV;
   // From the rail: show the full sidebar, with that module's pages open.
   const expand = (group?: string) => {
     if (group) setClosedGroups((x) => new Set([...x].filter((n) => n !== group)));
