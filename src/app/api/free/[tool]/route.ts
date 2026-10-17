@@ -6,7 +6,7 @@ import { freeKeyword } from "@/lib/kwReport";
 import { MARKETS } from "@/lib/research";
 
 // Free tools for arrowsterr.com (docs/free-tools.md). Public: every tool goes through freeRun's limits.
-//   keyword   { keyword, country }        Keyword Research Tool, Volume Checker, Difficulty Checker
+//   keyword   { keyword, country, focus? }      Keyword Research Tool, Volume Checker, Difficulty Checker
 //   crawlers  { domain }                  AI Crawler Checker
 //   llms      { domain }                  llms.txt Generator
 //   answer    { url }                     AI Answer-Ready Checker
@@ -35,7 +35,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ too
       const country = typeof body.country === "string" && Object.hasOwn(MARKETS, body.country) && body.country !== "Global" ? body.country : null;
       if (!country) return reply(request, { error: "Pick a country." }, 400);
       if (!dfsReady()) return reply(request, { error: "This tool is resting. Please try again later." }, 503);
-      return freeRun(request, body, "keyword", `${country}:${keyword}`, () => freeKeyword(keyword, country));
+      const focus = body.focus === "volume" || body.focus === "difficulty" ? body.focus : "all";
+      return freeRun(request, body, "keyword", focus === "all" ? `${country}:${keyword}` : `${focus}:${country}:${keyword}`, () => freeKeyword(keyword, country, focus));
     }
     case "crawlers": {
       const domain = cleanDomain(body.domain);

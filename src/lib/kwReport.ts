@@ -419,14 +419,15 @@ export const allSuggestions = (keyword: string, country: string, questions: bool
  * The free Keyword Tool on arrowsterr.com: the numbers, 10 variations and 5 questions. It uses the same saved
  * pieces as the app, so a keyword anyone looked up in the last 30 days costs nothing.
  */
-export async function freeKeyword(keyword: string, country: string) {
+export async function freeKeyword(keyword: string, country: string, focus: "all" | "volume" | "difficulty" = "all") {
   const m = MARKETS[country] ?? MARKETS["United States"];
   const cost = { total: 0 };
   const empty = (): KwList => ({ total: 0, volume: 0, rows: [] });
+  // The volume and difficulty checkers show no questions, and difficulty needs no volume backfill, so they skip those calls.
   const [overview, variations, questions] = await Promise.all([
-    overviewMany([keyword], m, cost).then(async (main) => (await fillVolume(new Map([[keyword, main.get(keyword) ?? null]]), m, cost)).get(keyword) ?? null),
+    overviewMany([keyword], m, cost).then(async (main) => (focus === "difficulty" ? main.get(keyword) ?? null : (await fillVolume(new Map([[keyword, main.get(keyword) ?? null]]), m, cost)).get(keyword) ?? null)),
     suggestions(keyword, m, false, cost).catch(empty).then((v) => widen(keyword, v, m, false, cost)),
-    suggestions(keyword, m, true, cost).catch(empty).then((q) => widen(keyword, q, m, true, cost)),
+    focus === "all" ? suggestions(keyword, m, true, cost).catch(empty).then((q) => widen(keyword, q, m, true, cost)) : Promise.resolve(empty()),
   ]);
   const pick = (l: KwList, n: number) => l.rows.filter((r) => r.keyword !== keyword).slice(0, n).map((r) => ({ keyword: r.keyword, volume: r.volume, kd: r.kd, cpc: r.cpc, intent: r.intent }));
   return {
