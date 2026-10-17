@@ -1,6 +1,6 @@
 # Content v2: Opportunities, Calendar and Content
 
-Arrowsterr researches and writes 10 articles a month for each brand. People pick topics and dates; the AI does the research and the full draft. Nobody edits inside Arrowsterr: an article is approved, regenerated, exported or published.
+Arrowsterr researches and writes 10 articles a month for each brand. People pick topics and dates; the AI does the research and the full draft. Every draft lands in Content, where people edit it by hand and publish it to the brand's site.
 
 ## Done (17 Oct)
 
@@ -19,7 +19,9 @@ Arrowsterr researches and writes 10 articles a month for each brand. People pick
 | Content | **Opportunities**, **Calendar**, **Content** |
 | Reports | Reports |
 
-Removed from the sidebar: Zippie, Content Intelligence. Their routes forward to Opportunities. Brand Voice lives in Settings and opens on first use of Content.
+Removed from the sidebar: Zippie, Content Intelligence. Content Intelligence forwards to Opportunities. Brand Voice lives in Settings and opens on first use of Content.
+
+**Ask Zippie** becomes a floating button in the bottom-right corner of every page. It opens a chat panel over the page and knows which brand and page you're on. `/zippie` opens the panel on Prompts.
 
 ## Screens
 
@@ -39,10 +41,12 @@ Removed from the sidebar: Zippie, Content Intelligence. Their routes forward to 
 ### Content (the article library)
 
 - A table of articles: title, keyword, status, words, date, sources used.
-- Opening an article shows it read-only, as it will look published, with interactive modules running.
+- Every finished draft lands here with status Ready.
+- Opening an article shows a plain editor: headings, text, lists, links, images, tables and interactive module blocks. It saves as you type. No AI inside the editor.
 - A right panel shows the research: Google's top 10, the AI answers and the sources they cited, and the brief.
-- Actions: **Approve**, **Regenerate** (with a one-line note, for example "shorter intro"; uses no extra article), **Export** (HTML, Markdown, Google Doc) and **Publish** (WordPress through `wp-plugin`, plus the CMSs in `src/lib/cms.ts`).
-- Removed: the editor (`DocsEditor.tsx`), comments (`CommentRail.tsx`), the AI bar (`AiBar.tsx`) and agentic edits.
+- Actions: **Regenerate** (with a one-line note, for example "shorter intro"; uses no extra article and replaces the draft after a confirm), **Export** (HTML, Markdown, Google Doc) and **Publish**.
+- **Publish:** pick one of the brand's connected sites (WordPress through `wp-plugin`, Webflow, Shopify, HubSpot, Ghost from `src/lib/cms.ts`), as a draft or live, now or on the calendar date. The article keeps the published link and its status turns Published.
+- Removed: the AI bar (`AiBar.tsx`), the AI parts of `DocsEditor.tsx`, comments (`CommentRail.tsx`) and agentic edits. The plain editing in `DocsEditor.tsx` stays.
 
 ### Brand Voice (required before the first article)
 
@@ -69,6 +73,23 @@ A `write_article` job on the Fly worker, step by step. Each step saves its outpu
 
 **Monthly 10:** on the 1st, the job picks the top unscheduled opportunities (BOFU first, then volume) and fills any free slots up to 10. Picks already scheduled count first.
 
+## Per brand and per workspace
+
+Today Search Console (`gsc_connections`, by site) and Google Analytics (`ga4_connections`, by brand) are per brand. CMS connections (`cms_connections`) and Slack (`integrations`) are per workspace, so every brand in a workspace publishes to the same sites.
+
+| Per brand (Settings › Brand) | Per workspace (Settings › Workspace) |
+|---|---|
+| Publishing sites: WordPress, Webflow, Shopify, HubSpot, Ghost | Members and roles |
+| Search Console, Google Analytics | Plan, billing, tasks |
+| Brand Voice | API keys, MCP, OAuth apps |
+| Slack channel for this brand's alerts | Slack connection (the workspace's Slack) |
+| Alert thresholds | Default alert thresholds |
+
+**Change (migration `047_brand_integrations.sql`):**
+- `cms_connections` gets `brand_id`. Existing rows go to the workspace's first brand, and a workspace with several brands gets a one-time notice to move them.
+- `integrations` keeps the Slack connection. A new `brand_settings` table holds each brand's Slack channel and alert thresholds, falling back to the workspace's.
+- Settings splits into **Brand** (the left column above) and **Workspace** (the right).
+
 ## Interactive modules
 
 - Types: calculator, comparison table with filters, checklist, quiz, ROI estimator, timeline.
@@ -80,18 +101,20 @@ A `write_article` job on the Fly worker, step by step. Each step saves its outpu
 
 | Week | Build | Done when |
 |---|---|---|
-| 1 | Sidebar, Opportunities page, Calendar page with Month, Week and List views and the right sidebar; Zippie and Content Intelligence out of the sidebar | A topic dragged from the sidebar lands on a day and shows in Opportunities with that date |
-| 2 | Brand Voice in Settings; Content library and read-only article view; Export | A pasted article shows read-only and exports to HTML and Markdown |
+| 1 | Sidebar, Opportunities page, Calendar page with Month, Week and List views and the right sidebar; Zippie as the floating widget; Content Intelligence out of the sidebar | A topic dragged from the sidebar lands on a day and shows in Opportunities with that date |
+| 2 | Brand Voice; per-brand integrations and the Brand / Workspace split in Settings; Content library with the plain editor; Export | Two brands in one workspace publish to two different WordPress sites |
 | 3 | Research steps 1–3 on the worker with Playwright | A keyword gets 10 search results, 5+ pages read and AI answers saved, and a retried job reuses them |
 | 4 | Brief, draft and check (steps 4–6); the monthly 10; Regenerate | A scheduled topic becomes a Ready article 3 days before its date |
-| 5 | Interactive modules; Publish to WordPress and the CMSs | A calculator module runs in the article and in a WordPress post |
-| 6 | Board view, the editor and agentic features removed, tests | Every test below passes |
+| 5 | Interactive modules; Publish to the brand's sites, now or on the date | A calculator module runs in the article and in a WordPress post |
+| 6 | Board view, the AI editing features removed, tests | Every test below passes |
 
 **Tests:**
 - A job killed at any step and restarted finishes with one article and one charge.
 - A page that times out or blocks the bot is skipped and the article still finishes.
 - The 11th article in a month is refused; Regenerate is not counted.
 - A module with a console error is dropped.
+- A brand's article can only publish to that brand's sites.
+- Regenerate never overwrites hand edits without the confirm.
 - Every claim in a finished draft points to a saved source.
 
 ## Cost of one full article
