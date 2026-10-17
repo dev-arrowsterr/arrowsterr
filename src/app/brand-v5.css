@@ -115,3 +115,7 @@
   .aw .aw-intro__grid { grid-template-columns: minmax(0, 1fr); }
   .aw .aw-intro__title { font-size: 24px !important; }
 }
+
+/* Zippie's chat box: the brand ring on focus, like every other field. */
+.aw .zp-composer:focus-within { box-shadow: 0 0 0 1px var(--aw-brand), 0 0 0 4px rgba(9, 67, 176, 0.14), 0 8px 28px -10px rgba(9, 67, 176, 0.28); }
+.aw .zp-input:focus, .aw .zp-input:focus-visible { outline: none; }

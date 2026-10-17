@@ -401,7 +401,10 @@ function ChatView(p: {
 }) {
   const end = useRef<HTMLDivElement>(null);
   const last = p.messages[p.messages.length - 1];
-  useEffect(() => end.current?.scrollIntoView({ block: "end" }), [p.messages.length, last?.text.length, last?.working]);
+  // Newer Chrome returns a Promise from scrollIntoView. An effect must return nothing or a cleanup function, so keep the braces.
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: "end" });
+  }, [p.messages.length, last?.text.length, last?.working]);
 
   if (!p.messages.length) {
     return (
