@@ -4,7 +4,7 @@ import { Dropdown } from "../Pickers";
 import { useState } from "react";
 import type { CalendarItem } from "@/lib/db";
 import { Pop } from "../Sheet";
-import { byStage, Difficulty, STAGE_COLORS, statusLabel } from "./shared";
+import { byStage, STAGE_COLORS, statusLabel } from "./shared";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -152,48 +152,6 @@ export function CalendarGrid({
   );
 }
 
-/** Every scheduled piece, grouped by its date. */
-export function CalendarList({ items, onOpen, onDay }: { items: CalendarItem[]; onOpen: (id: string) => void; onDay: (date: string) => void }) {
-  const dated = items.filter((i) => i.due_date).sort((a, b) => a.due_date!.localeCompare(b.due_date!) || byStage(a, b));
-  const groups: { day: string; items: CalendarItem[] }[] = [];
-  for (const i of dated) {
-    const g = groups.at(-1);
-    if (g?.day === i.due_date) g.items.push(i);
-    else groups.push({ day: i.due_date!, items: [i] });
-  }
-  const today = iso(new Date());
-  return (
-    <section className="aw-frame min-w-0">
-      {groups.map((g) => (
-        <div key={g.day} className="border-b border-rule-faint last:border-b-0">
-          <button type="button" onClick={() => onDay(g.day)} className="flex w-full items-center justify-between gap-3 bg-surface-2 px-4 py-2 text-left">
-            <span className={`text-[13px] font-semibold ${g.day < today ? "text-muted" : "text-ink"}`}>
-              {new Date(`${g.day}T00:00:00`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" })}
-            </span>
-            <span className="aw-num text-[12px] text-muted">{g.items.length}</span>
-          </button>
-          <ul>
-            {g.items.map((i) => (
-              <li key={i.id}>
-                <button type="button" onClick={() => onOpen(i.id)} className="flex w-full items-center gap-3 border-t border-rule-faint px-4 py-2.5 text-left hover:bg-brand-pale/60">
-                  <i className="inline-block h-4 w-[3px] shrink-0" style={{ background: i.stage ? STAGE_COLORS[i.stage] : "var(--aw-faint)" }} />
-                  <span className={`min-w-0 flex-1 truncate text-[14px] ${i.status === "published" ? "text-muted line-through" : "text-ink"}`}>{i.keyword}</span>
-                  <span className="aw-num hidden w-20 text-right text-[12px] text-muted sm:block">{i.volume === null ? "–" : `${i.volume.toLocaleString("en-US")}/mo`}</span>
-                  <span className="hidden w-12 sm:block">
-                    <Difficulty kd={i.difficulty} />
-                  </span>
-                  <span className={`aw-cal-card__st aw-cal-card__st--${i.status}`}>{statusLabel(i)}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-      {!groups.length ? <p className="px-4 py-10 text-center text-[13px] text-muted">Nothing scheduled</p> : null}
-    </section>
-  );
-}
-
 type Stage3 = "bofu" | "mofu" | "tofu" | "none";
 type Range = { min: string; max: string };
 type SideFilter = { stage: Stage3[]; vol: Range; kd: Range; theme: string };
@@ -232,12 +190,7 @@ export function TopicSidebar({ items, canEdit, onOpen, onMove }: { items: Calend
   return (
     <aside {...drop(null)} className={`aw-frame flex max-h-[calc(100vh-160px)] min-h-80 flex-col xl:sticky xl:top-16 ${over === "tray" ? "outline-2 -outline-offset-2 outline-brand" : ""}`}>
       <div className="flex flex-col gap-2 border-b border-rule px-3 pt-3 pb-3">
-        <div className="flex items-center justify-between gap-2">
-          <h3 className="aw-h4">Unscheduled</h3>
-          <span className="aw-num text-[12px] text-muted">
-            {list.length} of {open.length}
-          </span>
-        </div>
+        <h3 className="aw-h4">Unscheduled</h3>
         <div className="flex items-center gap-1.5">
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" aria-label="Search topics" className="aw-pop__field min-w-0 flex-1" />
           <button type="button" className={`aw-bank__filter ${active ? "is-on" : ""}`} aria-haspopup="dialog" aria-expanded={Boolean(menu)} onClick={(e) => setMenu(menu ? null : e.currentTarget.getBoundingClientRect())}>
@@ -254,13 +207,13 @@ export function TopicSidebar({ items, canEdit, onOpen, onMove }: { items: Calend
         ))}
         {!list.length ? <p className="py-6 text-center text-[13px] text-muted">{active || q ? "No topics match" : "Every topic has a date"}</p> : null}
       </div>
-      {menu ? <SideMenu anchor={menu} items={open} themes={themes} value={f} onApply={setF} onClose={() => setMenu(null)} /> : null}
+      {menu ? <SideMenu anchor={menu} themes={themes} value={f} onApply={setF} onClose={() => setMenu(null)} /> : null}
     </aside>
   );
 }
 
 /** The sidebar's filter menu: stage, search volume, difficulty and theme. */
-function SideMenu({ anchor, items, themes, value, onApply, onClose }: { anchor: DOMRect; items: CalendarItem[]; themes: string[]; value: SideFilter; onApply: (f: SideFilter) => void; onClose: () => void }) {
+function SideMenu({ anchor, themes, value, onApply, onClose }: { anchor: DOMRect; themes: string[]; value: SideFilter; onApply: (f: SideFilter) => void; onClose: () => void }) {
   const [d, setD] = useState<SideFilter>(value);
   const flip = (s: Stage3) => setD((x) => ({ ...x, stage: x.stage.includes(s) ? x.stage.filter((y) => y !== s) : [...x.stage, s] }));
   const range = (k: "vol" | "kd", label: string) => (
@@ -291,7 +244,6 @@ function SideMenu({ anchor, items, themes, value, onApply, onClose }: { anchor: 
                   </>
                 )}
               </span>
-              <span className="aw-num text-[11px] text-muted">{items.filter((i) => stageOf(i) === s).length}</span>
             </label>
           ))}
         </div>

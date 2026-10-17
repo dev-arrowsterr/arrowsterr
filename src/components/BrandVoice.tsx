@@ -17,7 +17,7 @@ const FIELDS: { id: keyof Form; label: string; area?: boolean }[] = [
   { id: "reader", label: "Target reader" },
 ];
 
-/** Settings › Brand › Brand Voice: paste links or text, distill, check the fields, save. */
+/** Brand › Tone of voice: paste links or text, distill, check the fields, save. */
 export function BrandVoiceSettings({ auth, brand, canEdit }: { auth: RunAuth; brand: { id: string; name: string }; canEdit: boolean }) {
   const [row, setRow] = useState<VoiceRow | null | undefined>(undefined);
   const [setup, setSetup] = useState("");

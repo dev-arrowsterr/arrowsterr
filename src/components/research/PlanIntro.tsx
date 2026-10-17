@@ -139,7 +139,7 @@ export function PlanSample() {
           <span className="aw-chip">Example only · click a keyword</span>
         </div>
         {view === "list" ? (
-          <Sheet<Row> id="plan:sample" label="Sample Content Plan" rows={SAMPLE} cols={COLS} rowKey={(r) => r.id} sort={{ key: "stage", desc: false }} height="none" showFilters={false} toolbar={toggle} onOpen={setOpen} />
+          <Sheet<Row> id="plan:sample" label="Sample Content Plan" rows={SAMPLE} cols={COLS} rowKey={(r) => r.id} sort={{ key: "stage", desc: false }} height="none" showFilters={false} counts={false} toolbar={toggle} onOpen={setOpen} />
         ) : (
           <div className="p-4">
             <CalendarGrid items={SAMPLE} canEdit={false} onMove={() => {}} onDay={() => {}} onOpen={(id) => setOpen(SAMPLE.find((r) => r.id === id) ?? null)} toolbar={toggle} />

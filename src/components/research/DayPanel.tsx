@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { CalendarItem } from "@/lib/db";
 import type { Stage } from "@/lib/research";
+import { inWriterAt } from "@/lib/writerImport";
 import { STATUSES } from "./ContentPiece";
 import { STAGE_COLORS } from "./shared";
 
@@ -17,17 +18,19 @@ export type NewPiece = {
   url?: string | null;
 };
 
-/** One day of the editorial calendar: what is planned, and a box to add a keyword to it. */
+/** One day of the editorial calendar: what is planned, each with Import to Agentic Writer, and a box to add a keyword to it. */
 export function DayPanel({
   items,
   canEdit,
   onOpen,
   onAdd,
+  onImport,
 }: {
   items: CalendarItem[];
   canEdit: boolean;
   onOpen: (id: string) => void;
   onAdd: (p: NewPiece) => void;
+  onImport?: (id: string) => void;
 }) {
   const [draft, setDraft] = useState("");
 
@@ -37,13 +40,8 @@ export function DayPanel({
         <h3 className="aw-h4">Content for this day</h3>
         <ul className="flex flex-col gap-2">
           {items.map((i) => (
-            <li key={i.id}>
-              <button
-                type="button"
-                onClick={() => onOpen(i.id)}
-                className="aw-frame flex w-full items-center gap-3 border-l-4! px-4 py-3 text-left transition-shadow hover:shadow-aw"
-                style={{ borderLeftColor: i.stage ? STAGE_COLORS[i.stage] : "var(--aw-faint)" }}
-              >
+            <li key={i.id} className="aw-frame flex items-center gap-2 border-l-4! pr-3" style={{ borderLeftColor: i.stage ? STAGE_COLORS[i.stage] : "var(--aw-faint)" }}>
+              <button type="button" onClick={() => onOpen(i.id)} className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left hover:bg-brand-pale/60">
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="truncate text-[15px] font-medium text-ink">{i.keyword}</span>
                   <span className="text-[12px] text-muted">
@@ -56,6 +54,13 @@ export function DayPanel({
                   ›
                 </span>
               </button>
+              {inWriterAt(i) ? (
+                <span className="aw-chip aw-chip--brand whitespace-nowrap">In writer</span>
+              ) : canEdit && onImport && i.status !== "published" ? (
+                <button type="button" className="aw-chip aw-chip--btn whitespace-nowrap" onClick={() => onImport(i.id)}>
+                  Import to Agentic Writer
+                </button>
+              ) : null}
             </li>
           ))}
           {!items.length ? <li className="rounded-aw border border-dashed border-rule px-4 py-5 text-center text-[13px] text-muted">Nothing planned yet</li> : null}

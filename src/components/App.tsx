@@ -63,11 +63,14 @@ import { TrafficPage } from "./TrafficPage";
 import { ReportsPage } from "./reports/ReportsPage";
 import { VisitorsPage } from "./VisitorsPage";
 import { ZippieWidget } from "./ZippieWidget";
-import { ContentPage } from "./content/ContentPage";
+import { AgenticWriterPage } from "./writer/AgenticWriterPage";
+import { LibraryPage } from "./writer/LibraryPage";
+import { BrandPage } from "./BrandPage";
+import { CONTENT_ALIASES, CONTENT_SLUGS, type ContentPage } from "@/lib/contentRoutes";
 
 export type { Brand } from "@/lib/db";
-type Page = "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "gap" | "opportunities" | "calendar" | "content" | "summary" | SettingsTab;
-const RESEARCH: Page[] = ["keywords", "domain", "gap", "opportunities", "calendar"];
+type Page = "prompts" | "competitors" | "domains" | "urls" | "traffic" | "visitors" | "keywords" | "domain" | "gap" | ContentPage | "summary" | SettingsTab;
+const RESEARCH: Page[] = ["keywords", "domain", "gap", "calendar"];
 const VISIBILITY: Page[] = ["prompts", "competitors", "domains", "urls"];
 /** Pages with their own PDF (docs/reports.md, section 32.3). */
 const PDF_OF: Partial<Record<Page, PdfPage>> = { prompts: "prompts", competitors: "competitors", domains: "sources", urls: "sources" }; // the only pages with period, topic and model filters
@@ -83,9 +86,7 @@ const SLUGS: Record<Page, string> = {
   keywords: "/keywords",
   domain: "/domain-research",
   gap: "/competitive-analysis",
-  opportunities: "/opportunities",
-  calendar: "/calendar",
-  content: "/content",
+  ...CONTENT_SLUGS,
   summary: "/reports",
   profile: "/settings/profile",
   security: "/settings/security",
@@ -99,7 +100,6 @@ const SLUGS: Record<Page, string> = {
   integrations: "/settings/integrations",
   publishing: "/settings/publishing",
   google: "/settings/google-analytics",
-  voice: "/settings/brand-voice",
   alerts: "/settings/alerts",
   billing: "/settings/billing",
   exports: "/settings/imports-exports",
@@ -115,20 +115,10 @@ const ALIASES: Record<string, Page> = {
   "/urls": "urls",
   "/analytics": "traffic",
   "/keyword-research": "keywords",
-  "/agentic-research": "opportunities",
-  "/topic-bank": "opportunities",
-  "/content-plan": "opportunities",
   "/keyword-gap": "gap",
   "/industry-research": "gap",
   "/ai-gap": "gap",
-  "/planner": "opportunities",
-  "/writer": "opportunities",
-  "/inkwell": "opportunities",
-  "/agentic-writer": "opportunities",
-  "/content-intelligence": "opportunities",
-  "/performance": "opportunities",
-  "/content-calendar": "calendar",
-  "/reports/content": "opportunities",
+  ...CONTENT_ALIASES,
   "/plan": "billing",
   "/billing": "billing",
 };
@@ -626,8 +616,8 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
         onDone={onboard}
         onExit={() => {
           setAdding(false);
-          // Starter on Organic Research lands on Opportunities; everyone else on their prompts.
-          go(plan && !plan.open.visibility ? "opportunities" : "prompts");
+          // Starter on Organic Research lands on the Editorial Calendar; everyone else on their prompts.
+          go(plan && !plan.open.visibility ? "calendar" : "prompts");
         }}
         engines={engines ?? []}
         checkEvery={plan?.limits.checkEvery ?? 1}
@@ -890,8 +880,12 @@ function Shell({ sb, session }: { sb: SupabaseClient; session: Session }) {
               }}
               onPlans={() => go("billing")}
             />
-          ) : page === "content" ? (
-            <ContentPage key={view.brand.id} view={view} auth={auth} canEdit={canEdit} />
+          ) : page === "writer" ? (
+            <AgenticWriterPage key={view.brand.id} view={view} auth={auth} canEdit={canEdit} />
+          ) : page === "library" ? (
+            <LibraryPage key={view.brand.id} view={view} auth={auth} canEdit={canEdit} />
+          ) : page === "brand" ? (
+            <BrandPage key={view.brand.id} sb={sb} auth={auth} brand={{ id: view.brand.id, name: view.brand.name, domain: view.brand.domain }} brandCount={brands?.length ?? 1} canEdit={canEdit} />
           ) : RESEARCH.includes(page) ? (
             <ResearchPage key={view.brand.id} sb={sb} auth={auth} view={view} canEdit={canEdit} tool={page as Tool} onTool={(t) => go(t)} seoStart={seoStart}
               refresh={{ paid: Boolean(plan && plan.plan !== "free" && plan.plan !== "trial"), onUpgrade: () => go("billing") }}
@@ -994,6 +988,8 @@ const ICONS: Record<string, string> = {
   spark: '<path d="M12 3c.6 4.6 1.9 5.9 6.5 6.5-4.6.6-5.9 1.9-6.5 6.5-.6-4.6-1.9-5.9-6.5-6.5C10.1 8.9 11.4 7.6 12 3Z"/>',
   calendar: '<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   pen: '<path d="M4 20l4-1 11-11a2.1 2.1 0 0 0-3-3L5 16l-1 4z"/><path d="M14 7l3 3"/>',
+  book: '<path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5"/>',
+  palette: '<path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.8-.8 1.8-1.8 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-1 .8-1.8 1.8-1.8H17a4 4 0 0 0 4-4C21 6.6 17 3 12 3z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10.5" cy="7.5" r="1"/><circle cx="15" cy="7.5" r="1"/>',
   trend: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
   eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   report: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
@@ -1008,7 +1004,7 @@ function NavIcon({ name }: { name: string }) {
 
 /** The toolset a page belongs to. Starter opens one of them. */
 const trackOf = (page: Page): Track | null =>
-  ["prompts", "competitors", "domains", "urls"].includes(page) ? "visibility" : ["keywords", "domain", "gap", "opportunities", "calendar", "content"].includes(page) ? "seo" : null;
+  ["prompts", "competitors", "domains", "urls"].includes(page) ? "visibility" : ["keywords", "domain", "gap", "calendar", "writer", "library"].includes(page) ? "seo" : null;
 
 /** The big modules of the app. Each opens to its own pages. */
 const NAV: { group: string; icon: string; items: { id: Page; label: string; icon: string; also?: Page[] }[] }[] = [
@@ -1034,9 +1030,10 @@ const NAV: { group: string; icon: string; items: { id: Page; label: string; icon
     group: "Content",
     icon: "pen",
     items: [
-      { id: "opportunities", label: "Opportunities", icon: "bank" },
-      { id: "calendar", label: "Calendar", icon: "calendar" },
-      { id: "content", label: "Content", icon: "pen" },
+      { id: "calendar", label: "Editorial Calendar", icon: "calendar" },
+      { id: "writer", label: "Agentic Writer", icon: "pen" },
+      { id: "library", label: "Library", icon: "book" },
+      { id: "brand", label: "Brand", icon: "palette" },
     ],
   },
   {

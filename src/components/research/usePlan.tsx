@@ -6,11 +6,13 @@ import { addCalendarItems, deleteCalendarItems, listCalendar, restoreCalendarIte
 import type { RunAuth } from "@/lib/runner";
 import { useStash } from "@/lib/stash";
 import { quietly, recordUndo } from "@/lib/undo";
+import { canImport, importPatch } from "@/lib/writerImport";
+import { Confirm } from "../reports/Dialog";
 import type { NewPiece } from "./DayPanel";
 
 /**
- * The Content Plan's pieces, shared by Opportunities and the Calendar: load, edit with Undo, add, delete with
- * 10 seconds to undo, and Write now. Both pages read the same stash, so a date set on one shows on the other.
+ * The Content Plan's pieces for the Editorial Calendar's list and calendar views: load, edit with Undo, add,
+ * delete with 10 seconds to undo, and Import to Agentic Writer. Every view reads the same stash.
  */
 export function usePlan({ sb, auth, site }: { sb: SupabaseClient; auth: RunAuth; site: Site }) {
   const [items, setItems] = useStash<CalendarItem[] | null>(`cal:${site.id}:items`, null);
@@ -18,6 +20,7 @@ export function usePlan({ sb, auth, site }: { sb: SupabaseClient; auth: RunAuth;
   const [error, setError] = useState("");
   const [undo, setUndo] = useState<CalendarItem[] | null>(null);
   const [flash, setFlash] = useState("");
+  const [asking, setAsking] = useState<{ ids: string[]; done?: () => void } | null>(null);
   const pending = useRef<{ ids: string[]; timer: ReturnType<typeof setTimeout> } | null>(null);
 
   const load = useCallback(async () => {
@@ -92,10 +95,15 @@ export function usePlan({ sb, auth, site }: { sb: SupabaseClient; auth: RunAuth;
     }
   }
 
-  /** Take items off the plan, with 10 seconds to undo. Big deletes ask first. */
-  function remove(ids: string[]) {
-    if (!items) return false;
-    if (ids.length > 10 && !confirm(`Delete ${ids.length} pieces from your Content Plan?${(runs ?? []).some((r) => r.status === "done") ? " You can restore the AI's plan later." : ""}`)) return false;
+  /** Take items off the plan, with 10 seconds to undo. Big deletes ask first; done runs once they go. */
+  function remove(ids: string[], done?: () => void) {
+    if (!items) return;
+    if (ids.length > 10) return setAsking({ ids, done });
+    drop(ids);
+    done?.();
+  }
+  function drop(ids: string[]) {
+    if (!items) return;
     commit();
     const gone = items.filter((i) => ids.includes(i.id));
     setItems(items.filter((i) => !ids.includes(i.id)));
@@ -107,8 +115,7 @@ export function usePlan({ sb, auth, site }: { sb: SupabaseClient; auth: RunAuth;
         setUndo(null);
       }, 10_000),
     };
-    recordUndo({ label: `deleting ${gone.length} ${gone.length === 1 ? "piece" : "pieces"}`, undo: () => bringBack(gone) });
-    return true;
+    recordUndo({ label: gone.length === 1 ? `deleting "${gone[0].keyword}"` : "deleting pieces", undo: () => bringBack(gone) });
   }
   /** Ctrl + Z after a delete: cancel it while it waits, or put the pieces back once it went through. */
   async function bringBack(gone: CalendarItem[]) {
@@ -127,30 +134,30 @@ export function usePlan({ sb, auth, site }: { sb: SupabaseClient; auth: RunAuth;
   }
 
   /**
-   * Write now: queue pieces for writing. The status set has no "queued" yet, so a queued piece turns Writing
-   * and keeps the time it was queued in extra.write_queued_at for the writing job to pick up.
+   * Import to Agentic Writer: sets extra.in_writer_at (src/lib/writerImport.ts) and leaves the status alone.
+   * Pieces already in the writer, and published ones, are skipped. One step for Undo.
    */
-  async function writeNow(ids: string[]) {
-    const todo = (items ?? []).filter((i) => ids.includes(i.id) && i.status !== "published" && i.status !== "writing");
+  async function importToWriter(ids: string[]) {
+    const todo = (items ?? []).filter((i) => ids.includes(i.id) && canImport(i));
     if (!todo.length) {
-      setFlash(ids.length === 1 ? "Already writing" : "Nothing to queue");
+      setFlash("Already in the Agentic Writer");
       return;
     }
     const at = new Date().toISOString();
-    const before = new Map(todo.map((i) => [i.id, { status: i.status, extra: i.extra }]));
-    const queue = () => Promise.all(todo.map((i) => patch(i.id, { status: "writing", extra: { ...(i.extra ?? {}), write_queued_at: at } })));
+    const before = new Map(todo.map((i) => [i.id, i.extra ?? {}]));
+    const send = () => Promise.all(todo.map((i) => patch(i.id, importPatch({ extra: before.get(i.id) }, at))));
     recordUndo({
-      label: `queuing ${todo.length} ${todo.length === 1 ? "article" : "articles"}`,
-      undo: () => Promise.all(todo.map((i) => patch(i.id, before.get(i.id)!))),
-      redo: queue,
+      label: todo.length === 1 ? `importing "${todo[0].keyword}"` : "importing to the Agentic Writer",
+      undo: () => Promise.all(todo.map((i) => patch(i.id, { extra: before.get(i.id)! }))),
+      redo: send,
     });
-    await quietly(queue);
-    setFlash(todo.length === 1 ? `Queued "${todo[0].keyword}" for writing` : `Queued ${todo.length} articles for writing`);
+    await quietly(send);
+    setFlash(todo.length === 1 ? `Imported "${todo[0].keyword}" to the Agentic Writer` : "Imported to the Agentic Writer");
   }
 
   const toast = undo ? (
     <div className="aw-undo" role="status">
-      Deleted {undo.length} {undo.length === 1 ? "piece" : "pieces"}
+      Deleted
       <button type="button" onClick={undoRemove}>
         Undo
       </button>
@@ -160,6 +167,36 @@ export function usePlan({ sb, auth, site }: { sb: SupabaseClient; auth: RunAuth;
       {flash}
     </div>
   ) : null;
+  const dialog = asking ? (
+    <Confirm
+      title="Delete pieces"
+      text={`They come off the Editorial Calendar.${(runs ?? []).some((r) => r.status === "done") ? " You can restore the AI's plan later." : ""}`}
+      action="Delete"
+      onConfirm={() => {
+        drop(asking.ids);
+        asking.done?.();
+        setAsking(null);
+      }}
+      onClose={() => setAsking(null)}
+    />
+  ) : null;
 
-  return { items, setItems, runs, error, setError, load, patch, addOn, remove, writeNow, toast };
+  return {
+    items,
+    setItems,
+    runs,
+    error,
+    setError,
+    load,
+    patch,
+    addOn,
+    remove,
+    importToWriter,
+    toast: (
+      <>
+        {toast}
+        {dialog}
+      </>
+    ),
+  };
 }

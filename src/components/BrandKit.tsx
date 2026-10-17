@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useRef, useState } from "react";
 import { preinit } from "react-dom";
 import { cleanKit, contrast, DEFAULT_KIT, kitToTheme, readKitStream, type BrandKit, type KitColors, type KitPart, type KitRow } from "@/lib/brandKit";
+import { kitRowForBrand } from "@/lib/brandGuidelines";
 import { FONTS, fontStack, fontsUrl, type Font } from "@/lib/reportTheme";
 import type { RunAuth } from "@/lib/runner";
 import { Dropdown } from "./Pickers";
@@ -359,6 +360,61 @@ export function BrandKitSettings({ sb, auth, canEdit, website: siteGuess, brands
       ) : null}
     </div>
   );
+}
+
+/**
+ * Brand › Brand Kit: the kit of the brand on screen. Its own kit, or the workspace's when that one is this brand's
+ * (kitRowForBrand). Learning a new kit saves it as the brand's own, or as the workspace's for a one-brand workspace.
+ */
+export function BrandKitPanel({ sb, auth, canEdit, brand, brandCount }: { sb: SupabaseClient; auth: RunAuth; canEdit: boolean; brand: BrandLite; brandCount: number }) {
+  const { rows, reload } = useKits(sb, auth.workspaceId);
+  const [learning, setLearning] = useState<string | null>(null);
+  const [site, setSite] = useState(brand.domain);
+  if (rows === undefined) return <p className="aw-small">Loading…</p>;
+  if (rows === null) return <p className="aw-callout max-w-xl text-[15px]!">{NOT_RUN}</p>;
+  const row = kitRowForBrand(rows, brand, brandCount);
+  const target = row ? (row.key === "workspace" ? null : brand.id) : brandCount <= 1 ? null : brand.id;
+
+  if (learning)
+    return (
+      <KitLearn
+        key={`${learning}|${target}`}
+        auth={auth}
+        website={learning}
+        brandId={target}
+        onDone={async () => {
+          await sb.from("brand_kits").update({ confirmed_at: new Date().toISOString() }).eq("workspace_id", auth.workspaceId).eq("key", target ?? "workspace");
+          setLearning(null);
+          void reload();
+        }}
+        onSkip={() => setLearning(null)}
+      />
+    );
+
+  if (!row)
+    return (
+      <ToolIntro
+        eyebrow="Brand Kit"
+        title={`${brand.name}'s brand, learned from its website`}
+        lead="Zippie reads the site and saves the logo, colors, fonts and voice."
+        action={
+          <form
+            className="flex flex-wrap gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (site.trim()) setLearning(site.trim());
+            }}
+          >
+            <input value={site} onChange={(e) => setSite(e.target.value)} placeholder="acme.com" aria-label="Website" className="aw-input w-64!" disabled={!canEdit} />
+            <button type="submit" className="aw-btn aw-btn--accent" disabled={!canEdit || !site.trim()}>
+              Learn the brand
+            </button>
+          </form>
+        }
+      />
+    );
+
+  return <KitEditor key={`${row.key}-${row.learned_at ?? ""}`} sb={sb} workspaceId={auth.workspaceId} row={row} canEdit={canEdit} onLearn={() => setLearning(row.website || brand.domain)} />;
 }
 
 /** Every field of a kit, with a live cover next to it. Saves on the button. */

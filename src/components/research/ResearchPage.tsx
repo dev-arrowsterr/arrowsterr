@@ -8,21 +8,19 @@ import { answered, brandStats } from "@/lib/metrics";
 import type { View } from "@/lib/view";
 import type { RunAuth } from "@/lib/runner";
 import { Thinking } from "../ui";
-import { ContentCalendar, type Refresh } from "./ContentCalendar";
+import { EditorialCalendar, type Refresh } from "./EditorialCalendar";
 import { DomainResearch, type SeoStart } from "./DomainResearch";
 import { KeywordGap } from "./KeywordGap";
 import { KeywordOverview } from "./KeywordOverview";
 import { AnalyzeSeo, ResearchKeyword } from "./shared";
-import { CalendarPage } from "./CalendarPage";
 import type { WriterAccess } from "./ContentPiece";
 
-export type Tool = "keywords" | "domain" | "gap" | "opportunities" | "calendar";
+export type Tool = "keywords" | "domain" | "gap" | "calendar";
 const TITLES: Record<Tool, string> = {
   keywords: "Keyword Research",
   domain: "Domain Research",
   gap: "Competitive Analysis",
-  opportunities: "Opportunities",
-  calendar: "Calendar",
+  calendar: "Editorial Calendar",
 };
 
 /** The Research tools for the website picked in the top bar. */
@@ -83,8 +81,8 @@ export function ResearchPage({
       }
     >
     <div className="flex flex-col gap-5">
-      {/* Opportunities and the Calendar draw their own headers, with their actions beside the title. */}
-      {tool === "opportunities" || tool === "calendar" ? null : <h1 className="aw-h2">{TITLES[tool]}</h1>}
+      {/* The Editorial Calendar draws its own header, with its actions beside the title. */}
+      {tool === "calendar" ? null : <h1 className="aw-h2">{TITLES[tool]}</h1>}
       {error ? <p className="aw-error">{error}</p> : null}
       {site === undefined ? (
         <Thinking text={`Loading ${brand.domain}...`} />
@@ -103,10 +101,8 @@ export function ResearchPage({
           stats={brandStats(answered(view.current, view.filter), { name: brand.name, domain: brand.domain })}
           me={{ name: brand.name, logo: brand.logo }}
         />
-      ) : tool === "calendar" ? (
-        <CalendarPage sb={sb} auth={auth} site={site} canEdit={canEdit} brandName={brand.name} writer={writer} />
       ) : (
-        <ContentCalendar sb={sb} auth={auth} site={site} canEdit={canEdit} refresh={refresh} writer={writer} results={{ brandId: brand.id, brandName: brand.name, days: view.days, chats: answered(view.current, view.filter) }} onSite={setSite} />
+        <EditorialCalendar sb={sb} auth={auth} site={site} canEdit={canEdit} refresh={refresh} writer={writer} brandName={brand.name} onSite={setSite} />
       )}
     </div>
     </ResearchKeyword.Provider>

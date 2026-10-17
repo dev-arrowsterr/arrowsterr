@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { ALERT_POINTS } from "@/lib/integrationTypes";
 import type { RunAuth } from "@/lib/runner";
-import { BrandVoiceSettings } from "./BrandVoice";
 import { CmsSettings } from "./CmsSettings";
 import { Dropdown } from "./Pickers";
 import { Confirm } from "./reports/Dialog";
@@ -16,8 +15,8 @@ import { favicon, Thinking } from "./ui";
 type BrandRef = { id: string; name: string; domain: string };
 
 /**
- * Settings › Brand: what each brand has of its own. Publishing sites, Google Analytics, Brand Voice,
- * and its Slack channel and alert size. A picker on top switches the brand.
+ * Settings › Brand: what each brand has of its own. Publishing sites, Google Analytics, and its Slack channel and
+ * alert size. A picker on top switches the brand. Tone of voice lives on the Brand page.
  */
 export function BrandSettings({
   tab,
@@ -47,8 +46,6 @@ export function BrandSettings({
       ) : null}
       {tab === "publishing" ? (
         <CmsSettings key={brand.id} auth={auth} isAdmin={isAdmin} brand={brand} brands={brands} />
-      ) : tab === "voice" ? (
-        <BrandVoiceSettings key={brand.id} auth={auth} brand={brand} canEdit={canEdit} />
       ) : tab === "google" ? (
         <BrandGoogle key={brand.id} auth={auth} brand={brand} canEdit={canEdit} />
       ) : (
