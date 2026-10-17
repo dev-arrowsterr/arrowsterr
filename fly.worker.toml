@@ -1,4 +1,4 @@
-# The Arrowsterr job worker on Fly.io. It calls the app's /api/worker in a loop and prints report PDFs (scripts/worker.mjs).
+# The Arrowsterr job worker on Fly.io. It calls the app's /api/worker in a loop, prints report PDFs and reads pages for article research (scripts/worker.mjs).
 #   fly deploy --config fly.worker.toml
 # It has no web address: nothing calls it, it only calls the app. Its one secret is CRON_SECRET.
 app = "arrowsterr-worker"
@@ -16,4 +16,4 @@ primary_region = "nrt" # Tokyo, next to the app
 
 [[vm]]
   size = "shared-cpu-1x"
-  memory = "1024mb" # Chromium for report PDFs
+  memory = "2048mb" # Chromium for report PDFs and the pages article research reads (docs/content-v2.md)
