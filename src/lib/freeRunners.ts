@@ -212,9 +212,8 @@ export async function authority(domain: string) {
     result: {
       domain,
       authority: pr === null || Number.isNaN(pr) ? null : Math.round(pr * 10),
-      pageRank: pr === null || Number.isNaN(pr) ? null : Math.round(pr * 100) / 100,
-      oprRank: opr?.rank ? Number(opr.rank) : null,
-      tranco: latest ? { rank: latest.rank, date: latest.date, trend: ranks.slice(-30).map((x) => ({ date: x.date, rank: x.rank })) } : null,
+      linkRank: opr?.rank ? Number(opr.rank) : null,
+      popularity: latest ? { rank: latest.rank, date: latest.date, trend: ranks.slice(-30).map((x) => ({ date: x.date, rank: x.rank })) } : null,
     },
     cost: 0,
   };
@@ -233,9 +232,9 @@ export async function speed(url: string, strategy: "mobile" | "desktop") {
   if (!res.ok) {
     if (res.status === 429) {
       if (!key) console.error("Free tool speed: Google refuses calls without PAGESPEED_API_KEY.");
-      throw bad("Google's speed test is busy. Try again in a minute.");
+      throw bad("The speed test is busy. Try again in a minute.");
     }
-    throw bad(data.error?.message?.replace(/^Lighthouse returned error: /, "") ? "Google couldn't test that page. Check that it loads in a browser." : `Google's speed test answered ${res.status}.`);
+    throw bad(data.error?.message?.replace(/^Lighthouse returned error: /, "") ? "That page couldn't be tested." : `The speed test answered ${res.status}.`);
   }
   return { result: { url: first.url, strategy, ...speedSummary(data) }, cost: 0 };
 }
