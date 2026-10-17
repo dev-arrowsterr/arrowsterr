@@ -96,7 +96,15 @@ async function pdfs() {
       await page.waitForSelector("[data-ready]", { timeout: 120_000 });
       await page.evaluate(() => document.fonts.ready);
       await page.emulateMedia({ media: "print" });
-      const pdf = await page.pdf({ format: "A4", printBackground: true, margin: { top: "10mm", bottom: "10mm", left: "8mm", right: "8mm" } });
+      // Page numbers in the bottom margin, small and grey, on every PDF.
+      const pdf = await page.pdf({
+        format: "A4",
+        printBackground: true,
+        displayHeaderFooter: true,
+        headerTemplate: "<span></span>",
+        footerTemplate: '<div style="width:100%;padding:0 8mm;font:8px sans-serif;color:#8a8f99;text-align:right"><span class="pageNumber"></span> / <span class="totalPages"></span></div>',
+        margin: { top: "10mm", bottom: "14mm", left: "8mm", right: "8mm" },
+      });
       const done = await fetch(`${url}/api/pdf/done?id=${job.id}`, { method: "POST", headers: { ...auth, "Content-Type": "application/pdf" }, body: pdf, signal: AbortSignal.timeout(60_000) });
       if (!done.ok) throw new Error(`Upload failed: ${done.status} ${await done.text().catch(() => "")}`.slice(0, 500));
       console.log(`pdf ${job.id}: ${Math.round(pdf.length / 1024)} KB in ${Date.now() - started} ms`);

@@ -1,5 +1,7 @@
 # Reports: plan
 
+> **October 2026: sections 1 to 31 are replaced by section 32.** The report builder, templates and report chat are gone. Each page has its own PDF, and Reports keeps the files and their schedules. Brand Kits (section 31.1 and 31.2) stay.
+
 Goal: the most flexible client reporting in AI search and SEO. An agency should be able to build any report it wants from blocks, brand it as its own, and have it land in each client's inbox every month without touching it. A brand team should get a clear monthly report in two clicks.
 
 Bar to beat: Semrush My Reports (200+ widgets, templates, white label, scheduling, PDF). Where we win:
@@ -41,6 +43,7 @@ Contents
 29. Running cost
 30. Open questions
 31. Brand Kits, templates by purpose and the module builder
+32. Page PDFs, two designs, files and schedules (current)
 
 ---
 
@@ -1294,3 +1297,66 @@ Added on top of section 29.
 | Reading sites: one fetch of the homepage and up to 5 stylesheets on the app server | $0 | $0 |
 | Kit storage in Supabase (a few KB a kit; logos are links or small inline SVGs) | $0 (check) | $0 (check) |
 | **Monthly total added** | **≈ $10** | **≈ $110** |
+
+---
+
+## 32. Page PDFs, two designs, files and schedules (current)
+
+### 32.1 What changed
+- **Removed:** the report builder, the template board, Zippie chat in reports, the White label and Brand Kit tabs in the editor, saved reports, and the Share buttons on Prompts and Competitors.
+- **Still working:** share links that clients already have (`/r/[token]`).
+
+### 32.2 Download PDF and the two designs
+- Every page's top bar has Download PDF (`DownloadPdf.tsx`). Pages without their own PDF yet still print the screen.
+- The window offers two designs (`src/lib/pdf/design.ts`):
+
+  | Design | Who | Look |
+  |---|---|---|
+  | Arrowsterr | Everyone | Night cover, Arrowsterr logo, Signal Blue, Funnel Display, "Made with Arrowsterr" |
+  | Brand Kit | Agency, Enterprise and early access | The kit's logo, colors, fonts and footer line. Arrowsterr's name is nowhere |
+
+- Both designs share one layout. The server decides the design: a brand design below white label, or with no kit, comes back as Arrowsterr's (`tokensFor`).
+- `/api/files` builds the numbers on the server (`src/lib/pdf/server.ts`), stores them on a `report_files` row, and queues a `report_pdf` job.
+- The Fly worker prints `/r/file/[id]` (signed for 15 minutes) to A4 with page numbers. The file is kept in the `report-pdfs` bucket under `files/`.
+
+### 32.3 What each PDF shows
+
+Built in `src/lib/pdf/pages.ts` from the same functions the pages use. `tests/pdfPages.test.ts` checks the numbers match.
+
+| Page | PDF | Sections | Phase |
+|---|---|---|---|
+| Prompts | AI Visibility by Prompt | Headline; Visibility, Sentiment and Position tiles with change and rank; visibility by day for you and your top 3 rivals; topics by AI; every topic's prompts with your spot on each AI | 1, built |
+| Competitors | Competitive Analysis in AI Answers | Quadrant; top 20 brands with change; topic leaders; battle card against your top rival (tiles, trend, by AI) | 1, built |
+| Sources | Sources AI Cites | Owned, third-party and review share; top 20 sites; top 20 links; your pages AI cites | 1, built |
+| Traffic | Website Traffic | 6 tiles; visitors by day; top 10 channels, referrers, pages, countries and devices; visits from AI; your pages' citations against AI visits | 2 |
+| Visitors | Visitors and Leads | 4 tiles; top 25 visitors by buyer score | 2 |
+| Content Plan | Content Plan | Counts by stage; this month's due dates; pieces by stage; top 20 Topic Bank picks | 2 |
+| Content Intelligence | Content Performance | 5 tiles; pages by performance; keyword ranks; update these next; top 25 pages | 2 |
+| Keyword Research | Keyword Report: [keyword] | 5 tiles; 12-month trend; variations; questions; clusters; Google top 10 with AI Overview sources. Bulk runs get a table | 3 |
+| Domain Research | Domain Report: [domain] | 5 tiles; top 50 keywords; top 20 pages; top 10 competitors | 3 |
+| Competitive Analysis | Keyword Gap: [you] vs [them] | Overlap counts; AI rivals; top 50 opportunities; top 25 where each side leads | 3 |
+
+Zippie has no PDF.
+
+### 32.4 Reports
+- **Downloads tab:** every file, with its report, brand, dates, design and when it was made. Download again or delete (editors). Files are kept for a year.
+- **Schedules tab (phase 4):**
+  - Brand, pages, design, weekly or monthly, the time and time zone, and the email addresses.
+  - One email per send, with a PDF for each page attached.
+  - Send history and pause.
+  - `report_sends` holds one row per schedule per due time, so nothing sends twice.
+  - Schedules per plan: Free 0, Starter 2, Pro 10, Agency unlimited.
+  - Research pages are download-only.
+
+### 32.5 Data
+`supabase/046_report_files.sql`: `report_files`, `report_schedules` and `report_sends`.
+
+### 32.6 Running cost
+
+| Item | Beta (50 teams) | Growth (500 teams) |
+|---|---|---|
+| PDF worker on Fly: about 1,000 / 10,000 PDFs a month at ~10 s each. Beta fits the current 1 GB machine; Growth needs a second one | $0 | +$9.40 (check) |
+| Email: Resend Pro, ≈2,000 / 20,000 scheduled emails a month (phase 4) | $20 (check) | $20 (check) |
+| PDF storage: ≈0.3 / 3 GB a month, kept a year, inside Supabase Pro's 100 GB | $0 (check) | $0 (check) |
+| Claude tokens: none, since PDFs use no AI | $0 | $0 |
+| **Monthly total** | **≈ $20** | **≈ $30** |
