@@ -2,20 +2,22 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { getGuideline, listBrands, siteForBrand } from "@/lib/db";
+import { cleanKit } from "@/lib/brandKit";
+import { applyChat, type ChatChanges } from "@/lib/reportChat";
 import { BLOCKS, moveBlock, parseDoc, toggleBlock, type ReportDocument } from "@/lib/reportDoc";
 import { parseRange, type ReportRange, type Resolved } from "@/lib/reportRange";
 import { fontsUrl, themeOf } from "@/lib/reportTheme";
-import type { ReportSnapshot } from "@/lib/reportTypes";
+import type { ReportSnapshot, ReportStyle } from "@/lib/reportTypes";
 import type { RunAuth } from "@/lib/runner";
-import type { BrandGuideline } from "@/lib/writerTypes";
+import { KitPanel, styleFromKit } from "../BrandKit";
 import { AiIcon, Seg, Thinking } from "../ui";
 import { Modal } from "./Dialog";
 import { RangePicker } from "./RangePicker";
 import { ReportDoc, reportCss } from "./ReportDoc";
 import { ago, errText, post } from "./reportApi";
 import { ShareReport } from "./ShareReport";
-import { AgentPanel, LabelPanel, useReportStyle } from "./StylePanel";
+import { ReportChat } from "./ReportChat";
+import { LabelPanel, useReportStyle } from "./StylePanel";
 import { REPORT_COLS, type Library, type SavedReport } from "./types";
 
 type Built = { snapshot: ReportSnapshot; range: Resolved };
@@ -31,12 +33,11 @@ export function ClientEditor({ sb, auth, lib, report, canEdit, onBack, onSaved }
   const [built, setBuilt] = useState<Built | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<"saved" | "saving" | "failed">("saved");
-  const [panel, setPanel] = useState<"blocks" | "agent" | "label">("blocks");
+  const [panel, setPanel] = useState<"chat" | "blocks" | "kit" | "label">(canEdit ? "chat" : "blocks");
   const [dialog, setDialog] = useState<"share" | "history" | null>(null);
   const [pdf, setPdf] = useState<{ state: "working" | "stalled" | "failed"; error?: string } | null>(null);
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const [guideline, setGuideline] = useState<BrandGuideline | null>(null);
   const { style, setStyle, website, setWebsite, error: styleError } = useReportStyle(sb, auth.workspaceId, canEdit);
   const brand = lib.brands.find((b) => b.id === report.brand_id) ?? { id: report.brand_id, name: "", domain: "", logo: null };
 
@@ -102,6 +103,8 @@ export function ClientEditor({ sb, auth, lib, report, canEdit, onBack, onSaved }
   }, [save]);
 
   const change = (patch: Partial<State>) => {
+    // Kept in step at once, so a save or summary right after a change sees it.
+    latest.current = { ...latest.current, ...patch };
     setState((s) => ({ ...s, ...patch }));
     if (!canEdit) return;
     setSaving("saving");
@@ -137,21 +140,6 @@ export function ClientEditor({ sb, auth, lib, report, canEdit, onBack, onSaved }
     };
   }, [need, report.id]);
 
-  // The brand guideline helps the design agent. Loaded the first time the agent opens.
-  useEffect(() => {
-    if (panel !== "agent" || guideline) return;
-    let live = true;
-    (async () => {
-      const full = (await listBrands(sb, auth.workspaceId).catch(() => [])).find((b) => b.id === report.brand_id);
-      const site = full ? await siteForBrand(sb, full, canEdit).catch(() => null) : null;
-      const g = site ? await getGuideline(sb, site.id).catch(() => null) : null;
-      if (live && g) setGuideline(g);
-    })();
-    return () => {
-      live = false;
-    };
-  }, [panel, guideline, sb, auth.workspaceId, report.brand_id, canEdit]);
-
   async function writeSummary() {
     setBusy("summary");
     setError("");
@@ -169,6 +157,29 @@ export function ClientEditor({ sb, auth, lib, report, canEdit, onBack, onSaved }
     } finally {
       setBusy("");
     }
+  }
+
+  // Zippie's changes from the chat: blocks, dates and name on the report; title, look and Brand Kit on the style.
+  async function applyChanges(c: ChatChanges) {
+    const next = applyChat(latest.current.doc, latest.current.range, c);
+    const patch: Partial<State> = {};
+    if (c.blocks) patch.doc = next.doc;
+    if (c.range) patch.range = next.range;
+    if (c.name) patch.name = c.name;
+    if (c.writeSummary && !(patch.doc ?? latest.current.doc).blocks.some((b) => b.id === "summary" && b.on)) {
+      const doc = patch.doc ?? latest.current.doc;
+      patch.doc = { ...doc, blocks: [{ id: "summary", on: true }, ...doc.blocks.filter((b) => b.id !== "summary")] };
+    }
+    if (Object.keys(patch).length) change(patch);
+    const look: Partial<ReportStyle> = {};
+    if (c.title) look.title = c.title;
+    if (c.theme) Object.assign(look, { theme: c.theme, color: c.theme.accent });
+    if (c.useBrandKit) {
+      const { data } = await sb.from("brand_kits").select("kit").eq("workspace_id", auth.workspaceId).eq("key", "workspace").maybeSingle();
+      if (data) Object.assign(look, styleFromKit(cleanKit(data.kit)));
+    }
+    if (Object.keys(look).length) setStyle(look);
+    if (c.writeSummary) await writeSummary();
   }
 
   async function makePdf() {
@@ -257,19 +268,33 @@ export function ClientEditor({ sb, auth, lib, report, canEdit, onBack, onSaved }
         </p>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[340px_minmax(0,1fr)]">
+      <div className="grid gap-6 xl:grid-cols-[380px_minmax(0,1fr)]">
         <aside className="flex flex-col gap-4 self-start print:hidden xl:sticky xl:top-20 xl:max-h-[calc(100vh-100px)] xl:overflow-y-auto xl:pb-4">
           <Seg
             label="Report settings"
             value={panel}
             onChange={setPanel}
             options={[
+              ...(canEdit ? [{ id: "chat" as const, label: "Zippie" }] : []),
               { id: "blocks", label: "Blocks" },
-              { id: "agent", label: "Agent" },
+              { id: "kit", label: "Brand Kit" },
               { id: "label", label: "White label" },
             ]}
           />
-          {panel === "blocks" ? (
+          {panel === "chat" ? (
+            <ReportChat
+              auth={auth}
+              reportId={report.id}
+              brand={brand.name}
+              doc={state.doc}
+              range={state.range}
+              name={state.name}
+              title={style.title ?? ""}
+              theme={themeOf(style)}
+              canEdit={canEdit}
+              onChanges={applyChanges}
+            />
+          ) : panel === "blocks" ? (
             <section className="aw-frame flex flex-col p-2">
               {state.doc.blocks.map((b, i) => {
                 const meta = BLOCKS.find((x) => x.id === b.id)!;
@@ -301,8 +326,8 @@ export function ClientEditor({ sb, auth, lib, report, canEdit, onBack, onSaved }
                 </button>
               ) : null}
             </section>
-          ) : panel === "agent" ? (
-            <AgentPanel auth={auth} brand={brand} guideline={guideline} style={style} setStyle={setStyle} canEdit={canEdit} />
+          ) : panel === "kit" ? (
+            <KitPanel sb={sb} auth={auth} brand={{ id: brand.id, name: brand.name, domain: brand.domain }} canEdit={canEdit} clientKits={lib.limits.whiteLabel} onUse={(k) => setStyle(k)} />
           ) : (
             <LabelPanel auth={auth} style={style} setStyle={setStyle} website={website} setWebsite={setWebsite} canEdit={canEdit} whiteLabel={lib.limits.whiteLabel} />
           )}
