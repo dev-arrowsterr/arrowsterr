@@ -12,6 +12,7 @@ import { enqueue, enqueueMany, finish, rateOk, retry, type Job } from "../jobs";
 import { afterDaily, dispatch } from "../integrations";
 import { emailJob } from "../notify";
 import { articleResearchJob } from "../articleResearchServer";
+import { writerBriefJob, writerDraftJob } from "../writerServer";
 import { runAudit } from "../audit";
 import { listenDaily } from "../listen";
 import { applySet, preparePlay, undoSet } from "../plays";
@@ -266,3 +267,7 @@ export async function apply(db: SupabaseClient, job: Job) {
 // ─────────────── article research: steps 1 to 3 of an article (docs/content-v2.md) ───────────────
 // Search results and AI answers here; the Fly worker reads the pages. The job waits until 5 or more are read.
 export const article_research = articleResearchJob;
+
+// ─────────────── Agentic Writer: the brief and the draft (supabase/050_agentic_writer.sql) ───────────────
+export const writer_brief = writerBriefJob;
+export const writer_draft = writerDraftJob;
