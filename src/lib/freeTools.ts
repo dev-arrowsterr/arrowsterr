@@ -90,7 +90,10 @@ export async function freeRun<T>(request: Request, body: Record<string, unknown>
     // A failed run doesn't use up the visitor's runs.
     if (row) await db.from("free_runs").delete().eq("id", row.id);
     // Errors about the visitor's own input (a site that didn't answer, a page that isn't HTML) are shown as they are.
-    if ((e as { visitor?: boolean }).visitor) return reply(request, { error: message }, 422);
+    if ((e as { visitor?: boolean }).visitor) {
+      console.warn(`Free tool ${tool} refused ${key}:`, message);
+      return reply(request, { error: message }, 422);
+    }
     console.error(`Free tool ${tool} failed:`, message);
     return reply(request, { error: "Something went wrong. Please try again in a minute." }, 500);
   }

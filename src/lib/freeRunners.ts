@@ -207,7 +207,7 @@ export async function authority(domain: string) {
   const pr = opr && opr.status_code === 200 && opr.page_rank_decimal !== null && opr.page_rank_decimal !== undefined ? Number(opr.page_rank_decimal) : null;
   const ranks = (tranco?.ranks ?? []).filter((x) => typeof x.rank === "number").sort((a, b) => a.date.localeCompare(b.date));
   const latest = ranks.at(-1) ?? null;
-  if (pr === null && !latest && !key) throw new Error("Authority data isn't set up (OPR_API_KEY), and Tranco has no rank for this domain.");
+  if (!key) console.warn("Free tool authority: OPR_API_KEY is not set, so only the Tranco rank is shown.");
   return {
     result: {
       domain,
@@ -231,7 +231,10 @@ export async function speed(url: string, strategy: "mobile" | "desktop") {
   const res = await fetch(`https://www.googleapis.com/pagespeedonline/v5/runPagespeed?${q}`, { signal: AbortSignal.timeout(70_000) });
   const data = (await res.json().catch(() => ({}))) as Parameters<typeof speedSummary>[0] & { error?: { message?: string } };
   if (!res.ok) {
-    if (res.status === 429) throw new Error("Google's speed test is busy. Try again in a minute.");
+    if (res.status === 429) {
+      if (!key) console.error("Free tool speed: Google refuses calls without PAGESPEED_API_KEY.");
+      throw bad("Google's speed test is busy. Try again in a minute.");
+    }
     throw bad(data.error?.message?.replace(/^Lighthouse returned error: /, "") ? "Google couldn't test that page. Check that it loads in a browser." : `Google's speed test answered ${res.status}.`);
   }
   return { result: { url: first.url, strategy, ...speedSummary(data) }, cost: 0 };
